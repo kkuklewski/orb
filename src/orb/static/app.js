@@ -580,14 +580,32 @@ const Onb = {
       card.append(row(btn("Test microphone", (e) => this.testMic(e.currentTarget)), btn("Hear her", () => this.say("Hi, I'm Orb. Pick a repo and just talk."))));
       foot("Continue", true);
     } else {
-      head("STEP 04", "You stay in control", null);
-      const points = [["Every change asks first", "A card with Allow / Deny, which you can also answer by voice (on headphones)."],
-        ["One repo per conversation", "Other repos need your OK; secrets are never readable."],
-        ["Your subscription, no API keys", "Orb refuses API keys and runs on your Claude plan."],
-        ["Only on this Mac", "The page listens on 127.0.0.1 and needs its private link."]];
-      const grid = el("div", "onb-grid");
-      for (const [t, d] of points) { const c = el("div", "onb-tile"); c.append(el("strong", null, t), el("span", null, d)); grid.append(c); }
-      card.append(grid);
+      head("STEP 04", "Nothing changes without you.", "Four rules Orb keeps, whatever you ask it.");
+      // One ruled sheet, cells split by hairlines; each rule with a small, concrete proof.
+      const plan = ev.auth?.subscription ? ev.auth.subscription[0].toUpperCase() + ev.auth.subscription.slice(1) : "Pro / Max";
+      const cell = (n, label, rule, text, proof) => {
+        const c = el("div", "onb-spec-cell");
+        const top = el("p", "mono onb-spec-label"); top.append(el("span", "onb-spec-sq"), `${n} · ${label}`);
+        c.append(top, el("h3", "onb-spec-rule", rule), el("p", "onb-spec-text", text), proof);
+        return c;
+      };
+      const lines = (rows) => { const p = el("div", "mono onb-spec-proof"); p.setAttribute("aria-hidden", "true");
+        for (const [k, v, cls] of rows) { const r = el("div", "onb-spec-row"); r.append(el("span", null, k), el("span", cls || null, v)); p.append(r); } return p; };
+      const mini = el("div", "onb-spec-proof onb-spec-mini"); mini.setAttribute("aria-hidden", "true");
+      const mh = el("div", "mono onb-spec-minihead"); mh.append(el("span", "onb-spec-sq"), "NEEDS YOUR OK");
+      const mb = el("div", "onb-spec-minibody"); mb.append(el("code", null, "Edit tests/setup.ts"), el("span", "onb-spec-btn", "Deny"), el("span", "onb-spec-btn solid", "Allow"));
+      mini.append(mh, mb);
+      const sheet = el("div", "onb-spec");
+      sheet.append(
+        cell("01", "APPROVALS", "Every change asks first.", "Allow or Deny on a card, or answer yes / no by voice on headphones.", mini),
+        cell("02", "SCOPE", "One repo per conversation.", "Other repos need your OK. Secret files are never readable.",
+          lines([["web/src/", "open"], ["../api/", "asks first", "warn"], [".env", "blocked", "bad"]])),
+        cell("03", "BILLING", "Your plan. No API keys.", "Runs on your Claude subscription through Claude Code; API keys are refused.",
+          lines([["plan", plan], ["apiKeySource", "none"]])),
+        cell("04", "LOCAL", "It stays on this Mac.", "The page only listens here and opens with its private link.",
+          lines([["listens on", "127.0.0.1"], ["access", "private link only"]])),
+      );
+      card.append(sheet);
       foot(S.features?.onboarded ? "Done" : "Start using Orb", this.ok(4), "Sign in and add a folder with a repo first");
     }
   },
