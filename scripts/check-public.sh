@@ -23,4 +23,11 @@ if [[ -n "$hits" ]]; then
   echo "$hits" >&2
   exit 1
 fi
+# Secret files never go in, whatever .gitignore says (run this after staging, before committing).
+envs=$(git ls-files | grep -E '(^|/)\.env($|\.)' | grep -vE '\.env\.example$' || true)
+if [[ -n "$envs" ]]; then
+  echo "Secret files are tracked or staged; unstage them (git restore --staged <file>):" >&2
+  echo "$envs" >&2
+  exit 1
+fi
 echo "check-public: clean"

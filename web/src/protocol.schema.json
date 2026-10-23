@@ -416,6 +416,7 @@
           "rescan": "#/$defs/RescanMsg",
           "routines": "#/$defs/RoutinesMsg",
           "routines_seen": "#/$defs/RoutinesSeenMsg",
+          "screen": "#/$defs/ScreenMsg",
           "set_mode": "#/$defs/SetModeMsg",
           "set_model": "#/$defs/SetModelMsg",
           "set_settings": "#/$defs/SetSettingsMsg",
@@ -500,6 +501,9 @@
         },
         {
           "$ref": "#/$defs/HomeMsg"
+        },
+        {
+          "$ref": "#/$defs/ScreenMsg"
         },
         {
           "$ref": "#/$defs/TaskDetailMsg"
@@ -2860,6 +2864,36 @@
       "title": "SaidEvent",
       "type": "object"
     },
+    "ScreenMsg": {
+      "additionalProperties": false,
+      "description": "What the page shows now, as plain text; name None = the chat itself (nothing rides along).",
+      "properties": {
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "text": {
+          "default": "",
+          "type": "string"
+        },
+        "type": {
+          "const": "screen",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "ScreenMsg",
+      "type": "object"
+    },
     "ServerEvent": {
       "discriminator": {
         "mapping": {
@@ -4971,6 +5005,17 @@
           "anyOf": [
             {
               "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "screen": {
+          "anyOf": [
+            {
+              "type": "string"
             },
             {
               "type": "null"

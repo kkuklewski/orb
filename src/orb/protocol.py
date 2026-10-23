@@ -401,6 +401,7 @@ class UserEvent(_Event):
     text: str
     source: str
     id: str | None = None
+    screen: str | None = None  # the page it was asked about (Home, Task…), if not the chat
 
 
 class TextStartEvent(_Event):
@@ -657,6 +658,13 @@ class HomeMsg(_Msg):
     type: Literal["home"]
 
 
+class ScreenMsg(_Msg):
+    """What the page shows now, as plain text; name None = the chat itself (nothing rides along)."""
+    type: Literal["screen"]
+    name: str | None = None
+    text: str = ""
+
+
 class TaskDetailMsg(_Msg):
     type: Literal["task_detail"]
     file: str
@@ -734,7 +742,7 @@ ClientMessage = Annotated[Union[
     SetupStatusMsg, BrowseMsg, PickFolderMsg, OpenFolderMsg, AddFolderMsg, StartSessionMsg, PinFolderMsg,
     GetSettingsMsg, SetSettingsMsg, VoiceSampleMsg, RescanMsg, RoutinesMsg, RoutinesSeenMsg, MuteMsg,
     NewSessionMsg, UserTextMsg, SpeechStartMsg, BargeInMsg, SpeechCancelledMsg, UtteranceMsg, VoiceTextMsg,
-    HomeMsg, TaskDetailMsg, TaskActionMsg, InterruptMsg, PlaybackMsg, PermissionMsg, ReadAllMsg, DictateNoteMsg, UndoRequestMsg, UndoConfirmMsg,
+    HomeMsg, ScreenMsg, TaskDetailMsg, TaskActionMsg, InterruptMsg, PlaybackMsg, PermissionMsg, ReadAllMsg, DictateNoteMsg, UndoRequestMsg, UndoConfirmMsg,
     McpStatusMsg, McpReconnectMsg, SetModeMsg, SetModelMsg,
 ], Field(discriminator="type")]
 

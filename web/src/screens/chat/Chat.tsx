@@ -70,6 +70,7 @@ function ItemView({ it, last }: { it: Item; last: boolean }) {
       return (
         <div className="msg-user">
           {it.source === "voice" && <span className="via">voice</span>}
+          {it.screen && <span className="via" title="What that screen showed was sent with this message">about {it.screen}</span>}
           <div className="bubble">{it.text}</div>
         </div>
       );

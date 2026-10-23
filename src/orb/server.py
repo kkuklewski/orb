@@ -19,7 +19,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTex
 from fastapi.staticfiles import StaticFiles
 
 from . import billing, chain, config, folders, home, routines, settings, setup, slash, speech, tasks, vendor, vocab
-from .agent import FolderSession, dumps, first_request
+from .agent import SCREEN_MAX, FolderSession, dumps, first_request
 from .brain import CaptureGuard
 from .sessions import SessionStore
 
@@ -569,6 +569,10 @@ async def handle(conn: Conn, msg: dict) -> None:
         await open_session(conn, conn.folder, hub.store.new_session(conn.folder))
         return
     s = hub.session(conn.folder, conn.key)
+    if t == "screen":
+        name, text = msg.get("name"), str(msg.get("text") or "")[:SCREEN_MAX]
+        s.screen = (str(name)[:40], text) if name and text.strip() else None
+        return
     if t == "user_text":
         text = (msg.get("text") or "").strip()
         if (cmd := slash.local_command(text)) is not None:

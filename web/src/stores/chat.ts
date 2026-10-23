@@ -18,7 +18,7 @@ export type Part =
   | { kind: "task"; task: TaskInfo };
 export interface Answer { kind: "answer"; key: number; userId: string | null; parts: Part[]; done: boolean; undoFiles: string[] | null; undone: boolean; timing: string | null }
 export type Item =
-  | { kind: "user"; key: number; id: string | null; text: string; source: string }
+  | { kind: "user"; key: number; id: string | null; text: string; source: string; screen: string | null }
   | Answer
   | { kind: "notice"; key: number; text: string; level: "ok" | "warn" | "error" | null }
   | { kind: "end"; key: number; text: string };
@@ -131,7 +131,7 @@ export function reduce(state: ChatState, ev: ServerEvent): ChatState {
     }
     case "user":
       finish(s);
-      s.items.push({ kind: "user", key: s.seq++, id: ev.id ?? null, text: ev.text, source: ev.source });
+      s.items.push({ kind: "user", key: s.seq++, id: ev.id ?? null, text: ev.text, source: ev.source, screen: ev.screen ?? null });
       s.lastUser = ev.id ?? null;
       return s;
     case "text_start":

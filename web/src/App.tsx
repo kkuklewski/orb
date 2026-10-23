@@ -17,6 +17,7 @@ import { TaskScreen, TaskToast } from "./screens/Task";
 import { wireTasks } from "./stores/tasks";
 import { wireHome } from "./stores/home";
 import { wireRoute } from "./stores/route";
+import { wireScreen } from "./stores/screen";
 import { McpPanel, TopBar } from "./screens/TopBar";
 import { DockState, VoicePill } from "./screens/Voice";
 import { wireMeta } from "./stores/meta";
@@ -38,7 +39,7 @@ export { openSetup };
 
 export function App() {
   useEffect(() => {
-    const offs = [wireFeatures(), wireSetup(), wireViews(), wireSession(), wireChat(), wireMeta(), wireVoice(), wireHome(), wireTasks(), wireRoute()];
+    const offs = [wireFeatures(), wireSetup(), wireViews(), wireSession(), wireChat(), wireMeta(), wireVoice(), wireHome(), wireTasks(), wireRoute(), wireScreen()];
     const stop = start();
     return () => { stop(); offs.forEach((off) => off()); };
   }, []);

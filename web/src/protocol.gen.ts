@@ -27,6 +27,7 @@ export type ClientMessage =
   | UtteranceMsg
   | VoiceTextMsg
   | HomeMsg
+  | ScreenMsg
   | TaskDetailMsg
   | TaskActionMsg
   | InterruptMsg
@@ -267,6 +268,17 @@ export interface VoiceTextMsg {
  */
 export interface HomeMsg {
   type: "home";
+}
+/**
+ * What the page shows now, as plain text; name None = the chat itself (nothing rides along).
+ *
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "ScreenMsg".
+ */
+export interface ScreenMsg {
+  name?: string | null;
+  text?: string;
+  type: "screen";
 }
 /**
  * This interface was referenced by `OrbProtocol`'s JSON-Schema
@@ -996,6 +1008,7 @@ export interface UserEvent {
   folder?: string | null;
   id?: string | null;
   replay?: boolean | null;
+  screen?: string | null;
   session?: string | null;
   source: string;
   text: string;
