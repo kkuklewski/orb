@@ -103,9 +103,6 @@
         <div id="routines-list"></div>
       </div>
     </section>
-    <section class="view" id="setup-view" hidden>
-      <div class="view-col" id="setup-body"></div>
-    </section>
     <section class="view" id="settings-view" hidden>
       <div class="view-col" id="settings-body"></div>
     </section>
@@ -146,6 +143,19 @@
       <button class="chip-btn" type="submit">Use folder</button>
     </form>
   </div>
+</div>
+<!-- Setup assistant (first run, and Settings → Setup): full screen, around its own orb. -->
+<div class="onb" id="onboarding" role="dialog" aria-modal="true" aria-labelledby="onb-title" hidden>
+  <div class="onb-rings" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+  <header class="onb-top">
+    <span class="onb-brand">Orb</span>
+    <span class="mono onb-plan" id="onb-plan"></span>
+    <button class="onb-close" id="onb-close" type="button" aria-label="Close setup" hidden>×</button>
+  </header>
+  <nav class="onb-rail" id="onb-rail" aria-label="Setup steps"></nav>
+  <div class="onb-orb" aria-hidden="true"><canvas id="onb-orb"></canvas></div>
+  <section class="onb-card" id="onb-card" aria-live="polite"></section>
+  <footer class="onb-meter mono" aria-hidden="true"><span id="onb-stage">WELCOME</span><span class="onb-bar"><i id="onb-bar"></i></span></footer>
 </div>
 <script src="/static/orb.js?v=__BUILD__"></script>
 <script src="/static/app.js?v=__BUILD__"></script>

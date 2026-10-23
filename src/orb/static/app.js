@@ -69,15 +69,15 @@ function onEvent(ev) {
     case "hello":
       if (ev.build && ev.build !== document.querySelector('meta[name="build"]').content) { location.reload(); return; }
       renderServices(ev.services); S.folders = ev.folders; applyFeatures(ev); renderSidebar(); if (ev.rate_limit) renderUsage(ev.rate_limit);
-      if (!ev.onboarded) { showView("setup"); break; }
+      if (!ev.onboarded) { Onb.open(0); break; }
       { const last = store.get("vd-folder", ""); if (last && S.folders.some((f) => f.path === last)) openFolder(last, store.get("vd-session", "") || undefined); else if (!S.folder) openPicker("new"); }
       break;
     case "folders": S.folders = ev.items; renderSidebar(); break;
     case "routines": S.routines = ev; renderRoutinesBadge(); if (S.view === "routines") renderRoutines(); break;
     case "settings": renderSettings(ev); break;
-    case "setup_status": renderSetup(ev); break;
+    case "setup_status": Onb.update(ev); break;
     case "features": { const was = S.features?.onboarded; applyFeatures(ev); renderSidebar();
-      if (!ev.onboarded && S.view !== "setup") showView("setup"); else if (ev.onboarded && !was && S.view === "setup") { showView("chat"); if (!S.folder) openPicker("new"); } break; }
+      if (!ev.onboarded && !Onb.isOpen) Onb.open(0); else if (ev.onboarded && !was && Onb.isOpen) Onb.finish(); else if (Onb.isOpen) $("#onb-close").hidden = !ev.onboarded; break; }
     case "voice_sample": Player.stop(); Player.reset(Player.gen); Player.enqueue({ ...ev, gen: Player.gen }); break;
     case "opened": onOpened(ev); break;
     case "history":
@@ -256,7 +256,6 @@ function showView(v) {
   S.view = v;
   $("#chat").hidden = v !== "chat"; $(".dock").hidden = v !== "chat";
   $("#activity-view").hidden = v !== "activity"; $("#settings-view").hidden = v !== "settings";
-  $("#setup-view").hidden = v !== "setup";
   $("#routines-view").hidden = v !== "routines";
   $("#nav-activity").classList.toggle("active", v === "activity");
   $("#nav-routines").classList.toggle("active", v === "routines");
@@ -265,7 +264,6 @@ function showView(v) {
   if (v === "activity") renderActivity();
   if (v === "routines") openRoutines();
   if (v === "settings") send({ type: "get_settings" });
-  if (v === "setup") send({ type: "setup_status" });
   renderSidebar();
 }
 function renderActivity() {
@@ -385,7 +383,7 @@ function renderSettings(ev) {
   th.lastChild.append(seg("Theme", [["dark", "Dark"], ["light", "Light"]], document.documentElement.dataset.theme, (t) => { store.set("vd-theme", t); applyTheme(t); }));
   // Setup
   const su = section("Setup", "Folders Orb may open, sign-in and speech engines.");
-  const again = el("button", "chip-btn", "Open setup"); again.onclick = () => showView("setup"); su.append(again);
+  const again = el("button", "chip-btn", "Open setup"); again.onclick = () => Onb.open(2); su.append(again);
   // Access
   const ac = section("Access", "The page only listens on this Mac. The link carries its access token; keep it private.");
   const link = `http://${ev.host}:${ev.port}/#t=${TOKEN}`;
@@ -404,92 +402,180 @@ function applyFeatures(f) {
 }
 const BROWSER_STT = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
 const BROWSER_TTS = "speechSynthesis" in window;
-// First run (and Settings → Run setup again): sign-in, folders, voice, safety. Orb never sees the
-// Claude login itself: the user signs in with `claude auth login`, and this only shows the result.
-function renderSetup(ev) {
-  const body = $("#setup-body"); body.replaceChildren();
-  const head = el("div", "view-head"); head.append(el("h2", null, "Set up Orb"), el("span", "mono view-sub", "four steps, all on this Mac"));
-  body.append(head);
-  const step = (n, title, ok, hint) => {
-    const sct = el("section", "set setup-step" + (ok ? " ok" : ""));
-    const h = el("h3"); h.append(el("span", "step-n mono", ok ? "✓" : String(n)), title); sct.append(h);
-    if (hint) sct.append(el("p", "set-hint", hint));
-    body.append(sct); return sct;
-  };
-  const row = (...kids) => { const r = el("div", "set-row"); r.append(...kids); return r; };
-  const btn = (label, fn, cls = "chip-btn") => { const b = el("button", cls, label); b.onclick = fn; return b; };
-  const recheck = () => send({ type: "setup_status" });
-
-  // 1. Sign in (Anthropic's own flow; nothing to type here)
-  const a = ev.auth || {};
-  const signed = a.loggedIn && a.subscriptionLogin;
-  const s1 = step(1, "Sign in to Claude", signed, signed
-    ? `Signed in with your Claude ${a.subscription ? a.subscription[0].toUpperCase() + a.subscription.slice(1) + " " : ""}plan. Orb uses that plan through Claude Code and never sees your login.`
-    : !a.installed ? "Claude Code isn't installed here. Reinstall Orb, or install Claude Code, then check again."
-      : a.loggedIn ? "Claude Code is signed in with a Console account or API key. Orb runs on a Claude subscription (Pro or Max): sign in with your Claude account instead."
-        : "Orb runs Claude Code with your own Claude subscription (Pro or Max). Open Terminal, run this, and sign in in the browser window it opens:");
-  if (!signed) {
-    const cmd = ev.login_cmd || "claude auth login";
-    s1.append(row(el("code", "set-code", cmd), btn("Copy", (e) => copyText(cmd, e.currentTarget)), btn("Check again", recheck)));
-    if (a.error) s1.append(el("p", "set-hint", a.error));
-  }
-
-  // 2. Folders Orb may open
-  const roots = ev.roots || [];
-  const s2 = step(2, "Choose the folders Orb may open", roots.some((r) => r.repos.length),
-    "Orb lists the git repos inside these folders, and a conversation stays in its repo (other repos need your OK on a card). Pick the folder that holds your projects, not your whole home folder.");
-  for (const r of roots) {
-    const line = el("div", "setup-root");
-    line.append(el("code", "set-code", r.path.replace(ev.home, "~")),
-      el("span", "set-hint", r.exists ? `${r.repos.length} repo${r.repos.length === 1 ? "" : "s"}${r.repos.length ? ": " + r.repos.slice(0, 4).join(", ") + (r.repos.length > 4 ? ", …" : "") : ""}` : "missing"),
-      btn("Remove", () => send({ type: "set_settings", values: { roots: roots.map((x) => x.path).filter((p) => p !== r.path) } })));
-    s2.append(line);
-  }
-  const addRoot = (p) => send({ type: "set_settings", values: { roots: [...roots.map((x) => x.path), p] } });
-  for (const sug of ev.suggested || []) s2.append(row(btn(`Add ${sug.path.replace(ev.home, "~")}`, () => addRoot(sug.path)), el("span", "set-hint", `${sug.repos} repos`)));
-  const input = el("input", "set-input"); input.placeholder = `${ev.home}/code`; input.setAttribute("aria-label", "Folder path");
-  const add = () => { const v = input.value.trim().replace(/^~(?=\/|$)/, ev.home); if (!v) return;
-    if (v === ev.home && !confirm("Give Orb your whole home folder? It would list every repo in it.")) return; addRoot(v); };
-  input.onkeydown = (e) => { if (e.key === "Enter") add(); };
-  s2.append(row(input, btn("Add folder", add)));
-  s2.append(el("p", "set-hint", "Always blocked, whatever you choose: secrets/ folders, .env files, keys and credentials, ~/.ssh and ~/.aws."));
-
-  // 3. Voice
-  const v = ev.values || {}, sp = ev.speech || {};
-  const s3 = step(3, "Voice", BROWSER_STT || sp.parakeet || sp.whisper,
-    "Browser speech works right away. Chrome sends your voice to Google to transcribe it; Safari can do it on this Mac. For fully local speech, install VoiceMode's Whisper and Kokoro (and optionally Parakeet) and pick them here.");
-  const seg = (label, options, value, key) => {
-    const g = el("div", "seg"); g.setAttribute("role", "radiogroup"); g.setAttribute("aria-label", label);
-    for (const [val, text, ok] of options) {
-      const b = el("button", "seg-btn" + (val === value ? " on" : ""), text); b.disabled = !ok;
-      b.setAttribute("role", "radio"); b.setAttribute("aria-checked", String(val === value));
-      if (!ok) b.title = "Not available on this Mac yet";
-      b.onclick = () => send({ type: "set_settings", values: { [key]: val } });
-      g.append(b);
-    }
-    return g;
-  };
-  s3.append(row(el("span", "set-label", "Hearing you"), seg("Speech recognition", [["browser", "Browser", BROWSER_STT], ["parakeet", "Parakeet (local)", sp.parakeet], ["whisper", "Whisper (local)", sp.whisper]], v.stt, "stt")));
-  s3.append(row(el("span", "set-label", "Her voice"), seg("Voice", [["browser", "Browser", BROWSER_TTS], ["kokoro", "Kokoro (local)", sp.kokoro]], v.tts, "tts")));
-  const mic = btn("Test microphone", async (e) => {
-    const b = e.currentTarget;
-    try { const st = await navigator.mediaDevices.getUserMedia({ audio: true }); st.getTracks().forEach((t) => t.stop()); b.textContent = "✓ Microphone works"; }
-    catch (err) { b.textContent = `Microphone blocked (${err.name})`; }
-  });
-  const hear = btn("Hear her", () => {
-    if (v.tts === "browser") { speechSynthesis.cancel(); speechSynthesis.speak(new SpeechSynthesisUtterance("Hi, this is how I sound.")); }
+// First run (and Settings → Setup): a full-screen setup assistant around the orb. Five screens:
+// welcome, then four steps on the rail (sign in, folders, voice, control). Orb never sees the
+// Claude login itself: the user signs in with Claude Code's own command; this only shows the result.
+const Onb = {
+  step: 0, ev: null, orb: null, mic: null, analyser: null, wave: new Float32Array(1024),
+  RAIL: ["Sign in", "Folders", "Voice", "Control"],
+  get isOpen() { return !$("#onboarding").hidden; },
+  open(step) {
+    $("#onboarding").hidden = false; document.body.classList.add("onb-open");
+    if (!this.orb) { this.orb = new Orb($("#onb-orb")); this.orb.source = () => this.level(); }
+    this.orb.refreshPalette();
+    if (step !== undefined) this.step = step;
+    $("#onb-close").hidden = !S.features?.onboarded;
+    this.render(true);
+    send({ type: "setup_status" });
+  },
+  close() { this.stopMic(); $("#onboarding").hidden = true; document.body.classList.remove("onb-open"); },
+  update(ev) { this.ev = ev; if (this.isOpen) this.render(false); },
+  go(n) { this.stopMic(); this.step = Math.max(0, Math.min(4, n)); this.render(true); },
+  signed() { const a = this.ev?.auth; return !!(a && a.loggedIn && a.subscriptionLogin); },
+  hasRepos() { return (this.ev?.roots || []).some((r) => r.repos.length); },
+  ok(n) { return n === 1 ? this.signed() : n === 2 ? this.hasRepos() : n === 4 ? this.signed() && this.hasRepos() : true; },
+  level() {
+    if (!this.analyser) return { level: 0, wave: null };
+    this.analyser.getFloatTimeDomainData(this.wave);
+    let s = 0; for (const x of this.wave) s += x * x;
+    return { level: Math.sqrt(s / this.wave.length), wave: this.wave };
+  },
+  async testMic(btn) {
+    try {
+      const ctx = Player.unlock();
+      this.mic = await navigator.mediaDevices.getUserMedia({ audio: true });
+      this.analyser = ctx.createAnalyser(); this.analyser.fftSize = 2048;
+      ctx.createMediaStreamSource(this.mic).connect(this.analyser);
+      this.orb.setState("listening"); btn.textContent = "Listening… say something"; btn.classList.add("on");
+      setTimeout(() => { this.stopMic(); btn.textContent = "✓ Microphone works"; btn.classList.remove("on"); }, 4000);
+    } catch (err) { btn.textContent = `Microphone blocked (${err.name})`; }
+  },
+  stopMic() { this.mic?.getTracks().forEach((t) => t.stop()); this.mic = null; this.analyser = null; this.orb?.setState("idle"); },
+  say(text) {
+    if (this.ev?.values?.tts === "browser") { speechSynthesis.cancel(); speechSynthesis.speak(new SpeechSynthesisUtterance(text)); }
     else { Player.unlock(); send({ type: "voice_sample" }); }
-  });
-  s3.append(row(mic, hear));
+    this.orb.setState("speaking"); setTimeout(() => this.orb.setState("idle"), 1800);
+  },
+  key(e) {
+    const typing = e.target.closest?.("textarea, input");
+    if (e.key === "Escape" && S.features?.onboarded) { e.preventDefault(); this.close(); }
+    else if (e.key === "Enter" && !typing && !e.target.closest?.("button") && this.ok(this.step)) { e.preventDefault(); this.next(); }
+  },
+  next() {
+    if (this.step < 4) { this.go(this.step + 1); return; }
+    if (S.features?.onboarded) { this.close(); return; } // reopened from Settings
+    send({ type: "set_settings", values: { onboarded: true } }); // the server answers with "features" → finish()
+  },
+  placeRings() { // centre the ring layer on the orb, wherever the layout put it
+    requestAnimationFrame(() => {
+      const r = $("#onb-orb").getBoundingClientRect(), o = $("#onboarding");
+      o.style.setProperty("--cx", `${r.left + r.width / 2}px`); o.style.setProperty("--cy", `${r.top + r.height / 2}px`);
+    });
+  },
+  finish() { this.close(); showView("chat"); if (!S.folder) openPicker("new"); },
 
-  // 4. Safety, then start
-  const s4 = step(4, "How Orb keeps you in control", false,
-    "Every tool that changes something asks first: a card with Allow / Deny, which you can also answer by voice. A conversation stays in its own repo. API keys are refused: Orb only runs on your Claude subscription. Everything runs on this Mac; the page only listens here and needs its private link.");
-  const ready = signed && roots.some((r) => r.repos.length);
-  const go = btn(v.onboarded ? "Done" : "Start using Orb", () => send({ type: "set_settings", values: { onboarded: true } }), "chip-btn primary");
-  go.disabled = !ready; if (!ready) go.title = "Sign in and add a folder with at least one repo first";
-  s4.append(row(go));
-}
+  render(animate) {
+    const ev = this.ev || {}, n = this.step;
+    // rail + meter
+    const rail = $("#onb-rail"); rail.replaceChildren();
+    this.RAIL.forEach((name, i) => {
+      const k = i + 1, done = k < n || (k !== n && this.ok(k) && k < 4 && ev.auth);
+      const b = el("button", "onb-rail-item" + (k === n ? " on" : "") + (done && k !== n ? " done" : ""));
+      b.append(el("span", "mono onb-rail-n", String(k).padStart(2, "0")), el("span", null, name));
+      b.onclick = () => this.go(k); b.setAttribute("aria-current", k === n ? "step" : "false");
+      rail.append(b);
+    });
+    $("#onb-stage").textContent = n ? `STEP ${String(n).padStart(2, "0")} / 04` : "WELCOME";
+    $("#onb-bar").style.width = `${(n / 4) * 100}%`;
+    $("#onb-plan").textContent = ev.auth?.subscription ? `CLAUDE · ${ev.auth.subscription.toUpperCase()}` : "";
+
+    this.placeRings();
+    const card = $("#onb-card"); card.replaceChildren();
+    if (animate) { card.classList.remove("enter"); void card.offsetWidth; card.classList.add("enter"); }
+    const head = (kicker, title, text) => {
+      card.append(el("p", "mono onb-kicker", kicker));
+      const h = el("h2", "onb-title", title); h.id = "onb-title"; card.append(h);
+      if (text) card.append(el("p", "onb-text", text));
+    };
+    const row = (...kids) => { const r = el("div", "onb-row"); r.append(...kids); return r; };
+    const btn = (label, fn, cls = "onb-btn") => { const b = el("button", cls, label); b.type = "button"; b.onclick = fn; return b; };
+    const status = (good, text) => { const s = el("p", "onb-status" + (good ? " good" : "")); s.append(el("span", "onb-dot"), text); return s; };
+    const foot = (label, enabled, hint) => {
+      const f = el("div", "onb-foot");
+      if (n > 0) f.append(btn("Back", () => this.go(n - 1), "onb-btn ghost"));
+      const go = btn(label, () => this.next(), "onb-btn primary"); go.disabled = !enabled; if (!enabled && hint) go.title = hint;
+      f.append(el("span", "onb-spacer"), go);
+      card.append(f);
+      if (animate) requestAnimationFrame(() => (enabled ? go : card.querySelector("input, .onb-btn:not(.ghost)") || go).focus());
+    };
+
+    if (n === 0) {
+      head("ORB · POWERED BY CLAUDE", "Talk to your code.",
+        "Orb lets you talk to Claude about the repos on this Mac: ask, plan and change code by voice, and approve every change. Setup takes about a minute.");
+      card.append(el("ul", "onb-points"));
+      for (const t of ["Runs on your own Claude Pro or Max plan", "Only the folders you choose", "Every change asks you first"]) card.lastChild.append(el("li", null, t));
+      foot("Get started", true);
+    } else if (n === 1) {
+      const a = ev.auth || {};
+      head("STEP 01", "Sign in to Claude",
+        "Orb runs Claude Code with your own subscription. You sign in in Anthropic's own window; Orb never sees your login.");
+      if (!ev.auth) card.append(status(false, "Checking Claude Code…"));
+      else if (this.signed()) card.append(status(true, `Signed in · Claude ${a.subscription ? a.subscription[0].toUpperCase() + a.subscription.slice(1) : ""} plan`));
+      else {
+        card.append(status(false, !a.installed ? "Claude Code wasn't found." : a.loggedIn ? "Signed in with a Console account or API key. Orb needs a Claude Pro or Max account." : "Not signed in yet."));
+        const cmd = ev.login_cmd || "claude auth login";
+        card.append(el("p", "onb-text small", "Open Terminal, run this, sign in in the browser window it opens, then come back:"));
+        card.append(row(el("code", "onb-code", cmd), btn("Copy", (e) => copyText(cmd, e.currentTarget)), btn("Check again", () => send({ type: "setup_status" }))));
+      }
+      foot("Continue", this.signed(), "Sign in first");
+    } else if (n === 2) {
+      const roots = ev.roots || [];
+      head("STEP 02", "Choose your code folders",
+        "Orb lists the git repos inside these folders. A conversation stays in its own repo; touching another needs your OK.");
+      const list = el("div", "onb-list");
+      for (const r of roots) {
+        const item = el("div", "onb-item on");
+        const txt = el("div", "onb-item-txt");
+        txt.append(el("code", null, r.path.replace(ev.home, "~")), el("span", null, r.exists ? `${r.repos.length} repo${r.repos.length === 1 ? "" : "s"}` : "missing"));
+        item.append(el("span", "onb-check", "✓"), txt, btn("Remove", () => send({ type: "set_settings", values: { roots: roots.map((x) => x.path).filter((p) => p !== r.path) } }), "onb-btn ghost small"));
+        list.append(item);
+      }
+      const add = (p) => send({ type: "set_settings", values: { roots: [...roots.map((x) => x.path), p] } });
+      for (const sug of ev.suggested || []) {
+        const item = el("button", "onb-item"); item.type = "button";
+        const txt = el("div", "onb-item-txt"); txt.append(el("code", null, sug.path.replace(ev.home, "~")), el("span", null, `${sug.repos} repos · add`));
+        item.append(el("span", "onb-check", "+"), txt); item.onclick = () => add(sug.path);
+        list.append(item);
+      }
+      card.append(list);
+      const input = el("input", "onb-input"); input.placeholder = "Another folder, e.g. ~/code"; input.setAttribute("aria-label", "Folder path");
+      const addTyped = () => { const v = input.value.trim().replace(/^~(?=\/|$)/, ev.home); if (!v) return;
+        if (v === ev.home && !confirm("Give Orb your whole home folder? It would list every repo in it.")) return; add(v); };
+      input.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); addTyped(); } };
+      card.append(row(input, btn("Add", addTyped)));
+      card.append(el("p", "onb-text small", "Always blocked: secrets/ folders, .env files, keys and credentials, ~/.ssh and ~/.aws."));
+      foot("Continue", this.hasRepos(), "Add a folder with at least one repo");
+    } else if (n === 3) {
+      const v = ev.values || {}, sp = ev.speech || {};
+      head("STEP 03", "Her voice, and yours",
+        "Browser speech works right away (Chrome transcribes through Google; Safari can on this Mac). Local engines keep everything on this Mac.");
+      const seg = (label, options, value, key) => {
+        const g = el("div", "onb-seg"); g.setAttribute("role", "radiogroup"); g.setAttribute("aria-label", label);
+        for (const [val, text, okay] of options) {
+          const b = el("button", "onb-seg-btn" + (val === value ? " on" : ""), text); b.type = "button"; b.disabled = !okay;
+          b.setAttribute("role", "radio"); b.setAttribute("aria-checked", String(val === value)); if (!okay) b.title = "Not installed on this Mac";
+          b.onclick = () => send({ type: "set_settings", values: { [key]: val } });
+          g.append(b);
+        }
+        const r = el("div", "onb-field"); r.append(el("span", "mono onb-label", label), g); return r;
+      };
+      card.append(seg("HEARING YOU", [["browser", "Browser", BROWSER_STT], ["parakeet", "Parakeet", sp.parakeet], ["whisper", "Whisper", sp.whisper]], v.stt, "stt"));
+      card.append(seg("HER VOICE", [["browser", "Browser", BROWSER_TTS], ["kokoro", "Kokoro", sp.kokoro]], v.tts, "tts"));
+      card.append(row(btn("Test microphone", (e) => this.testMic(e.currentTarget)), btn("Hear her", () => this.say("Hi, I'm Orb. Pick a repo and just talk."))));
+      foot("Continue", true);
+    } else {
+      head("STEP 04", "You stay in control", null);
+      const points = [["Every change asks first", "A card with Allow / Deny, which you can also answer by voice (on headphones)."],
+        ["One repo per conversation", "Other repos need your OK; secrets are never readable."],
+        ["Your subscription, no API keys", "Orb refuses API keys and runs on your Claude plan."],
+        ["Only on this Mac", "The page listens on 127.0.0.1 and needs its private link."]];
+      const grid = el("div", "onb-grid");
+      for (const [t, d] of points) { const c = el("div", "onb-tile"); c.append(el("strong", null, t), el("span", null, d)); grid.append(c); }
+      card.append(grid);
+      foot(S.features?.onboarded ? "Done" : "Start using Orb", this.ok(4), "Sign in and add a folder with a repo first");
+    }
+  },
+};
 
 function closeDrawer() { $("#app").classList.remove("side-open"); }
 
@@ -1226,6 +1312,9 @@ $("#close-side").onclick = $("#scrim").onclick = closeDrawer;
 $("#collapse-side").onclick = () => { $("#app").classList.add("side-collapsed"); store.set("vd-collapsed", "1"); };
 if (store.get("vd-collapsed", "0") === "1") $("#app").classList.add("side-collapsed");
 $("#nav-new").onclick = $("#recent-add").onclick = () => openPicker("new");
+$("#onb-close").onclick = () => Onb.close();
+addEventListener("resize", () => { if (Onb.isOpen) Onb.placeRings(); });
+$("#onboarding").addEventListener("scroll", () => Onb.placeRings(), { passive: true });
 $("#pin-add").onclick = () => openPicker("pin");
 $("#nav-activity").onclick = () => { showView(S.view === "activity" ? "chat" : "activity"); closeDrawer(); };
 $("#nav-routines").onclick = () => { showView(S.view === "routines" ? "chat" : "routines"); closeDrawer(); };
@@ -1332,6 +1421,7 @@ $("#composer").onsubmit = (e) => {
 grow();
 
 document.addEventListener("keydown", (e) => {
+  if (Onb.isOpen) { Onb.key(e); return; } // the setup assistant owns the keyboard while it's up
   const typing = e.target.closest?.("textarea, input");
   if (e.key === "Escape") { e.preventDefault(); if (!$("#picker").hidden) { closePicker(); return; } stopAll(); return; }
   if (typing) return;
