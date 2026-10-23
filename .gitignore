@@ -8,3 +8,5 @@ src/orb/static/vendor/
 spikes/voice/*.wav
 
 .private-markers
+
+web/node_modules/

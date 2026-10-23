@@ -10,7 +10,12 @@ Public repo: no personal data in tracked files (run `scripts/check-public.sh` be
 uv run orb                  # serve on 127.0.0.1:8765, prints the link with the token
 uv run pytest               # unit tests (billing guard, repo fence, spoken split, folders, sessions, voice merge)
 scripts/check-public.sh     # fails on private markers (~/.orb/private-markers, .private-markers)
+cd web && npm run dev       # React page with live reload (server: ORB_DEV_ORIGIN=http://localhost:5173 uv run orb)
+cd web && npm run build     # builds into src/orb/static/app; commit the result (CI fails if it's stale)
 ```
+
+The page is moving to React + TypeScript + Vite (`web/`, served at `/next`), screen by screen: see
+`docs/react-migration.md`. Until step 7 the old page (`static/app.js`) is still the one at `/`.
 
 Python 3.14 via `uv` (`.python-version` pins the patch). Front end is plain HTML/CSS/JS in
 `src/orb/static/`, no build step. Tests run against a throwaway state folder (`tests/conftest.py`).

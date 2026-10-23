@@ -12,9 +12,10 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
+from starlette.websockets import WebSocketDisconnected
 import hashlib
 
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import billing, chain, config, folders, routines, settings, setup, slash, speech, vendor, vocab
@@ -255,12 +256,14 @@ app.mount("/static", StaticFiles(directory=STATIC), name="static")
 CDN = "https://cdn.jsdelivr.net"
 
 
-def csp(host: str, secure: bool) -> str:
+def csp(host: str, secure: bool, cdn: bool = True) -> str:
+    """The page's policy. The React page (/next) bundles everything, so it gets no CDN at all."""
     ws = f"{'wss' if secure else 'ws'}://{host}"
+    extra = f" {CDN}" if cdn else ""
     return "; ".join([
         "default-src 'self'",
-        f"script-src 'self' {CDN} 'wasm-unsafe-eval'",  # CDN scripts carry SRI hashes
-        f"style-src 'self' {CDN} https://fonts.googleapis.com",
+        f"script-src 'self'{extra} 'wasm-unsafe-eval'",  # CDN scripts carry SRI hashes
+        f"style-src 'self'{extra} https://fonts.googleapis.com",
         "font-src https://fonts.gstatic.com",
         "img-src 'self' data:",
         f"connect-src 'self' {ws}",
@@ -282,6 +285,20 @@ async def index(request: Request):
     })
 
 
+@app.get("/next")
+async def next_page(request: Request):
+    """The React page (web/, built into static/app), served beside the old one while it grows."""
+    page = STATIC / "app" / "index.html"
+    if not page.is_file():
+        return PlainTextResponse("The new page isn't built. Run: cd web && npm ci && npm run build", status_code=404)
+    secure = request.headers.get("x-forwarded-proto") == "https" or request.url.scheme == "https"
+    return HTMLResponse(page.read_text(), headers={
+        "Cache-Control": "no-store",
+        "Content-Security-Policy": csp(request.headers.get("host", ""), secure, cdn=False),
+        "Referrer-Policy": "no-referrer",
+    })
+
+
 @app.get("/manifest.webmanifest")
 async def manifest():
     return FileResponse(STATIC / "manifest.webmanifest", media_type="application/manifest+json")
@@ -298,6 +315,8 @@ def origin_ok(ws: WebSocket) -> bool:
     host = ws.headers.get("host", "")
     if not origin:
         return False
+    if config.DEV_ORIGIN and origin == config.DEV_ORIGIN:  # the Vite dev server, only when ORB_DEV_ORIGIN says so
+        return True
     return urlparse(origin).netloc == host
 
 
@@ -324,7 +343,7 @@ async def ws_endpoint(ws: WebSocket):
             except Exception as e:  # noqa: BLE001
                 log.exception("ws message %s", msg.get("type"))
                 await conn.send({"type": "error", "text": str(e)})
-    except WebSocketDisconnect:
+    except (WebSocketDisconnect, WebSocketDisconnected):  # closed by the page, also before its first message
         pass
     finally:
         hub.conns.discard(conn)

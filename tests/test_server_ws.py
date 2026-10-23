@@ -13,3 +13,10 @@ def test_stale_token_is_told_4403_not_a_silent_failure():
         with client.websocket_connect("/ws?t=stale", headers={"origin": "http://testserver"}) as ws:
             ws.receive_json()
     assert e.value.code == 4403
+
+
+def test_page_closing_right_away_is_not_an_error(caplog):
+    client = TestClient(server.app)
+    with client.websocket_connect(f"/ws?t={server.config.token()}", headers={"origin": "http://testserver"}) as ws:
+        assert ws.receive_json()["type"] == "hello"
+    assert "Exception in ASGI application" not in caplog.text

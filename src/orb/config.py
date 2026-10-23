@@ -4,6 +4,7 @@ VOICE_DASHBOARD_* names still work)."""
 from __future__ import annotations
 
 import os
+import re
 import secrets
 from pathlib import Path
 
@@ -26,6 +27,11 @@ WHISPER_URL = env("WHISPER", "http://127.0.0.1:2022/v1/audio/transcriptions")
 KOKORO_URL = env("KOKORO", "http://127.0.0.1:8880/v1/audio/speech")
 CHATTERBOX_URL = env("CHATTERBOX", "http://127.0.0.1:8881/v1/audio/speech")  # spikes/chatterbox
 KOKORO_VOICE = env("VOICE", "af_heart")  # the best-rated Kokoro voice
+
+# Development only: the Vite dev server's origin (web/, `npm run dev`) the WebSocket check also
+# accepts. Off by default; only a plain-http localhost origin is taken.
+_dev = env("DEV_ORIGIN", "").rstrip("/")
+DEV_ORIGIN = _dev if re.fullmatch(r"http://(localhost|127\.0\.0\.1):\d{2,5}", _dev) else ""
 
 MAX_LIVE_SESSIONS = int(env("MAX_SESSIONS", "4"))
 IDLE_CLOSE_SECONDS = int(env("IDLE_CLOSE", str(30 * 60)))

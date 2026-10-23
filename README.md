@@ -95,6 +95,15 @@ uv run pytest                    # unit tests
 scripts/check-public.sh          # no private names before a push
 ```
 
+The page is moving to React + TypeScript + Vite in `web/` ([plan](docs/react-migration.md)); the new
+page is at `/next`. To work on it (Node 22.12+):
+
+```sh
+ORB_DEV_ORIGIN=http://localhost:5173 uv run orb     # the server, accepting the dev page
+cd web && npm ci && npm run dev                     # open http://localhost:5173/static/app/#t=<token>
+npm run build                                       # writes src/orb/static/app; commit it (CI checks)
+```
+
 `CLAUDE.md` explains how the parts fit together.
 
 ## License
