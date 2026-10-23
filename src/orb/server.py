@@ -18,7 +18,7 @@ import hashlib
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import billing, chain, config, folders, routines, settings, setup, slash, speech, vendor, vocab
+from . import billing, chain, config, folders, home, routines, settings, setup, slash, speech, vendor, vocab
 from .agent import FolderSession, dumps, first_request
 from .brain import CaptureGuard
 from .sessions import SessionStore
@@ -517,6 +517,9 @@ async def handle(conn: Conn, msg: dict) -> None:
     if t == "rescan":
         hub.scan()
         await hub.push_folders()
+        return
+    if t == "home":
+        await conn.send(await asyncio.to_thread(home.summary, settings.settings.vault()))
         return
     if t == "routines":
         # Panel opened: show what we have, check again if it's old. "refresh": the button.

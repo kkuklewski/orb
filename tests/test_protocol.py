@@ -134,3 +134,18 @@ def test_every_model_field_reaches_the_schema():
         if model is None or not hasattr(model, "model_fields"):
             continue
         assert fields(model) <= set(d.get("properties", {})), f"{name}: {sorted(fields(model) - set(d.get('properties', {})))}"
+
+
+def literal_dicts(file: str, marker: str) -> list[set[str]]:
+    tree = ast.parse((SRC / file).read_text())
+    return [{k.value for k in n.keys if isinstance(k, ast.Constant)} for n in ast.walk(tree)
+            if isinstance(n, ast.Dict) and any(isinstance(k, ast.Constant) and k.value == marker for k in n.keys)]
+
+
+def test_session_info_and_mcp_rows_match_the_models():
+    infos = [d for d in literal_dicts("agent.py", "apiKeySource")]
+    assert infos and all(d <= fields(protocol.SessionInfo) for d in infos), infos
+    rows = [d for d in literal_dicts("agent.py", "tools") if "status" in d]
+    assert rows and all(d <= fields(protocol.McpServer) for d in rows), rows
+    protocol.SERVER_EVENTS["rate_limit"].model_validate(
+        {"type": "rate_limit", "windows": {"five_hour": {"utilization": 0.4, "resetsAt": 1.7e9, "status": "allowed"}}})

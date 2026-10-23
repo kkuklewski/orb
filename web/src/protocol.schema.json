@@ -401,6 +401,7 @@
           "browse": "#/$defs/BrowseMsg",
           "dictate_note": "#/$defs/DictateNoteMsg",
           "get_settings": "#/$defs/GetSettingsMsg",
+          "home": "#/$defs/HomeMsg",
           "interrupt": "#/$defs/InterruptMsg",
           "mcp_reconnect": "#/$defs/McpReconnectMsg",
           "mcp_status": "#/$defs/McpStatusMsg",
@@ -494,6 +495,9 @@
         },
         {
           "$ref": "#/$defs/VoiceTextMsg"
+        },
+        {
+          "$ref": "#/$defs/HomeMsg"
         },
         {
           "$ref": "#/$defs/InterruptMsg"
@@ -611,7 +615,7 @@
       "type": "object"
     },
     "ContextEvent": {
-      "additionalProperties": true,
+      "additionalProperties": false,
       "properties": {
         "folder": {
           "anyOf": [
@@ -649,12 +653,38 @@
         "type": {
           "const": "context",
           "type": "string"
+        },
+        "used": {
+          "type": "integer"
+        },
+        "window": {
+          "type": "integer"
         }
       },
       "required": [
+        "used",
+        "window",
         "type"
       ],
       "title": "ContextEvent",
+      "type": "object"
+    },
+    "ContextUsage": {
+      "additionalProperties": false,
+      "description": "Tokens of the last main-thread call and the model's window.",
+      "properties": {
+        "used": {
+          "type": "integer"
+        },
+        "window": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "used",
+        "window"
+      ],
+      "title": "ContextUsage",
       "type": "object"
     },
     "DictateNoteMsg": {
@@ -1311,6 +1341,140 @@
       "title": "HistoryEvent",
       "type": "object"
     },
+    "HomeEvent": {
+      "additionalProperties": false,
+      "description": "The home screen's notes part (home.summary): open tasks and recent notes in the vault.",
+      "properties": {
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "notes": {
+          "items": {
+            "$ref": "#/$defs/HomeNote"
+          },
+          "type": "array"
+        },
+        "notes_week": {
+          "type": "integer"
+        },
+        "open_tasks": {
+          "type": "integer"
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "tasks": {
+          "items": {
+            "$ref": "#/$defs/HomeTask"
+          },
+          "type": "array"
+        },
+        "type": {
+          "const": "home",
+          "type": "string"
+        },
+        "vault": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "vault",
+        "tasks",
+        "open_tasks",
+        "notes",
+        "notes_week"
+      ],
+      "title": "HomeEvent",
+      "type": "object"
+    },
+    "HomeMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "home",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "HomeMsg",
+      "type": "object"
+    },
+    "HomeNote": {
+      "additionalProperties": false,
+      "properties": {
+        "file": {
+          "type": "string"
+        },
+        "mtime": {
+          "type": "number"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "title",
+        "file",
+        "mtime"
+      ],
+      "title": "HomeNote",
+      "type": "object"
+    },
+    "HomeTask": {
+      "additionalProperties": false,
+      "properties": {
+        "file": {
+          "type": "string"
+        },
+        "line": {
+          "type": "integer"
+        },
+        "mtime": {
+          "type": "number"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "text",
+        "file",
+        "line",
+        "mtime"
+      ],
+      "title": "HomeTask",
+      "type": "object"
+    },
     "InterruptMsg": {
       "additionalProperties": false,
       "properties": {
@@ -1363,8 +1527,7 @@
         },
         "servers": {
           "items": {
-            "additionalProperties": true,
-            "type": "object"
+            "$ref": "#/$defs/McpServer"
           },
           "type": "array"
         },
@@ -1407,6 +1570,59 @@
         "name"
       ],
       "title": "McpReconnectMsg",
+      "type": "object"
+    },
+    "McpServer": {
+      "additionalProperties": false,
+      "properties": {
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "status": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "tools": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "name",
+        "status"
+      ],
+      "title": "McpServer",
       "type": "object"
     },
     "McpStatusMsg": {
@@ -1579,8 +1795,7 @@
           "default": null
         },
         "info": {
-          "additionalProperties": true,
-          "type": "object"
+          "$ref": "#/$defs/SessionInfo"
         },
         "label": {
           "type": "string"
@@ -2130,7 +2345,9 @@
         "windows": {
           "anyOf": [
             {
-              "additionalProperties": true,
+              "additionalProperties": {
+                "$ref": "#/$defs/UsageWindow"
+              },
               "type": "object"
             },
             {
@@ -2642,6 +2859,7 @@
           "held": "#/$defs/HeldEvent",
           "hello": "#/$defs/HelloEvent",
           "history": "#/$defs/HistoryEvent",
+          "home": "#/$defs/HomeEvent",
           "mcp": "#/$defs/McpEvent",
           "notice": "#/$defs/NoticeEvent",
           "opened": "#/$defs/OpenedEvent",
@@ -2738,6 +2956,9 @@
           "$ref": "#/$defs/BgNoticeEvent"
         },
         {
+          "$ref": "#/$defs/HomeEvent"
+        },
+        {
           "$ref": "#/$defs/UserEvent"
         },
         {
@@ -2796,10 +3017,183 @@
         }
       ]
     },
+    "SessionInfo": {
+      "additionalProperties": true,
+      "description": "What agent.py keeps in FolderSession.info (from Claude Code's init message, then updated).",
+      "properties": {
+        "apiKeySource": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "context": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ContextUsage"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "front": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "mcp_failed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "mcp_total": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "permissionMode": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "SessionInfo",
+      "type": "object"
+    },
     "SessionInfoEvent": {
       "additionalProperties": true,
       "properties": {
+        "apiKeySource": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "context": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ContextUsage"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "front": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "mcp_failed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "mcp_total": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "permissionMode": {
           "anyOf": [
             {
               "type": "string"
@@ -2846,6 +3240,17 @@
         "type": {
           "const": "session_info",
           "type": "string"
+        },
+        "version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -4220,6 +4625,36 @@
         "type"
       ],
       "title": "UndoRequestMsg",
+      "type": "object"
+    },
+    "UsageWindow": {
+      "additionalProperties": true,
+      "description": "One plan window from the SDK's rate-limit info (unifiedWindows).",
+      "properties": {
+        "resetsAt": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "utilization": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "UsageWindow",
       "type": "object"
     },
     "UserEvent": {

@@ -12,11 +12,15 @@ import { Settings } from "./screens/Settings";
 import { Sidebar } from "./screens/Sidebar";
 import { Picker } from "./screens/Picker";
 import { Composer } from "./screens/Composer";
+import { McpPanel, TopBar } from "./screens/TopBar";
+import { DockState, VoicePill } from "./screens/Voice";
+import { wireMeta } from "./stores/meta";
+import { wireVoice } from "./voice/controller";
 import { ChatLog } from "./screens/chat/Chat";
 import { useChat, wireChat } from "./stores/chat";
 
-// Step 5: the app shell, the chat (typed), setup, Activity, Routines and Settings run here. Voice
-// (mic, her voice, barge-in) moves over in step 6 (docs/react-migration.md).
+// The whole app: shell, chat, voice, setup, Activity, Routines and Settings. It runs at /next until
+// step 7 makes it the page at / (docs/react-migration.md).
 const LABEL: Record<Connection, string> = {
   connecting: "Connecting…",
   online: "Online",
@@ -29,7 +33,7 @@ export { openSetup };
 
 export function App() {
   useEffect(() => {
-    const offs = [wireFeatures(), wireSetup(), wireViews(), wireSession(), wireChat()];
+    const offs = [wireFeatures(), wireSetup(), wireViews(), wireSession(), wireChat(), wireMeta(), wireVoice()];
     const stop = start();
     return () => { stop(); offs.forEach((off) => off()); };
   }, []);
@@ -57,6 +61,7 @@ export function App() {
       <div className="scrim" onClick={() => useSession.setState({ drawer: false })} />
       <main className="main">
         <TopBar />
+        <McpPanel />
         {view === "activity" ? <Activity />
           : view === "routines" && features.routines ? <Routines />
           : view === "settings" ? <Settings />
@@ -64,22 +69,6 @@ export function App() {
       </main>
       <Picker />
     </div>
-  );
-}
-
-function TopBar() {
-  const { folder, label, rel, branch } = useSession();
-  return (
-    <header className="top">
-      <button type="button" className="icon-btn ghost open-side" aria-label="Open the sidebar" onClick={() => useSession.setState({ drawer: true })}>
-        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
-      </button>
-      <div className="where">
-        <div className="where-name" title={folder ? `${label} · ${rel}` : undefined}>{folder ? folderName({ label }) : "No repo open"}</div>
-        <div className="where-meta mono">{folder ? [rel, branch].filter(Boolean).join(" · ") : "pick one to start"}</div>
-      </div>
-      <span className="next-tag mono">NEXT · PREVIEW</span>
-    </header>
   );
 }
 
@@ -94,7 +83,8 @@ function Chat() {
             <>
               <p className="next-kicker mono">// {folderName({ label }).toUpperCase()}</p>
               <h1>What should we work on?</h1>
-              <p className="next-note">Type below, or / for commands. Voice comes to this page in step 6; until then it works at <a href="/">/</a>.</p>
+              <div className="hero-pill"><VoicePill /></div>
+              <p className="next-note mono">or type below · Space toggles the mic · Esc stops</p>
             </>
           ) : (
             <>
@@ -105,7 +95,13 @@ function Chat() {
           )}
         </div>
       )}
-      <div className="dock"><Composer /></div>
+      <footer className="dock">
+        <DockState />
+        <div className="dock-row">
+          {folder && !empty && <div className="orb-slot"><VoicePill /></div>}
+          <Composer />
+        </div>
+      </footer>
     </section>
   );
 }

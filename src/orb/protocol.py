@@ -197,7 +197,7 @@ class OpenedEvent(_Event):
     speech_gen: int
     mode: str
     model: str
-    info: Json
+    info: SessionInfo
     tasks: list[TaskInfo]
 
 
@@ -212,14 +212,32 @@ class StateEvent(_Event):
     busy: bool
 
 
-class SessionInfoEvent(_Event):
-    model_config = ConfigDict(extra="allow")  # carries the session's init info (model, mode, context, …)
+class ContextUsage(_Msg):
+    """Tokens of the last main-thread call and the model's window."""
+    used: int
+    window: int
+
+
+class SessionInfo(BaseModel):
+    """What agent.py keeps in FolderSession.info (from Claude Code's init message, then updated)."""
+    model_config = ConfigDict(extra="allow")
+    model: str | None = None
+    front: str | None = None
+    permissionMode: str | None = None
+    apiKeySource: str | None = None
+    version: str | None = None
+    mcp_failed: int | None = None
+    mcp_total: int | None = None
+    context: ContextUsage | None = None
+
+
+class SessionInfoEvent(_Event, SessionInfo):
+    model_config = ConfigDict(extra="allow")
     type: Literal["session_info"]
     session_id: str | None = None
 
 
-class ContextEvent(_Event):
-    model_config = ConfigDict(extra="allow")  # the context-usage numbers
+class ContextEvent(_Event, ContextUsage):
     type: Literal["context"]
 
 
@@ -250,16 +268,30 @@ class CommandsEvent(_Event):
     items: list[CommandItem]
 
 
+class McpServer(_Msg):
+    name: str | None
+    status: str | None
+    tools: int | None = None
+    error: str | None = None
+
+
 class McpEvent(_Event):
     type: Literal["mcp"]
-    servers: list[Json]
+    servers: list[McpServer]
     open: bool | None = None
+
+
+class UsageWindow(BaseModel):
+    """One plan window from the SDK's rate-limit info (unifiedWindows)."""
+    model_config = ConfigDict(extra="allow")
+    utilization: float | None = None
+    resetsAt: float | None = None
 
 
 class RateLimitEvent(_Event):
     type: Literal["rate_limit"]
     status: str | None = None
-    windows: Json | None = None
+    windows: dict[str, UsageWindow] | None = None
     overage: Any = None
 
 
@@ -301,6 +333,29 @@ class BgNoticeEvent(_Event):
     label: str | None = None
     data: str | None = None
     mime: str | None = None
+
+
+class HomeTask(_Msg):
+    text: str
+    file: str  # relative to the vault
+    line: int
+    mtime: float
+
+
+class HomeNote(_Msg):
+    title: str
+    file: str
+    mtime: float
+
+
+class HomeEvent(_Event):
+    """The home screen's notes part (home.summary): open tasks and recent notes in the vault."""
+    type: Literal["home"]
+    vault: str
+    tasks: list[HomeTask]
+    open_tasks: int
+    notes: list[HomeNote]
+    notes_week: int
 
 
 class UserEvent(_Event):
@@ -450,7 +505,7 @@ ServerEvent = Annotated[Union[
     HelloEvent, FeaturesEvent, FoldersEvent, SetupStatusEvent, BrowseEvent, PickedEvent, VoiceSampleEvent,
     SettingsEvent, ErrorEvent, NoticeEvent, OpenedEvent, HistoryEvent, StateEvent, SessionInfoEvent,
     ContextEvent, TaskEvent, CommandsEvent, McpEvent, RateLimitEvent, RoutinesEvent, BgNoticeEvent,
-    UserEvent, TextStartEvent, TextEvent, SaidEvent, ToolStartEvent, ToolInputEvent, ToolResultEvent,
+    HomeEvent, UserEvent, TextStartEvent, TextEvent, SaidEvent, ToolStartEvent, ToolInputEvent, ToolResultEvent,
     ResultEvent, TimingEvent, PartialEvent, HeardNothingEvent, HeldEvent, PermissionEvent,
     PermissionDoneEvent, UndoAvailableEvent, UndoConfirmEvent, UndoDoneEvent, AudioEvent, SpeechResetEvent,
 ], Field(discriminator="type")]
@@ -560,6 +615,10 @@ class VoiceTextMsg(_Msg):
     echo_risk: bool | None = None
 
 
+class HomeMsg(_Msg):
+    type: Literal["home"]
+
+
 class InterruptMsg(_Msg):
     type: Literal["interrupt"]
 
@@ -621,7 +680,7 @@ ClientMessage = Annotated[Union[
     SetupStatusMsg, BrowseMsg, PickFolderMsg, OpenFolderMsg, AddFolderMsg, StartSessionMsg, PinFolderMsg,
     GetSettingsMsg, SetSettingsMsg, VoiceSampleMsg, RescanMsg, RoutinesMsg, RoutinesSeenMsg, MuteMsg,
     NewSessionMsg, UserTextMsg, SpeechStartMsg, BargeInMsg, SpeechCancelledMsg, UtteranceMsg, VoiceTextMsg,
-    InterruptMsg, PlaybackMsg, PermissionMsg, ReadAllMsg, DictateNoteMsg, UndoRequestMsg, UndoConfirmMsg,
+    HomeMsg, InterruptMsg, PlaybackMsg, PermissionMsg, ReadAllMsg, DictateNoteMsg, UndoRequestMsg, UndoConfirmMsg,
     McpStatusMsg, McpReconnectMsg, SetModeMsg, SetModelMsg,
 ], Field(discriminator="type")]
 

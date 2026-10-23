@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { interrupt, sendText, slashMatches, slashQuery, useSession } from "../stores/session";
+import { sendText, slashMatches, slashQuery, useSession } from "../stores/session";
+import { useVoice } from "../stores/voice";
+import { stopAll } from "../voice/controller";
+import { Player } from "../voice/player";
 
 // The typed request box. "/" at the start opens the session's commands (skills, plugin skills,
 // Claude Code built-ins, Orb's own); ↑↓ move, Tab/Enter complete, Esc closes. The text is sent as
@@ -8,6 +11,7 @@ import { interrupt, sendText, slashMatches, slashQuery, useSession } from "../st
 export function Composer() {
   const commands = useSession((s) => s.commands);
   const busy = useSession((s) => s.busy);
+  const playing = useVoice((s) => s.playing);
   const [text, setText] = useState("");
   const [active, setActive] = useState(0);
   const [closed, setClosed] = useState(false); // Esc closes the menu until the text changes
@@ -34,7 +38,7 @@ export function Composer() {
 
   useEffect(() => { // grow with the text, up to 200px
     const el = box.current;
-    if (el) { el.style.height = "auto"; el.style.height = Math.min(el.scrollHeight, 200) + "px"; }
+    if (el) { el.style.height = "auto"; el.style.height = Math.min(el.scrollHeight, 200) + "px"; el.style.overflowY = el.scrollHeight > 200 ? "auto" : "hidden"; }
   }, [text]);
 
   useEffect(() => { menu.current?.querySelector(".slash-item.active")?.scrollIntoView?.({ block: "nearest" }); }, [idx, open]);
@@ -47,6 +51,8 @@ export function Composer() {
   };
 
   const submit = () => {
+    if (!text.trim()) return;
+    Player.unlock(); Player.stop(); // a typed request cuts her off, like speaking would
     if (sendText(text)) setText("");
   };
 
@@ -65,7 +71,7 @@ export function Composer() {
           ))}
         </div>
       )}
-      <textarea ref={box} className="composer-input" rows={1} placeholder="Ask Claude, or type / for commands" aria-label="Message"
+      <textarea ref={box} className="composer-input" rows={1} placeholder="Type, or / for commands" aria-label="Message"
         role="combobox" aria-expanded={open} aria-controls="slash-menu" aria-autocomplete="list" aria-activedescendant={open ? `slash-opt-${idx}` : undefined}
         value={text} onChange={(e) => change(e.target.value)}
         onBlur={() => setTimeout(() => { if (document.activeElement !== box.current) setClosed(true); }, 200)}
@@ -81,8 +87,8 @@ export function Composer() {
           }
           if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(); }
         }} />
-      {busy && !text.trim() ? (
-        <button type="button" className="stop" aria-label="Stop" title="Stop this answer (Esc)" onClick={interrupt}>■</button>
+      {(busy || playing) && !text.trim() ? (
+        <button type="button" className="stop" aria-label="Stop" title="Stop this answer (Esc)" onClick={stopAll}>■</button>
       ) : (
       <button type="submit" className="send" aria-label="Send" disabled={!text.trim()}>
         <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 19V5M5 12l7-7 7 7" /></svg>

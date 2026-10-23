@@ -26,6 +26,7 @@ export type ClientMessage =
   | SpeechCancelledMsg
   | UtteranceMsg
   | VoiceTextMsg
+  | HomeMsg
   | InterruptMsg
   | PlaybackMsg
   | PermissionMsg
@@ -63,6 +64,7 @@ export type ServerEvent =
   | RateLimitEvent
   | RoutinesEvent
   | BgNoticeEvent
+  | HomeEvent
   | UserEvent
   | TextStartEvent
   | TextEvent
@@ -254,6 +256,13 @@ export interface VoiceTextMsg {
   echo_risk?: boolean | null;
   text: string;
   type: "voice_text";
+}
+/**
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "HomeMsg".
+ */
+export interface HomeMsg {
+  type: "home";
 }
 /**
  * This interface was referenced by `OrbProtocol`'s JSON-Schema
@@ -599,9 +608,7 @@ export interface OpenedEvent {
   branch: string | null;
   busy: boolean;
   folder?: string | null;
-  info: {
-    [k: string]: unknown;
-  };
+  info: SessionInfo;
   label: string;
   live: boolean;
   mode: string;
@@ -613,6 +620,33 @@ export interface OpenedEvent {
   speech_gen: number;
   tasks: TaskInfo[];
   type: "opened";
+}
+/**
+ * What agent.py keeps in FolderSession.info (from Claude Code's init message, then updated).
+ *
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "SessionInfo".
+ */
+export interface SessionInfo {
+  apiKeySource?: string | null;
+  context?: ContextUsage | null;
+  front?: string | null;
+  mcp_failed?: number | null;
+  mcp_total?: number | null;
+  model?: string | null;
+  permissionMode?: string | null;
+  version?: string | null;
+  [k: string]: unknown;
+}
+/**
+ * Tokens of the last main-thread call and the model's window.
+ *
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "ContextUsage".
+ */
+export interface ContextUsage {
+  used: number;
+  window: number;
 }
 /**
  * One background task (an opus-coder run or a background shell), as agent.py keeps it.
@@ -658,11 +692,19 @@ export interface StateEvent {
  * via the `definition` "SessionInfoEvent".
  */
 export interface SessionInfoEvent {
+  apiKeySource?: string | null;
+  context?: ContextUsage | null;
   folder?: string | null;
+  front?: string | null;
+  mcp_failed?: number | null;
+  mcp_total?: number | null;
+  model?: string | null;
+  permissionMode?: string | null;
   replay?: boolean | null;
   session?: string | null;
   session_id?: string | null;
   type: "session_info";
+  version?: string | null;
   [k: string]: unknown;
 }
 /**
@@ -674,7 +716,8 @@ export interface ContextEvent {
   replay?: boolean | null;
   session?: string | null;
   type: "context";
-  [k: string]: unknown;
+  used: number;
+  window: number;
 }
 /**
  * This interface was referenced by `OrbProtocol`'s JSON-Schema
@@ -723,11 +766,19 @@ export interface McpEvent {
   folder?: string | null;
   open?: boolean | null;
   replay?: boolean | null;
-  servers: {
-    [k: string]: unknown;
-  }[];
+  servers: McpServer[];
   session?: string | null;
   type: "mcp";
+}
+/**
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "McpServer".
+ */
+export interface McpServer {
+  error?: string | null;
+  name: string | null;
+  status: string | null;
+  tools?: number | null;
 }
 /**
  * This interface was referenced by `OrbProtocol`'s JSON-Schema
@@ -743,8 +794,19 @@ export interface RateLimitEvent {
   status?: string | null;
   type: "rate_limit";
   windows?: {
-    [k: string]: unknown;
+    [k: string]: UsageWindow;
   } | null;
+}
+/**
+ * One plan window from the SDK's rate-limit info (unifiedWindows).
+ *
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "UsageWindow".
+ */
+export interface UsageWindow {
+  resetsAt?: number | null;
+  utilization?: number | null;
+  [k: string]: unknown;
 }
 /**
  * This interface was referenced by `OrbProtocol`'s JSON-Schema
@@ -804,6 +866,42 @@ export interface BgNoticeEvent {
   session?: string | null;
   text: string;
   type: "bg_notice";
+}
+/**
+ * The home screen's notes part (home.summary): open tasks and recent notes in the vault.
+ *
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "HomeEvent".
+ */
+export interface HomeEvent {
+  folder?: string | null;
+  notes: HomeNote[];
+  notes_week: number;
+  open_tasks: number;
+  replay?: boolean | null;
+  session?: string | null;
+  tasks: HomeTask[];
+  type: "home";
+  vault: string;
+}
+/**
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "HomeNote".
+ */
+export interface HomeNote {
+  file: string;
+  mtime: number;
+  title: string;
+}
+/**
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "HomeTask".
+ */
+export interface HomeTask {
+  file: string;
+  line: number;
+  mtime: number;
+  text: string;
 }
 /**
  * This interface was referenced by `OrbProtocol`'s JSON-Schema

@@ -265,6 +265,11 @@ export function verdict(p: Extract<Part, { kind: "perm" }>): string {
 
 export const useChat = create<ChatState>(initialChat);
 
+/** A line from the page itself (mic blocked, …), shown like the server's notices. */
+export function addNotice(text: string, level: "ok" | "warn" | "error" | null = "error") {
+  useChat.setState((s) => reduce(s, { type: "notice", text, level }));
+}
+
 const CHAT_EVENTS = [
   "opened", "history", "user", "text_start", "text", "said", "held", "tool_start", "tool_input", "tool_result",
   "permission", "permission_done", "undo_available", "undo_confirm", "undo_done", "task", "result", "timing", "notice", "error",

@@ -6,6 +6,7 @@ import { on } from "../events";
 import { send } from "../ws";
 import { useFeatures } from "./features";
 import { useViews } from "./views";
+import { markSent } from "../voice/clock";
 
 export type PickerMode = "new" | "pin";
 
@@ -118,13 +119,12 @@ export function choosePath(path: string) {
 }
 
 /** Typed request. Without an open folder the picker asks where first. */
-export function interrupt() { send({ type: "interrupt" }); }
-
 export function sendText(text: string): boolean {
   const t = text.trim();
   const { folder, busy } = useSession.getState();
   if (!t) return false;
   if (!folder) { openPicker("new"); return false; }
+  markSent();
   send({ type: "user_text", text: t, interrupt: busy });
   return true;
 }

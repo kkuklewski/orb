@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { send } from "../ws";
 import { useViews } from "../stores/views";
+import { setBarge, useVoice, type BargeMode } from "../stores/voice";
 import { unlockAudio } from "../audio/sample";
 import { openSetup } from "../stores/setup";
 
@@ -39,7 +40,7 @@ function setServer(values: Record<string, unknown>) {
 
 export function Settings() {
   const ev = useViews((s) => s.settings);
-  const [barge, setBarge] = useState(() => local.get("vd-barge", "auto"));
+  const barge = useVoice((s) => s.barge);
   const [theme, setTheme] = useState(() => document.documentElement.dataset.theme ?? "dark");
   const [vocab, setVocab] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -74,7 +75,7 @@ export function Settings() {
       </Section>}
 
       <Section title="Talking over her (barge-in)" hint="Auto stops her when you speak only with headphones; on speakers her own voice could interrupt her, so Esc or ■ stops her.">
-        <Seg name="Barge-in" value={barge} onPick={(m) => { setBarge(m); local.set("vd-barge", m); }}
+        <Seg name="Barge-in" value={barge} onPick={(m) => setBarge(m as BargeMode)}
           options={[["auto", "Auto (headphones)"], ["on", "Always"], ["off", "Off"]]} />
       </Section>
 
