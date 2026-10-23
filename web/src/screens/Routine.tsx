@@ -2,6 +2,9 @@ import { useEffect } from "react";
 import { useViews, NOTIFY_LABEL, dayTime, routineStatus, safeRunUrl, setNotify, whyLine, type NotifyMode } from "../stores/views";
 import { askAbout, makeTask, markRead, useRoutineScreen } from "../stores/routine";
 import { useFeatures } from "../stores/features";
+import { useChat } from "../stores/chat";
+import { useSession } from "../stores/session";
+import { ItemView } from "./chat/Chat";
 
 // One routine's last result: the whole text (plain text, never markup: it may quote email or repos),
 // why it did or didn't notify, and what to do with it. Orb's routine access is read-only, so there is
@@ -15,6 +18,21 @@ export function RoutineScreen() {
   const i = r && x ? r.items.findIndex((n) => n.id === x.id) : -1;
 
   useEffect(() => { if (!r) void import("../ws").then((m) => m.send({ type: "routines" })); }, [r]); // opened from a link
+  const items = useChat((c) => c.items);
+  const busy = useSession((c) => c.busy);
+  // The conversation about this result: your messages asked about a routine, back to the first of that run.
+  let from = -1;
+  for (let n = items.length - 1; n >= 0; n--) {
+    const it = items[n];
+    if (it.kind !== "user") continue;
+    if (it.screen !== "Routine") break;
+    from = n;
+  }
+  const thread = from >= 0 ? items.slice(from) : [];
+  useEffect(() => { // new words: bring them into view
+    if (thread.length) document.querySelector(".routine-thread")?.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
+  }, [thread.length]);
+
   if (!id) return null;
   if (!x) {
     return (
@@ -83,6 +101,24 @@ export function RoutineScreen() {
           </div>
           <pre className="routine-text">{text || "(the run left no text)"}</pre>
           <div className="hc-foot mono"><span>shown as plain text</span>{url && <a href={url} target="_blank" rel="noopener noreferrer">Open run ↗</a>}</div>
+        </article>
+
+        <article className="hc routine-thread" aria-label="Ask Claude about this result">
+          <div className="hc-head">
+            <div className="hc-label mono">ASK CLAUDE</div>
+            <h2>{thread.length ? "About this result" : "Ask about this result"}</h2>
+          </div>
+          {thread.length > 0 ? (
+            <div className="column">
+              {thread.map((it, n) => <ItemView key={it.key} it={it} last={n === thread.length - 1} />)}
+              {busy && <div className="turn-end mono">working…</div>}
+            </div>
+          ) : (
+            <p className="hc-empty">Press “Ask Claude about it”, or type below. The answer shows here; Claude sees this result, not your other screens.</p>
+          )}
+          {thread.length > 0 && (
+            <div className="hc-foot mono"><span>in a notes session</span><button type="button" onClick={() => useViews.setState({ view: "chat" })}>Open in chat →</button></div>
+          )}
         </article>
       </div>
     </section>

@@ -8,6 +8,7 @@ import { useViews } from "../stores/views";
 import { initialSession, useSession, wireSession } from "../stores/session";
 import { useRoutineScreen, routineText } from "../stores/routine";
 import { useTasks, wireTasks } from "../stores/tasks";
+import { wireChat, initialChat, useChat } from "../stores/chat";
 import { parseRoute, routePath } from "../stores/route";
 import { routine, routines } from "../test/fixtures";
 
@@ -26,7 +27,8 @@ const gmail = (over = {}) => routine({ id: "t1", name: "Gmail morning cleanup", 
 let offs: (() => void)[] = [];
 beforeEach(() => {
   sent.length = 0;
-  offs = [wireTasks(), wireSession()];
+  offs = [wireTasks(), wireSession(), wireChat()];
+  useChat.setState(initialChat());
   useSession.setState(initialSession());
   useFeatures.setState({ features: { brain: false, onboarded: true, roots: [], routines: true, stt: "browser", tts: "kokoro", vault: "/v", plan: "max" }, folders: [], services: {}, build: null });
   useViews.setState({ view: "routine", routines: routines({ read: 1, items: [gmail(), routine({ id: "t2", name: "Etihad check", quiet: true, worth: "skip", why: "no new email" })] }), routinesNew: new Set() });
@@ -93,6 +95,40 @@ describe("routine result screen", () => {
     expect(screenMsg.text).toContain(DETAIL);
     expect(ask).toMatchObject({ type: "user_text", text: expect.stringContaining('"Gmail morning cleanup"') });
     expect(ask.text).not.toContain("invoice"); // untrusted text never in the question itself
+    expect(useViews.getState().view).toBe("routine"); // the answer comes here, the page doesn't change
+  });
+
+  it("the answer appears right under the result, with a way into the full chat", () => {
+    render(<RoutineScreen />);
+    expect(screen.getByText(/Press “Ask Claude about it”, or type below/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /Ask Claude about it/ }));
+    act(() => dispatch({ type: "opened", folder: "/v", session: "n1", label: "notes", rel: "notes", branch: null, session_id: null,
+      live: false, busy: false, speech_gen: 0, mode: "default", model: "sonnet", info: {}, tasks: [] }));
+    act(() => dispatch({ type: "user", id: "u1", text: "What does the result of my routine say?", source: "typed", screen: "Routine", session: "n1" } as ServerEvent));
+    act(() => dispatch({ type: "text", block: "b1", delta: "Check the **Microsoft** login alert today.", session: "n1" } as ServerEvent));
+    act(() => dispatch({ type: "result", subtype: "success", session: "n1" } as ServerEvent));
+    const thread = screen.getByRole("article", { name: "Ask Claude about this result" });
+    expect(within(thread).getByText("What does the result of my routine say?")).toBeTruthy();
+    expect(thread.textContent).toContain("Check the Microsoft login alert today.");
+    expect(thread.textContent).toContain("about Routine");
+    fireEvent.click(within(thread).getByRole("button", { name: "Open in chat →" }));
+    expect(useViews.getState().view).toBe("chat");
+  });
+
+  it("a question typed in the box while looking at a result is answered here too; other chats don't show up", () => {
+    act(() => dispatch({ type: "user", id: "u0", text: "An older chat", source: "typed" } as ServerEvent));
+    act(() => dispatch({ type: "text", block: "b0", delta: "Old answer", session: undefined } as unknown as ServerEvent));
+    render(<RoutineScreen />);
+    expect(screen.queryByText("An older chat")).toBeNull();
+    act(() => dispatch({ type: "user", id: "u1", text: "is the Acme one urgent?", source: "typed", screen: "Routine" } as ServerEvent));
+    act(() => dispatch({ type: "text", block: "b1", delta: "Probably not." } as ServerEvent));
+    expect(screen.getByText("is the Acme one urgent?")).toBeTruthy();
+    expect(screen.getByText("Probably not.")).toBeTruthy();
+    expect(screen.queryByText("Old answer")).toBeNull();
+    act(() => dispatch({ type: "result", subtype: "success" } as ServerEvent));
+    act(() => dispatch({ type: "user", id: "u2", text: "and the Microsoft one?", source: "typed", screen: "Routine" } as ServerEvent));
+    expect(screen.getByText("is the Acme one urgent?")).toBeTruthy(); // a follow-up adds to the thread, it doesn't replace it
+    expect(screen.getByText("and the Microsoft one?")).toBeTruthy();
   });
 
   it("opens by address", () => {

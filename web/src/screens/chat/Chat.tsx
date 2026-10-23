@@ -64,7 +64,7 @@ const AnswerView = memo(function AnswerView({ a, last }: { a: Answer; last: bool
   );
 });
 
-function ItemView({ it, last }: { it: Item; last: boolean }) {
+export function ItemView({ it, last }: { it: Item; last: boolean }) {
   switch (it.kind) {
     case "user":
       return (

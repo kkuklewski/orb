@@ -31,9 +31,10 @@ export function routineText(x: RoutineItem): string {
     x.why ? `Orb's quick judgement of the result: ${x.why}` : "", "The result:", l?.detail || l?.summary || "(none)"].filter(Boolean).join("\n");
 }
 
-/** "Ask Claude about it": a new session in the notes folder; the result goes along as the screen, not in the question. */
+/** "Ask Claude about it": a new session in the notes folder; the result goes along as the screen, not in the
+ *  question, and the answer shows right under the result (the page stays here). */
 export function askAbout(x: RoutineItem) {
   const vault = useFeatures.getState().features?.vault;
   if (!vault) { useSession.setState({ picker: "new" }); return; }
-  askIn(vault, `What does the result of my routine "${x.name}" say, and is there anything I should do about it?`, { name: "Routine", text: routineText(x) });
+  askIn(vault, `What does the result of my routine "${x.name}" say, and is there anything I should do about it?`, { name: "Routine", text: routineText(x) }, true);
 }
