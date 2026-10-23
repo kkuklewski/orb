@@ -66,14 +66,14 @@ function onEvent(ev) {
       if (ev.build && ev.build !== document.querySelector('meta[name="build"]').content) { location.reload(); return; }
       renderServices(ev.services); S.folders = ev.folders; applyFeatures(ev); renderSidebar(); if (ev.rate_limit) renderUsage(ev.rate_limit);
       if (!ev.onboarded) { showView("setup"); break; }
-      { const last = store.get("vd-folder", ""); if (last && S.folders.some((f) => f.path === last)) openFolder(last, store.get("vd-session", "") || undefined); else if (!S.folder) $("#app").classList.add("side-open"); }
+      { const last = store.get("vd-folder", ""); if (last && S.folders.some((f) => f.path === last)) openFolder(last, store.get("vd-session", "") || undefined); else if (!S.folder) openPicker("new"); }
       break;
     case "folders": S.folders = ev.items; renderSidebar(); break;
     case "routines": S.routines = ev; renderRoutinesBadge(); if (S.view === "routines") renderRoutines(); break;
     case "settings": renderSettings(ev); break;
     case "setup_status": renderSetup(ev); break;
     case "features": { const was = S.features?.onboarded; applyFeatures(ev); renderSidebar();
-      if (!ev.onboarded && S.view !== "setup") showView("setup"); else if (ev.onboarded && !was && S.view === "setup") showView("chat"); break; }
+      if (!ev.onboarded && S.view !== "setup") showView("setup"); else if (ev.onboarded && !was && S.view === "setup") { showView("chat"); if (!S.folder) openPicker("new"); } break; }
     case "voice_sample": Player.stop(); Player.reset(Player.gen); Player.enqueue({ ...ev, gen: Player.gen }); break;
     case "opened": onOpened(ev); break;
     case "history":
@@ -109,7 +109,7 @@ function onEvent(ev) {
     case "partial": S.partial = ev.text; refreshState(); break;
     case "notice": notice(ev.text, ev.level); break;
     case "bg_notice": Player.notice(ev); flashState(ev.text.replace(/\.$/, "")); break;
-    case "error": notice(ev.text, "error"); break;
+    case "error": notice(ev.text, "error"); if (S.serverState === "transcribing") { S.serverState = "idle"; refreshState(); } break;
   }
 }
 
@@ -222,7 +222,7 @@ function renderSearch() {
 let pickerMode = "new";
 function openPicker(mode) {
   pickerMode = mode;
-  $("#picker-title").textContent = mode === "pin" ? "Pin a repo" : "New session";
+  $("#picker-title").textContent = mode === "pin" ? "Pin a repo" : S.folder ? "New session" : "Pick a repo to talk about";
   $("#picker-search").value = ""; renderPicker(); $("#picker").hidden = false;
   setTimeout(() => $("#picker-search").focus(), 0);
 }
@@ -1185,7 +1185,8 @@ function refreshState() {
   const mode = S.bargeMode === "auto" ? (S.headphones ? "auto · headphones" : "auto · off on speakers") : S.bargeMode;
   $("#barge").textContent = `barge-in: ${mode}`;
   $("#barge").title = "Click to cycle barge-in: auto (headphones only) → on → off. On speakers, Esc or ■ stops her.";
-  $("#hero-hint").textContent = S.micOn ? "Listening… just talk" : "Tap the orb to talk";
+  $("#hero-hint").textContent = !S.folder ? "Pick a repo to start" : S.micOn ? "Listening… just talk" : "Tap the orb to talk";
+  $("#hero-sub").textContent = !S.folder ? "tap the orb or + New to choose one" : "or type below · Space toggles the mic · Esc stops";
 }
 function placeOrb() {
   const slot = $("#app").classList.contains("has-chat") ? $("#dock-slot") : $("#hero-slot");
@@ -1194,6 +1195,7 @@ function placeOrb() {
 
 // ---------------------------------------------------------------- controls
 async function toggleMic() {
+  if (!S.folder && !S.micOn) { openPicker("new"); return; } // nothing to talk to yet: pick a repo first
   try { S.micOn ? await Mic.stop() : await Mic.start(); }
   catch (e) { S.localLabel = null; notice(`Microphone: ${e.message || e}`, "error"); refreshState(); }
 }
@@ -1318,7 +1320,7 @@ input.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey 
 $("#composer").onsubmit = (e) => {
   e.preventDefault();
   const text = input.value.trim();
-  if (!text || !S.folder) { if (!S.folder) notice("Pick a folder on the left first."); return; }
+  if (!text || !S.folder) { if (!S.folder) openPicker("new"); return; }
   Player.unlock(); Player.stop(); Slash.close();
   send({ type: "user_text", text, interrupt: S.busy });
   input.value = ""; grow();
