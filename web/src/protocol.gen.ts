@@ -681,12 +681,22 @@ export interface TaskEvent {
  */
 export interface CommandsEvent {
   folder?: string | null;
-  items: {
-    [k: string]: unknown;
-  }[];
+  items: CommandItem[];
   replay?: boolean | null;
   session?: string | null;
   type: "commands";
+}
+/**
+ * One entry of the slash menu (slash.merge): the dashboard's own first, then Claude Code's.
+ *
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "CommandItem".
+ */
+export interface CommandItem {
+  argumentHint?: string;
+  description?: string;
+  local?: boolean;
+  name: string;
 }
 /**
  * This interface was referenced by `OrbProtocol`'s JSON-Schema

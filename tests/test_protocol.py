@@ -111,3 +111,9 @@ def test_routine_rows_match_the_model():
     runs = [{"id": "run_1", "created_at": "2026-10-23T02:00:00Z", "last_event_at": "2026-10-23T02:05:00Z", "url": "https://claude.ai/x"}]
     row = routines.item(r, runs, {"run_1": {"outcome": "failed", "summary": "boom"}}, {}, time.time())
     protocol.RoutineItem.model_validate(row)
+
+
+def test_command_items_match_the_model():
+    from orb import slash
+    for c in slash.merge([{"name": "review", "description": "Review", "argumentHint": "[pr]"}, "compact"]):
+        protocol.CommandItem.model_validate(c)

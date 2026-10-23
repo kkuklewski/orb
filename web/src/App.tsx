@@ -1,16 +1,21 @@
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef } from "react";
 import { start } from "./ws";
 import { useConnection, type Connection } from "./stores/connection";
 import { useFeatures, wireFeatures } from "./stores/features";
 import { openSetup, useSetup, wireSetup } from "./stores/setup";
-import { activityRows, useViews, wireViews, type View } from "./stores/views";
+import { useViews, wireViews } from "./stores/views";
+import { folderName, openPicker, useSession, wireSession } from "./stores/session";
 import { Setup } from "./screens/setup/Setup";
 import { Activity } from "./screens/Activity";
 import { Routines } from "./screens/Routines";
 import { Settings } from "./screens/Settings";
+import { Sidebar } from "./screens/Sidebar";
+import { Picker } from "./screens/Picker";
+import { Composer } from "./screens/Composer";
 
-// Step 3: setup, Activity, Routines and Settings run here. Chat moves over later
-// (docs/react-migration.md); until then Home shows a short status and links to the full app.
+// Step 4: the app shell (sidebar, repo picker, slash menu) plus setup, Activity, Routines and
+// Settings run here. The chat itself moves over in step 5 (docs/react-migration.md); until then a
+// typed request is sent and its answer shows on the full page at /.
 const LABEL: Record<Connection, string> = {
   connecting: "Connecting…",
   online: "Online",
@@ -21,30 +26,9 @@ const LABEL: Record<Connection, string> = {
 
 export { openSetup };
 
-function Nav() {
-  const view = useViews((s) => s.view);
-  const { features, folders } = useFeatures();
-  const routines = useViews((s) => s.routines);
-  const rows = activityRows(folders);
-  const waiting = rows.filter((r) => r.status === "approval").length;
-  const items: [View, string, ReactNode][] = [
-    ["home", "Home", null],
-    ["activity", "Activity", rows.length > 0 && <span className={"nav-badge" + (waiting ? " approval" : "")}>{waiting || rows.length}</span>],
-    ...(features?.routines ? [["routines", "Routines", routines?.needs ? <span className="nav-badge approval">{routines.needs}</span> : null] as [View, string, ReactNode]] : []),
-    ["settings", "Settings", null],
-  ];
-  return (
-    <nav className="next-nav" aria-label="Views">
-      {items.map(([v, label, badge]) => (
-        <button key={v} type="button" aria-current={view === v ? "page" : undefined} onClick={() => useViews.setState({ view: v })}>{label}{badge}</button>
-      ))}
-    </nav>
-  );
-}
-
 export function App() {
   useEffect(() => {
-    const offs = [wireFeatures(), wireSetup(), wireViews()];
+    const offs = [wireFeatures(), wireSetup(), wireViews(), wireSession()];
     const stop = start();
     return () => { stop(); offs.forEach((off) => off()); };
   }, []);
@@ -53,6 +37,7 @@ export function App() {
   const features = useFeatures((s) => s.features);
   const open = useSetup((s) => s.open);
   const view = useViews((s) => s.view);
+  const drawer = useSession((s) => s.drawer);
 
   // Not set up: the setup opens by itself. Setup just finished: close it.
   const wasOnboarded = useRef<boolean | null>(null);
@@ -64,44 +49,79 @@ export function App() {
   }, [features]);
 
   if (open) return <Setup />;
+  if (state !== "online" || !features) return <Offline state={state} />;
+  return (
+    <div className={"app" + (drawer ? " side-open" : "")}>
+      <Sidebar />
+      <div className="scrim" onClick={() => useSession.setState({ drawer: false })} />
+      <main className="main">
+        <TopBar />
+        {view === "activity" ? <Activity />
+          : view === "routines" && features.routines ? <Routines />
+          : view === "settings" ? <Settings />
+          : <Chat />}
+      </main>
+      <Picker />
+    </div>
+  );
+}
+
+function TopBar() {
+  const { folder, label, rel, branch } = useSession();
+  return (
+    <header className="top">
+      <button type="button" className="icon-btn ghost open-side" aria-label="Open the sidebar" onClick={() => useSession.setState({ drawer: true })}>
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
+      </button>
+      <div className="where">
+        <div className="where-name" title={folder ? `${label} · ${rel}` : undefined}>{folder ? folderName({ label }) : "No repo open"}</div>
+        <div className="where-meta mono">{folder ? [rel, branch].filter(Boolean).join(" · ") : "pick one to start"}</div>
+      </div>
+      <span className="next-tag mono">NEXT · PREVIEW</span>
+    </header>
+  );
+}
+
+// Until step 5: where you are, what you sent, and the way to the full chat.
+function Chat() {
+  const { folder, label, sent } = useSession();
+  return (
+    <section className="chat-next">
+      <div className="hero-next">
+        {folder ? (
+          <>
+            <p className="next-kicker mono">// {folderName({ label }).toUpperCase()}</p>
+            <h1>What should we work on?</h1>
+            <p className="next-note">The conversation shows on the full page for now: <a href="/">open it at /</a>. It moves here in step 5.</p>
+            {sent && <p className="sent-note mono" role="status">Sent: {sent}</p>}
+          </>
+        ) : (
+          <>
+            <p className="next-kicker mono">// NO REPO OPEN</p>
+            <h1>Pick a repo to talk about.</h1>
+            <p><button type="button" className="onb-btn primary" onClick={() => openPicker("new")}>Choose a repo</button></p>
+          </>
+        )}
+      </div>
+      <div className="dock"><Composer /></div>
+    </section>
+  );
+}
+
+function Offline({ state }: { state: Connection }) {
   return (
     <main className="next">
       <header className="next-top">
         <span className="next-mark" aria-hidden="true" />
         <span className="next-brand">Orb</span>
-        <span className="next-tag mono">NEXT · REACT PREVIEW</span>
-        {state === "online" && <Nav />}
-        {features?.plan && <span className="next-tag mono next-plan">CLAUDE · {features.plan.toUpperCase()}</span>}
+        <span className="next-tag mono">NEXT · PREVIEW</span>
       </header>
-      {view === "activity" && state === "online" ? <Activity />
-        : view === "routines" && state === "online" && features?.routines ? <Routines />
-        : view === "settings" && state === "online" ? <Settings />
-        : <Home />}
-    </main>
-  );
-}
-
-function Home() {
-  const state = useConnection((s) => s.state);
-  const { features, folders, build } = useFeatures();
-  return (
       <section className="next-body">
-        <p className="next-kicker mono">// STEP 3</p>
-        <h1>Setup, Activity, Routines and Settings run in React now.</h1>
         <p className="next-status" role="status">
           <span className={`next-dot ${state}`} aria-hidden="true" />
           {LABEL[state]}
         </p>
-        {features && (
-          <dl className="next-facts mono">
-            <dt>repos</dt><dd>{folders.length}</dd>
-            <dt>set up</dt><dd>{features.onboarded ? "yes" : "not yet"}</dd>
-            <dt>speech</dt><dd>{features.stt} in · {features.tts} out</dd>
-            <dt>build</dt><dd>{build}</dd>
-          </dl>
-        )}
-        <p><button type="button" className="onb-btn" disabled={state !== "online"} onClick={() => openSetup(0)}>Open setup</button></p>
-        <p className="next-note">Chat stays at <a href="/">/</a> until it moves over.</p>
       </section>
+    </main>
   );
 }

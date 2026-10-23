@@ -4,14 +4,14 @@ import { create } from "zustand";
 import type { FolderItem, RoutineItem, RoutinesEvent, SessionItem, SettingsEvent } from "../protocol.gen";
 import { on } from "../events";
 
-export type View = "home" | "activity" | "routines" | "settings";
+export type View = "chat" | "activity" | "routines" | "settings";
 
 export const useViews = create<{
   view: View;
   settings: SettingsEvent | null;
   routines: RoutinesEvent | null;
   routinesNew: Set<string>; // "new" dots stay for this visit; the server forgets them at once
-}>(() => ({ view: "home", settings: null, routines: null, routinesNew: new Set() }));
+}>(() => ({ view: "chat", settings: null, routines: null, routinesNew: new Set() }));
 
 export function wireViews(): () => void {
   const offs = [

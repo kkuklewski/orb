@@ -530,6 +530,32 @@
         }
       ]
     },
+    "CommandItem": {
+      "additionalProperties": false,
+      "description": "One entry of the slash menu (slash.merge): the dashboard's own first, then Claude Code's.",
+      "properties": {
+        "argumentHint": {
+          "default": "",
+          "type": "string"
+        },
+        "description": {
+          "default": "",
+          "type": "string"
+        },
+        "local": {
+          "default": false,
+          "type": "boolean"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "CommandItem",
+      "type": "object"
+    },
     "CommandsEvent": {
       "additionalProperties": false,
       "properties": {
@@ -546,8 +572,7 @@
         },
         "items": {
           "items": {
-            "additionalProperties": true,
-            "type": "object"
+            "$ref": "#/$defs/CommandItem"
           },
           "type": "array"
         },

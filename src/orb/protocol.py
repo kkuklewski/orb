@@ -228,9 +228,17 @@ class TaskEvent(_Event):
     type: Literal["task"]
 
 
+class CommandItem(_Msg):
+    """One entry of the slash menu (slash.merge): the dashboard's own first, then Claude Code's."""
+    name: str
+    description: str = ""
+    argumentHint: str = ""
+    local: bool = False
+
+
 class CommandsEvent(_Event):
     type: Literal["commands"]
-    items: list[Json]
+    items: list[CommandItem]
 
 
 class McpEvent(_Event):

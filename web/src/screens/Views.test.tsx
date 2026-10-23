@@ -16,7 +16,7 @@ const { Settings } = await import("./Settings");
 beforeEach(() => {
   sent.length = 0;
   localStorage.clear();
-  useViews.setState({ view: "home", settings: null, routines: null, routinesNew: new Set() });
+  useViews.setState({ view: "chat", settings: null, routines: null, routinesNew: new Set() });
   useFeatures.setState({ features: null, folders: [], services: {}, build: null });
   useSetup.setState(initialSetup);
 });

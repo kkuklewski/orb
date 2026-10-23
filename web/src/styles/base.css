@@ -23,13 +23,3 @@ a { color: var(--text); }
 .next-facts { display: grid; grid-template-columns: 90px 1fr; gap: 4px 12px; margin: 12px 0 18px; font-size: 12.5px; }
 .next-facts dt { color: var(--text-3); }
 .next-facts dd { margin: 0; }
-.next-nav { display: flex; gap: 2px; margin-left: 18px; }
-.next-nav button { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border: 0; border-radius: 6px; background: none; color: var(--text-2); font: 500 13px var(--sans); cursor: pointer; }
-.next-nav button:hover { color: var(--text); background: var(--side-row); }
-.next-nav button[aria-current="page"] { color: var(--text); background: var(--side-row); }
-.next-nav .nav-badge { margin-left: 0; }
-@media (max-width: 640px) {
-  .next-top { flex-wrap: wrap; }
-  .next-nav { order: 3; width: 100%; margin: 6px 0 0; overflow-x: auto; }
-  .next-plan { display: none; }
-}
