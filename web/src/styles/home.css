@@ -91,6 +91,10 @@
 .snooze-menu button:hover, .snooze-menu button:focus-visible { background: var(--bg); outline: none; }
 .snooze-menu .mono { font-size: 11px; color: var(--text-3); }
 .task-say { margin: 0; font-size: 11.5px; color: var(--text-3); }
+.task-where { width: min(560px, 100%); background: var(--bg-elev); border: 1px solid var(--text); border-radius: 10px; overflow: hidden; }
+.task-where-head { padding: 12px 20px 8px; font-size: 10.5px; letter-spacing: .16em; color: var(--text-3); }
+.task-where .hand.first b { display: flex; align-items: center; gap: 10px; }
+.task-where .tag { font-size: 9.5px; letter-spacing: .14em; color: var(--s-acc-txt, var(--warn)); }
 .task-cols { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: 24px; padding-top: 30px; align-items: start; }
 .task-excerpt { border-top: 1px solid var(--line-soft); background: var(--code-bg); padding: 12px 0; font-size: 12.5px; line-height: 1.7; color: var(--text-2); }
 .ex-line { padding: 0 20px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }

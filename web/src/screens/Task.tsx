@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useFeatures } from "../stores/features";
 import { useViews } from "../stores/views";
-import { askIn, openPicker, useSession } from "../stores/session";
+import { askIn, folderName, openPicker, suggestRepos, useSession } from "../stores/session";
 import { refreshHome, useHome } from "../stores/home";
 import type { HomeTask } from "../protocol.gen";
 import { changeTask, openTask, sameTask, snoozeDays, undo, useTasks } from "../stores/tasks";
@@ -20,7 +20,9 @@ export function TaskScreen() {
   const loaded = useHome((s) => !!s.notes);
   const vault = useFeatures((s) => s.features?.vault ?? "");
   const [snooze, setSnooze] = useState(false);
-  useEffect(() => setSnooze(false), [task]);
+  const [choosing, setChoosing] = useState(false); // "Do it with Claude": pick where, confirm, then go
+  useEffect(() => { setSnooze(false); setChoosing(false); }, [task]);
+  const folders = useFeatures((s) => s.folders);
   useEffect(() => { if (!loaded) refreshHome(); }, [loaded]); // opened from a link: the list for ↑ ↓ and "next"
 
   const i = tasks.findIndex((x) => sameTask(x, task));
@@ -44,7 +46,10 @@ export function TaskScreen() {
   const text = detail ? plain(detail.raw) : tasks[i]?.text ?? "";
   const where = `${task.file}:${task.line}`;
   const ask = (prompt: string) => vault && askIn(vault, prompt);
-  const inRepo = () => { useSession.setState({ pendingAsk: `Help me with this task from my notes (${where}): ${text}. Look at the repo first, then propose how to do it.` }); openPicker("new"); };
+  const repoAsk = `Help me with this task from my notes (${where}): ${text}. Look at this repo first, then propose how to do it here and what you need from me.`;
+  const inRepo = () => { useSession.setState({ pendingAsk: repoAsk }); openPicker("new"); };
+  const hint = detail ? `${text} ${detail.heading} ${detail.title}` : text;
+  const suggested = suggestRepos(folders, hint, vault);
 
   return (
     <section className="task" aria-label="Task">
@@ -76,7 +81,7 @@ export function TaskScreen() {
               <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
               Mark done <span className="kbd mono">D</span>
             </button>
-            <button type="button" className="hbtn big outline" onClick={() => ask(`Help me with this task from my notes (${where}): ${text}. Read the note first, then tell me how you'd do it and what you need from me.`)}>Do it with Claude →</button>
+            <button type="button" className="hbtn big outline" aria-expanded={choosing} onClick={() => setChoosing(!choosing)}>Do it with Claude →</button>
             <div className="task-snooze">
               <button type="button" className="hbtn big outline" aria-expanded={snooze} disabled={!open} onClick={() => setSnooze(!snooze)}>Snooze ▾</button>
               {snooze && (
@@ -91,6 +96,23 @@ export function TaskScreen() {
             </div>
             <button type="button" className="hbtn big" disabled={!open} onClick={() => detail && changeTask(detail, "drop")}>Not doing it</button>
           </div>
+          {choosing && (
+            <div className="task-where" role="group" aria-label="Where to do it">
+              <div className="task-where-head mono">WHERE SHOULD CLAUDE WORK ON IT?</div>
+              {suggested.map((f, i) => (
+                <button key={f.path} type="button" className={"hand" + (i === 0 ? " first" : "")} onClick={() => askIn(f.path, repoAsk)}>
+                  <span><b>{folderName(f)}{i === 0 && <span className="tag mono">LOOKS RIGHT</span>}</b><span>{f.rel}{f.branch ? ` · ${f.branch}` : ""} · a new session there starts with this task; the repo fence and its approvals apply.</span></span>
+                  <span aria-hidden="true">→</span>
+                </button>
+              ))}
+              <button type="button" className="hand" onClick={inRepo}>
+                <span><b>Another repo…</b><span>Pick one from the list.</span></span><span aria-hidden="true">→</span>
+              </button>
+              <button type="button" className="hand" onClick={() => ask(`Help me with this task from my notes (${where}): ${text}. Read the note first, then tell me how you'd do it and what you need from me.`)}>
+                <span><b>In my notes</b><span>No repo: Claude works in the notes folder, where it can read code repos but not change them.</span></span><span aria-hidden="true">→</span>
+              </button>
+            </div>
+          )}
           <p className="mono task-say">Done, snoozed and dropped tasks stay in the note, marked the Obsidian Tasks way. Every change has an Undo.</p>
         </section>
 

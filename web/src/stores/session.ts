@@ -200,6 +200,31 @@ export function pickerItems(folders: FolderItem[], q: string): FolderItem[] {
     .sort((a, b) => (b.last_used ?? 0) - (a.last_used ?? 0) || a.label.localeCompare(b.label));
 }
 
+const STOP = new Set(["the", "a", "an", "and", "or", "of", "to", "in", "on", "for", "with", "from", "fix", "add", "run",
+  "test", "tests", "check", "review", "write", "move", "update", "create", "make", "use", "set", "all", "one", "new", "my", "notes", "note", "task", "todo"]);
+
+/** Words worth matching a repo by: lower-case, 3+ letters, not filler. */
+export function keywords(text: string): string[] {
+  return [...new Set((text.toLowerCase().match(/[a-z0-9][a-z0-9_.-]{2,}/g) ?? []).filter((w) => !STOP.has(w)))];
+}
+
+/** Repos a task likely belongs to: the ones whose name or path shares a word with the task, its heading
+ *  or its note's title; recent use breaks ties. The notes folder itself is never suggested. */
+export function suggestRepos(folders: FolderItem[], text: string, vault: string, limit = 3): FolderItem[] {
+  const words = keywords(text);
+  const scored = folders.filter((f) => f.path !== vault).map((f) => {
+    const hay = `${f.label} ${f.rel} ${f.path.split("/").pop() ?? ""}`.toLowerCase();
+    const parts = hay.split(/[^a-z0-9]+/).filter(Boolean);
+    let score = 0;
+    for (const w of words) {
+      if (parts.includes(w)) score += 3; // "n8n" is a path segment or the repo name
+      else if (hay.includes(w) || parts.some((p) => p.length >= 4 && w.includes(p))) score += 1; // "n8n-skills", "aidport_web"
+    }
+    return { f, score };
+  }).filter((x) => x.score > 0);
+  return scored.sort((a, b) => b.score - a.score || (b.f.last_used ?? 0) - (a.f.last_used ?? 0)).slice(0, limit).map((x) => x.f);
+}
+
 export function rel(ts?: number | null, now = Date.now() / 1000): string {
   if (!ts) return "";
   const s = now - ts;

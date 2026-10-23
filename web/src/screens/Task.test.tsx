@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import type { HomeEvent, ServerEvent, TaskChangedEvent, TaskDetailEvent } from "../protocol.gen";
 import { dispatch } from "../events";
 import { useFeatures } from "../stores/features";
@@ -9,6 +9,7 @@ import { useHome } from "../stores/home";
 import { initialSession, useSession } from "../stores/session";
 import { useTasks, wireTasks, snoozeDays, toastText } from "../stores/tasks";
 import { parseRoute, routePath } from "../stores/route";
+import { folder } from "../test/fixtures";
 
 const sent: Record<string, unknown>[] = [];
 vi.mock("../ws", () => ({ send: (m: Record<string, unknown>) => { sent.push(m); return true; } }));
@@ -83,12 +84,32 @@ describe("task screen", () => {
     expect(sent.at(-1)).toEqual({ type: "task_detail", file: "inbox/g7.md", line: 7 });
   });
 
-  it("Do it with Claude starts a notes session with the task", () => {
+  it("Do it with Claude suggests the repo, and a click there starts the session with the task", () => {
+    useFeatures.setState((s) => ({ ...s, folders: [{ ...folder("gates"), label: "kkuklewski/approval-gates", rel: "approval-gates", last_used: 5 }, { ...folder("web"), rel: "aidport/web" }] }));
+    render(<TaskScreen />);
+    act(() => dispatch(detail()));
+    expect(sent.filter((m) => m.type === "start_session")).toEqual([]);
+    fireEvent.click(screen.getByRole("button", { name: "Do it with Claude →" }));
+    const where = screen.getByRole("group", { name: "Where to do it" });
+    const first = within(where).getAllByRole("button")[0];
+    expect(first.textContent).toContain("gates");
+    expect(first.textContent).toContain("LOOKS RIGHT");
+    expect(within(where).queryByText(/web/)).toBeNull(); // no shared word: not offered
+    fireEvent.click(first);
+    expect(sent.at(-1)).toEqual({ type: "start_session", path: "/Users/a/code/gates" });
+    expect(useSession.getState().pendingAsk).toContain("(inbox/g7.md:6): Add approval gates");
+  });
+
+  it("Do it with Claude: another repo opens the picker; in my notes stays in the vault", () => {
     render(<TaskScreen />);
     act(() => dispatch(detail()));
     fireEvent.click(screen.getByRole("button", { name: "Do it with Claude →" }));
+    fireEvent.click(screen.getByRole("button", { name: /Another repo/ }));
+    expect(useSession.getState().picker).toBe("new");
+    expect(sent.filter((m) => m.type === "start_session")).toEqual([]);
+    useSession.setState({ picker: null });
+    fireEvent.click(screen.getByRole("button", { name: /In my notes/ }));
     expect(sent.at(-1)).toEqual({ type: "start_session", path: "/v" });
-    expect(useSession.getState().pendingAsk).toContain("(inbox/g7.md:6): Add approval gates");
   });
 
   it("a failed change keeps the task: the server's error is the message", () => {
