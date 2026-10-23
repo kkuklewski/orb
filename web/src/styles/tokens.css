@@ -1,0 +1,20 @@
+/* Studio tokens, copied from src/orb/static/studio.css (moves here for good in step 7). */
+:root[data-skin="studio"] {
+  --s-acc: #FE5B2A; --s-acc-txt: #FF7A4F; --s-ink: #18191B;
+  --bg: #18191B; --bg-elev: #1F2023; --side: #151618; --side-row: #1F2023; --side-row-hover: #25262A;
+  --line: #2C2D31; --line-soft: #242528;
+  --text: #ECECEA; --text-2: #B7B8BC; --text-3: #8E8F94;
+  --code-bg: #141517; --pill-bg: #25262A; --pill-text: #FF7A4F; --user-bubble: #1F2023;
+  --accent: var(--s-acc); --violet: var(--s-acc); --pink: var(--s-acc);
+  --shadow: none;
+  --sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+:root[data-skin="studio"][data-theme="light"] {
+  --s-acc-txt: #B83A10; --s-ink: #FFFFFF;
+  --bg: #F3F2F2; --bg-elev: #FFFFFF; --side: #EDECEC; --side-row: #FFFFFF; --side-row-hover: #E4E3E3;
+  --line: #DEDDDD; --line-soft: #E8E7E7;
+  --text: #18191B; --text-2: #45464B; --text-3: #66676C;
+  --code-bg: #FAFAF9; --pill-bg: #E8E7E7; --pill-text: #B83A10; --user-bubble: #FFFFFF;
+}
+

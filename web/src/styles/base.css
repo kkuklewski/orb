@@ -1,15 +1,4 @@
-/* Studio tokens (same values as src/orb/static/studio.css; that file moves here in step 7). */
-:root {
-  --s-acc: #FE5B2A; --s-acc-txt: #FF7A4F;
-  --bg: #18191B; --bg-elev: #1F2023; --line: #2C2D31;
-  --text: #ECECEA; --text-2: #B7B8BC; --text-3: #8E8F94;
-  --sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
-  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
-  color-scheme: dark;
-}
-@media (prefers-color-scheme: light) {
-  :root { --s-acc-txt: #B83A10; --bg: #F3F2F2; --bg-elev: #FFFFFF; --line: #DEDDDD; --text: #18191B; --text-2: #45464B; --text-3: #66676C; color-scheme: light; }
-}
+/* Page basics for /next; colours come from tokens.css (Studio). */
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; }
 body { background: var(--bg); color: var(--text); font: 15px/1.6 var(--sans); -webkit-font-smoothing: antialiased; }
