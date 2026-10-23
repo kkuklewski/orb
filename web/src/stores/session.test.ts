@@ -113,7 +113,7 @@ describe("which repo a task belongs to", () => {
   const repos = [
     { ...folder("n8n-skills"), label: "czlonkowski/n8n-skills", rel: "Agentic Workflows/n8n-skills", last_used: 10 },
     { ...folder("n8n"), label: "kkuklewski/n8n-hosting", rel: "n8n-hosting", last_used: 50 },
-    { ...folder("web"), label: "kkuklewski/aidport_web", rel: "aidport/web", last_used: 90 },
+    { ...folder("web"), label: "kkuklewski/acme_web", rel: "acme/web", last_used: 90 },
     { ...folder("brain"), label: "kkuklewski/brain", rel: "brain_second/brain", path: "/v" },
   ];
   it("keywords drop filler and short words", () => {
@@ -122,7 +122,7 @@ describe("which repo a task belongs to", () => {
   it("scores exact path words highest, recent use breaks ties, never the notes folder", () => {
     const got = S.suggestRepos(repos, "Fix n8n `[object Object]` summary serialization · Next steps (weekly review)", "/v");
     expect(got.map((f) => f.rel)).toEqual(["n8n-hosting", "Agentic Workflows/n8n-skills"]);
-    expect(S.suggestRepos(repos, "Deploy aidport landing page", "/v").map((f) => f.rel)).toEqual(["aidport/web"]);
+    expect(S.suggestRepos(repos, "Deploy acme landing page", "/v").map((f) => f.rel)).toEqual(["acme/web"]);
     expect(S.suggestRepos(repos, "brain vault cleanup", "/v")).toEqual([]);
     expect(S.suggestRepos(repos, "Write the weekly review", "/v")).toEqual([]);
   });
