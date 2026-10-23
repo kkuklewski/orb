@@ -63,10 +63,15 @@ def test_hub_opens_a_session_in_the_other_repo_and_starts_it(tmp_path, monkeypat
     out = asyncio.run(run())
     assert "acme/web" in out
     assert opened and opened[0][1] == str((tmp_path / "web").resolve()) and opened[0][0] == "src"
-    assert sent == [(str((tmp_path / "web").resolve()), "Handed over from a session in acme/brain.\n\nFix the thing in README.")]
+    assert sent == [(str((tmp_path / "web").resolve()), "Handed over by Claude from a session in acme/brain; the brief below was written by the model, not typed by the user.\n\nFix the thing in README.")]
 
     async def same():
         await hub.handoff(src, "brain", "x")
 
     with pytest.raises(handoff.HandoffError, match="own repo"):
         asyncio.run(same())
+
+
+def test_the_tool_always_asks():
+    out = handoff.ask({"repo": "web"})["hookSpecificOutput"]
+    assert out["permissionDecision"] == "ask" and "web" in out["permissionDecisionReason"]

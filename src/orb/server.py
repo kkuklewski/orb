@@ -186,7 +186,8 @@ class Hub:
         key = self.store.new_session(str(p))
         for c in [c for c in self.conns if c.key == src.key]:
             await open_session(c, str(p), key)  # first, so the request shows once, live
-        text = f"Handed over from a session in {self.label(src.path)}.\n\n{brief}"
+        text = (f"Handed over by Claude from a session in {self.label(src.path)}; the brief below was written by the model, "
+                f"not typed by the user.\n\n{brief}")
         task = asyncio.create_task(self.session(str(p), key).send(text, "text"))
         self.handoffs.add(task)
         task.add_done_callback(self.handoffs.discard)

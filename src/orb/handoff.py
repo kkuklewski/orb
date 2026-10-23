@@ -55,3 +55,9 @@ def resolve(items: list[dict], query: str) -> dict:
 def result(text: str, error: bool = False) -> dict:
     """An MCP tool result carrying one line of text."""
     return dict(content=[dict(type="text", text=text)], is_error=error)
+
+
+def ask(inp: dict) -> dict:
+    """The PreToolUse decision for the tool: always a card, whatever the session's permission mode."""
+    return {"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "ask",
+                                   "permissionDecisionReason": f"Claude wants to continue in another repo: {inp.get('repo') or '?'}."}}

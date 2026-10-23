@@ -492,7 +492,7 @@ class FolderSession:
             allowed_tools=list(BRAIN_READ_TOOLS) if settings.settings["brain"] else [],  # reading the second brain needs no card
             mcp_servers={handoff.SERVER: self._handoff_server()} if self.handoff else {},
             hooks={
-                "PreToolUse": [HookMatcher(matcher=f"Edit|Write|MultiEdit|NotebookEdit|Bash|Read|Glob|Grep|{CAPTURE_TOOL}",
+                "PreToolUse": [HookMatcher(matcher=f"Edit|Write|MultiEdit|NotebookEdit|Bash|Read|Glob|Grep|{CAPTURE_TOOL}|{handoff.TOOL}",
                                            hooks=[self._pre_tool])],
                 "PostToolUse": [HookMatcher(matcher=CAPTURE_TOOL, hooks=[self._capture_done])],
                 "PostToolUseFailure": [HookMatcher(matcher=CAPTURE_TOOL, hooks=[self._capture_failed])],
@@ -866,6 +866,8 @@ class FolderSession:
         name, inp = data.get("tool_name", ""), data.get("tool_input") or {}
         if name == CAPTURE_TOOL:
             out = self.guard.pre_capture(self.key, inp)
+        elif name == handoff.TOOL:  # a card in every permission mode (auto included): it starts work in another repo
+            out = handoff.ask(inp)
         else:
             out = strictest(self.fence.rule(name, inp), vault_rule(settings.settings.vault(), name, inp, cwd=self.path,
                                                                       protected=tuple(settings.settings["vault_protected"])))
