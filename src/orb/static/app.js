@@ -82,7 +82,6 @@ function onEvent(ev) {
       clearChat(); S.replaying = true; for (const e of ev.events) onEvent(e); S.replaying = false;
       for (const t of S.openTasks || []) if (t.status === "running") taskChip(t);
       finishAnswer(false); scrollToEnd(true); break;
-    case "cleared": clearChat(); break;
     case "session_info": renderMeta(ev); break;
     case "rate_limit": renderUsage(ev); break;
     case "context": S.ctx = ev; renderCtx(); break;

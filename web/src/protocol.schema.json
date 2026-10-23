@@ -1,0 +1,4256 @@
+{
+  "$defs": {
+    "AddFolderMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "type": {
+          "const": "add_folder",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "path"
+      ],
+      "title": "AddFolderMsg",
+      "type": "object"
+    },
+    "AudioEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "data": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "gen": {
+          "type": "integer"
+        },
+        "mime": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "seq": {
+          "type": "integer"
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "speak": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "text": {
+          "type": "string"
+        },
+        "type": {
+          "const": "audio",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "gen",
+        "seq",
+        "text"
+      ],
+      "title": "AudioEvent",
+      "type": "object"
+    },
+    "AuthStatus": {
+      "additionalProperties": false,
+      "properties": {
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "installed": {
+          "type": "boolean"
+        },
+        "loggedIn": {
+          "type": "boolean"
+        },
+        "method": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "subscription": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "subscriptionLogin": {
+          "default": false,
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "installed",
+        "loggedIn"
+      ],
+      "title": "AuthStatus",
+      "type": "object"
+    },
+    "BargeInMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "barge_in",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "BargeInMsg",
+      "type": "object"
+    },
+    "BgNoticeEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "data": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "kind": {
+          "type": "string"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "mime": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "text": {
+          "type": "string"
+        },
+        "type": {
+          "const": "bg_notice",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "kind",
+        "text"
+      ],
+      "title": "BgNoticeEvent",
+      "type": "object"
+    },
+    "BrowseEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "repo": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "name",
+        "path",
+        "repo"
+      ],
+      "title": "BrowseEntry",
+      "type": "object"
+    },
+    "BrowseEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "entries": {
+          "items": {
+            "$ref": "#/$defs/BrowseEntry"
+          },
+          "type": "array"
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "home": {
+          "type": "string"
+        },
+        "parent": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "path": {
+          "type": "string"
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "repo": {
+          "type": "boolean"
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "type": {
+          "const": "browse",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "path",
+        "home",
+        "parent",
+        "repo",
+        "entries",
+        "truncated"
+      ],
+      "title": "BrowseEvent",
+      "type": "object"
+    },
+    "BrowseMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "browse",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "BrowseMsg",
+      "type": "object"
+    },
+    "ClientMessage": {
+      "discriminator": {
+        "mapping": {
+          "add_folder": "#/$defs/AddFolderMsg",
+          "barge_in": "#/$defs/BargeInMsg",
+          "browse": "#/$defs/BrowseMsg",
+          "dictate_note": "#/$defs/DictateNoteMsg",
+          "get_settings": "#/$defs/GetSettingsMsg",
+          "interrupt": "#/$defs/InterruptMsg",
+          "mcp_reconnect": "#/$defs/McpReconnectMsg",
+          "mcp_status": "#/$defs/McpStatusMsg",
+          "mute": "#/$defs/MuteMsg",
+          "new_session": "#/$defs/NewSessionMsg",
+          "open_folder": "#/$defs/OpenFolderMsg",
+          "permission": "#/$defs/PermissionMsg",
+          "pick_folder": "#/$defs/PickFolderMsg",
+          "pin_folder": "#/$defs/PinFolderMsg",
+          "playback": "#/$defs/PlaybackMsg",
+          "read_all": "#/$defs/ReadAllMsg",
+          "rescan": "#/$defs/RescanMsg",
+          "routines": "#/$defs/RoutinesMsg",
+          "routines_seen": "#/$defs/RoutinesSeenMsg",
+          "set_mode": "#/$defs/SetModeMsg",
+          "set_model": "#/$defs/SetModelMsg",
+          "set_settings": "#/$defs/SetSettingsMsg",
+          "setup_status": "#/$defs/SetupStatusMsg",
+          "speech_cancelled": "#/$defs/SpeechCancelledMsg",
+          "speech_start": "#/$defs/SpeechStartMsg",
+          "start_session": "#/$defs/StartSessionMsg",
+          "undo_confirm": "#/$defs/UndoConfirmMsg",
+          "undo_request": "#/$defs/UndoRequestMsg",
+          "user_text": "#/$defs/UserTextMsg",
+          "utterance": "#/$defs/UtteranceMsg",
+          "voice_sample": "#/$defs/VoiceSampleMsg",
+          "voice_text": "#/$defs/VoiceTextMsg"
+        },
+        "propertyName": "type"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/SetupStatusMsg"
+        },
+        {
+          "$ref": "#/$defs/BrowseMsg"
+        },
+        {
+          "$ref": "#/$defs/PickFolderMsg"
+        },
+        {
+          "$ref": "#/$defs/OpenFolderMsg"
+        },
+        {
+          "$ref": "#/$defs/AddFolderMsg"
+        },
+        {
+          "$ref": "#/$defs/StartSessionMsg"
+        },
+        {
+          "$ref": "#/$defs/PinFolderMsg"
+        },
+        {
+          "$ref": "#/$defs/GetSettingsMsg"
+        },
+        {
+          "$ref": "#/$defs/SetSettingsMsg"
+        },
+        {
+          "$ref": "#/$defs/VoiceSampleMsg"
+        },
+        {
+          "$ref": "#/$defs/RescanMsg"
+        },
+        {
+          "$ref": "#/$defs/RoutinesMsg"
+        },
+        {
+          "$ref": "#/$defs/RoutinesSeenMsg"
+        },
+        {
+          "$ref": "#/$defs/MuteMsg"
+        },
+        {
+          "$ref": "#/$defs/NewSessionMsg"
+        },
+        {
+          "$ref": "#/$defs/UserTextMsg"
+        },
+        {
+          "$ref": "#/$defs/SpeechStartMsg"
+        },
+        {
+          "$ref": "#/$defs/BargeInMsg"
+        },
+        {
+          "$ref": "#/$defs/SpeechCancelledMsg"
+        },
+        {
+          "$ref": "#/$defs/UtteranceMsg"
+        },
+        {
+          "$ref": "#/$defs/VoiceTextMsg"
+        },
+        {
+          "$ref": "#/$defs/InterruptMsg"
+        },
+        {
+          "$ref": "#/$defs/PlaybackMsg"
+        },
+        {
+          "$ref": "#/$defs/PermissionMsg"
+        },
+        {
+          "$ref": "#/$defs/ReadAllMsg"
+        },
+        {
+          "$ref": "#/$defs/DictateNoteMsg"
+        },
+        {
+          "$ref": "#/$defs/UndoRequestMsg"
+        },
+        {
+          "$ref": "#/$defs/UndoConfirmMsg"
+        },
+        {
+          "$ref": "#/$defs/McpStatusMsg"
+        },
+        {
+          "$ref": "#/$defs/McpReconnectMsg"
+        },
+        {
+          "$ref": "#/$defs/SetModeMsg"
+        },
+        {
+          "$ref": "#/$defs/SetModelMsg"
+        }
+      ]
+    },
+    "CommandsEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "items": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "commands",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "items"
+      ],
+      "title": "CommandsEvent",
+      "type": "object"
+    },
+    "ContextEvent": {
+      "additionalProperties": true,
+      "properties": {
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "context",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "ContextEvent",
+      "type": "object"
+    },
+    "DictateNoteMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "dictate_note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "DictateNoteMsg",
+      "type": "object"
+    },
+    "ErrorEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "text": {
+          "type": "string"
+        },
+        "type": {
+          "const": "error",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "text"
+      ],
+      "title": "ErrorEvent",
+      "type": "object"
+    },
+    "Features": {
+      "additionalProperties": false,
+      "description": "What this install has turned on, and how Claude Code is signed in (plan only).",
+      "properties": {
+        "brain": {
+          "type": "boolean"
+        },
+        "onboarded": {
+          "type": "boolean"
+        },
+        "plan": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "roots": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "routines": {
+          "type": "boolean"
+        },
+        "stt": {
+          "enum": [
+            "browser",
+            "parakeet",
+            "whisper"
+          ],
+          "type": "string"
+        },
+        "tts": {
+          "enum": [
+            "browser",
+            "kokoro"
+          ],
+          "type": "string"
+        },
+        "vault": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "roots",
+        "vault",
+        "brain",
+        "routines",
+        "onboarded",
+        "stt",
+        "tts"
+      ],
+      "title": "Features",
+      "type": "object"
+    },
+    "FeaturesEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "brain": {
+          "type": "boolean"
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "onboarded": {
+          "type": "boolean"
+        },
+        "plan": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "roots": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "routines": {
+          "type": "boolean"
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "stt": {
+          "enum": [
+            "browser",
+            "parakeet",
+            "whisper"
+          ],
+          "type": "string"
+        },
+        "tts": {
+          "enum": [
+            "browser",
+            "kokoro"
+          ],
+          "type": "string"
+        },
+        "type": {
+          "const": "features",
+          "type": "string"
+        },
+        "vault": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "roots",
+        "vault",
+        "brain",
+        "routines",
+        "onboarded",
+        "stt",
+        "tts",
+        "type"
+      ],
+      "title": "FeaturesEvent",
+      "type": "object"
+    },
+    "FolderItem": {
+      "additionalProperties": false,
+      "properties": {
+        "branch": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "has_session": {
+          "default": false,
+          "type": "boolean"
+        },
+        "label": {
+          "type": "string"
+        },
+        "last_used": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "live": {
+          "default": false,
+          "type": "boolean"
+        },
+        "mcp_failed": {
+          "default": 0,
+          "type": "integer"
+        },
+        "path": {
+          "type": "string"
+        },
+        "pinned": {
+          "default": false,
+          "type": "boolean"
+        },
+        "rel": {
+          "type": "string"
+        },
+        "remote": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "sessions": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/SessionItem"
+          },
+          "type": "array"
+        },
+        "status": {
+          "default": "idle",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "label",
+        "rel"
+      ],
+      "title": "FolderItem",
+      "type": "object"
+    },
+    "FoldersEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "items": {
+          "items": {
+            "$ref": "#/$defs/FolderItem"
+          },
+          "type": "array"
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "folders",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "items"
+      ],
+      "title": "FoldersEvent",
+      "type": "object"
+    },
+    "GetSettingsMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "get_settings",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "GetSettingsMsg",
+      "type": "object"
+    },
+    "HeardNothingEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "heard_nothing",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "HeardNothingEvent",
+      "type": "object"
+    },
+    "HeldEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "text": {
+          "type": "string"
+        },
+        "type": {
+          "const": "held",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "text"
+      ],
+      "title": "HeldEvent",
+      "type": "object"
+    },
+    "HelloEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "brain": {
+          "type": "boolean"
+        },
+        "build": {
+          "type": "string"
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "folders": {
+          "items": {
+            "$ref": "#/$defs/FolderItem"
+          },
+          "type": "array"
+        },
+        "onboarded": {
+          "type": "boolean"
+        },
+        "plan": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "rate_limit": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "roots": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "routines": {
+          "type": "boolean"
+        },
+        "services": {
+          "additionalProperties": {
+            "type": "boolean"
+          },
+          "type": "object"
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "stt": {
+          "enum": [
+            "browser",
+            "parakeet",
+            "whisper"
+          ],
+          "type": "string"
+        },
+        "tts": {
+          "enum": [
+            "browser",
+            "kokoro"
+          ],
+          "type": "string"
+        },
+        "type": {
+          "const": "hello",
+          "type": "string"
+        },
+        "vault": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "roots",
+        "vault",
+        "brain",
+        "routines",
+        "onboarded",
+        "stt",
+        "tts",
+        "type",
+        "build",
+        "folders",
+        "services"
+      ],
+      "title": "HelloEvent",
+      "type": "object"
+    },
+    "HistoryEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "events": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "history",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "events"
+      ],
+      "title": "HistoryEvent",
+      "type": "object"
+    },
+    "InterruptMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "interrupt",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "InterruptMsg",
+      "type": "object"
+    },
+    "McpEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "open": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "servers": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "mcp",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "servers"
+      ],
+      "title": "McpEvent",
+      "type": "object"
+    },
+    "McpReconnectMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "type": {
+          "const": "mcp_reconnect",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "name"
+      ],
+      "title": "McpReconnectMsg",
+      "type": "object"
+    },
+    "McpStatusMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "mcp_status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "McpStatusMsg",
+      "type": "object"
+    },
+    "MuteMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "mute",
+          "type": "string"
+        },
+        "value": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "type",
+        "value"
+      ],
+      "title": "MuteMsg",
+      "type": "object"
+    },
+    "NewSessionMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "new_session",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "NewSessionMsg",
+      "type": "object"
+    },
+    "NoticeEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "level": {
+          "anyOf": [
+            {
+              "enum": [
+                "ok",
+                "warn",
+                "error"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "text": {
+          "type": "string"
+        },
+        "type": {
+          "const": "notice",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "text"
+      ],
+      "title": "NoticeEvent",
+      "type": "object"
+    },
+    "OpenFolderMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "open_folder",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "path"
+      ],
+      "title": "OpenFolderMsg",
+      "type": "object"
+    },
+    "OpenedEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "branch": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "busy": {
+          "type": "boolean"
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "info": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "label": {
+          "type": "string"
+        },
+        "live": {
+          "type": "boolean"
+        },
+        "mode": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "rel": {
+          "type": "string"
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "speech_gen": {
+          "type": "integer"
+        },
+        "tasks": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "type": {
+          "const": "opened",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "label",
+        "branch",
+        "rel",
+        "session_id",
+        "live",
+        "busy",
+        "speech_gen",
+        "mode",
+        "model",
+        "info",
+        "tasks"
+      ],
+      "title": "OpenedEvent",
+      "type": "object"
+    },
+    "PartialEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "text": {
+          "type": "string"
+        },
+        "type": {
+          "const": "partial",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "text"
+      ],
+      "title": "PartialEvent",
+      "type": "object"
+    },
+    "PermissionDoneEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "allow": {
+          "type": "boolean"
+        },
+        "answers": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "heard": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "id": {
+          "type": "string"
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "permission_done",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "allow"
+      ],
+      "title": "PermissionDoneEvent",
+      "type": "object"
+    },
+    "PermissionEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "blocked_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "id": {
+          "type": "string"
+        },
+        "input": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "summary": {
+          "type": "string"
+        },
+        "tool": {
+          "type": "string"
+        },
+        "tool_use_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "permission",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "tool",
+        "input",
+        "summary"
+      ],
+      "title": "PermissionEvent",
+      "type": "object"
+    },
+    "PermissionMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "allow": {
+          "type": "boolean"
+        },
+        "answers": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "id": {
+          "type": "string"
+        },
+        "type": {
+          "const": "permission",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "allow"
+      ],
+      "title": "PermissionMsg",
+      "type": "object"
+    },
+    "PickFolderMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "pick_folder",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "PickFolderMsg",
+      "type": "object"
+    },
+    "PickedEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "cancelled": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "picked",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "PickedEvent",
+      "type": "object"
+    },
+    "PinFolderMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "pinned": {
+          "default": true,
+          "type": "boolean"
+        },
+        "type": {
+          "const": "pin_folder",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "path"
+      ],
+      "title": "PinFolderMsg",
+      "type": "object"
+    },
+    "PlaybackMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "play_ms": {
+          "type": "integer"
+        },
+        "turn": {
+          "type": "string"
+        },
+        "type": {
+          "const": "playback",
+          "type": "string"
+        },
+        "vad_ms": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "type",
+        "turn",
+        "vad_ms",
+        "play_ms"
+      ],
+      "title": "PlaybackMsg",
+      "type": "object"
+    },
+    "RateLimitEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "overage": {
+          "default": null
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "status": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "rate_limit",
+          "type": "string"
+        },
+        "windows": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "RateLimitEvent",
+      "type": "object"
+    },
+    "ReadAllMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "type": "string"
+        },
+        "type": {
+          "const": "read_all",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "text"
+      ],
+      "title": "ReadAllMsg",
+      "type": "object"
+    },
+    "RescanMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "rescan",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "RescanMsg",
+      "type": "object"
+    },
+    "ResultEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "duration_ms": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "is_error": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "num_turns": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "stop_reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "subtype": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "ResultEvent",
+      "type": "object"
+    },
+    "RootInfo": {
+      "additionalProperties": false,
+      "properties": {
+        "exists": {
+          "type": "boolean"
+        },
+        "path": {
+          "type": "string"
+        },
+        "repos": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "path",
+        "exists",
+        "repos"
+      ],
+      "title": "RootInfo",
+      "type": "object"
+    },
+    "RoutinesEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "checked_at": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "checking": {
+          "type": "boolean"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "items": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "needs": {
+          "type": "integer"
+        },
+        "new": {
+          "type": "integer"
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "routines",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "items",
+        "checked_at",
+        "checking",
+        "error",
+        "needs",
+        "new"
+      ],
+      "title": "RoutinesEvent",
+      "type": "object"
+    },
+    "RoutinesMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "refresh": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "routines",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "RoutinesMsg",
+      "type": "object"
+    },
+    "RoutinesSeenMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "routines_seen",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "RoutinesSeenMsg",
+      "type": "object"
+    },
+    "SaidEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "block": {
+          "type": "string"
+        },
+        "delta": {
+          "type": "string"
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "said",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "block",
+        "delta"
+      ],
+      "title": "SaidEvent",
+      "type": "object"
+    },
+    "ServerEvent": {
+      "discriminator": {
+        "mapping": {
+          "audio": "#/$defs/AudioEvent",
+          "bg_notice": "#/$defs/BgNoticeEvent",
+          "browse": "#/$defs/BrowseEvent",
+          "commands": "#/$defs/CommandsEvent",
+          "context": "#/$defs/ContextEvent",
+          "error": "#/$defs/ErrorEvent",
+          "features": "#/$defs/FeaturesEvent",
+          "folders": "#/$defs/FoldersEvent",
+          "heard_nothing": "#/$defs/HeardNothingEvent",
+          "held": "#/$defs/HeldEvent",
+          "hello": "#/$defs/HelloEvent",
+          "history": "#/$defs/HistoryEvent",
+          "mcp": "#/$defs/McpEvent",
+          "notice": "#/$defs/NoticeEvent",
+          "opened": "#/$defs/OpenedEvent",
+          "partial": "#/$defs/PartialEvent",
+          "permission": "#/$defs/PermissionEvent",
+          "permission_done": "#/$defs/PermissionDoneEvent",
+          "picked": "#/$defs/PickedEvent",
+          "rate_limit": "#/$defs/RateLimitEvent",
+          "result": "#/$defs/ResultEvent",
+          "routines": "#/$defs/RoutinesEvent",
+          "said": "#/$defs/SaidEvent",
+          "session_info": "#/$defs/SessionInfoEvent",
+          "settings": "#/$defs/SettingsEvent",
+          "setup_status": "#/$defs/SetupStatusEvent",
+          "speech_reset": "#/$defs/SpeechResetEvent",
+          "state": "#/$defs/StateEvent",
+          "task": "#/$defs/TaskEvent",
+          "text": "#/$defs/TextEvent",
+          "text_start": "#/$defs/TextStartEvent",
+          "timing": "#/$defs/TimingEvent",
+          "tool_input": "#/$defs/ToolInputEvent",
+          "tool_result": "#/$defs/ToolResultEvent",
+          "tool_start": "#/$defs/ToolStartEvent",
+          "undo_available": "#/$defs/UndoAvailableEvent",
+          "undo_confirm": "#/$defs/UndoConfirmEvent",
+          "undo_done": "#/$defs/UndoDoneEvent",
+          "user": "#/$defs/UserEvent",
+          "voice_sample": "#/$defs/VoiceSampleEvent"
+        },
+        "propertyName": "type"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/HelloEvent"
+        },
+        {
+          "$ref": "#/$defs/FeaturesEvent"
+        },
+        {
+          "$ref": "#/$defs/FoldersEvent"
+        },
+        {
+          "$ref": "#/$defs/SetupStatusEvent"
+        },
+        {
+          "$ref": "#/$defs/BrowseEvent"
+        },
+        {
+          "$ref": "#/$defs/PickedEvent"
+        },
+        {
+          "$ref": "#/$defs/VoiceSampleEvent"
+        },
+        {
+          "$ref": "#/$defs/SettingsEvent"
+        },
+        {
+          "$ref": "#/$defs/ErrorEvent"
+        },
+        {
+          "$ref": "#/$defs/NoticeEvent"
+        },
+        {
+          "$ref": "#/$defs/OpenedEvent"
+        },
+        {
+          "$ref": "#/$defs/HistoryEvent"
+        },
+        {
+          "$ref": "#/$defs/StateEvent"
+        },
+        {
+          "$ref": "#/$defs/SessionInfoEvent"
+        },
+        {
+          "$ref": "#/$defs/ContextEvent"
+        },
+        {
+          "$ref": "#/$defs/TaskEvent"
+        },
+        {
+          "$ref": "#/$defs/CommandsEvent"
+        },
+        {
+          "$ref": "#/$defs/McpEvent"
+        },
+        {
+          "$ref": "#/$defs/RateLimitEvent"
+        },
+        {
+          "$ref": "#/$defs/RoutinesEvent"
+        },
+        {
+          "$ref": "#/$defs/BgNoticeEvent"
+        },
+        {
+          "$ref": "#/$defs/UserEvent"
+        },
+        {
+          "$ref": "#/$defs/TextStartEvent"
+        },
+        {
+          "$ref": "#/$defs/TextEvent"
+        },
+        {
+          "$ref": "#/$defs/SaidEvent"
+        },
+        {
+          "$ref": "#/$defs/ToolStartEvent"
+        },
+        {
+          "$ref": "#/$defs/ToolInputEvent"
+        },
+        {
+          "$ref": "#/$defs/ToolResultEvent"
+        },
+        {
+          "$ref": "#/$defs/ResultEvent"
+        },
+        {
+          "$ref": "#/$defs/TimingEvent"
+        },
+        {
+          "$ref": "#/$defs/PartialEvent"
+        },
+        {
+          "$ref": "#/$defs/HeardNothingEvent"
+        },
+        {
+          "$ref": "#/$defs/HeldEvent"
+        },
+        {
+          "$ref": "#/$defs/PermissionEvent"
+        },
+        {
+          "$ref": "#/$defs/PermissionDoneEvent"
+        },
+        {
+          "$ref": "#/$defs/UndoAvailableEvent"
+        },
+        {
+          "$ref": "#/$defs/UndoConfirmEvent"
+        },
+        {
+          "$ref": "#/$defs/UndoDoneEvent"
+        },
+        {
+          "$ref": "#/$defs/AudioEvent"
+        },
+        {
+          "$ref": "#/$defs/SpeechResetEvent"
+        }
+      ]
+    },
+    "SessionInfoEvent": {
+      "additionalProperties": true,
+      "properties": {
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "session_info",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "SessionInfoEvent",
+      "type": "object"
+    },
+    "SessionItem": {
+      "additionalProperties": false,
+      "properties": {
+        "empty": {
+          "type": "boolean"
+        },
+        "key": {
+          "type": "string"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "last_used": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "live": {
+          "type": "boolean"
+        },
+        "mcp_failed": {
+          "default": 0,
+          "type": "integer"
+        },
+        "opus": {
+          "default": 0,
+          "type": "integer"
+        },
+        "status": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "empty",
+        "status",
+        "live"
+      ],
+      "title": "SessionItem",
+      "type": "object"
+    },
+    "SetModeMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "enum": [
+            "default",
+            "auto",
+            "plan"
+          ],
+          "type": "string"
+        },
+        "type": {
+          "const": "set_mode",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "mode"
+      ],
+      "title": "SetModeMsg",
+      "type": "object"
+    },
+    "SetModelMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "model": {
+          "enum": [
+            "sonnet",
+            "opus"
+          ],
+          "type": "string"
+        },
+        "type": {
+          "const": "set_model",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "model"
+      ],
+      "title": "SetModelMsg",
+      "type": "object"
+    },
+    "SetSettingsMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "set_settings",
+          "type": "string"
+        },
+        "values": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "vocabulary": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "SetSettingsMsg",
+      "type": "object"
+    },
+    "SettingsEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "host": {
+          "type": "string"
+        },
+        "port": {
+          "type": "integer"
+        },
+        "recommended": {
+          "items": {
+            "$ref": "#/$defs/Voice"
+          },
+          "type": "array"
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "settings",
+          "type": "string"
+        },
+        "values": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "vault": {
+          "type": "string"
+        },
+        "vocab_seed": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "vocabulary": {
+          "type": "string"
+        },
+        "voices": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "whisper_prompt": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "values",
+        "voices",
+        "recommended",
+        "vocabulary",
+        "vocab_seed",
+        "whisper_prompt",
+        "vault",
+        "port",
+        "host"
+      ],
+      "title": "SettingsEvent",
+      "type": "object"
+    },
+    "SetupStatusEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "auth": {
+          "$ref": "#/$defs/AuthStatus"
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "home": {
+          "type": "string"
+        },
+        "login_cmd": {
+          "type": "string"
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "roots": {
+          "items": {
+            "$ref": "#/$defs/RootInfo"
+          },
+          "type": "array"
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "speech": {
+          "additionalProperties": {
+            "type": "boolean"
+          },
+          "type": "object"
+        },
+        "suggested": {
+          "items": {
+            "$ref": "#/$defs/Suggestion"
+          },
+          "type": "array"
+        },
+        "type": {
+          "const": "setup_status",
+          "type": "string"
+        },
+        "values": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "voices": {
+          "items": {
+            "$ref": "#/$defs/Voice"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "type",
+        "auth",
+        "login_cmd",
+        "roots",
+        "suggested",
+        "home",
+        "speech",
+        "voices",
+        "values"
+      ],
+      "title": "SetupStatusEvent",
+      "type": "object"
+    },
+    "SetupStatusMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "setup_status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "SetupStatusMsg",
+      "type": "object"
+    },
+    "SpeechCancelledMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "speech_cancelled",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "SpeechCancelledMsg",
+      "type": "object"
+    },
+    "SpeechResetEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "gen": {
+          "type": "integer"
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "speech_reset",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "gen"
+      ],
+      "title": "SpeechResetEvent",
+      "type": "object"
+    },
+    "SpeechStartMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "echo_risk": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "speech_start",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "SpeechStartMsg",
+      "type": "object"
+    },
+    "StartSessionMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "type": {
+          "const": "start_session",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "path"
+      ],
+      "title": "StartSessionMsg",
+      "type": "object"
+    },
+    "StateEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "busy": {
+          "type": "boolean"
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "state",
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "value",
+        "busy"
+      ],
+      "title": "StateEvent",
+      "type": "object"
+    },
+    "Suggestion": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "repos": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "path",
+        "repos"
+      ],
+      "title": "Suggestion",
+      "type": "object"
+    },
+    "TaskEvent": {
+      "additionalProperties": true,
+      "properties": {
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "task",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "TaskEvent",
+      "type": "object"
+    },
+    "TextEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "block": {
+          "type": "string"
+        },
+        "delta": {
+          "type": "string"
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "block",
+        "delta"
+      ],
+      "title": "TextEvent",
+      "type": "object"
+    },
+    "TextStartEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "block": {
+          "type": "string"
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "text_start",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "block"
+      ],
+      "title": "TextStartEvent",
+      "type": "object"
+    },
+    "TimingEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "hops": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "source": {
+          "type": "string"
+        },
+        "turn": {
+          "type": "string"
+        },
+        "type": {
+          "const": "timing",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "turn",
+        "source",
+        "model",
+        "hops"
+      ],
+      "title": "TimingEvent",
+      "type": "object"
+    },
+    "ToolInputEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "input": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "parent": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "summary": {
+          "type": "string"
+        },
+        "type": {
+          "const": "tool_input",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "name",
+        "input",
+        "summary"
+      ],
+      "title": "ToolInputEvent",
+      "type": "object"
+    },
+    "ToolResultEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "content": {
+          "type": "string"
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "is_error": {
+          "type": "boolean"
+        },
+        "parent": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "tool_use_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "type": {
+          "const": "tool_result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "tool_use_id",
+        "is_error",
+        "content",
+        "truncated"
+      ],
+      "title": "ToolResultEvent",
+      "type": "object"
+    },
+    "ToolStartEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "block": {
+          "default": null
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "tool_start",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "name"
+      ],
+      "title": "ToolStartEvent",
+      "type": "object"
+    },
+    "UndoAvailableEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "files": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "undo_available",
+          "type": "string"
+        },
+        "user_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "user_id",
+        "files"
+      ],
+      "title": "UndoAvailableEvent",
+      "type": "object"
+    },
+    "UndoConfirmEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "_created": {
+          "default": null
+        },
+        "_later": {
+          "default": null
+        },
+        "files": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "id": {
+          "type": "string"
+        },
+        "note": {
+          "type": "string"
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "undo_confirm",
+          "type": "string"
+        },
+        "user_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "user_id",
+        "files",
+        "note"
+      ],
+      "title": "UndoConfirmEvent",
+      "type": "object"
+    },
+    "UndoConfirmMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "ok": {
+          "type": "boolean"
+        },
+        "type": {
+          "const": "undo_confirm",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "ok"
+      ],
+      "title": "UndoConfirmMsg",
+      "type": "object"
+    },
+    "UndoDoneEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "files": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "heard": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "id": {
+          "type": "string"
+        },
+        "ok": {
+          "type": "boolean"
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "undo_done",
+          "type": "string"
+        },
+        "user_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "ok"
+      ],
+      "title": "UndoDoneEvent",
+      "type": "object"
+    },
+    "UndoRequestMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "undo_request",
+          "type": "string"
+        },
+        "user_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "UndoRequestMsg",
+      "type": "object"
+    },
+    "UserEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "source": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "type": {
+          "const": "user",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "text",
+        "source"
+      ],
+      "title": "UserEvent",
+      "type": "object"
+    },
+    "UserTextMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "interrupt": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "text": {
+          "type": "string"
+        },
+        "type": {
+          "const": "user_text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "text"
+      ],
+      "title": "UserTextMsg",
+      "type": "object"
+    },
+    "UtteranceMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "utterance",
+          "type": "string"
+        },
+        "wav": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "wav"
+      ],
+      "title": "UtteranceMsg",
+      "type": "object"
+    },
+    "Voice": {
+      "additionalProperties": false,
+      "properties": {
+        "desc": {
+          "type": "string"
+        },
+        "grade": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "desc"
+      ],
+      "title": "Voice",
+      "type": "object"
+    },
+    "VoiceSampleEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "data": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "mime": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "voice_sample",
+          "type": "string"
+        },
+        "voice": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "voice"
+      ],
+      "title": "VoiceSampleEvent",
+      "type": "object"
+    },
+    "VoiceSampleMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "voice_sample",
+          "type": "string"
+        },
+        "voice": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "VoiceSampleMsg",
+      "type": "object"
+    },
+    "VoiceTextMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "echo_risk": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "text": {
+          "type": "string"
+        },
+        "type": {
+          "const": "voice_text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "text"
+      ],
+      "title": "VoiceTextMsg",
+      "type": "object"
+    }
+  },
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "properties": {
+    "client": {
+      "$ref": "#/$defs/ClientMessage"
+    },
+    "server": {
+      "$ref": "#/$defs/ServerEvent"
+    }
+  },
+  "title": "OrbProtocol",
+  "type": "object"
+}

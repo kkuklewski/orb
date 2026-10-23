@@ -19,7 +19,7 @@ jobs:
       - run: uv run pytest -q
 
   web:
-    name: Page build matches web/
+    name: "Page: protocol, tests, build"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -28,15 +28,23 @@ jobs:
           node-version-file: web/.nvmrc
           cache: npm
           cache-dependency-path: web/package-lock.json
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
       - run: npm ci
+        working-directory: web
+      # The protocol's one source is src/orb/protocol.py: regenerate its schema and TypeScript types.
+      - run: uv run orb-protocol
+      - run: npm run gen:protocol
+        working-directory: web
+      - run: npm test
         working-directory: web
       - run: npm run build
         working-directory: web
-      # The built page is committed so `uv tool install` never needs Node; it must match its source.
-      - name: Committed build is up to date
+      # Generated and built files are committed (uv tool install never needs Node); they must match.
+      - name: Generated files are up to date
         run: |
-          if [ -n "$(git status --porcelain src/orb/static/app)" ]; then
-            git status --short src/orb/static/app
-            echo "::error::src/orb/static/app is out of date. Run: cd web && npm run build, then commit it."
+          paths="src/orb/static/app web/src/protocol.schema.json web/src/protocol.gen.ts"
+          if [ -n "$(git status --porcelain $paths)" ]; then
+            git status --short $paths
+            echo "::error::Out of date. Run: uv run orb-protocol && cd web && npm run gen:protocol && npm run build, then commit."
             exit 1
           fi

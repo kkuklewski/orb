@@ -10,12 +10,14 @@ dependencies = [
     "claude-agent-sdk>=0.2.172",
     "fastapi>=0.160.0",
     "httpx>=0.28.1",
+    "pydantic>=2.14",
     "uvicorn[standard]>=0.54.0",
 ]
 
 [project.scripts]
 orb = "orb:main"
 orb-vendor = "orb.vendor:main"
+orb-protocol = "orb.protocol:main"
 
 [build-system]
 requires = ["uv_build>=0.13.5,<0.14.0"]

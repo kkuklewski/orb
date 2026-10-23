@@ -30,3 +30,7 @@ a { color: var(--text); }
 .next-dot.refused, .next-dot.no-token { background: var(--s-acc); border-radius: 0; }
 .next-meta { margin: 0 0 18px; font-size: 12px; color: var(--text-3); }
 .next-note { color: var(--text-2); }
+.next-plan { margin-left: auto; }
+.next-facts { display: grid; grid-template-columns: 90px 1fr; gap: 4px 12px; margin: 12px 0 18px; font-size: 12.5px; }
+.next-facts dt { color: var(--text-3); }
+.next-facts dd { margin: 0; }
