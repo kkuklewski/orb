@@ -218,7 +218,7 @@ export function suggestRepos(folders: FolderItem[], text: string, vault: string,
     let score = 0;
     for (const w of words) {
       if (parts.includes(w)) score += 3; // "n8n" is a path segment or the repo name
-      else if (hay.includes(w) || parts.some((p) => p.length >= 4 && w.includes(p))) score += 1; // "n8n-skills", "aidport_web"
+      else if (hay.includes(w) || parts.some((p) => p.length >= 4 && w.includes(p))) score += 1; // part of a longer name, like "n8n-skills"
     }
     return { f, score };
   }).filter((x) => x.score > 0);
