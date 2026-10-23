@@ -85,7 +85,7 @@ describe("task screen", () => {
   });
 
   it("Do it with Claude suggests the repo, and a click there starts the session with the task", () => {
-    useFeatures.setState((s) => ({ ...s, folders: [{ ...folder("gates"), label: "kkuklewski/approval-gates", rel: "approval-gates", last_used: 5 }, { ...folder("web"), rel: "aidport/web" }] }));
+    useFeatures.setState((s) => ({ ...s, folders: [{ ...folder("gates"), label: "kkuklewski/approval-gates", rel: "approval-gates", last_used: 5 }, { ...folder("web"), rel: "acme/web" }] }));
     render(<TaskScreen />);
     act(() => dispatch(detail()));
     expect(sent.filter((m) => m.type === "start_session")).toEqual([]);

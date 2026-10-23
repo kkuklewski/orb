@@ -114,7 +114,7 @@ describe("which repo a task belongs to", () => {
     { ...folder("n8n-skills"), label: "czlonkowski/n8n-skills", rel: "Agentic Workflows/n8n-skills", last_used: 10 },
     { ...folder("n8n"), label: "kkuklewski/n8n-hosting", rel: "n8n-hosting", last_used: 50 },
     { ...folder("web"), label: "kkuklewski/acme_web", rel: "acme/web", last_used: 90 },
-    { ...folder("brain"), label: "kkuklewski/brain", rel: "brain_second/brain", path: "/v" },
+    { ...folder("brain"), label: "kkuklewski/notes", rel: "notes", path: "/v" },
   ];
   it("keywords drop filler and short words", () => {
     expect(S.keywords("Fix n8n `[object Object]` summary serialization")).toEqual(["n8n", "object", "summary", "serialization"]);
