@@ -117,3 +117,20 @@ def test_command_items_match_the_model():
     from orb import slash
     for c in slash.merge([{"name": "review", "description": "Review", "argumentHint": "[pr]"}, "compact"]):
         protocol.CommandItem.model_validate(c)
+
+
+def test_task_dicts_match_the_model():
+    """agent.py builds each background task as one dict literal with "task_id"; its keys are TaskInfo's."""
+    tree = ast.parse((SRC / "agent.py").read_text())
+    found = [{k.value for k in n.keys if isinstance(k, ast.Constant)} for n in ast.walk(tree)
+             if isinstance(n, ast.Dict) and any(isinstance(k, ast.Constant) and k.value == "task_id" for k in n.keys)]
+    assert found and all(keys == fields(protocol.TaskInfo) for keys in found), found
+
+
+def test_every_model_field_reaches_the_schema():
+    defs = protocol.schema()["$defs"]
+    for name, d in defs.items():
+        model = getattr(protocol, name, None)
+        if model is None or not hasattr(model, "model_fields"):
+            continue
+        assert fields(model) <= set(d.get("properties", {})), f"{name}: {sorted(fields(model) - set(d.get('properties', {})))}"

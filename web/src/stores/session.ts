@@ -20,7 +20,6 @@ export interface SessionState {
   picker: PickerMode | null;
   expanded: string[];
   drawer: boolean; // narrow screens: the sidebar slides over
-  sent: string | null; // the last typed request sent from this page
 }
 
 const local = {
@@ -34,7 +33,7 @@ function savedExpanded(): string[] {
 
 export const initialSession = (): SessionState => ({
   folder: null, session: null, label: "", rel: "", branch: null, busy: false, commands: [],
-  picker: null, expanded: savedExpanded(), drawer: false, sent: null,
+  picker: null, expanded: savedExpanded(), drawer: false,
 });
 
 /** Pure: the next state for one event. Session-scoped events for another session are ignored. */
@@ -42,7 +41,7 @@ export function reduce(state: SessionState, ev: ServerEvent): SessionState {
   const other = "session" in ev && ev.session && state.session && ev.session !== state.session;
   switch (ev.type) {
     case "opened":
-      return { ...state, folder: ev.folder ?? null, session: ev.session ?? null, label: ev.label, rel: ev.rel, branch: ev.branch, busy: ev.busy, sent: null };
+      return { ...state, folder: ev.folder ?? null, session: ev.session ?? null, label: ev.label, rel: ev.rel, branch: ev.branch, busy: ev.busy };
     case "commands":
       return other ? state : { ...state, commands: ev.items };
     case "state":
@@ -119,13 +118,14 @@ export function choosePath(path: string) {
 }
 
 /** Typed request. Without an open folder the picker asks where first. */
+export function interrupt() { send({ type: "interrupt" }); }
+
 export function sendText(text: string): boolean {
   const t = text.trim();
   const { folder, busy } = useSession.getState();
   if (!t) return false;
   if (!folder) { openPicker("new"); return false; }
   send({ type: "user_text", text: t, interrupt: busy });
-  useSession.setState({ sent: t });
   return true;
 }
 

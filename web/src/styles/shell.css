@@ -125,3 +125,6 @@
 @media (max-width: 560px) { .top .next-tag { display: none; } }
 @media (prefers-reduced-motion: reduce) { .sidebar { transition: none; } }
 [data-skin="studio"] .slash-item.active { background: var(--side-row-hover); box-shadow: inset 2px 0 0 var(--text); }
+.chat-next > .chat { min-height: 0; }
+.stop { width: 34px; height: 34px; border-radius: 8px; border: 0; display: grid; place-items: center; cursor: pointer; background: var(--s-acc, var(--err)); color: #fff; flex: none; font-size: 12px; }
+.chat-next { position: relative; }

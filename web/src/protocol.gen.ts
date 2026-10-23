@@ -611,10 +611,22 @@ export interface OpenedEvent {
   session?: string | null;
   session_id: string | null;
   speech_gen: number;
-  tasks: {
-    [k: string]: unknown;
-  }[];
+  tasks: TaskInfo[];
   type: "opened";
+}
+/**
+ * One background task (an opus-coder run or a background shell), as agent.py keeps it.
+ *
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "TaskInfo".
+ */
+export interface TaskInfo {
+  coder?: boolean;
+  description?: string | null;
+  status: string;
+  summary?: string | null;
+  task_id: string;
+  tool_use_id?: string | null;
 }
 /**
  * This interface was referenced by `OrbProtocol`'s JSON-Schema
@@ -669,11 +681,16 @@ export interface ContextEvent {
  * via the `definition` "TaskEvent".
  */
 export interface TaskEvent {
+  coder?: boolean;
+  description?: string | null;
   folder?: string | null;
   replay?: boolean | null;
   session?: string | null;
+  status: string;
+  summary?: string | null;
+  task_id: string;
+  tool_use_id?: string | null;
   type: "task";
-  [k: string]: unknown;
 }
 /**
  * This interface was referenced by `OrbProtocol`'s JSON-Schema
@@ -962,6 +979,7 @@ export interface PermissionEvent {
   replay?: boolean | null;
   session?: string | null;
   summary: string;
+  title?: string | null;
   tool: string;
   tool_use_id?: string | null;
   type: "permission";

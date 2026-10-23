@@ -12,10 +12,11 @@ import { Settings } from "./screens/Settings";
 import { Sidebar } from "./screens/Sidebar";
 import { Picker } from "./screens/Picker";
 import { Composer } from "./screens/Composer";
+import { ChatLog } from "./screens/chat/Chat";
+import { useChat, wireChat } from "./stores/chat";
 
-// Step 4: the app shell (sidebar, repo picker, slash menu) plus setup, Activity, Routines and
-// Settings run here. The chat itself moves over in step 5 (docs/react-migration.md); until then a
-// typed request is sent and its answer shows on the full page at /.
+// Step 5: the app shell, the chat (typed), setup, Activity, Routines and Settings run here. Voice
+// (mic, her voice, barge-in) moves over in step 6 (docs/react-migration.md).
 const LABEL: Record<Connection, string> = {
   connecting: "Connecting…",
   online: "Online",
@@ -28,7 +29,7 @@ export { openSetup };
 
 export function App() {
   useEffect(() => {
-    const offs = [wireFeatures(), wireSetup(), wireViews(), wireSession()];
+    const offs = [wireFeatures(), wireSetup(), wireViews(), wireSession(), wireChat()];
     const stop = start();
     return () => { stop(); offs.forEach((off) => off()); };
   }, []);
@@ -82,27 +83,28 @@ function TopBar() {
   );
 }
 
-// Until step 5: where you are, what you sent, and the way to the full chat.
 function Chat() {
-  const { folder, label, sent } = useSession();
+  const { folder, label } = useSession();
+  const empty = useChat((s) => s.items.length === 0);
   return (
     <section className="chat-next">
-      <div className="hero-next">
-        {folder ? (
-          <>
-            <p className="next-kicker mono">// {folderName({ label }).toUpperCase()}</p>
-            <h1>What should we work on?</h1>
-            <p className="next-note">The conversation shows on the full page for now: <a href="/">open it at /</a>. It moves here in step 5.</p>
-            {sent && <p className="sent-note mono" role="status">Sent: {sent}</p>}
-          </>
-        ) : (
-          <>
-            <p className="next-kicker mono">// NO REPO OPEN</p>
-            <h1>Pick a repo to talk about.</h1>
-            <p><button type="button" className="onb-btn primary" onClick={() => openPicker("new")}>Choose a repo</button></p>
-          </>
-        )}
-      </div>
+      {folder && !empty ? <ChatLog /> : (
+        <div className="hero-next">
+          {folder ? (
+            <>
+              <p className="next-kicker mono">// {folderName({ label }).toUpperCase()}</p>
+              <h1>What should we work on?</h1>
+              <p className="next-note">Type below, or / for commands. Voice comes to this page in step 6; until then it works at <a href="/">/</a>.</p>
+            </>
+          ) : (
+            <>
+              <p className="next-kicker mono">// NO REPO OPEN</p>
+              <h1>Pick a repo to talk about.</h1>
+              <p><button type="button" className="onb-btn primary" onClick={() => openPicker("new")}>Choose a repo</button></p>
+            </>
+          )}
+        </div>
+      )}
       <div className="dock"><Composer /></div>
     </section>
   );

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { sendText, slashMatches, slashQuery, useSession } from "../stores/session";
+import { interrupt, sendText, slashMatches, slashQuery, useSession } from "../stores/session";
 
 // The typed request box. "/" at the start opens the session's commands (skills, plugin skills,
 // Claude Code built-ins, Orb's own); ↑↓ move, Tab/Enter complete, Esc closes. The text is sent as
@@ -7,6 +7,7 @@ import { sendText, slashMatches, slashQuery, useSession } from "../stores/sessio
 // server runs. Typed input only: voice never goes through here.
 export function Composer() {
   const commands = useSession((s) => s.commands);
+  const busy = useSession((s) => s.busy);
   const [text, setText] = useState("");
   const [active, setActive] = useState(0);
   const [closed, setClosed] = useState(false); // Esc closes the menu until the text changes
@@ -80,9 +81,13 @@ export function Composer() {
           }
           if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(); }
         }} />
+      {busy && !text.trim() ? (
+        <button type="button" className="stop" aria-label="Stop" title="Stop this answer (Esc)" onClick={interrupt}>■</button>
+      ) : (
       <button type="submit" className="send" aria-label="Send" disabled={!text.trim()}>
         <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 19V5M5 12l7-7 7 7" /></svg>
       </button>
+      )}
     </form>
   );
 }

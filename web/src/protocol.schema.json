@@ -1634,8 +1634,7 @@
         },
         "tasks": {
           "items": {
-            "additionalProperties": true,
-            "type": "object"
+            "$ref": "#/$defs/TaskInfo"
           },
           "type": "array"
         },
@@ -1857,6 +1856,17 @@
         },
         "summary": {
           "type": "string"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "tool": {
           "type": "string"
@@ -3361,8 +3371,23 @@
       "type": "object"
     },
     "TaskEvent": {
-      "additionalProperties": true,
+      "additionalProperties": false,
       "properties": {
+        "coder": {
+          "default": false,
+          "type": "boolean"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "folder": {
           "anyOf": [
             {
@@ -3396,15 +3421,100 @@
           ],
           "default": null
         },
+        "status": {
+          "type": "string"
+        },
+        "summary": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "task_id": {
+          "type": "string"
+        },
+        "tool_use_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "type": {
           "const": "task",
           "type": "string"
         }
       },
       "required": [
+        "task_id",
+        "status",
         "type"
       ],
       "title": "TaskEvent",
+      "type": "object"
+    },
+    "TaskInfo": {
+      "additionalProperties": false,
+      "description": "One background task (an opus-coder run or a background shell), as agent.py keeps it.",
+      "properties": {
+        "coder": {
+          "default": false,
+          "type": "boolean"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "status": {
+          "type": "string"
+        },
+        "summary": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "task_id": {
+          "type": "string"
+        },
+        "tool_use_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "task_id",
+        "status"
+      ],
+      "title": "TaskInfo",
       "type": "object"
     },
     "TextEvent": {

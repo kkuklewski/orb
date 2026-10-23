@@ -166,7 +166,6 @@ describe("composer and slash menu", () => {
     expect(sent).toEqual([]);
     fireEvent.keyDown(box(), { key: "Enter" });
     expect(sent).toEqual([{ type: "user_text", text: "hello", interrupt: false }]);
-    expect(useSession.getState().sent).toBe("hello");
   });
 
   it("/ outside a text field focuses the box and starts a command", () => {

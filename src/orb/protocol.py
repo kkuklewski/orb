@@ -198,7 +198,7 @@ class OpenedEvent(_Event):
     mode: str
     model: str
     info: Json
-    tasks: list[Json]
+    tasks: list[TaskInfo]
 
 
 class HistoryEvent(_Event):
@@ -223,8 +223,17 @@ class ContextEvent(_Event):
     type: Literal["context"]
 
 
-class TaskEvent(_Event):
-    model_config = ConfigDict(extra="allow")  # one background task (Opus run, background shell)
+class TaskInfo(_Msg):
+    """One background task (an opus-coder run or a background shell), as agent.py keeps it."""
+    task_id: str
+    description: str | None = None
+    coder: bool = False
+    tool_use_id: str | None = None
+    status: str
+    summary: str | None = None
+
+
+class TaskEvent(_Event, TaskInfo):
     type: Literal["task"]
 
 
@@ -628,9 +637,10 @@ CLIENT_MESSAGES: dict[str, type[BaseModel]] = {
 
 
 def _untitle(node: Any, keep: bool = False) -> Any:
-    """Drop the per-field titles Pydantic adds (they become one TypeScript alias per field); keep model titles."""
+    """Drop the per-field titles Pydantic adds (they become one TypeScript alias per field); keep model
+    titles, and keep every key of a "properties" map (a field may be called "title")."""
     if isinstance(node, dict):
-        return {k: _untitle(v, k == "$defs") for k, v in node.items() if not (k == "title" and not keep)}
+        return {k: _untitle(v, k in ("$defs", "properties")) for k, v in node.items() if not (k == "title" and not keep)}
     if isinstance(node, list):
         return [_untitle(v) for v in node]
     return node
