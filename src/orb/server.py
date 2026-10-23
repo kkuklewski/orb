@@ -305,6 +305,9 @@ def origin_ok(ws: WebSocket) -> bool:
 async def ws_endpoint(ws: WebSocket):
     token = ws.query_params.get("t", "")
     if not origin_ok(ws) or not secrets.compare_digest(token, config.token()):
+        # Accept, then close with 4403: a close before accept reaches the browser as a plain failed
+        # connection (1006), and the page would keep reconnecting with a stale token forever.
+        await ws.accept()
         await ws.close(code=4403)
         return
     await ws.accept()

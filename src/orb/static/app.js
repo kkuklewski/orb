@@ -48,7 +48,11 @@ function connect() {
   ws.onopen = () => { backoff = 500; S.localLabel = null; refreshState(); send({ type: "mute", value: S.muted }); setSysline(true); };
   ws.onmessage = (m) => onEvent(JSON.parse(m.data));
   ws.onclose = (e) => {
-    if (e.code === 4403) { notice("The server refused this page (bad token or origin). Open the link the server printed.", "error"); return; }
+    if (e.code === 4403) { // stale token (a new install or state folder makes a new one) or a foreign page
+      setState("offline"); setSysline(false);
+      notice("This page's access token is out of date. Open the link Orb printed in the terminal (it ends in #t=…).", "error");
+      return;
+    }
     setState("offline"); setSysline(false);
     setTimeout(connect, backoff); backoff = Math.min(backoff * 2, 8000);
   };
