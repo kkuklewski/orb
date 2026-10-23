@@ -120,3 +120,8 @@
   .note-folder { display: none; }
   .task-buttons .hbtn { flex: 1 1 160px; justify-content: center; }
 }
+
+.usage-warn { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 16px; padding: 12px 16px; background: var(--bg-elev); border: 1px solid var(--s-acc, var(--warn)); border-radius: 8px; }
+.usage-warn p { margin: 0; flex: 1 1 280px; font-size: 14px; color: var(--text-2); }
+.usage-warn strong { color: var(--text); font-weight: 600; }
+.usage-warn .hbtn { height: 38px; font-size: 13px; }

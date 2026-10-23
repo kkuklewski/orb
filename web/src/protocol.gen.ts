@@ -391,7 +391,7 @@ export interface SetModeMsg {
  * via the `definition` "SetModelMsg".
  */
 export interface SetModelMsg {
-  model: "sonnet" | "opus";
+  model: "haiku" | "sonnet" | "opus";
   type: "set_model";
 }
 /**

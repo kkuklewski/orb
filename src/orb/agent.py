@@ -401,7 +401,7 @@ class FolderSession:
         self.reader: asyncio.Task | None = None
         self.session_id: str | None = store.resume_id(path, key)
         self.mode: str = store.mode(path, settings.settings["default_mode"])
-        self.model: str = store.model(path, settings.settings["default_model"])  # front model: sonnet / opus
+        self.model: str = store.model(path, settings.settings["default_model"])  # front model: haiku / sonnet / opus
         self.reconnect_after = False  # a model switch during a turn: reconnect when it ends (for effort)
         self.tasks: dict[str, dict] = {}  # background tasks (opus-coder runs, background shells)
         self.coder_calls: set[str] = set()  # tool_use ids of Agent calls to opus-coder
@@ -476,7 +476,7 @@ class FolderSession:
             cwd=self.path,
             model=self.model,
             effort=chain.EFFORT.get(self.model),
-            agents=chain.AGENTS,
+            agents=chain.agents(settings.settings["coder_effort"]),
             permission_mode=self.mode,  # set explicitly: the user's settings default to "auto"
             include_partial_messages=True,
             resume=self.session_id,
@@ -491,7 +491,7 @@ class FolderSession:
                 "PostToolUseFailure": [HookMatcher(matcher=CAPTURE_TOOL, hooks=[self._capture_failed])],
             },
             env=billing.sdk_env(),
-            system_prompt={"type": "preset", "preset": "claude_code", "append": "\n".join((VOICE_PROMPT, self._brain_prompt(), chain.ROUTING_PROMPT))},
+            system_prompt={"type": "preset", "preset": "claude_code", "append": "\n".join((VOICE_PROMPT, self._brain_prompt(), chain.routing_prompt(self.model)))},
             stderr=lambda line: log.debug("claude[%s]: %s", self.path, line),
         )
 

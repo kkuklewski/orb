@@ -5,6 +5,7 @@ import type { Features, HomeEvent, ServerEvent } from "../protocol.gen";
 import { dispatch } from "../events";
 import { useFeatures } from "../stores/features";
 import { useViews } from "../stores/views";
+import { initialMeta, useMeta } from "../stores/meta";
 import { initialSession, useSession, wireSession } from "../stores/session";
 import { initialSetup, useSetup, wireSetup } from "../stores/setup";
 import { ASK_TODAY, greeting, needsYou, routinesLine, useHome, wireHome } from "../stores/home";
@@ -103,6 +104,31 @@ describe("home screen", () => {
     fireEvent.click(screen.getByRole("button", { name: "Choose notes folder" }));
     expect(useSetup.getState()).toMatchObject({ open: true, step: 3 });
     expect(screen.queryByRole("button", { name: "Ask for today's plan →" })).toBeNull();
+  });
+});
+
+describe("usage warning", () => {
+  const low = { five_hour: { utilization: 0.9, resetsAt: Date.now() / 1000 + 3600 } };
+  it("appears under 15% and offers Haiku for the open folder", () => {
+    useMeta.setState({ ...initialMeta(), windows: {} });
+    const { rerender } = render(<Home />);
+    expect(screen.queryByRole("alert")).toBeNull();
+    act(() => useMeta.setState({ windows: low }));
+    rerender(<Home />);
+    expect(screen.getByRole("alert").textContent).toContain("Session 10% left");
+    act(() => useSession.setState({ folder: "/Users/a/code/web" }));
+    fireEvent.click(screen.getByRole("button", { name: "Use Haiku here" }));
+    expect(sent.at(-1)).toEqual({ type: "set_model", model: "haiku" });
+  });
+
+  it("with no folder open it offers Haiku for new folders; on Haiku already, no button", () => {
+    useMeta.setState({ ...initialMeta(), windows: low });
+    render(<Home />);
+    fireEvent.click(screen.getByRole("button", { name: "Haiku for new folders" }));
+    expect(sent.at(-1)).toEqual({ type: "set_settings", values: { default_model: "haiku" } });
+    act(() => useMeta.setState({ front: "haiku" }));
+    expect(screen.queryByRole("button", { name: /Haiku/ })).toBeNull();
+    expect(screen.getByRole("alert").textContent).toContain("already uses Haiku");
   });
 });
 

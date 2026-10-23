@@ -1,9 +1,10 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useFeatures } from "../stores/features";
 import { useViews, dayTime, relTime } from "../stores/views";
-import { askIn, folderName, openFolder, openPicker } from "../stores/session";
+import { askIn, folderName, openFolder, openPicker, useSession } from "../stores/session";
+import { send } from "../ws";
 import { openSetup } from "../stores/setup";
-import { useMeta, usageView } from "../stores/meta";
+import { setFront, useMeta, usageView, usageWarning } from "../stores/meta";
 import { ASK_TODAY, brief, greeting, needsYou, refreshHome, useHome } from "../stores/home";
 import { changeTask, openTask } from "../stores/tasks";
 import { VoicePill } from "./Voice";
@@ -51,6 +52,24 @@ function MetaRow({ now }: { now: Date }) {
   );
 }
 
+/** Under 15% of the plan left: say so, and offer the cheap model (this folder, or new folders when none is open). */
+function UsageWarning() {
+  const windows = useMeta((s) => s.windows);
+  const front = useMeta((s) => s.front);
+  const folder = useSession((s) => s.folder);
+  const w = usageWarning(windows);
+  if (!w) return null;
+  const cheap = front === "haiku";
+  return (
+    <div className="usage-warn" role="alert">
+      <span className="sq" aria-hidden="true" />
+      <p><strong>{w.name} {Math.round(w.left * 100)}% left</strong>{w.resets ? `, resets ${w.resets}` : ""}. {cheap ? "This folder already uses Haiku, the cheapest model." : "Haiku uses a fraction of it, and still hands coding to Opus."}</p>
+      {!cheap && folder && <button type="button" className="hbtn" onClick={() => setFront("haiku")}>Use Haiku here</button>}
+      {!cheap && !folder && <button type="button" className="hbtn" onClick={() => send({ type: "set_settings", values: { default_model: "haiku" } })}>Haiku for new folders</button>}
+    </div>
+  );
+}
+
 export function Home() {
   const features = useFeatures((s) => s.features);
   const folders = useFeatures((s) => s.folders);
@@ -72,6 +91,7 @@ export function Home() {
     <section className="home" aria-label="Home">
       <div className="home-col">
         <MetaRow now={now} />
+        <UsageWarning />
 
         <section className="home-hero">
           <div className="mono home-kicker">// TODAY</div>

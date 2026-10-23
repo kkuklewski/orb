@@ -61,3 +61,8 @@ def test_config_changes_only_known_repo_settings():
     assert slash.parse_config("") == ({}, [])
     changes, problems = slash.parse_config("model=opus permissionMode=acceptEdits theme=dark")
     assert changes == {} and len(problems) == 2  # one bad key changes nothing at all
+
+
+def test_haiku_is_a_model_for_model_and_config():
+    assert slash.local_command("/model haiku") == ("model", "haiku")
+    assert slash.parse_config("model=haiku") == ({"model": "haiku"}, [])

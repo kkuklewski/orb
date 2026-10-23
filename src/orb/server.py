@@ -414,10 +414,10 @@ async def run_local(conn: Conn, s: FolderSession, name: str, args: str) -> None:
         want = args.lower().strip()
         want = "sonnet" if want == "sonet" else want
         if not want:
-            await conn.send({"type": "notice", "text": f"Front model: {s.model}. /model sonnet or /model opus switches it."})
+            await conn.send({"type": "notice", "text": f"Front model: {s.model}. /model haiku, sonnet or opus switches it."})
         elif want not in chain.MODELS:
             await conn.send({"type": "notice", "level": "warn",
-                             "text": f"Unknown front model {args!r}: use sonnet or opus."})
+                             "text": f"Unknown front model {args!r}: use haiku, sonnet or opus."})
         else:
             for x in {s, *hub.folder_sessions(s.path)}:  # per folder, like the header chip
                 await x.set_model(want)
@@ -442,7 +442,7 @@ async def run_local(conn: Conn, s: FolderSession, name: str, args: str) -> None:
                 await x.set_model(changes["model"])
         repo = Path(s.path).name
         await conn.send({"type": "notice", "text": f"{repo}: permissionMode={s.mode}, model={s.model}"
-                         + ("" if changes else ". Change with /config permissionMode=default|auto|plan model=sonnet|opus")
+                         + ("" if changes else ". Change with /config permissionMode=default|auto|plan model=haiku|sonnet|opus")
                          + ". Only this repo's sessions; your global Claude Code settings are untouched."})
 
 

@@ -1,7 +1,7 @@
 """The agent chain: a fast front model that talks and routes, Opus as a subagent for hard coding.
 
-The front is per folder (Sonnet by default, Opus for a heavy-coding repo); the header chip and
-"switch to Opus" / "przełącz na Opus" change it. Hard coding goes to the `opus-coder` subagent,
+The front is per folder (Sonnet by default; Haiku is the cheapest, for notes and status; Opus for a
+heavy-coding repo); the header chip and "switch to Opus" / "przełącz na Opus" change it. Hard coding goes to the `opus-coder` subagent,
 in the background by default, so the user can keep talking while it works.
 """
 
@@ -13,14 +13,23 @@ from claude_agent_sdk import AgentDefinition
 
 from . import config
 
-MODELS = ("sonnet", "opus")
-# Reasoning effort per front model. None keeps the CLI default (what Opus ran with before).
-EFFORT = {"sonnet": config.env("SONNET_EFFORT", "low"), "opus": None}
+MODELS = ("haiku", "sonnet", "opus")
+# Reasoning effort per front model. None keeps the CLI default (what Opus ran with before; Haiku has no effort).
+EFFORT = {"haiku": None, "sonnet": config.env("SONNET_EFFORT", "low"), "opus": None}
 CODER = "opus-coder"
 CODER_MAX_TURNS = 80  # runaway guard
+CODER_EFFORTS = ("low", "medium", "high")  # Settings; "high" burns the plan fastest, so it isn't the default
+DEFAULT_CODER_EFFORT = "medium"
 
-AGENTS = {
-    CODER: AgentDefinition(
+
+def agents(coder_effort: str = DEFAULT_CODER_EFFORT) -> dict:
+    """The subagents for a session; the coder's effort is the user's setting."""
+    effort = coder_effort if coder_effort in CODER_EFFORTS else DEFAULT_CODER_EFFORT
+    return {CODER: _coder(effort)}
+
+
+def _coder(effort: str) -> AgentDefinition:
+    return AgentDefinition(
         description=(
             "Hard coding work: changes across several files, failing tests or debugging, architecture, "
             "performance, security-sensitive code, anything that needs careful reasoning."
@@ -33,10 +42,10 @@ AGENTS = {
             "anything left open. Plain Markdown, no <spoken> tags."
         ),
         model="opus",
-        effort="high",
+        effort=effort,
         maxTurns=CODER_MAX_TURNS,
-    ),
-}
+    )
+
 
 ROUTING_PROMPT = f"""\
 # Agent chain
@@ -56,7 +65,7 @@ You are the front of a chain: answer fast, and hand hard coding to the `{CODER}`
 - If you are already running as Opus, do the work yourself instead of delegating.
 """
 
-_NAME = r"(opus|sonnet|sonet)"
+_NAME = r"(opus|sonnet|sonet|haiku)"
 SWITCH_TRIGGER = re.compile(
     rf"^\s*(?:(?:please\s+)?(?:switch|change|go)\s+(?:back\s+)?to\s+{_NAME}"
     rf"|przełącz(?:\s+się)?\s+na\s+{_NAME}|zmień\s+na\s+{_NAME})[\s.!]*$",
@@ -70,7 +79,20 @@ def switch_request(text: str) -> str | None:
     if not m:
         return None
     name = next(g for g in m.groups() if g).lower()
-    return "sonnet" if name.startswith("son") else "opus"
+    return "sonnet" if name.startswith("son") else "haiku" if name == "haiku" else "opus"
+
+
+HAIKU_PROMPT = f"""\
+# You are the cheapest front model (Haiku)
+Keep your own work to conversation, questions, status checks, second-brain actions and reading. For
+ANY change to code or files beyond a one-line fix, and for debugging, delegate to `{CODER}` right away
+with a complete brief; don't try it yourself. If a question needs deep reasoning, say so and offer to
+switch to Sonnet or Opus ("switch to Sonnet").
+"""
+
+
+def routing_prompt(model: str) -> str:
+    return ROUTING_PROMPT + (HAIKU_PROMPT if model == "haiku" else "")
 
 
 def is_coder_call(name: str, inp: dict) -> bool:

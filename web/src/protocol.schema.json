@@ -3400,6 +3400,7 @@
       "properties": {
         "model": {
           "enum": [
+            "haiku",
             "sonnet",
             "opus"
           ],

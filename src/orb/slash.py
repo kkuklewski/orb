@@ -17,19 +17,19 @@ from collections.abc import Iterable
 LOCAL: tuple[dict, ...] = (
     {"name": "clear", "description": "Start a fresh session in this folder (like New session; the old one keeps running)",
      "argumentHint": ""},
-    {"name": "model", "description": "Front model for this folder: sonnet (fast, hands coding to Opus) or opus",
-     "argumentHint": "[sonnet|opus]"},
+    {"name": "model", "description": "Front model for this folder: haiku (cheapest), sonnet (fast, hands coding to Opus) or opus",
+     "argumentHint": "[haiku|sonnet|opus]"},
     {"name": "mcp", "description": "MCP servers of this session: status and reconnect", "argumentHint": ""},
     {"name": "rewind", "description": "Undo the file changes of the last request (asks first)", "argumentHint": ""},
     {"name": "config", "description": "Settings of this repo's sessions (not your global Claude Code settings)",
-     "argumentHint": "[permissionMode=default|auto|plan] [model=sonnet|opus]"},
+     "argumentHint": "[permissionMode=default|auto|plan] [model=haiku|sonnet|opus]"},
 )
 
 # /config keys the dashboard keeps per repo (folder), like the header chips, with the values each takes.
 # Claude Code's own /config would rewrite ~/.claude/settings.json for every session on the Mac.
 CONFIG_KEYS: dict[str, tuple[str, ...]] = {
     "permissionMode": ("default", "auto", "plan"),
-    "model": ("sonnet", "opus"),
+    "model": ("haiku", "sonnet", "opus"),
 }
 LOCAL_NAMES = frozenset(c["name"] for c in LOCAL)
 

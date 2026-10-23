@@ -13,10 +13,11 @@ import os
 import re
 from pathlib import Path
 
-from . import config
+from . import chain, config
 
 DEFAULTS = {
     "voice": config.KOKORO_VOICE, "default_mode": "default", "default_model": "sonnet",
+    "coder_effort": chain.DEFAULT_CODER_EFFORT,  # how hard the Opus coder thinks: low / medium / high
     "stt": config.STT, "tts": config.TTS,  # "browser" works out of the box; local engines are an upgrade
     "roots": [config.env("ROOT", "")] if config.env("ROOT", "") else [],  # folders Orb may open (and their repos)
     "skip_names": [],  # folder names never listed or entered, on top of folders.SKIP_NAMES
@@ -29,7 +30,7 @@ DEFAULTS = {
     "onboarded": False,
 }
 MODES = ("default", "auto", "plan")
-MODELS = ("sonnet", "opus")
+MODELS = chain.MODELS
 STT = ("browser", "parakeet", "whisper")
 TTS = ("browser", "kokoro")
 NAME = re.compile(r"^[^/\\\0]{1,100}$")  # a single folder name, no path separators
@@ -71,6 +72,8 @@ class Settings:
             self.data["default_mode"] = changes["default_mode"]
         if changes.get("default_model") in MODELS:
             self.data["default_model"] = changes["default_model"]
+        if changes.get("coder_effort") in chain.CODER_EFFORTS:
+            self.data["coder_effort"] = changes["coder_effort"]
         if changes.get("stt") in STT:
             self.data["stt"] = changes["stt"]
         if changes.get("tts") in TTS:

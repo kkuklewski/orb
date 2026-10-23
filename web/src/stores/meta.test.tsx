@@ -62,6 +62,28 @@ describe("views", () => {
   });
 });
 
+describe("models and the usage warning", () => {
+  it("the chip cycles Sonnet → Opus → Haiku → Sonnet", () => {
+    expect([M.NEXT_FRONT.sonnet, M.NEXT_FRONT.opus, M.NEXT_FRONT.haiku]).toEqual(["opus", "haiku", "sonnet"]);
+    M.useMeta.setState({ front: "haiku" });
+    M.toggleModel();
+    expect(sent.at(-1)).toEqual({ type: "set_model", model: "sonnet" });
+    M.setFront("haiku");
+    expect(sent.at(-1)).toEqual({ type: "set_model", model: "haiku" });
+  });
+
+  it("warns under 15% in either window, naming the lowest", () => {
+    const now = new Date(2026, 9, 23, 12, 0).getTime();
+    const resets = new Date(2026, 9, 23, 16, 10).getTime() / 1000;
+    expect(M.usageWarning(null)).toBeNull();
+    expect(M.usageWarning({ five_hour: { utilization: 0.8, resetsAt: resets }, seven_day: { utilization: 0.5 } }, now)).toBeNull();
+    const w = M.usageWarning({ five_hour: { utilization: 0.88, resetsAt: resets }, seven_day: { utilization: 0.93 } }, now)!;
+    expect([w.name, Math.round(w.left * 100)]).toEqual(["Week", 7]);
+    expect(M.usageWarning({ five_hour: { utilization: 0.86, resetsAt: resets } }, now)).toMatchObject({ name: "Session", resets: "16:10" });
+    expect(M.usageWarning({ five_hour: { utilization: 0.85 } }, now)).toBeNull(); // exactly 15% left is not under it
+  });
+});
+
 describe("top bar", () => {
   it("shows the session's chips and switches model and approvals", () => {
     act(() => M.useMeta.setState((s) => M.reduce(s, opened())));

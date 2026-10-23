@@ -92,6 +92,16 @@ describe("Settings", () => {
     expect(screen.queryByLabelText("Voice")).toBeNull();
   });
 
+  it("model for new folders has Haiku, and the Opus coder's effort is a setting", () => {
+    useViews.setState({ settings: settings({ values: { ...settings().values, coder_effort: "medium" } }) });
+    render(<Settings />);
+    fireEvent.click(screen.getByRole("radio", { name: "Haiku + Opus for coding" }));
+    expect(sent).toContainEqual({ type: "set_settings", values: { default_model: "haiku" } });
+    expect(screen.getByRole("radio", { name: "Medium", checked: true })).toBeTruthy();
+    fireEvent.click(screen.getByRole("radio", { name: "High" }));
+    expect(sent).toContainEqual({ type: "set_settings", values: { coder_effort: "high" } });
+  });
+
   it("keeps barge-in and theme in this browser, and saves the vocabulary", () => {
     useViews.setState({ settings: settings() });
     render(<Settings />);

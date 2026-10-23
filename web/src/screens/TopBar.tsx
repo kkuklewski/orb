@@ -1,5 +1,5 @@
 import { folderName, newSession, useSession } from "../stores/session";
-import { contextView, cycleMode, mcpRows, metaLine, reconnectMcp, toggleMcp, toggleModel, usageView, useMeta } from "../stores/meta";
+import { FRONT_TITLE, contextView, cycleMode, mcpRows, metaLine, reconnectMcp, toggleMcp, toggleModel, usageView, useMeta } from "../stores/meta";
 import { useVoice } from "../stores/voice";
 import { toggleMute } from "../voice/controller";
 import { Player } from "../voice/player";
@@ -88,8 +88,8 @@ export function TopBar() {
           </button>
         )}
         {folder && (
-          <button type="button" className={"chip-btn mono mode-chip model-chip" + (front === "opus" ? " opus" : "")} onClick={toggleModel} aria-label={`model: ${front}`}
-            title={front === "opus" ? "Opus answers everything here (best for a heavy-coding repo). Click for Sonnet." : "Sonnet answers fast and hands hard coding to Opus in the background. Click for Opus."}>
+          <button type="button" className={"chip-btn mono mode-chip model-chip" + (front === "opus" ? " opus" : front === "haiku" ? " haiku" : "")} onClick={toggleModel} aria-label={`model: ${front}`}
+            title={FRONT_TITLE[front]}>
             <span className="chip-key">model: </span>{front}
           </button>
         )}

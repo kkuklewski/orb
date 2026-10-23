@@ -49,7 +49,7 @@ export function Settings() {
   useEffect(() => { send({ type: "get_settings" }); }, []);
 
   if (!ev) return <div className="view-col"><div className="view-head"><h2>Settings</h2></div><p className="side-hint">Loading…</p></div>;
-  const v = ev.values as { voice?: string; default_mode?: string; default_model?: string; stt?: string; tts?: string };
+  const v = ev.values as { voice?: string; default_mode?: string; default_model?: string; coder_effort?: string; stt?: string; tts?: string };
   const voices: [string, string][] = ev.recommended.map((x) => [x.id, `${x.name} · ${x.desc}${x.grade ? ` · ${x.grade}` : ""}`]);
   if (ev.voices.includes("chatterbox")) voices.push(["chatterbox", "Chatterbox · Polish and English, slow"]);
   if (!voices.length && v.voice) voices.push([v.voice, v.voice]);
@@ -84,9 +84,14 @@ export function Settings() {
           options={[["default", "Default"], ["auto", "Auto"], ["plan", "Plan"]]} />
       </Section>
 
-      <Section title="Model for new folders" hint={'Sonnet answers fast and hands hard coding to Opus in the background; Opus answers everything itself. Each folder can still be switched in the top bar, or by saying "switch to Opus".'}>
+      <Section title="Model for new folders" hint={'Haiku is the cheapest: it answers notes and status questions and hands any coding to Opus. Sonnet answers fast and hands hard coding to Opus in the background. Opus answers everything itself and uses your plan fastest. Each folder can still be switched in the top bar, or by saying "switch to Haiku".'}>
         <Seg name="Model" value={v.default_model} onPick={(m) => setServer({ default_model: m })}
-          options={[["sonnet", "Sonnet + Opus for coding"], ["opus", "Opus"]]} />
+          options={[["haiku", "Haiku + Opus for coding"], ["sonnet", "Sonnet + Opus for coding"], ["opus", "Opus"]]} />
+      </Section>
+
+      <Section title="Opus effort for coding" hint="How hard the Opus coder thinks when Haiku or Sonnet hands it a task. Medium is plenty for most code and uses far less of your plan than High. Applies to sessions started from now on.">
+        <Seg name="Opus effort" value={v.coder_effort} onPick={(m) => setServer({ coder_effort: m })}
+          options={[["low", "Low"], ["medium", "Medium"], ["high", "High"]]} />
       </Section>
 
       <Section title="Speech recognition" hint="Browser works anywhere; Parakeet hears you in about 0.1 s on this Mac and asks Whisper when a word may be one of your names; Whisper alone takes about 0.5 s.">

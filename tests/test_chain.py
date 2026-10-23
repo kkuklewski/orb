@@ -127,7 +127,7 @@ def test_options_have_front_model_coder_and_routing():
     s = session()
     o = s._options()
     assert o.model == "sonnet" and o.effort == chain.EFFORT["sonnet"]
-    assert o.agents["opus-coder"].model == "opus" and o.agents["opus-coder"].effort == "high"
+    assert o.agents["opus-coder"].model == "opus" and o.agents["opus-coder"].effort == "medium"  # the default setting
     assert o.agents["opus-coder"].maxTurns
     assert "opus-coder" in o.system_prompt["append"] and "<spoken>" in o.system_prompt["append"]
     assert o.permission_mode == "default"  # approvals stay on
@@ -205,3 +205,29 @@ async def test_opus_task_chip_and_done_line(monkeypatch):
     assert not s.running_tasks()
     assert said == ["Opus is done."]
     assert [e for e in events if e["type"] == "task"][-1]["status"] == "completed"
+
+
+def test_haiku_is_a_front_model_that_delegates_more():
+    assert chain.MODELS == ("haiku", "sonnet", "opus")
+    assert chain.switch_request("switch to Haiku.") == "haiku"
+    assert chain.EFFORT["haiku"] is None
+    s = session()
+    s.model = "haiku"
+    o = s._options()
+    assert o.model == "haiku" and o.effort is None
+    assert "cheapest front model" in o.system_prompt["append"]
+    s.model = "sonnet"
+    assert "cheapest front model" not in s._options().system_prompt["append"]
+
+
+def test_coder_effort_is_a_setting(tmp_path):
+    assert chain.agents()["opus-coder"].effort == "medium"
+    assert chain.agents("high")["opus-coder"].effort == "high"
+    assert chain.agents("max")["opus-coder"].effort == "medium"  # not a choice: the default
+    st = Settings(tmp_path / "settings.json")
+    assert st["coder_effort"] == "medium"
+    st.update({"coder_effort": "low", "default_model": "haiku"})
+    again = Settings(tmp_path / "settings.json")
+    assert again["coder_effort"] == "low" and again["default_model"] == "haiku"
+    st.update({"coder_effort": "extreme"})
+    assert st["coder_effort"] == "low"

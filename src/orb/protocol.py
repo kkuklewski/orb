@@ -735,7 +735,7 @@ class SetModeMsg(_Msg):
 
 class SetModelMsg(_Msg):
     type: Literal["set_model"]
-    model: Literal["sonnet", "opus"]
+    model: Literal["haiku", "sonnet", "opus"]
 
 
 ClientMessage = Annotated[Union[

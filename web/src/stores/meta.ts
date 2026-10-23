@@ -8,7 +8,7 @@ import { useSession } from "./session";
 
 export interface MetaState {
   info: SessionInfo;
-  front: string; // sonnet | opus: who answers in this folder
+  front: string; // haiku | sonnet | opus: who answers in this folder
   mode: string; // default | auto | plan
   sessionId: string | null;
   windows: Record<string, UsageWindow> | null;
@@ -56,7 +56,16 @@ export function wireMeta(): () => void {
 
 // -- actions -------------------------------------------------------------------------------------
 
-export const toggleModel = () => send({ type: "set_model", model: useMeta.getState().front === "opus" ? "sonnet" : "opus" });
+export type Front = "haiku" | "sonnet" | "opus";
+/** The chip's click: Sonnet → Opus → Haiku → Sonnet. */
+export const NEXT_FRONT: Record<string, Front> = { sonnet: "opus", opus: "haiku", haiku: "sonnet" };
+export const FRONT_TITLE: Record<string, string> = {
+  haiku: "Haiku: the cheapest. Notes, status and short answers; it hands any coding to Opus. Click for Sonnet.",
+  sonnet: "Sonnet answers fast and hands hard coding to Opus in the background. Click for Opus.",
+  opus: "Opus answers everything here (best for a heavy-coding repo, burns the plan fastest). Click for Haiku.",
+};
+export const toggleModel = () => send({ type: "set_model", model: NEXT_FRONT[useMeta.getState().front] ?? "sonnet" });
+export const setFront = (model: Front) => send({ type: "set_model", model });
 export const NEXT_MODE: Record<string, "default" | "auto" | "plan"> = { default: "auto", auto: "plan", plan: "default" };
 export const cycleMode = () => send({ type: "set_mode", mode: NEXT_MODE[useMeta.getState().mode] ?? "default" });
 export function toggleMcp() {
@@ -113,6 +122,14 @@ export function usageView(w: Record<string, UsageWindow> | null, overage: boolea
     title: [exact("Session (5-hour window)", w.five_hour), exact("Week (7-day window)", w.seven_day),
       overage ? "Overage in use" : "No overage (no pay-as-you-go)", `Updates with each answer; last update ${updated}.`].join("\n"),
   };
+}
+
+/** Under 15% left in a window: the lowest one, or null when there's room. (The Max plan's 5-hour and weekly windows.) */
+export const USAGE_WARN_BELOW = 0.15;
+export function usageWarning(w: Record<string, UsageWindow> | null, now = Date.now()): { name: string; left: number; resets: string } | null {
+  const u = usageView(w, false, null, now);
+  const low = u?.parts.filter((p) => p.left != null && p.left < USAGE_WARN_BELOW).sort((a, b) => a.left! - b.left!)[0];
+  return low ? { name: low.name, left: low.left!, resets: low.resets } : null;
 }
 
 const MCP_ORDER: Record<string, number> = { failed: 0, "needs-auth": 1, pending: 2, connected: 3, disabled: 4 };
