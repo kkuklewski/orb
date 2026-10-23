@@ -1,5 +1,6 @@
 """Routine results: Haiku says which are worth reading; only those chime, badge and show as new."""
 
+import json
 import re
 import time
 
@@ -76,20 +77,24 @@ async def test_judging_fills_verdicts_once_and_only_read_results_are_announced(t
     said, asked = [], []
     w = watch(tmp_path, said)
 
+    answers = {"c1": {"read": True, "why": "urgent alert sent"}, "c2": {"read": False, "why": "no new email"}, "c3": {"read": True, "why": "old"}}
+
     async def fake(prompt):
         asked.append(prompt)
-        return '{"c1": {"read": true, "why": "urgent alert sent"}, "c2": {"read": false, "why": "no new email"}, "c3": {"read": true, "why": "old"}}'
+        rid = re.search(r'id="(c\d)"', prompt).group(1)
+        return json.dumps({rid: answers[rid]})
 
     monkeypatch.setattr(w, "_ask_judge", fake)
     shown = list(w.state["routines"].values())
     await w._judge(shown)
     await w._announce()
-    assert len(asked) == 1 and "detail c1" in asked[0] and "detail c2" in asked[0]  # one call for all
+    assert len(asked) == 3  # one call per run ...
+    assert all(sum(f"detail c{n}" in p for n in (1, 2, 3)) == 1 for p in asked)  # ... that sees only its own result
     assert said == ["Routine Gmail cleanup has a result worth reading."]  # c2 skipped; c3 is a day old
     assert "urgent" not in said[0]  # the judge's words (made from untrusted text) are never spoken
     await w._judge(shown)
     await w._announce()
-    assert len(asked) == 1 and len(said) == 1  # nothing is judged or said twice
+    assert len(asked) == 3 and len(said) == 1  # nothing is judged or said twice
     ev = w.event()
     assert (ev["read"], ev["new"], ev["needs"]) == (2, 2, 0)  # c1 and c3 are unseen and worth reading; c2 is not "new"
     assert [x["name"] for x in ev["items"]] == ["Gmail cleanup", "Old one", "Etihad check"]  # read first, nothing-to-report last
@@ -119,3 +124,19 @@ async def test_opening_the_panel_clears_the_unread_count(tmp_path, monkeypatch):
     assert w.event()["read"] == 1
     await w.mark_seen()
     assert w.event()["read"] == 0 and w.event()["items"][0]["worth"] == "read"
+
+
+async def test_the_verdicts_that_came_back_are_kept_when_one_call_fails(tmp_path, monkeypatch):
+    w = watch(tmp_path, [])
+
+    async def flaky(prompt):
+        if 'id="c2"' in prompt:
+            raise RuntimeError("one call failed")
+        return json.dumps({re.search(r'id="(c\d)"', prompt).group(1): {"read": False, "why": "nothing"}})
+
+    monkeypatch.setattr(w, "_ask_judge", flaky)
+    try:
+        await w._judge(list(w.state["routines"].values()))
+    except RuntimeError:
+        pass
+    assert set(w.state["verdicts"]) == {"c1", "c3"}  # c2 is retried at the next check

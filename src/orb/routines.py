@@ -7,8 +7,8 @@ replies, so the model never retypes data. Run logs can quote email or repo text,
 hook allows only the read actions on the ids asked for in that batch; anything else is denied
 (an injected "run this routine" or "send an email" goes nowhere).
 
-Worth reading: a finished run's result is judged by Haiku (one tool-less call for all new runs) as
-"worth reading" or "nothing to report". Only worth-reading results chime, get the badge and the blue
+Worth reading: a finished run's result is judged by Haiku (one tool-less call per run, so one result can
+never sway another's verdict) as "worth reading" or "nothing to report". Only worth-reading results chime, get the badge and the blue
 "new" mark; the rest stay in the panel, dimmed. If the judge fails, nothing is hidden or announced.
 
 "Needs you": the last run failed, a run is stuck (no result after STALL_SECONDS, e.g. a
@@ -48,7 +48,7 @@ TOOL = "RemoteTrigger"
 READ_ACTIONS = ("list", "list_runs", "get_run_log")
 MODEL = config.env("ROUTINES_MODEL", "haiku")
 JUDGE_MODEL = config.env("ROUTINES_JUDGE_MODEL", "haiku")
-JUDGE_BATCH = 12  # runs per judging call
+JUDGE_PARALLEL = 3  # judging calls at once (one per run)
 DETAIL_MAX = 1200  # chars of a result the judge reads
 SPEAK_WITHIN = 3 * 3600  # a result is announced only while it is this fresh (no burst after a long stop)
 POLL_SECONDS = int(config.env("ROUTINES_POLL", str(30 * 60)))
@@ -351,9 +351,17 @@ class Watch:
             lg = st["logs"].get(runs[0]["id"]) if runs else None
             if lg and lg.get("outcome") == "ok" and runs[0]["id"] not in st["verdicts"]:
                 todo.append({"id": runs[0]["id"], "name": r.get("name") or r["id"], "text": lg.get("detail") or lg.get("summary") or ""})
-        for i in range(0, len(todo), JUDGE_BATCH):
-            batch = todo[i:i + JUDGE_BATCH]
-            st["verdicts"].update(parse_verdicts(await self._ask_judge(judge_prompt(batch)), [x["id"] for x in batch]))
+        gate = asyncio.Semaphore(JUDGE_PARALLEL)
+
+        async def one(run: dict) -> None:
+            async with gate:  # its own call: a hostile result can't change what another result is judged to be
+                got = parse_verdicts(await self._ask_judge(judge_prompt([run])), [run["id"]])
+            st["verdicts"].update(got)
+
+        results = await asyncio.gather(*(one(r) for r in todo), return_exceptions=True)
+        for r in results:
+            if isinstance(r, Exception):
+                raise r  # the verdicts that did come back are kept; the rest are retried at the next check
 
     async def _ask_judge(self, prompt: str) -> str:
         """One tool-less, session-less Haiku call (the Max subscription, like the status check); its text."""
