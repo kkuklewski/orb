@@ -4,7 +4,7 @@ import { act, cleanup, fireEvent, render, screen, within } from "@testing-librar
 import { useFeatures } from "../stores/features";
 import { useViews } from "../stores/views";
 import { initialSession, useSession } from "../stores/session";
-import { folder, session } from "../test/fixtures";
+import { folder, routines, session } from "../test/fixtures";
 import type { Features } from "../protocol.gen";
 
 const sent: Record<string, unknown>[] = [];
@@ -80,6 +80,15 @@ describe("sidebar", () => {
     expect(screen.getByRole("button", { name: /Routines/ })).toBeTruthy();
     act(() => useFeatures.setState((s) => ({ features: { ...s.features!, routines: false } })));
     expect(screen.queryByRole("button", { name: /Routines/ })).toBeNull();
+  });
+
+  it("the Routines badge counts results worth reading, but problems come first", () => {
+    useViews.setState({ routines: routines({ read: 2, needs: 0 }) });
+    render(<Sidebar />);
+    expect(screen.getByTitle("results worth reading").textContent).toBe("2");
+    act(() => useViews.setState({ routines: routines({ read: 2, needs: 1 }) }));
+    expect(screen.queryByTitle("results worth reading")).toBeNull();
+    expect(screen.getByRole("button", { name: /Routines/ }).textContent).toContain("1");
   });
 
   it("New and + open the picker", () => {

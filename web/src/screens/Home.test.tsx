@@ -107,6 +107,19 @@ describe("home screen", () => {
   });
 });
 
+describe("routine results on Home", () => {
+  it("the brief mentions only new results worth reading", () => {
+    useViews.setState({ routines: routines({ items: [
+      routine({ id: "a", name: "Gmail cleanup", new: true, worth: "read", last: { id: "r1", outcome: "ok" } }),
+      routine({ id: "b", name: "Etihad check", worth: "skip", last: { id: "r2", outcome: "ok" } }),
+    ] }) });
+    render(<Home />);
+    const brief = document.querySelector(".home-brief")!.textContent!;
+    expect(brief).toContain("One result is worth reading (Gmail cleanup).");
+    expect(brief).not.toContain("Etihad check)");
+  });
+});
+
 describe("usage warning", () => {
   const low = { five_hour: { utilization: 0.9, resetsAt: Date.now() / 1000 + 3600 } };
   it("appears under 15% and offers Haiku for the open folder", () => {

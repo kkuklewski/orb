@@ -323,6 +323,8 @@ class RoutineItem(_Msg):
     last: RoutineRun | None = None
     needs: Literal["failed", "waiting", "stuck", "missed"] | None = None
     new: bool = False
+    worth: Literal["read", "skip"] | None = None  # Haiku's verdict on the last result; None = not judged
+    why: str = ""  # its reason, in a few words (plain text: it was written from untrusted text)
 
 
 class RoutinesEvent(_Event):
@@ -333,6 +335,7 @@ class RoutinesEvent(_Event):
     error: str | None
     needs: int
     new: int
+    read: int  # new results Haiku judged worth reading
 
 
 class BgNoticeEvent(_Event):

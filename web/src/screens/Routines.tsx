@@ -30,7 +30,7 @@ export function Routines() {
           const url = safeRunUrl(l?.url);
           const meta = [l?.at ? `last ${dayTime(l.at)}` : null, x.enabled && x.next_run_at ? `next ${dayTime(x.next_run_at)}` : null].filter(Boolean).join(" · ");
           return (
-            <div key={x.id} className={`rt-row ${routineState(x)}${routinesNew.has(x.id) ? " new" : ""}`}>
+            <div key={x.id} className={`rt-row ${routineState(x)}${routinesNew.has(x.id) ? " new" : ""}${x.worth === "skip" ? " quiet" : ""}`}>
               <div className="rt-head">
                 <span className={routineDot(x)} />
                 <span className="rt-name">{x.name}</span>
@@ -40,7 +40,12 @@ export function Routines() {
                 {meta}
                 {url && <>{meta ? " · " : ""}<a className="rt-link" href={url} target="_blank" rel="noopener noreferrer">open run ↗</a></>}
               </div>
-              {l?.summary && <div className="rt-summary">{l.summary}</div>}
+              {x.worth === "read" && <div className="rt-why mono"><span className="sq" aria-hidden="true" />worth reading{x.why ? `: ${x.why}` : ""}</div>}
+              {x.worth === "skip" && <div className="rt-why mono">nothing to report{x.why ? `: ${x.why}` : ""}</div>}
+              {l?.summary && x.worth !== "skip" && <div className="rt-summary">{l.summary}</div>}
+              {l?.summary && x.worth === "skip" && (
+                <details className="rt-more"><summary className="mono">show the result</summary><div className="rt-summary open">{l.summary}</div></details>
+              )}
             </div>
           );
         })}

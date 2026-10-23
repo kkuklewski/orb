@@ -93,6 +93,7 @@ export function Sidebar() {
           <button type="button" className={"nav-item" + (view === "routines" ? " active" : "")} aria-current={view === "routines" ? "page" : undefined} onClick={() => showView("routines")}>
             <Icon d={ICONS.routines} />Routines
             {!!routines?.needs && <span className="nav-badge approval">{routines.needs}</span>}
+            {!routines?.needs && !!routines?.read && <span className="nav-badge done" title="results worth reading">{routines.read}</span>}
           </button>
         )}
         <button type="button" className={"nav-item" + (view === "settings" ? " active" : "")} aria-current={view === "settings" ? "page" : undefined} onClick={() => showView("settings")}><Icon d={ICONS.settings} />Settings</button>

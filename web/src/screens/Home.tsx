@@ -153,10 +153,10 @@ export function Home() {
               <Card label="ROUTINES · EVERY 30 MIN" title={routines ? (n.routines.length ? `${n.routines.length} of ${on.length} need you` : `${ok} of ${on.length} ran fine`) : "Checking…"} mark={n.routines.length > 0}
                 foot={<><span>{next ? `next · ${next.name} ${dayTime(next.next_run_at!)}` : "nothing scheduled"}</span><button type="button" onClick={() => useViews.setState({ view: "routines" })}>Routines →</button></>}>
                 {on.slice(0, 5).map((r) => (
-                  <button key={r.id} type="button" className={"hc-row" + (r.needs ? " needs" : "")} onClick={() => useViews.setState({ view: "routines" })}>
-                    <span className={"hc-dot" + (r.needs ? " sq" : "")} />
+                  <button key={r.id} type="button" className={"hc-row" + (r.needs || (r.worth === "read" && r.new) ? " needs" : "")} onClick={() => useViews.setState({ view: "routines" })}>
+                    <span className={"hc-dot" + (r.needs || (r.worth === "read" && r.new) ? " sq" : "")} />
                     <span className="hc-text">{r.name}</span>
-                    <span className="hc-side mono">{r.needs ?? (r.last?.at ? `${r.last.outcome ?? "ran"} · ${dayTime(r.last.at).replace(/^today /, "")}` : "no runs yet")}</span>
+                    <span className="hc-side mono">{r.needs ?? (r.worth === "read" && r.new ? "worth reading" : r.worth === "skip" ? "nothing to report" : r.last?.at ? `${r.last.outcome ?? "ran"} · ${dayTime(r.last.at).replace(/^today /, "")}` : "no runs yet")}</span>
                   </button>
                 ))}
               </Card>

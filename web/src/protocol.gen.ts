@@ -871,6 +871,7 @@ export interface RoutinesEvent {
   items: RoutineItem[];
   needs: number;
   new: number;
+  read: number;
   replay?: boolean | null;
   session?: string | null;
   type: "routines";
@@ -890,6 +891,8 @@ export interface RoutineItem {
   needs?: ("failed" | "waiting" | "stuck" | "missed") | null;
   new?: boolean;
   next_run_at?: number | null;
+  why?: string;
+  worth?: ("read" | "skip") | null;
 }
 /**
  * This interface was referenced by `OrbProtocol`'s JSON-Schema

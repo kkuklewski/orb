@@ -2611,6 +2611,25 @@
             }
           ],
           "default": null
+        },
+        "why": {
+          "default": "",
+          "type": "string"
+        },
+        "worth": {
+          "anyOf": [
+            {
+              "enum": [
+                "read",
+                "skip"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -2731,6 +2750,9 @@
         "new": {
           "type": "integer"
         },
+        "read": {
+          "type": "integer"
+        },
         "replay": {
           "anyOf": [
             {
@@ -2765,7 +2787,8 @@
         "checking",
         "error",
         "needs",
-        "new"
+        "new",
+        "read"
       ],
       "title": "RoutinesEvent",
       "type": "object"

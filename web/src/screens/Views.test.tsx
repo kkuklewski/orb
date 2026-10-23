@@ -63,6 +63,22 @@ describe("Routines", () => {
   });
 });
 
+describe("Routines: only what's worth reading stands out", () => {
+  it("marks worth-reading results with the reason, and tucks nothing-to-report results away", () => {
+    useViews.setState({ routines: routines({ read: 1, items: [
+      routine({ id: "a", name: "Gmail cleanup", new: true, worth: "read", why: "urgent alert sent", last: { id: "r1", outcome: "ok", summary: "Reviewed 16 threads" } }),
+      routine({ id: "b", name: "Etihad check", worth: "skip", why: "no new email", last: { id: "r2", outcome: "ok", summary: "No new Etihad email today." } }),
+    ] }) });
+    const { container } = render(<Routines />);
+    expect(screen.getByText(/worth reading: urgent alert sent/)).toBeTruthy();
+    expect(screen.getByText("Reviewed 16 threads").closest(".rt-row")!.className).not.toContain("quiet");
+    const quiet = container.querySelector(".rt-row.quiet")!;
+    expect(quiet.textContent).toContain("nothing to report: no new email");
+    expect(quiet.querySelector("details")).toBeTruthy(); // the result itself stays one click away
+    expect(quiet.querySelector("details")!.textContent).toContain("No new Etihad email today.");
+  });
+});
+
 describe("Settings", () => {
   it("asks for settings, then shows them", () => {
     render(<Settings />);
