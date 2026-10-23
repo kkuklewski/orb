@@ -7,6 +7,10 @@ replies, so the model never retypes data. Run logs can quote email or repo text,
 hook allows only the read actions on the ids asked for in that batch; anything else is denied
 (an injected "run this routine" or "send an email" goes nowhere).
 
+Per routine, "always" / "never" (Settings, routines_notify) overrides the judge for ok results, and
+with the judge off (routines_judge) every new result counts as worth reading. Failures, stuck and
+missed runs always notify: no setting silences a problem.
+
 Worth reading: a finished run's result is judged by Haiku (one tool-less call per run, so one result can
 never sway another's verdict) as "worth reading" or "nothing to report". Only worth-reading results chime, get the badge and the blue
 "new" mark; the rest stay in the panel, dimmed. If the judge fails, nothing is hidden or announced.
@@ -51,6 +55,7 @@ JUDGE_MODEL = config.env("ROUTINES_JUDGE_MODEL", "haiku")
 JUDGE_PARALLEL = 3  # judging calls at once (one per run)
 DETAIL_MAX = 1200  # chars of a result the judge reads
 SPEAK_WITHIN = 3 * 3600  # a result is announced only while it is this fresh (no burst after a long stop)
+NOTIFY = ("always", "never")
 POLL_SECONDS = int(config.env("ROUTINES_POLL", str(30 * 60)))
 STALE_SECONDS = 5 * 60  # opening the panel checks again when the last check is older
 MIN_GAP_SECONDS = 60  # the refresh button can't fire more often
@@ -158,7 +163,8 @@ def allowed_call(tool: str, tool_input: dict, allowed: set[str]) -> bool:
     return tool == TOOL and tool_input.get("action") in READ_ACTIONS and call_key(tool_input) in allowed
 
 
-def item(r: dict, runs: list[dict], logs: dict, seen: dict, now: float, verdicts: dict | None = None) -> dict:
+def item(r: dict, runs: list[dict], logs: dict, seen: dict, now: float, verdicts: dict | None = None,
+         override: str | None = None, judge: bool = True) -> dict:
     """One panel row (all text is shown as plain text on the page)."""
     last = runs[0] if runs else None
     lg = logs.get(last["id"], {}) if last else {}
@@ -179,6 +185,9 @@ def item(r: dict, runs: list[dict], logs: dict, seen: dict, now: float, verdicts
     verdict = (verdicts or {}).get(last["id"]) if last and outcome == "ok" else None
     worth = None if not verdict else "read" if verdict["read"] else "skip"
     unseen = bool(r.get("enabled") and last and seen.get(r["id"]) != last["id"] and outcome in ("ok", "failed"))
+    # Does this ok result notify? Your override first, then the judge (off: yes), unjudged: not announced.
+    wants = True if override == "always" else False if override == "never" else True if not judge else (worth == "read" if worth else None)
+    quiet = outcome == "ok" and wants is False
     return {
         "id": r["id"], "name": r.get("name") or r["id"], "enabled": bool(r.get("enabled")),
         "cron": r.get("cron_expression", ""), "next_run_at": None if missed else nxt,
@@ -186,8 +195,9 @@ def item(r: dict, runs: list[dict], logs: dict, seen: dict, now: float, verdicts
             "id": last["id"], "at": _ts(last.get("created_at")), "ended": _ts(last.get("last_event_at")),
             "outcome": outcome, "summary": lg.get("summary", ""), "url": url if _URL.match(url) else "",
         },
-        "needs": needs, "new": unseen and worth != "skip",
-        "worth": worth, "why": verdict["why"] if verdict else "",
+        "needs": needs, "new": unseen and not quiet, "worth": worth, "why": verdict["why"] if verdict else "",
+        "notify": override if override in NOTIFY else None, "quiet": quiet,
+        "loud": unseen and outcome == "ok" and wants is True,
     }
 
 
@@ -219,11 +229,12 @@ class Watch:
     def items(self) -> list[dict]:
         now = time.time()
         st = self.state
-        out = [item(r, st["runs"].get(r["id"], []), st["logs"], st["seen"], now, st["verdicts"])
+        mine, judge = settings.settings["routines_notify"], settings.settings["routines_judge"]
+        out = [item(r, st["runs"].get(r["id"], []), st["logs"], st["seen"], now, st["verdicts"], mine.get(r["id"]), judge)
                for r in st["routines"].values() if not hidden(r.get("name") or "")]
         rank = {"failed": 0, "waiting": 1, "stuck": 2, "missed": 3, None: 5}
         # Problems first, then new results worth reading, then the rest; "nothing to report" last among the enabled.
-        return sorted(out, key=lambda x: (rank[x["needs"]] if x["needs"] else 4 if x["worth"] == "read" and x["new"] else 6 if x["worth"] == "skip" else 5,
+        return sorted(out, key=lambda x: (rank[x["needs"]] if x["needs"] else 4 if x["loud"] else 6 if x["quiet"] else 5,
                                           not x["enabled"], -((x["last"] or {}).get("at") or 0)))
 
     def event(self) -> dict:
@@ -231,7 +242,7 @@ class Watch:
         return {"type": "routines", "items": items, "checked_at": self.state["checked_at"] or None,
                 "checking": self.checking, "error": self.error,
                 "needs": sum(1 for x in items if x["needs"]), "new": sum(1 for x in items if x["new"]),
-                "read": sum(1 for x in items if x["worth"] == "read" and x["new"])}
+                "read": sum(1 for x in items if x["loud"])}
 
     async def mark_seen(self) -> None:
         for x in self.items():
@@ -345,10 +356,14 @@ class Watch:
     async def _judge(self, shown: list[dict]) -> None:
         """Haiku reads each new finished result once and says whether it is worth the owner's time."""
         st = self.state
+        if not settings.settings["routines_judge"]:
+            return
         todo = []
         for r in shown:
             runs = st["runs"].get(r["id"]) or []
             lg = st["logs"].get(runs[0]["id"]) if runs else None
+            if r["id"] in settings.settings["routines_notify"]:
+                continue  # you decided for this routine: no need to ask Haiku
             if lg and lg.get("outcome") == "ok" and runs[0]["id"] not in st["verdicts"]:
                 todo.append({"id": runs[0]["id"], "name": r.get("name") or r["id"], "text": lg.get("detail") or lg.get("summary") or ""})
         gate = asyncio.Semaphore(JUDGE_PARALLEL)
@@ -397,7 +412,7 @@ class Watch:
             last = x["last"] or {}
             if x["needs"]:
                 key, line = f"{x['id']}:{last.get('id')}:{x['needs']}", f"Routine {x['name']} {words[x['needs']]}."
-            elif x["worth"] == "read" and x["new"] and now - (last.get("ended") or last.get("at") or 0) < SPEAK_WITHIN:
+            elif x["loud"] and now - (last.get("ended") or last.get("at") or 0) < SPEAK_WITHIN:
                 # Only the name is spoken: the "why" comes from the judge reading untrusted text, so it stays on screen.
                 key, line = f"{x['id']}:{last.get('id')}:read", f"Routine {x['name']} has a result worth reading."
             else:

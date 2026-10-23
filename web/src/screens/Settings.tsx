@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { send } from "../ws";
+import { useFeatures } from "../stores/features";
 import { useViews } from "../stores/views";
 import { setBarge, useVoice, type BargeMode } from "../stores/voice";
 import { unlockAudio } from "../audio/sample";
@@ -40,6 +41,7 @@ function setServer(values: Record<string, unknown>) {
 
 export function Settings() {
   const ev = useViews((s) => s.settings);
+  const features = useFeatures((s) => s.features);
   const barge = useVoice((s) => s.barge);
   const [theme, setTheme] = useState(() => document.documentElement.dataset.theme ?? "dark");
   const [vocab, setVocab] = useState<string | null>(null);
@@ -49,7 +51,7 @@ export function Settings() {
   useEffect(() => { send({ type: "get_settings" }); }, []);
 
   if (!ev) return <div className="view-col"><div className="view-head"><h2>Settings</h2></div><p className="side-hint">Loading…</p></div>;
-  const v = ev.values as { voice?: string; default_mode?: string; default_model?: string; coder_effort?: string; stt?: string; tts?: string };
+  const v = ev.values as { voice?: string; default_mode?: string; default_model?: string; coder_effort?: string; routines_judge?: boolean; stt?: string; tts?: string };
   const voices: [string, string][] = ev.recommended.map((x) => [x.id, `${x.name} · ${x.desc}${x.grade ? ` · ${x.grade}` : ""}`]);
   if (ev.voices.includes("chatterbox")) voices.push(["chatterbox", "Chatterbox · Polish and English, slow"]);
   if (!voices.length && v.voice) voices.push([v.voice, v.voice]);
@@ -93,6 +95,13 @@ export function Settings() {
         <Seg name="Opus effort" value={v.coder_effort} onPick={(m) => setServer({ coder_effort: m })}
           options={[["low", "Low"], ["medium", "Medium"], ["high", "High"]]} />
       </Section>
+
+      {features?.routines && (
+        <Section title="Routine results" hint="Haiku reads each new result once and decides if it's worth your time; only those chime, show a badge and a line on Home. Off: every new result notifies. Failures always notify, and each routine can be set to Always or Never on the Routines page.">
+          <Seg name="Routine results" value={v.routines_judge === false ? "off" : "on"} onPick={(m) => setServer({ routines_judge: m === "on" })}
+            options={[["on", "Only what's worth reading"], ["off", "Every result"]]} />
+        </Section>
+      )}
 
       <Section title="Speech recognition" hint="Browser works anywhere; Parakeet hears you in about 0.1 s on this Mac and asks Whisper when a word may be one of your names; Whisper alone takes about 0.5 s.">
         <Seg name="Speech recognition" value={v.stt} onPick={(m) => setServer({ stt: m })}

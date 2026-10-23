@@ -26,6 +26,8 @@ DEFAULTS = {
     "vault_protected": [],  # top folders of the vault whose edits always need a card
     "brain": False,  # claude.ai "Brain" / "Brain Capture" connectors in every session
     "routines": False,  # Routines panel (claude.ai scheduled agents)
+    "routines_judge": True,  # Haiku judges each result: only the ones worth reading notify (off: every result does)
+    "routines_notify": {},  # routine id -> "always" | "never": overrides the judge for that routine's results
     "routines_hidden": [n.strip() for n in config.env("ROUTINES_HIDDEN", "").split(",") if n.strip()],
     "onboarded": False,
 }
@@ -33,6 +35,7 @@ MODES = ("default", "auto", "plan")
 MODELS = chain.MODELS
 STT = ("browser", "parakeet", "whisper")
 TTS = ("browser", "kokoro")
+NOTIFY_MODES = ("always", "never")
 NAME = re.compile(r"^[^/\\\0]{1,100}$")  # a single folder name, no path separators
 
 
@@ -85,7 +88,16 @@ class Settings:
                 self.data[key] = names
         if "vault" in changes:
             self.data["vault"] = folder_root(changes["vault"]) or ""
-        for key in ("brain", "routines", "onboarded"):
+        if isinstance(changes.get("routines_notify"), dict):  # merged, so a hidden routine's choice survives
+            merged = dict(self.data.get("routines_notify") or {})
+            for rid, mode in changes["routines_notify"].items():
+                if isinstance(rid, str) and 0 < len(rid) <= 80:
+                    if mode in NOTIFY_MODES:
+                        merged[rid] = mode
+                    else:
+                        merged.pop(rid, None)  # "auto" (or anything else): back to the judge
+            self.data["routines_notify"] = dict(list(merged.items())[-100:])
+        for key in ("brain", "routines", "routines_judge", "onboarded"):
             if isinstance(changes.get(key), bool):
                 self.data[key] = changes[key]
         self.save()

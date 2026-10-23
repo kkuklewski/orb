@@ -2577,6 +2577,10 @@
           ],
           "default": null
         },
+        "loud": {
+          "default": false,
+          "type": "boolean"
+        },
         "name": {
           "type": "string"
         },
@@ -2611,6 +2615,25 @@
             }
           ],
           "default": null
+        },
+        "notify": {
+          "anyOf": [
+            {
+              "enum": [
+                "always",
+                "never"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "quiet": {
+          "default": false,
+          "type": "boolean"
         },
         "why": {
           "default": "",

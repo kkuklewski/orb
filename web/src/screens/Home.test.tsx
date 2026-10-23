@@ -110,8 +110,8 @@ describe("home screen", () => {
 describe("routine results on Home", () => {
   it("the brief mentions only new results worth reading", () => {
     useViews.setState({ routines: routines({ items: [
-      routine({ id: "a", name: "Gmail cleanup", new: true, worth: "read", last: { id: "r1", outcome: "ok" } }),
-      routine({ id: "b", name: "Etihad check", worth: "skip", last: { id: "r2", outcome: "ok" } }),
+      routine({ id: "a", name: "Gmail cleanup", new: true, loud: true, worth: "read", last: { id: "r1", outcome: "ok" } }),
+      routine({ id: "b", name: "Etihad check", quiet: true, worth: "skip", last: { id: "r2", outcome: "ok" } }),
     ] }) });
     render(<Home />);
     const brief = document.querySelector(".home-brief")!.textContent!;

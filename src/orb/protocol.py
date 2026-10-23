@@ -325,6 +325,9 @@ class RoutineItem(_Msg):
     new: bool = False
     worth: Literal["read", "skip"] | None = None  # Haiku's verdict on the last result; None = not judged
     why: str = ""  # its reason, in a few words (plain text: it was written from untrusted text)
+    notify: Literal["always", "never"] | None = None  # your override for this routine's results
+    quiet: bool = False  # an ok result that won't notify (judged nothing to report, or you said never)
+    loud: bool = False  # an unseen ok result that notifies
 
 
 class RoutinesEvent(_Event):
@@ -335,7 +338,7 @@ class RoutinesEvent(_Event):
     error: str | None
     needs: int
     new: int
-    read: int  # new results Haiku judged worth reading
+    read: int  # new results that notify (judged worth reading, or set to always)
 
 
 class BgNoticeEvent(_Event):

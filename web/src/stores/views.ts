@@ -3,6 +3,7 @@
 import { create } from "zustand";
 import type { FolderItem, RoutineItem, RoutinesEvent, SessionItem, SettingsEvent } from "../protocol.gen";
 import { on } from "../events";
+import { send } from "../ws";
 
 export type View = "home" | "chat" | "task" | "activity" | "routines" | "settings";
 
@@ -90,4 +91,21 @@ export function routinesSubtitle(r: RoutinesEvent | null): string {
 /** Only claude.ai links are ever shown (the server checks too). */
 export function safeRunUrl(url: string | undefined): string | null {
   return url && /^https:\/\/claude\.ai\//.test(url) ? url : null;
+}
+
+export type NotifyMode = "auto" | "always" | "never";
+export const NOTIFY_LABEL: Record<NotifyMode, string> = { auto: "Auto", always: "Always", never: "Never" };
+
+/** Pick when a routine's results notify: Auto lets the judge decide. (Failures always notify.) */
+export function setNotify(id: string, mode: NotifyMode) {
+  send({ type: "set_settings", values: { routines_notify: { [id]: mode } } });
+}
+
+/** The line under a routine: who decided, and why. */
+export function whyLine(x: RoutineItem): string {
+  if (x.notify === "always") return "always notifies (your choice)";
+  if (x.notify === "never") return "muted (your choice)";
+  if (x.worth === "read") return `worth reading${x.why ? `: ${x.why}` : ""}`;
+  if (x.worth === "skip") return `nothing to report${x.why ? `: ${x.why}` : ""}`;
+  return "";
 }

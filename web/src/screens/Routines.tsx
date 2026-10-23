@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { send } from "../ws";
-import { dayTime, routineDot, routinesSubtitle, routineState, routineStatus, safeRunUrl, useViews } from "../stores/views";
+import { NOTIFY_LABEL, dayTime, routineDot, routinesSubtitle, routineState, routineStatus, safeRunUrl, setNotify, useViews, whyLine, type NotifyMode } from "../stores/views";
 
 // Scheduled cloud agents (claude.ai). The server checks every 30 min; failed, stuck or missed ones
 // get a badge and a spoken notice. All text comes from the runs, so it's shown as plain text only.
@@ -30,7 +30,7 @@ export function Routines() {
           const url = safeRunUrl(l?.url);
           const meta = [l?.at ? `last ${dayTime(l.at)}` : null, x.enabled && x.next_run_at ? `next ${dayTime(x.next_run_at)}` : null].filter(Boolean).join(" · ");
           return (
-            <div key={x.id} className={`rt-row ${routineState(x)}${routinesNew.has(x.id) ? " new" : ""}${x.worth === "skip" ? " quiet" : ""}`}>
+            <div key={x.id} className={`rt-row ${routineState(x)}${routinesNew.has(x.id) ? " new" : ""}${x.quiet ? " quiet" : ""}`}>
               <div className="rt-head">
                 <span className={routineDot(x)} />
                 <span className="rt-name">{x.name}</span>
@@ -40,11 +40,20 @@ export function Routines() {
                 {meta}
                 {url && <>{meta ? " · " : ""}<a className="rt-link" href={url} target="_blank" rel="noopener noreferrer">open run ↗</a></>}
               </div>
-              {x.worth === "read" && <div className="rt-why mono"><span className="sq" aria-hidden="true" />worth reading{x.why ? `: ${x.why}` : ""}</div>}
-              {x.worth === "skip" && <div className="rt-why mono">nothing to report{x.why ? `: ${x.why}` : ""}</div>}
-              {l?.summary && x.worth !== "skip" && <div className="rt-summary">{l.summary}</div>}
-              {l?.summary && x.worth === "skip" && (
+              {whyLine(x) && <div className="rt-why mono">{x.loud && <span className="sq" aria-hidden="true" />}{whyLine(x)}</div>}
+              {l?.summary && !x.quiet && <div className="rt-summary">{l.summary}</div>}
+              {l?.summary && x.quiet && (
                 <details className="rt-more"><summary className="mono">show the result</summary><div className="rt-summary open">{l.summary}</div></details>
+              )}
+              {x.enabled && (
+                <div className="rt-notify" role="radiogroup" aria-label={`Notify for ${x.name}`}>
+                  <span className="mono">notify</span>
+                  {(["auto", "always", "never"] as NotifyMode[]).map((m) => (
+                    <button key={m} type="button" role="radio" aria-checked={(x.notify ?? "auto") === m} className={(x.notify ?? "auto") === m ? "on" : ""}
+                      title={m === "auto" ? "Let Haiku judge each result" : m === "always" ? "Every result notifies" : "Results never notify (failures still do)"}
+                      onClick={() => setNotify(x.id, m)}>{NOTIFY_LABEL[m]}</button>
+                  ))}
+                </div>
               )}
             </div>
           );

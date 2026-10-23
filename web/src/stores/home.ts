@@ -58,7 +58,7 @@ export function brief(d: { waiting: SessionRow[]; done: SessionRow[]; routines: 
     const bad = on.filter((x) => x.needs);
     const next = on.filter((x) => x.next_run_at).sort((a, b) => a.next_run_at! - b.next_run_at!)[0];
     const then = next ? `; next up is ${next.name} at ${new Date(next.next_run_at! * 1000).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}.` : ".";
-    const toRead = on.filter((x) => x.worth === "read" && x.new && !x.needs);
+    const toRead = on.filter((x) => x.loud && !x.needs);
     const read = toRead.length ? [` ${toRead.length === 1 ? "One result is" : `${toRead.length} results are`} worth reading (${toRead.map((x) => x.name).slice(0, 2).join(", ")}).`] : [];
     out.push(bad.length ? [{ b: plural(bad.length, "routine", "routines") }, ` need${bad.length === 1 ? "s" : ""} a look (${bad[0].name})${then}`, ...read]
       : ["All ", { b: `${on.length} routine${on.length === 1 ? "" : "s"}` }, ` ran fine${then}`, ...read]);

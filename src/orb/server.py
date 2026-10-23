@@ -507,6 +507,8 @@ async def handle(conn: Conn, msg: dict) -> None:
         if isinstance(msg.get("vocabulary"), str) or {"roots", "skip_names"} & set(values):
             hub.scan()  # new folders, or a new Whisper prompt
             await hub.push_folders()
+        if {"routines_judge", "routines_notify"} & set(values):
+            await hub.push_routines()  # every page shows who notifies now
         if {"roots", "vault", "brain", "routines", "onboarded", "stt", "tts"} & set(values):
             await asyncio.gather(*(c.send({"type": "features", **features()}) for c in hub.conns))
         if {"roots", "vault", "stt", "tts"} & set(values) and not values.get("onboarded"):

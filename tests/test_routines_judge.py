@@ -5,6 +5,7 @@ import re
 import time
 
 from orb import protocol, routines
+from orb.settings import Settings, settings as live
 from orb.routines import Watch, item, judge_prompt, parse_verdicts, result_detail
 
 NOW = time.time()
@@ -140,3 +141,78 @@ async def test_the_verdicts_that_came_back_are_kept_when_one_call_fails(tmp_path
     except RuntimeError:
         pass
     assert set(w.state["verdicts"]) == {"c1", "c3"}  # c2 is retried at the next check
+
+
+def test_the_judge_switch_and_your_override_decide_who_notifies():
+    skip, read = {"cse_1": {"read": False, "why": "no new email"}}, {"cse_1": {"read": True, "why": "alert"}}
+    row = lambda v, o=None, judge=True: item(routine(), [run()], OK, {}, NOW, v, o, judge)  # noqa: E731
+    assert (row(skip)["quiet"], row(skip)["loud"]) == (True, False)
+    assert (row(read)["quiet"], row(read)["loud"]) == (False, True)
+    assert (row({})["quiet"], row({})["loud"], row({})["new"]) == (False, False, True)  # unjudged: shown, not announced
+    assert (row(skip, "always")["loud"], row(skip, "always")["quiet"]) == (True, False)  # always beats the verdict
+    assert (row(read, "never")["quiet"], row(read, "never")["loud"], row(read, "never")["new"]) == (True, False, False)
+    off = row({}, None, judge=False)  # the judge off: every new result notifies
+    assert (off["loud"], off["quiet"], off["worth"]) == (True, False, None)
+    assert row({}, "never", judge=False)["quiet"] is True  # your word still counts
+    assert row(skip, "always")["notify"] == "always" and row(skip)["notify"] is None
+    protocol.RoutineItem.model_validate(row(skip, "never"))
+
+
+def test_a_failure_is_never_silenced_by_any_setting():
+    bad = {"cse_1": {"outcome": "failed", "summary": "boom"}}
+    for override in ("never", None):
+        for judge in (True, False):
+            x = item(routine(), [run()], bad, {}, NOW, {}, override, judge)
+            assert x["needs"] == "failed" and x["quiet"] is False
+
+
+def test_settings_keep_overrides_merged_and_valid(tmp_path):
+    st = Settings(tmp_path / "s.json")
+    assert st["routines_judge"] is True and st["routines_notify"] == {}
+    st.update({"routines_notify": {"t1": "never", "t2": "always", "t3": "sometimes", "": "never"}})
+    assert st["routines_notify"] == {"t1": "never", "t2": "always"}
+    st.update({"routines_notify": {"t3": "never"}})  # merged, not replaced: other routines keep their choice
+    assert st["routines_notify"] == {"t1": "never", "t2": "always", "t3": "never"}
+    st.update({"routines_notify": {"t1": "auto", "t2": None}})  # auto: back to the judge
+    assert st["routines_notify"] == {"t3": "never"}
+    st.update({"routines_judge": False, "routines_notify": "nonsense"})
+    again = Settings(tmp_path / "s.json")
+    assert again["routines_judge"] is False and again["routines_notify"] == {"t3": "never"}
+    st.update({"routines_judge": "off"})
+    assert st["routines_judge"] is False  # only a real boolean changes it
+
+
+async def test_overrides_drive_what_is_announced_and_judged(tmp_path, monkeypatch):
+    said, asked = [], []
+    w = watch(tmp_path, said)
+    monkeypatch.setitem(live.data, "routines_notify", {"t2": "always", "t1": "never"})
+    monkeypatch.setitem(live.data, "routines_judge", True)
+
+    async def fake(prompt):
+        asked.append(prompt)
+        rid = re.search(r'id="(c\d)"', prompt).group(1)
+        return json.dumps({rid: {"read": False, "why": "nothing"}})
+
+    monkeypatch.setattr(w, "_ask_judge", fake)
+    await w._judge(list(w.state["routines"].values()))
+    await w._announce()
+    assert len(asked) == 1 and 'id="c3"' in asked[0]  # only the routine you left on auto is judged
+    assert said == ["Routine Etihad check has a result worth reading."]  # "always" speaks, "never" and the skip don't
+
+
+async def test_with_the_judge_off_nothing_is_judged_and_every_new_result_speaks(tmp_path, monkeypatch):
+    said, asked = [], []
+    w = watch(tmp_path, said)
+    monkeypatch.setitem(live.data, "routines_judge", False)
+    monkeypatch.setitem(live.data, "routines_notify", {})
+
+    async def fake(prompt):
+        asked.append(prompt)
+        return "{}"
+
+    monkeypatch.setattr(w, "_ask_judge", fake)
+    await w._judge(list(w.state["routines"].values()))
+    await w._announce()
+    assert asked == [] and w.state["verdicts"] == {}
+    assert sorted(said) == ["Routine Etihad check has a result worth reading.", "Routine Gmail cleanup has a result worth reading."]  # the third is a day old
+    assert w.event()["read"] == 3 and w.event()["new"] == 3

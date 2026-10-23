@@ -23,7 +23,7 @@ export const folder = (name: string, sessions: SessionItem[] = []): FolderItem =
 });
 
 export const routine = (over: Partial<RoutineItem> = {}): RoutineItem => ({
-  id: "trig_1", name: "nightly", enabled: true, cron: "0 2 * * *", next_run_at: null, last: null, needs: null, new: false, worth: null, why: "", ...over,
+  id: "trig_1", name: "nightly", enabled: true, cron: "0 2 * * *", next_run_at: null, last: null, needs: null, new: false, worth: null, why: "", notify: null, quiet: false, loud: false, ...over,
 });
 
 export const routines = (over: Partial<RoutinesEvent> = {}): RoutinesEvent => ({

@@ -85,3 +85,9 @@
 .rt-more summary::-webkit-details-marker { display: none; }
 .rt-more summary:hover { color: var(--text); }
 .rt-summary.open { display: block; -webkit-line-clamp: unset; padding-left: 0; margin-top: 4px; }
+.rt-notify { display: flex; align-items: center; gap: 4px; padding: 6px 0 0 20px; font-size: 11px; color: var(--text-3); }
+.rt-notify .mono { margin-right: 6px; letter-spacing: .08em; }
+.rt-notify button { height: 26px; padding: 0 10px; border: 1px solid var(--line); border-radius: 6px; background: none; color: var(--text-2); font: 12px var(--sans); cursor: pointer; }
+.rt-notify button:hover { border-color: var(--text-3); color: var(--text); }
+.rt-notify button.on { background: var(--text); color: var(--bg); border-color: var(--text); }
+.rt-notify button:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }

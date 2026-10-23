@@ -887,10 +887,13 @@ export interface RoutineItem {
   enabled: boolean;
   id: string;
   last?: RoutineRun | null;
+  loud?: boolean;
   name: string;
   needs?: ("failed" | "waiting" | "stuck" | "missed") | null;
   new?: boolean;
   next_run_at?: number | null;
+  notify?: ("always" | "never") | null;
+  quiet?: boolean;
   why?: string;
   worth?: ("read" | "skip") | null;
 }

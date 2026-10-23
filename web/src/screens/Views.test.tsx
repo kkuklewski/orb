@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { useViews } from "../stores/views";
 import { useFeatures } from "../stores/features";
 import { initialSetup, useSetup } from "../stores/setup";
@@ -66,8 +66,8 @@ describe("Routines", () => {
 describe("Routines: only what's worth reading stands out", () => {
   it("marks worth-reading results with the reason, and tucks nothing-to-report results away", () => {
     useViews.setState({ routines: routines({ read: 1, items: [
-      routine({ id: "a", name: "Gmail cleanup", new: true, worth: "read", why: "urgent alert sent", last: { id: "r1", outcome: "ok", summary: "Reviewed 16 threads" } }),
-      routine({ id: "b", name: "Etihad check", worth: "skip", why: "no new email", last: { id: "r2", outcome: "ok", summary: "No new Etihad email today." } }),
+      routine({ id: "a", name: "Gmail cleanup", new: true, loud: true, worth: "read", why: "urgent alert sent", last: { id: "r1", outcome: "ok", summary: "Reviewed 16 threads" } }),
+      routine({ id: "b", name: "Etihad check", quiet: true, worth: "skip", why: "no new email", last: { id: "r2", outcome: "ok", summary: "No new Etihad email today." } }),
     ] }) });
     const { container } = render(<Routines />);
     expect(screen.getByText(/worth reading: urgent alert sent/)).toBeTruthy();
@@ -76,6 +76,24 @@ describe("Routines: only what's worth reading stands out", () => {
     expect(quiet.textContent).toContain("nothing to report: no new email");
     expect(quiet.querySelector("details")).toBeTruthy(); // the result itself stays one click away
     expect(quiet.querySelector("details")!.textContent).toContain("No new Etihad email today.");
+  });
+});
+
+describe("Routines: you can overrule the judge", () => {
+  it("Auto / Always / Never per routine, sent as one routine's choice", () => {
+    useViews.setState({ routines: routines({ items: [
+      routine({ id: "a", name: "Gmail cleanup", notify: "never", quiet: true, last: { id: "r1", outcome: "ok", summary: "x" } }),
+      routine({ id: "off", name: "Paused one", enabled: false }),
+    ] }) });
+    render(<Routines />);
+    const group = screen.getByRole("radiogroup", { name: "Notify for Gmail cleanup" });
+    expect(within(group).getByRole("radio", { name: "Never", checked: true })).toBeTruthy();
+    expect(screen.getByText("muted (your choice)")).toBeTruthy();
+    fireEvent.click(within(group).getByRole("radio", { name: "Always" }));
+    expect(sent).toContainEqual({ type: "set_settings", values: { routines_notify: { a: "always" } } });
+    fireEvent.click(within(group).getByRole("radio", { name: "Auto" }));
+    expect(sent.at(-1)).toEqual({ type: "set_settings", values: { routines_notify: { a: "auto" } } });
+    expect(screen.queryByRole("radiogroup", { name: "Notify for Paused one" })).toBeNull();
   });
 });
 
@@ -116,6 +134,18 @@ describe("Settings", () => {
     expect(screen.getByRole("radio", { name: "Medium", checked: true })).toBeTruthy();
     fireEvent.click(screen.getByRole("radio", { name: "High" }));
     expect(sent).toContainEqual({ type: "set_settings", values: { coder_effort: "high" } });
+  });
+
+  it("the judge switch shows only with routines on; off means every result notifies", () => {
+    useViews.setState({ settings: settings({ values: { ...settings().values, routines_judge: true } }) });
+    useFeatures.setState((st) => ({ features: { ...st.features!, routines: false } }));
+    const { rerender } = render(<Settings />);
+    expect(screen.queryByRole("radiogroup", { name: "Routine results" })).toBeNull();
+    act(() => useFeatures.setState((st) => ({ features: { ...st.features!, routines: true } })));
+    rerender(<Settings />);
+    expect(screen.getByRole("radio", { name: "Only what's worth reading", checked: true })).toBeTruthy();
+    fireEvent.click(screen.getByRole("radio", { name: "Every result" }));
+    expect(sent).toContainEqual({ type: "set_settings", values: { routines_judge: false } });
   });
 
   it("keeps barge-in and theme in this browser, and saves the vocabulary", () => {
