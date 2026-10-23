@@ -128,6 +128,17 @@ RECOMMENDED = (
 )
 
 
+def tts_error(e: Exception) -> str:
+    """A short, readable reason a voice sample failed."""
+    if isinstance(e, httpx.HTTPStatusError):
+        return f"Kokoro refused that voice (HTTP {e.response.status_code}). It may not be installed."
+    if isinstance(e, httpx.ConnectError):
+        return f"Kokoro isn't running ({config.KOKORO_URL.split('/v1/')[0]}). Start it, or pick Browser for her voice."
+    if isinstance(e, httpx.TimeoutException):
+        return "Kokoro took too long to answer. Try again in a moment."
+    return f"Kokoro failed: {type(e).__name__}"
+
+
 def recommended(installed: list[str], current: str | None = None) -> list[dict]:
     """The recommended voices this Kokoro has, plus the current one if it isn't among them."""
     have = set(installed)

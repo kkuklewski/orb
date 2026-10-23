@@ -185,6 +185,15 @@
 [data-skin="studio"] .onb-voice-grade { font-size: 11px; color: var(--text-3); }
 @media (max-width: 640px) { [data-skin="studio"] .onb-voices { grid-template-columns: 1fr; } [data-skin="studio"] .onb-voice:nth-child(odd) { border-right: 0; } }
 
+[data-skin="studio"] .onb-voice.loading .onb-voice-grade, [data-skin="studio"] .onb-voice.playing .onb-voice-grade { color: var(--text); }
+[data-skin="studio"] .onb-voice.loading .onb-voice-grade::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: 50%; background: var(--text-3); animation: vp-step 1s steps(1) infinite; }
+[data-skin="studio"] .onb-voice.playing .onb-voice-grade::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: 50%; background: var(--s-acc); }
+[data-skin="studio"] .onb-voice.error .onb-voice-grade { color: var(--s-acc-txt); }
+/* Messages while the setup screen is up (it covers the chat) */
+[data-skin="studio"] .onb-toast { position: fixed; left: 50%; bottom: 64px; translate: -50% 0; max-width: min(560px, calc(100vw - 32px)); padding: 10px 14px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg-elev); color: var(--text); font-size: 13.5px; box-shadow: 0 12px 32px rgb(0 0 0 / .18); z-index: 5; }
+[data-skin="studio"] .onb-toast.error { border-color: var(--s-acc); }
+[data-skin="studio"] .onb-toast.error::before { content: ""; display: inline-block; width: 7px; height: 7px; background: var(--s-acc); margin-right: 8px; }
+
 /* Step 04: one ruled sheet (cells share hairlines), each rule with a concrete proof */
 [data-skin="studio"] .onb-spec { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--bg-elev); margin-top: 8px; }
 [data-skin="studio"] .onb-spec-cell { display: flex; flex-direction: column; gap: 8px; padding: 20px 22px 22px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); min-width: 0; }

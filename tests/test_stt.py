@@ -133,3 +133,11 @@ def test_recommended_voices_only_good_ones_best_first():
     assert ids == ["af_heart", "af_bella", "bf_emma"]  # graded A, A-, B-; af_sky (C-) and am_adam (F+) left out
     keep = speech.recommended(installed, current="af_sky")
     assert keep[-1]["id"] == "af_sky" and keep[-1]["grade"] is None  # a weak current voice stays selectable
+
+
+def test_tts_errors_read_plainly():
+    import httpx
+    req = httpx.Request("POST", "http://127.0.0.1:8880/v1/audio/speech")
+    bad = httpx.HTTPStatusError("400", request=req, response=httpx.Response(400, request=req))
+    assert speech.tts_error(bad).startswith("Kokoro refused that voice (HTTP 400)")
+    assert "isn't running" in speech.tts_error(httpx.ConnectError("refused", request=req))

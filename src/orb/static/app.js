@@ -74,7 +74,9 @@ function onEvent(ev) {
       else if (ev.error) notice(ev.error, "error"); if (Onb.isOpen) Onb.render(false); break;
     case "features": { const was = S.features?.onboarded; applyFeatures(ev); renderSidebar();
       if (!ev.onboarded && !Onb.isOpen) Onb.open(0); else if (ev.onboarded && !was && Onb.isOpen) Onb.finish(); else if (Onb.isOpen) $("#onb-close").hidden = !ev.onboarded; break; }
-    case "voice_sample": Player.stop(); Player.reset(Player.gen); Player.enqueue({ ...ev, gen: Player.gen }); break;
+    case "voice_sample":
+      if (ev.error) { Onb.sampled(ev.voice, "error", ev.error); if (!Onb.isOpen) notice(ev.error, "error"); break; }
+      Player.stop(); Player.reset(Player.gen); Player.enqueue({ ...ev, gen: Player.gen }); Onb.sampled(ev.voice, "playing"); break;
     case "opened": onOpened(ev); break;
     case "history":
       clearChat(); S.replaying = true; for (const e of ev.events) onEvent(e); S.replaying = false;
@@ -395,6 +397,7 @@ const BROWSER_TTS = "speechSynthesis" in window;
 const Onb = {
   step: 0, ev: null, mic: null, analyser: null, wave: new Float32Array(1024),
   dir: null, browsing: false, picking: false, // folder step: the in-card browser and the system dialog
+  sample: null, // voice step: {voice, state: "loading" | "playing" | "error", text}
   RAIL: ["Sign in", "Folders", "Voice", "Control"],
   get isOpen() { return !$("#onboarding").hidden; },
   open(step) {
@@ -473,6 +476,28 @@ const Onb = {
     box.append(foot);
     return box;
   },
+  pickVoice(id) { // select it, and play a sample with visible loading / playing / error on its row
+    Player.unlock();
+    if (this.ev?.values) this.ev.values.voice = id; // shown at once; the server saves it
+    if (!S.muted) send({ type: "voice_sample", voice: id }); // first, so the sample never waits behind the save
+    send({ type: "set_settings", values: { voice: id } });
+    if (S.muted) { this.sampled(id, "error", "Speech is muted: turn the speaker button in the top bar back on to hear her."); return; }
+    this.sampled(id, "loading");
+    clearTimeout(this.sampleTimer);
+    this.sampleTimer = setTimeout(() => { if (this.sample?.voice === id && this.sample.state === "loading") this.sampled(id, "error", "No answer from Kokoro in 15 s. Is it running?"); }, 15000);
+  },
+  sampled(id, state, text) {
+    if (!id) return;
+    this.sample = { voice: id, state, text };
+    if (state === "error") this.toast(text, "error");
+    if (state === "playing") { clearTimeout(this.sampleTimer); this.sampleTimer = setTimeout(() => { if (this.sample?.voice === id) { this.sample = null; this.isOpen && this.render(false); } }, 2600); }
+    if (this.isOpen) this.render(false);
+  },
+  toast(text, level) { // the setup screen covers the chat, so its messages show here
+    const t = $("#onb-toast"); if (!t) return;
+    t.textContent = text; t.className = "onb-toast" + (level === "error" ? " error" : ""); t.hidden = false;
+    clearTimeout(this.toastTimer); this.toastTimer = setTimeout(() => (t.hidden = true), 6000);
+  },
   voiceList(voices, current) { // Kokoro's recommended voices: pick one, and hear it right away
     const list = el("div", "onb-voices"); list.setAttribute("role", "radiogroup"); list.setAttribute("aria-label", "Her voice");
     for (const x of voices) {
@@ -480,7 +505,10 @@ const Onb = {
       b.setAttribute("role", "radio"); b.setAttribute("aria-checked", String(x.id === current));
       const txt = el("span", "onb-voice-txt"); txt.append(el("strong", null, x.name), el("span", null, x.desc));
       b.append(el("span", "onb-voice-dot"), txt, el("span", "mono onb-voice-grade", x.grade || ""));
-      b.onclick = () => { Player.unlock(); send({ type: "set_settings", values: { voice: x.id } }); send({ type: "voice_sample", voice: x.id }); };
+      const st = this.sample?.voice === x.id ? this.sample : null;
+      if (st) { b.classList.add(st.state); b.lastChild.textContent = { loading: "Loading…", playing: "Playing", error: "Failed" }[st.state]; }
+      if (st?.state === "error") b.title = st.text;
+      b.onclick = () => this.pickVoice(x.id);
       list.append(b);
     }
     return list;
@@ -1073,6 +1101,7 @@ function undoDone(ev) {
 }
 
 function notice(text, level) {
+  if (Onb.isOpen) Onb.toast(text, level);
   markHasChat();
   column.append(el("div", "notice" + (level === "error" ? " error" : ""), text));
   scrollToEnd();

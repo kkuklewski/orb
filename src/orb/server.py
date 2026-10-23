@@ -483,16 +483,17 @@ async def handle(conn: Conn, msg: dict) -> None:
             await hub.push_folders()
         if {"roots", "vault", "brain", "routines", "onboarded", "stt", "tts"} & set(values):
             await asyncio.gather(*(c.send({"type": "features", **features()}) for c in hub.conns))
-        if {"roots", "stt", "tts", "voice"} & set(values) and not values.get("onboarded"):
+        if {"roots", "stt", "tts"} & set(values) and not values.get("onboarded"):
             await conn.send(await setup.status())  # the setup page shows the result at once
         await conn.send(await settings_event())
         return
     if t == "voice_sample":
+        voice = msg.get("voice") or settings.settings["voice"]
         try:
-            audio = await speech.synthesize("Hi, this is how I sound.", msg.get("voice"))
-            await conn.send({"type": "voice_sample", "mime": "audio/mpeg", "data": base64.b64encode(audio).decode()})
-        except Exception as e:  # noqa: BLE001
-            await conn.send({"type": "error", "text": f"Kokoro: {e}"})
+            audio = await speech.synthesize("Hi, this is how I sound.", voice)
+            await conn.send({"type": "voice_sample", "voice": voice, "mime": "audio/mpeg", "data": base64.b64encode(audio).decode()})
+        except Exception as e:  # noqa: BLE001 - the page shows it on the voice it asked for
+            await conn.send({"type": "voice_sample", "voice": voice, "error": speech.tts_error(e)})
         return
     if t == "rescan":
         hub.scan()
