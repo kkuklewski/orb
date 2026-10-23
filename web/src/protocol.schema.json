@@ -2280,6 +2280,136 @@
       "title": "RootInfo",
       "type": "object"
     },
+    "RoutineItem": {
+      "additionalProperties": false,
+      "description": "One row of the Routines panel (routines.item).",
+      "properties": {
+        "cron": {
+          "default": "",
+          "type": "string"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "id": {
+          "type": "string"
+        },
+        "last": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RoutineRun"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "name": {
+          "type": "string"
+        },
+        "needs": {
+          "anyOf": [
+            {
+              "enum": [
+                "failed",
+                "waiting",
+                "stuck",
+                "missed"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "new": {
+          "default": false,
+          "type": "boolean"
+        },
+        "next_run_at": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "enabled"
+      ],
+      "title": "RoutineItem",
+      "type": "object"
+    },
+    "RoutineRun": {
+      "additionalProperties": false,
+      "properties": {
+        "at": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "ended": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "id": {
+          "type": "string"
+        },
+        "outcome": {
+          "anyOf": [
+            {
+              "enum": [
+                "ok",
+                "failed",
+                "waiting",
+                "running",
+                "stuck"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "summary": {
+          "default": "",
+          "type": "string"
+        },
+        "url": {
+          "default": "",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "RoutineRun",
+      "type": "object"
+    },
     "RoutinesEvent": {
       "additionalProperties": false,
       "properties": {
@@ -2319,8 +2449,7 @@
         },
         "items": {
           "items": {
-            "additionalProperties": true,
-            "type": "object"
+            "$ref": "#/$defs/RoutineItem"
           },
           "type": "array"
         },

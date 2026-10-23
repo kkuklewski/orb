@@ -246,9 +246,30 @@ class RateLimitEvent(_Event):
     overage: Any = None
 
 
+class RoutineRun(_Msg):
+    id: str
+    at: float | None = None
+    ended: float | None = None
+    outcome: Literal["ok", "failed", "waiting", "running", "stuck"] | None = None
+    summary: str = ""
+    url: str = ""
+
+
+class RoutineItem(_Msg):
+    """One row of the Routines panel (routines.item)."""
+    id: str
+    name: str
+    enabled: bool
+    cron: str = ""
+    next_run_at: float | None = None
+    last: RoutineRun | None = None
+    needs: Literal["failed", "waiting", "stuck", "missed"] | None = None
+    new: bool = False
+
+
 class RoutinesEvent(_Event):
     type: Literal["routines"]
-    items: list[Json]
+    items: list[RoutineItem]
     checked_at: float | None
     checking: bool
     error: str | None

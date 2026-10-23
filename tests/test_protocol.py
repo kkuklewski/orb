@@ -102,3 +102,12 @@ def test_models_accept_real_shapes():
         raise AssertionError("unknown fields must be refused")
     except Exception as e:  # pydantic.ValidationError
         assert "extra" in str(e)
+
+
+def test_routine_rows_match_the_model():
+    import time
+    from orb import routines
+    r = {"id": "trig_1", "name": "nightly", "enabled": True, "cron_expression": "0 2 * * *", "next_run_at": None}
+    runs = [{"id": "run_1", "created_at": "2026-10-23T02:00:00Z", "last_event_at": "2026-10-23T02:05:00Z", "url": "https://claude.ai/x"}]
+    row = routines.item(r, runs, {"run_1": {"outcome": "failed", "summary": "boom"}}, {}, time.time())
+    protocol.RoutineItem.model_validate(row)

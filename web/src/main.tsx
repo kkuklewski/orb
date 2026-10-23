@@ -4,6 +4,7 @@ import { App } from "./App";
 import "./styles/tokens.css";
 import "./styles/base.css";
 import "./styles/setup.css";
+import "./styles/views.css";
 
 // Same theme as the old page (Settings → Look): its saved choice, else the system's.
 const saved = (() => { try { return localStorage.getItem("vd-theme"); } catch { return null; } })();

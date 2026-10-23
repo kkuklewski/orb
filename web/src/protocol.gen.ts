@@ -728,14 +728,40 @@ export interface RoutinesEvent {
   checking: boolean;
   error: string | null;
   folder?: string | null;
-  items: {
-    [k: string]: unknown;
-  }[];
+  items: RoutineItem[];
   needs: number;
   new: number;
   replay?: boolean | null;
   session?: string | null;
   type: "routines";
+}
+/**
+ * One row of the Routines panel (routines.item).
+ *
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "RoutineItem".
+ */
+export interface RoutineItem {
+  cron?: string;
+  enabled: boolean;
+  id: string;
+  last?: RoutineRun | null;
+  name: string;
+  needs?: ("failed" | "waiting" | "stuck" | "missed") | null;
+  new?: boolean;
+  next_run_at?: number | null;
+}
+/**
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "RoutineRun".
+ */
+export interface RoutineRun {
+  at?: number | null;
+  ended?: number | null;
+  id: string;
+  outcome?: ("ok" | "failed" | "waiting" | "running" | "stuck") | null;
+  summary?: string;
+  url?: string;
 }
 /**
  * This interface was referenced by `OrbProtocol`'s JSON-Schema

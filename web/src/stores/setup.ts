@@ -86,3 +86,7 @@ export function wireSetup(): () => void {
   }));
   return () => offs.forEach((off) => off());
 }
+
+export function openSetup(step = 0) {
+  useSetup.setState({ open: true, step, sample: null, toast: null });
+}
