@@ -50,6 +50,7 @@ Python 3.14 via `uv` (`.python-version` pins the patch). Front end is plain HTML
 | `agent.py` | `FolderSession`: one `ClaudeSDKClient` per folder, stream -> page events, approvals, history replay; `Speaker` (sentence queue -> Kokoro or browser `speak` events, generations); `VoiceInput` (merges paused speech, audio or browser text) |
 | `chain.py` | front model per folder (Sonnet default, effort `ORB_SONNET_EFFORT`), `opus-coder` subagent, routing prompt, "switch to Opus" |
 | `slash.py` | `/` menu: Claude Code's commands plus the app's own (`/clear`, `/model`, `/mcp`, `/rewind`, `/config` per repo); account-wide commands blocked |
+| `handoff.py` | `continue_in_repo` tool (in-process MCP): the session's Claude asks to continue in another repo; Allow card, then `Hub.handoff` opens a new session there (pages follow), first request = the brief |
 | `routines.py` | optional Routines panel: claude.ai scheduled agents via a locked-down Haiku session (read actions only) |
 | `brain.py` | optional second brain: notes vault rules, claude.ai Brain connectors, dictated notes |
 | `timing.py` | per-turn hop timings: logged, shown under each answer, appended to `~/.orb/timing.jsonl` |

@@ -18,7 +18,7 @@ import hashlib
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import billing, chain, config, folders, home, routines, settings, setup, slash, speech, tasks, vendor, vocab
+from . import billing, chain, config, folders, handoff, home, routines, settings, setup, slash, speech, tasks, vendor, vocab
 from .agent import SCREEN_MAX, FolderSession, dumps, first_request
 from .brain import CaptureGuard
 from .sessions import SessionStore
@@ -86,6 +86,7 @@ class Hub:
         # whose Claude Code hasn't started yet (user skills and built-ins are the same everywhere).
         self.commands: dict[str, list[dict]] = {}
         self.auth: dict = {}
+        self.handoffs: set[asyncio.Task] = set()  # first requests of sessions opened by continue_in_repo
         self.last_commands: list[dict] = []
 
     async def check_auth(self) -> None:
@@ -165,10 +166,33 @@ class Hub:
                 notify=self.notify,
                 guard=self.guard,
             )
+                handoff=self.handoff,
             self.sessions[key] = s
         return s
 
     def folder_sessions(self, path: str) -> list[FolderSession]:
+    async def handoff(self, src: FolderSession, repo: str, brief: str) -> str:
+        """`continue_in_repo`: a new session in another repo that starts on `brief`; pages showing the
+        asking session follow it (it keeps running in the background)."""
+        brief = brief.strip()
+        if not brief:
+            raise handoff.HandoffError("Write a brief: what the new session should do, and what you found.")
+        target = handoff.resolve(self.folder_list(), repo)
+        p = self.allowed_folder(target["path"])
+        if p is None:
+            raise handoff.HandoffError(f"Not an allowed folder: {target['path']}")
+        if str(p) == src.path:
+            raise handoff.HandoffError("That is this session's own repo: do the work here.")
+        key = self.store.new_session(str(p))
+        for c in [c for c in self.conns if c.key == src.key]:
+            await open_session(c, str(p), key)  # first, so the request shows once, live
+        text = f"Handed over from a session in {self.label(src.path)}.\n\n{brief}"
+        task = asyncio.create_task(self.session(str(p), key).send(text, "text"))
+        self.handoffs.add(task)
+        task.add_done_callback(self.handoffs.discard)
+        return (f"Started a new session in {self.label(str(p))} with your brief; the user's page moved there. "
+                "Say one short line that you handed it over, and stop.")
+
         return [s for s in self.sessions.values() if s.path == path]
 
     async def broadcast(self, key: str, ev: dict) -> None:

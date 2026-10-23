@@ -34,11 +34,13 @@ from claude_agent_sdk import (
     ToolResultBlock,
     ToolUseBlock,
     UserMessage,
+    create_sdk_mcp_server,
     get_session_messages,
+    tool,
 )
 from claude_agent_sdk.types import TERMINAL_TASK_STATUSES
 
-from . import billing, chain, config, settings, slash, speech
+from . import billing, chain, config, handoff, settings, slash, speech
 from .brain import BRAIN_READ_TOOLS, CAPTURE_TOOL, NOTE_REQUEST, CaptureGuard, brain_prompt, split_note, vault_rule
 from .fence import Fence, strictest
 from .replies import NO, YES, classify_reply, match_option
@@ -87,7 +89,7 @@ def tool_summary(name: str, inp: dict[str, Any]) -> str:
     """One-line terminal-style label: Bash(git status), Read(src/app.py)."""
     arg = (
         inp.get("command") or inp.get("file_path") or inp.get("path") or inp.get("pattern")
-        or inp.get("url") or inp.get("query") or inp.get("description") or inp.get("prompt") or ""
+        or inp.get("url") or inp.get("repo") or inp.get("query") or inp.get("description") or inp.get("prompt") or ""
     )
     arg = " ".join(str(arg).split())
     return f"{name}({arg[:120]}{'…' if len(arg) > 120 else ''})" if arg else name
@@ -108,6 +110,8 @@ def spoken_permission_prompt(name: str, inp: dict[str, Any], display_name: str |
             what = "go online for this"
         elif name == "Bash":
             what = "run a command"
+        elif name == handoff.TOOL:
+            what = f"continue in {inp.get('repo') or 'another repo'}"
         else:
             what = display_name or f"use {name.split('__')[-1].replace('_', ' ')}"
     # The description is model-written: drop yes/no words so an echo of the prompt can't answer it.
@@ -387,8 +391,10 @@ class FolderSession:
 
     def __init__(self, path: str, key: str, store, emit: Emit, wants_audio: Callable[[], bool],
                  viewed: Callable[[], bool] = lambda: True, notify=_no_notify,
-                 guard: CaptureGuard | None = None) -> None:
+                 guard: CaptureGuard | None = None,
+                 handoff: Callable[["FolderSession", str, str], Awaitable[str]] | None = None) -> None:
         self.path = path
+        self.handoff = handoff  # "continue in another repo": opens a session there, returns a line for the model
         self.key = key
         self.store = store
         self._emit = emit
@@ -484,6 +490,7 @@ class FolderSession:
             enable_file_checkpointing=True,  # "undo that": rewind_files to a user message's checkpoint
             extra_args={"replay-user-messages": None},
             allowed_tools=list(BRAIN_READ_TOOLS) if settings.settings["brain"] else [],  # reading the second brain needs no card
+            mcp_servers={handoff.SERVER: self._handoff_server()} if self.handoff else {},
             hooks={
                 "PreToolUse": [HookMatcher(matcher=f"Edit|Write|MultiEdit|NotebookEdit|Bash|Read|Glob|Grep|{CAPTURE_TOOL}",
                                            hooks=[self._pre_tool])],
@@ -491,9 +498,19 @@ class FolderSession:
                 "PostToolUseFailure": [HookMatcher(matcher=CAPTURE_TOOL, hooks=[self._capture_failed])],
             },
             env=billing.sdk_env(),
-            system_prompt={"type": "preset", "preset": "claude_code", "append": "\n".join((VOICE_PROMPT, self._brain_prompt(), chain.routing_prompt(self.model)))},
+            system_prompt={"type": "preset", "preset": "claude_code", "append": "\n".join((VOICE_PROMPT, self._brain_prompt(), chain.routing_prompt(self.model), handoff.PROMPT if self.handoff else ""))},
             stderr=lambda line: log.debug("claude[%s]: %s", self.path, line),
         )
+
+    def _handoff_server(self):
+        @tool(handoff.NAME, handoff.DESCRIPTION, {"repo": str, "brief": str})
+        async def continue_in_repo(args: dict[str, Any]) -> dict[str, Any]:
+            try:
+                text = await self.handoff(self, str(args.get("repo") or ""), str(args.get("brief") or ""))
+            except handoff.HandoffError as e:
+                return handoff.result(str(e), error=True)
+            return handoff.result(text)
+        return create_sdk_mcp_server(handoff.SERVER, tools=[continue_in_repo])
 
     @staticmethod
     def _brain_prompt() -> str:
