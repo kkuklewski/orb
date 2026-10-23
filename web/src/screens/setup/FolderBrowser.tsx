@@ -3,16 +3,17 @@
 import { send } from "../../ws";
 import { useSetup } from "../../stores/setup";
 
-export function FolderBrowser({ onAdd }: { onAdd: (path: string) => void }) {
+export function FolderBrowser({ onAdd, chosen, label = "Use this folder", warnHome = true }: {
+  onAdd: (path: string) => void; chosen: (path: string) => boolean; label?: string; warnHome?: boolean;
+}) {
   const dir = useSetup((s) => s.dir);
-  const roots = useSetup((s) => s.status?.roots ?? []);
   if (!dir) return <div className="onb-browser"><p className="onb-text small">Loading…</p></div>;
 
   const go = (path: string) => send({ type: "browse", path });
   const inHome = dir.path.startsWith(dir.home + "/");
   const rel = dir.path === dir.home ? "" : inHome ? dir.path.slice(dir.home.length + 1) : dir.path.replace(/^\//, "");
   const parts = rel ? rel.split("/") : [];
-  const added = roots.some((r) => r.path === dir.path);
+  const added = chosen(dir.path);
 
   return (
     <div className="onb-browser">
@@ -43,9 +44,9 @@ export function FolderBrowser({ onAdd }: { onAdd: (path: string) => void }) {
         <code className="onb-browser-path">{dir.path.replace(dir.home, "~")}</code>
         <span className="onb-spacer" />
         <button type="button" className="onb-btn primary small" disabled={added} onClick={() => {
-          if (dir.path === dir.home && !confirm("Give Orb your whole home folder? It would list every repo in it.")) return;
+          if (warnHome && dir.path === dir.home && !confirm("Give Orb your whole home folder? It would list every repo in it.")) return;
           onAdd(dir.path);
-        }}>{added ? "✓ Added" : `Use ${dir.path === dir.home ? "~" : "this folder"}`}</button>
+        }}>{added ? "✓ Chosen" : dir.path === dir.home ? "Use ~" : label}</button>
       </div>
     </div>
   );

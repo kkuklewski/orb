@@ -463,6 +463,7 @@ export interface SetupStatusEvent {
   values: {
     [k: string]: unknown;
   };
+  vault?: VaultInfo | null;
   voices: Voice[];
 }
 /**
@@ -493,6 +494,18 @@ export interface RootInfo {
 export interface Suggestion {
   path: string;
   repos: number;
+}
+/**
+ * The notes folder as the setup shows it: where, and what Orb found in it.
+ *
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "VaultInfo".
+ */
+export interface VaultInfo {
+  exists: boolean;
+  notes: number;
+  open_tasks: number;
+  path: string;
 }
 /**
  * This interface was referenced by `OrbProtocol`'s JSON-Schema

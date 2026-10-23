@@ -39,3 +39,16 @@ def test_no_vault():
     s = home.summary(None)
     assert s == {"type": "home", "vault": "", "tasks": [], "open_tasks": 0, "notes": [], "notes_week": 0}
     protocol.SERVER_EVENTS["home"].model_validate(s)
+
+
+def test_vault_info(tmp_path):
+    write(tmp_path / "a.md", "- [ ] one\n- [ ] two\n", 1)
+    write(tmp_path / "b.md", "no tasks\n", 1)
+    assert home.vault_info(tmp_path) == {"path": str(tmp_path), "exists": True, "notes": 2, "open_tasks": 2}
+    assert home.vault_info(tmp_path / "gone")["exists"] is False
+    assert home.vault_info(None) is None
+
+
+def test_tasks_read_as_plain_text(tmp_path):
+    write(tmp_path / "a.md", "- [ ] **Call** [[people/Ana|Ana]] about [[Orb]]\n", 1)
+    assert home.summary(tmp_path)["tasks"][0]["text"] == "Call Ana about Orb"

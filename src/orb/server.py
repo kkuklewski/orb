@@ -104,6 +104,10 @@ class Hub:
             if root.is_dir():
                 found += [f.to_dict() for f in folders.discover(root) if f.path not in {x["path"] for x in found}]
         known = {f["path"] for f in found}
+        vault = settings.settings.vault()
+        if vault and vault.is_dir() and str(vault) not in known:  # the notes folder, when it's outside the roots
+            found.append(folders.describe(vault, vault.parent).to_dict())
+            known.add(str(vault))
         for extra in self.store.extra_folders():
             p = Path(extra)
             if extra not in known and self.allowed_folder(extra) is not None:
@@ -140,9 +144,10 @@ class Hub:
         return out
 
     def allowed_folder(self, path: str) -> Path | None:
-        """A folder inside one of the user's roots and not in a skipped folder; else None."""
+        """A folder inside one of the user's roots or the notes folder, and not in a skipped folder; else None."""
         p = Path(path).expanduser().resolve()
-        root = folders.root_of(p, settings.settings.roots())
+        vault = settings.settings.vault()
+        root = folders.root_of(p, settings.settings.roots() + ([vault] if vault else []))
         if not p.is_dir() or root is None or folders.is_forbidden(p, root):
             return None
         return p
@@ -502,7 +507,7 @@ async def handle(conn: Conn, msg: dict) -> None:
             await hub.push_folders()
         if {"roots", "vault", "brain", "routines", "onboarded", "stt", "tts"} & set(values):
             await asyncio.gather(*(c.send({"type": "features", **features()}) for c in hub.conns))
-        if {"roots", "stt", "tts"} & set(values) and not values.get("onboarded"):
+        if {"roots", "vault", "stt", "tts"} & set(values) and not values.get("onboarded"):
             await conn.send(await setup.status())  # the setup page shows the result at once
         await conn.send(await settings_event())
         return

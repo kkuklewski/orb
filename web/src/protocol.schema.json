@@ -3560,6 +3560,17 @@
           "additionalProperties": true,
           "type": "object"
         },
+        "vault": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/VaultInfo"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "voices": {
           "items": {
             "$ref": "#/$defs/Voice"
@@ -4768,6 +4779,32 @@
         "wav"
       ],
       "title": "UtteranceMsg",
+      "type": "object"
+    },
+    "VaultInfo": {
+      "additionalProperties": false,
+      "description": "The notes folder as the setup shows it: where, and what Orb found in it.",
+      "properties": {
+        "exists": {
+          "type": "boolean"
+        },
+        "notes": {
+          "type": "integer"
+        },
+        "open_tasks": {
+          "type": "integer"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "exists",
+        "notes",
+        "open_tasks"
+      ],
+      "title": "VaultInfo",
       "type": "object"
     },
     "Voice": {

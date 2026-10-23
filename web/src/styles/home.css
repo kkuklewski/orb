@@ -1,0 +1,31 @@
+/* Home: a heading with the voice pill, then ruled panels (needs you, to do, routines, notes). */
+.home { overflow-y: auto; min-height: 0; }
+.home-col { max-width: 1040px; margin: 0 auto; padding: 36px clamp(16px, 4vw, 40px) 28px; }
+.home-hero { padding-bottom: 26px; border-bottom: 1px solid var(--text); margin-bottom: 8px; }
+.home-hero h1 { margin: 6px 0 16px; font: 600 clamp(30px, 4vw, 44px)/1.08 var(--sans); letter-spacing: -0.025em; }
+.home-kicker { font-size: 11px; letter-spacing: .16em; color: var(--text-3); }
+.home-talk { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.home-talk .orb { width: auto; height: 44px; }
+.home-hint { font-size: 11.5px; color: var(--text-3); letter-spacing: .04em; }
+.home-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 40px; }
+.home-panel { padding: 22px 0 18px; border-bottom: 1px solid var(--line); min-width: 0; }
+.home-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+.home-head h2 { margin: 0; font: 600 17px/1.3 var(--sans); letter-spacing: -0.01em; }
+.home-head .chip-btn { margin-left: auto; }
+.home-row { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; gap: 12px; align-items: center; width: 100%; text-align: left;
+  background: none; border: 0; border-top: 1px solid var(--line-soft); padding: 9px 4px; cursor: pointer; color: var(--text); font: 14px/1.4 var(--sans); }
+.home-row:hover { background: var(--bg-elev); }
+.home-row:focus-visible { outline: 2px solid var(--text); outline-offset: -2px; }
+.home-row-main { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.home-row-meta { font-size: 10.5px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px; }
+.home-row-time { font-size: 10.5px; color: var(--text-3); }
+.home-row.approval .home-row-meta { color: var(--s-acc-txt, var(--warn)); }
+.home-box { width: 11px; height: 11px; border: 1px solid var(--text-3); border-radius: 2px; }
+.home-row.task:hover .home-box { border-color: var(--text); }
+.home-empty { margin: 0 0 12px; color: var(--text-3); font-size: 13.5px; line-height: 1.5; }
+.home-more, .home-line { margin: 8px 0 0; font-size: 11.5px; color: var(--text-3); letter-spacing: .02em; }
+.home-line { color: var(--text-2); }
+@media (max-width: 860px) {
+  .home-grid { grid-template-columns: minmax(0, 1fr); }
+  .home-row-meta { max-width: 120px; }
+}

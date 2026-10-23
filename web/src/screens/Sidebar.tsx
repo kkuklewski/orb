@@ -13,6 +13,7 @@ const Icon = ({ d }: { d: ReactNode }) => (
   <span className="nav-ic"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">{d}</svg></span>
 );
 const ICONS = {
+  home: <><path d="M4 11l8-7 8 7" /><path d="M6 9.5V20h12V9.5" /></>,
   new: <><circle cx="12" cy="12" r="9" /><path d="M12 8v8M8 12h8" /></>,
   brain: <><path d="M9 4a3 3 0 0 0-3 3 3 3 0 0 0-2 5 3 3 0 0 0 2 5 3 3 0 0 0 6 1V6a2 2 0 0 0-3-2Z" /><path d="M15 4a3 3 0 0 1 3 3 3 3 0 0 1 2 5 3 3 0 0 1-2 5 3 3 0 0 1-6 1" /></>,
   activity: <path d="M3 12h4l2-6 4 12 2-6h6" />,
@@ -38,7 +39,7 @@ function SessionRow({ x, showFolder }: { x: Row; showFolder?: boolean }) {
 
 function showView(v: View) {
   const cur = useViews.getState().view;
-  useViews.setState({ view: cur === v && v !== "chat" ? "chat" : v });
+  useViews.setState({ view: cur === v && v !== "home" ? "home" : v });
   useSession.setState({ drawer: false });
 }
 
@@ -77,6 +78,7 @@ export function Sidebar() {
         </div>
       )}
       <nav className="side-nav">
+        <button type="button" className={"nav-item" + (view === "home" ? " active" : "")} aria-current={view === "home" ? "page" : undefined} onClick={() => showView("home")}><Icon d={ICONS.home} />Home</button>
         <button type="button" className="nav-item" onClick={() => openPicker("new")}><Icon d={ICONS.new} />New</button>
         {features?.vault && (
           <button type="button" className={"nav-item" + (folder === features.vault && view === "chat" ? " active" : "")} onClick={() => openFolder(features.vault)}><Icon d={ICONS.brain} />Brain</button>

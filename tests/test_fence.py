@@ -126,3 +126,15 @@ def test_shell_globs_are_expanded_before_checking(dev):
     assert decision(f.rule("Bash", {"command": "cat *"})) == "deny"
     assert f.rule("Bash", {"command": "ls src/*.py"}) == {}
     assert glob_may_hit_secret("*") and not glob_may_hit_secret("*.md")
+
+
+def test_notes_folder_outside_the_roots(tmp_path):
+    code, notes = tmp_path / "code", tmp_path / "Documents" / "Notes"
+    for d in (code / "app/.git", notes / "secrets", notes / "inbox"):
+        d.mkdir(parents=True)
+    f = Fence(str(notes), roots=[code], clients=(), vault=notes)
+    assert f.rule("Read", {"file_path": str(notes / "inbox" / "today.md")}) == {}
+    assert decision(f.rule("Read", {"file_path": str(notes / "secrets" / "bank.md")})) == "deny"
+    coder = Fence(str(code / "app"), roots=[code], clients=(), vault=notes)
+    out = coder.rule("Read", {"file_path": str(notes / "inbox" / "today.md")})
+    assert decision(out) == "ask" and "Other repo: Notes" in out["hookSpecificOutput"]["permissionDecisionReason"]

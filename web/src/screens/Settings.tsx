@@ -109,6 +109,13 @@ export function Settings() {
           options={[["dark", "Dark"], ["light", "Light"]]} />
       </Section>
 
+      <Section title="Notes folder" hint="Your second brain: Home shows its open tasks and recent notes, and the Brain session works in it.">
+        <div className="set-row">
+          <code className="set-code">{ev.vault || "none yet"}</code>
+          <button type="button" className="chip-btn" onClick={() => openSetup(3)}>{ev.vault ? "Change" : "Choose"}</button>
+        </div>
+      </Section>
+
       <Section title="Setup" hint="Folders Orb may open, sign-in and speech engines.">
         <button type="button" className="chip-btn" onClick={() => openSetup(2)}>Open setup</button>
       </Section>

@@ -1,17 +1,17 @@
-// Settings, Activity and Routines: their server state, which view is showing, and the pure helpers
+// Home, Settings, Activity and Routines: their server state, which view is showing, and the pure helpers
 // the screens use (exported for tests).
 import { create } from "zustand";
 import type { FolderItem, RoutineItem, RoutinesEvent, SessionItem, SettingsEvent } from "../protocol.gen";
 import { on } from "../events";
 
-export type View = "chat" | "activity" | "routines" | "settings";
+export type View = "home" | "chat" | "activity" | "routines" | "settings";
 
 export const useViews = create<{
   view: View;
   settings: SettingsEvent | null;
   routines: RoutinesEvent | null;
   routinesNew: Set<string>; // "new" dots stay for this visit; the server forgets them at once
-}>(() => ({ view: "chat", settings: null, routines: null, routinesNew: new Set() }));
+}>(() => ({ view: "home", settings: null, routines: null, routinesNew: new Set() }));
 
 export function wireViews(): () => void {
   const offs = [

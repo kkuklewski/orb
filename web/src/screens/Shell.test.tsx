@@ -76,7 +76,7 @@ describe("sidebar", () => {
     fireEvent.click(screen.getByRole("button", { name: /Settings/ }));
     expect(useViews.getState().view).toBe("settings");
     fireEvent.click(screen.getByRole("button", { name: /Settings/ }));
-    expect(useViews.getState().view).toBe("chat");
+    expect(useViews.getState().view).toBe("home");
     expect(screen.getByRole("button", { name: /Routines/ })).toBeTruthy();
     act(() => useFeatures.setState((s) => ({ features: { ...s.features!, routines: false } })));
     expect(screen.queryByRole("button", { name: /Routines/ })).toBeNull();

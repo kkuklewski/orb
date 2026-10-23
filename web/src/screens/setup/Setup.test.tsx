@@ -49,7 +49,7 @@ describe("setup assistant", () => {
   });
 
   it("plays a voice first, then saves it, and shows Loading… on its row", () => {
-    useSetup.setState({ step: 3, status: status({ voices: [{ id: "af_heart", name: "Heart", desc: "US · female", grade: "A" }, { id: "af_bella", name: "Bella", desc: "US · female", grade: "A-" }] }) });
+    useSetup.setState({ step: 4, status: status({ voices: [{ id: "af_heart", name: "Heart", desc: "US · female", grade: "A" }, { id: "af_bella", name: "Bella", desc: "US · female", grade: "A-" }] }) });
     vi.stubGlobal("AudioContext", class { state = "running"; resume() {} });
     render(<Setup />);
     fireEvent.click(screen.getByRole("radio", { name: /Bella/ }));
@@ -59,7 +59,7 @@ describe("setup assistant", () => {
   });
 
   it("finishes with set_settings onboarded, and Escape closes only once set up", () => {
-    useSetup.setState({ step: 4, status: status() });
+    useSetup.setState({ step: 5, status: status() });
     render(<Setup />);
     fireEvent.keyDown(window, { key: "Escape" });
     expect(useSetup.getState().open).toBe(true); // not set up yet: can't leave

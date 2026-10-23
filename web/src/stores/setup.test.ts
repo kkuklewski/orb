@@ -13,15 +13,17 @@ describe("setup rules", () => {
   it("needs a folder with at least one repo to pass step 2 and to finish", () => {
     const none = status({ roots: [{ path: "/Users/a/empty", exists: true, repos: [] }] });
     expect(canContinue(2, none)).toBe(false);
-    expect(canContinue(4, none)).toBe(false);
-    expect(canContinue(4, status())).toBe(true);
+    expect(canContinue(3, none)).toBe(true); // notes are optional
+    expect(canContinue(5, none)).toBe(false);
+    expect(canContinue(5, status())).toBe(true);
   });
 
   it("marks steps done when passed or already met, never the current one", () => {
     expect(stepDone(1, 2, status())).toBe(true); // behind
     expect(stepDone(2, 2, status())).toBe(false); // current
-    expect(stepDone(3, 2, status())).toBe(true); // voice has no requirement
-    expect(stepDone(4, 2, status())).toBe(false); // the last step is never "done" ahead of time
+    expect(stepDone(3, 2, status())).toBe(true); // notes are optional
+    expect(stepDone(4, 2, status())).toBe(true); // voice has no requirement
+    expect(stepDone(5, 2, status())).toBe(false); // the last step is never "done" ahead of time
     expect(stepDone(3, 2, null)).toBe(false); // nothing known yet
   });
 });

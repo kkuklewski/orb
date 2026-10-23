@@ -125,6 +125,14 @@ class FoldersEvent(_Event):
     items: list[FolderItem]
 
 
+class VaultInfo(_Msg):
+    """The notes folder as the setup shows it: where, and what Orb found in it."""
+    path: str
+    exists: bool
+    notes: int
+    open_tasks: int
+
+
 class SetupStatusEvent(_Event):
     type: Literal["setup_status"]
     auth: AuthStatus
@@ -135,6 +143,7 @@ class SetupStatusEvent(_Event):
     speech: dict[str, bool]
     voices: list[Voice]
     values: Json
+    vault: VaultInfo | None = None
 
 
 class BrowseEvent(_Event):

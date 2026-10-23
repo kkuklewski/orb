@@ -12,6 +12,8 @@ import { Settings } from "./screens/Settings";
 import { Sidebar } from "./screens/Sidebar";
 import { Picker } from "./screens/Picker";
 import { Composer } from "./screens/Composer";
+import { Home } from "./screens/Home";
+import { wireHome } from "./stores/home";
 import { McpPanel, TopBar } from "./screens/TopBar";
 import { DockState, VoicePill } from "./screens/Voice";
 import { wireMeta } from "./stores/meta";
@@ -33,7 +35,7 @@ export { openSetup };
 
 export function App() {
   useEffect(() => {
-    const offs = [wireFeatures(), wireSetup(), wireViews(), wireSession(), wireChat(), wireMeta(), wireVoice()];
+    const offs = [wireFeatures(), wireSetup(), wireViews(), wireSession(), wireChat(), wireMeta(), wireVoice(), wireHome()];
     const stop = start();
     return () => { stop(); offs.forEach((off) => off()); };
   }, []);
@@ -65,6 +67,7 @@ export function App() {
         {view === "activity" ? <Activity />
           : view === "routines" && features.routines ? <Routines />
           : view === "settings" ? <Settings />
+          : view === "home" ? <section className="chat-next"><Home /><Dock pill={false} /></section>
           : <Chat />}
       </main>
       <Picker />
@@ -95,14 +98,20 @@ function Chat() {
           )}
         </div>
       )}
-      <footer className="dock">
-        <DockState />
-        <div className="dock-row">
-          {folder && !empty && <div className="orb-slot"><VoicePill /></div>}
-          <Composer />
-        </div>
-      </footer>
+      <Dock pill={!!folder && !empty} />
     </section>
+  );
+}
+
+function Dock({ pill }: { pill: boolean }) {
+  return (
+    <footer className="dock">
+      <DockState />
+      <div className="dock-row">
+        {pill && <div className="orb-slot"><VoicePill /></div>}
+        <Composer />
+      </div>
+    </footer>
   );
 }
 

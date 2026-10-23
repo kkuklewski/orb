@@ -135,7 +135,7 @@ export function Folders() {
       </div>
       <Row>
         <button type="button" className="onb-btn" disabled={picking}
-          onClick={() => { useSetup.setState({ picking: true }); send({ type: "pick_folder" }); }}>
+          onClick={() => { useSetup.setState({ picking: true, pickFor: "roots" }); send({ type: "pick_folder" }); }}>
           {picking ? "Waiting for Finder…" : "Choose in Finder…"}
         </button>
         <button type="button" className="onb-btn" onClick={() => {
@@ -144,7 +144,7 @@ export function Folders() {
           if (open && !useSetup.getState().dir) send({ type: "browse" });
         }}>{browsing ? "Hide browser" : "Browse folders"}</button>
       </Row>
-      {browsing && <FolderBrowser onAdd={add} />}
+      {browsing && <FolderBrowser onAdd={add} chosen={(p) => roots.some((r) => r.path === p)} />}
       <Row>
         <input className="onb-input" placeholder="Another folder, e.g. ~/code" aria-label="Folder path" value={typed}
           onChange={(e) => setTyped(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addTyped(); } }} />
@@ -152,6 +152,58 @@ export function Folders() {
       </Row>
       <p className="onb-text small">Always blocked: secrets/ folders, .env files, keys and credentials, ~/.ssh and ~/.aws.</p>
       <Foot label="Continue" hint="Add a folder with at least one repo" />
+    </>
+  );
+}
+
+export function Notes() {
+  const { status, browsing, picking } = useSetup();
+  const [typed, setTyped] = useState("");
+  const vault = status?.vault ?? null;
+  const home = status?.home ?? "";
+  const tilde = (p: string) => (home ? p.replace(home, "~") : p);
+  const choose = (p: string) => send({ type: "set_settings", values: { vault: p } });
+  const chooseTyped = () => {
+    const v = typed.trim().replace(/^~(?=\/|$)/, home);
+    if (v) { choose(v); setTyped(""); }
+  };
+  return (
+    <>
+      <Head kicker="STEP 03" title="Your notes, your second brain"
+        text="Point Orb at the folder where you keep your notes: an Obsidian vault, or any folder of Markdown files. Its home screen then shows your open tasks and recent notes, and you can ask about them by voice." />
+      <div className="onb-list">
+        {vault ? (
+          <div className="onb-item on">
+            <span className="onb-check">{vault.exists ? "✓" : "!"}</span>
+            <div className="onb-item-txt">
+              <code>{tilde(vault.path)}</code>
+              <span>{vault.exists ? `${vault.notes} note${vault.notes === 1 ? "" : "s"} · ${vault.open_tasks} open task${vault.open_tasks === 1 ? "" : "s"}` : "missing"}</span>
+            </div>
+            <button type="button" className="onb-btn ghost small" onClick={() => choose("")}>Remove</button>
+          </div>
+        ) : (
+          <p className="onb-text small">No notes folder yet. This step is optional: you can add one later in Settings.</p>
+        )}
+      </div>
+      <Row>
+        <button type="button" className="onb-btn" disabled={picking}
+          onClick={() => { useSetup.setState({ picking: true, pickFor: "vault" }); send({ type: "pick_folder" }); }}>
+          {picking ? "Waiting for Finder…" : "Choose in Finder…"}
+        </button>
+        <button type="button" className="onb-btn" onClick={() => {
+          const open = !browsing;
+          useSetup.setState({ browsing: open });
+          if (open && !useSetup.getState().dir) send({ type: "browse" });
+        }}>{browsing ? "Hide browser" : "Browse folders"}</button>
+      </Row>
+      {browsing && <FolderBrowser onAdd={choose} chosen={(p) => vault?.path === p} label="Use as notes" warnHome={false} />}
+      <Row>
+        <input className="onb-input" placeholder="Or type a path, e.g. ~/Documents/Notes" aria-label="Notes folder path" value={typed}
+          onChange={(e) => setTyped(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); chooseTyped(); } }} />
+        <button type="button" className="onb-btn" onClick={chooseTyped}>Use</button>
+      </Row>
+      <p className="onb-text small">Orb reads the notes only on this Mac. A notes session may write there too; edits to CLAUDE.md files always need your OK.</p>
+      <Foot label={vault ? "Continue" : "Skip for now"} />
     </>
   );
 }
@@ -193,7 +245,7 @@ export function Voice() {
   };
   return (
     <>
-      <Head kicker="STEP 03" title="Her voice, and yours"
+      <Head kicker="STEP 04" title="Her voice, and yours"
         text="Browser speech works right away (Chrome transcribes through Google; Safari can on this Mac). Local engines keep everything on this Mac." />
       <Seg label="HEARING YOU" value={values.stt} onPick={(v) => set("stt", v)}
         options={[["browser", "Browser", BROWSER_STT], ["parakeet", "Parakeet", !!sp.parakeet], ["whisper", "Whisper", !!sp.whisper]]} />
@@ -235,7 +287,7 @@ export function Control() {
   const plan = sub ? cap(sub) : "Pro / Max";
   return (
     <>
-      <Head kicker="STEP 04" title="Nothing changes without you." text="Four rules Orb keeps, whatever you ask it." />
+      <Head kicker="STEP 05" title="Nothing changes without you." text="Four rules Orb keeps, whatever you ask it." />
       <div className="onb-spec">
         <Cell n="01" label="APPROVALS" rule="Every change asks first." text="Allow or Deny on a card, or answer yes / no by voice on headphones.">
           <div className="onb-spec-proof onb-spec-mini" aria-hidden="true">

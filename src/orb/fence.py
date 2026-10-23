@@ -180,12 +180,17 @@ class Fence:
             roots = [root] if root is not None else settings.settings.roots()
         self.roots = [os.path.realpath(r) for r in roots]
         self.session = os.path.realpath(session)
-        self.root = self._root(self.session) or self.session  # the session's own root (labels, client folders)
         self.clients = tuple(settings.settings["client_dirs"]) if clients is None else clients
         # Folder names the user put on the never-open list (Settings): denied anywhere, like secrets.
         self.never = {n.casefold() for n in (settings.settings["skip_names"] if never is None else never)}
         vault = settings.settings.vault() if vault is None else vault
+        # A notes folder outside the roots counts as one more root: its secrets/ is blocked like theirs.
+        notes = os.path.realpath(vault) if vault else None
+        self.notes_root = notes if notes and not any(_within(notes, r) for r in self.roots) else None
+        if self.notes_root:
+            self.roots.append(self.notes_root)
         self.hub = bool(vault) and _within(self.session, os.path.realpath(vault))
+        self.root = self._root(self.session) or self.session  # the session's own root (labels, client folders)
         home = Path.home()
         self.sensitive = [*(os.path.join(r, SECRETS_DIR) for r in self.roots), str(home / ".aws"), str(home / ".ssh"),
                           *map(str, SECRET_FILES)]
@@ -221,7 +226,8 @@ class Fence:
                 return "deny", (f"{client}/ is a client folder; this session works in "
                                 f"{os.path.basename(self.session)}. Open {client} as its own session in Orb.")
         here = _repo_label(self.session, self.root).split("/")[-1]  # "api", not "acme/api"
-        return "ask", f"Other repo: {_repo_label(target, root).split('/')[-1]}. This session is in {here}."
+        there = os.path.basename(root) if root == self.notes_root else _repo_label(target, root).split("/")[-1]
+        return "ask", f"Other repo: {there}. This session is in {here}."
 
     def _paths(self, tool: str, inp: dict[str, Any], base: str) -> list[str]:
         if tool in _PATH_TOOLS:

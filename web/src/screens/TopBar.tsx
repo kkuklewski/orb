@@ -1,5 +1,4 @@
-import { send } from "../ws";
-import { folderName, useSession } from "../stores/session";
+import { folderName, newSession, useSession } from "../stores/session";
 import { contextView, cycleMode, mcpRows, metaLine, reconnectMcp, toggleMcp, toggleModel, usageView, useMeta } from "../stores/meta";
 import { useVoice } from "../stores/voice";
 import { toggleMute } from "../voice/controller";
@@ -98,7 +97,7 @@ export function TopBar() {
           <button type="button" className={"chip-btn mono mode-chip " + mode} onClick={cycleMode} aria-label={`approvals: ${mode}`} title={MODE_TITLE[mode] ?? mode}><span className="chip-key">approvals: </span>{mode}</button>
         )}
         {folder && (
-          <button type="button" className="chip-btn new-session" title="Start a fresh session in this folder" onClick={() => { Player.stop(); send({ type: "new_session" }); }}>New session</button>
+          <button type="button" className="chip-btn new-session" title="Start a fresh session in this folder" onClick={() => { Player.stop(); newSession(); }}>New session</button>
         )}
         <button type="button" className="icon-btn" aria-pressed={muted} aria-label="Mute speech" title="Mute speech (M)" onClick={toggleMute}>
           <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M3 9v6h4l5 4V5L7 9H3Zm13.5 3A4.5 4.5 0 0 0 14 8v8a4.5 4.5 0 0 0 2.5-4ZM14 3.2v2.1a7 7 0 0 1 0 13.4v2.1a9 9 0 0 0 0-17.6Z" /></svg>

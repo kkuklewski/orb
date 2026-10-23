@@ -4,16 +4,17 @@ import { useEffect, useRef } from "react";
 import { send } from "../../ws";
 import { useFeatures } from "../../stores/features";
 import { LAST_STEP, canContinue, stepDone, useSetup } from "../../stores/setup";
-import { Control, Folders, SignIn, Voice, Welcome } from "./steps";
+import { Control, Folders, Notes, SignIn, Voice, Welcome } from "./steps";
 
-const RAIL = ["Sign in", "Folders", "Voice", "Control"];
+const RAIL = ["Sign in", "Folders", "Notes", "Voice", "Control"];
+export const NOTES_STEP = 3;
 
 export function goTo(step: number) {
-  useSetup.setState({ step: Math.max(0, Math.min(LAST_STEP, step)), sample: null });
+  useSetup.setState({ step: Math.max(0, Math.min(LAST_STEP, step)), sample: null, browsing: false });
 }
 
 export function closeSetup() {
-  useSetup.setState({ open: false, browsing: false });
+  useSetup.setState({ open: false, browsing: false, pickFor: "roots" });
 }
 
 export function next() {
@@ -55,7 +56,7 @@ export function Setup() {
   }, [toast]);
 
   const plan = status?.auth.subscription;
-  const Step = [Welcome, SignIn, Folders, Voice, Control][step];
+  const Step = [Welcome, SignIn, Folders, Notes, Voice, Control][step];
   return (
     <div className="onb" role="dialog" aria-modal="true" aria-labelledby="onb-title">
       <header className="onb-top">
@@ -79,7 +80,7 @@ export function Setup() {
       </section>
       {toast && <div className={"onb-toast" + (toast.level === "error" ? " error" : "")} role="status">{toast.text}</div>}
       <footer className="onb-meter mono" aria-hidden="true">
-        <span>{step ? `STEP ${String(step).padStart(2, "0")} / 04` : "WELCOME"}</span>
+        <span>{step ? `STEP ${String(step).padStart(2, "0")} / ${String(LAST_STEP).padStart(2, "0")}` : "WELCOME"}</span>
         <span className="onb-bar"><i style={{ width: `${(step / LAST_STEP) * 100}%` }} /></span>
       </footer>
     </div>

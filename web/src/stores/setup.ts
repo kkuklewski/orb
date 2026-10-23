@@ -16,15 +16,16 @@ export interface SetupState {
   dir: BrowseEvent | null;
   browsing: boolean;
   picking: boolean;
+  pickFor: "roots" | "vault"; // what the next Finder choice is for
   sample: SampleState | null;
   toast: Toast | null;
 }
 
 export const initialSetup: SetupState = {
-  open: false, step: 0, status: null, dir: null, browsing: false, picking: false, sample: null, toast: null,
+  open: false, step: 0, status: null, dir: null, browsing: false, picking: false, pickFor: "roots", sample: null, toast: null,
 };
 
-export const LAST_STEP = 4;
+export const LAST_STEP = 5;
 
 export function signedIn(s: SetupStatusEvent | null): boolean {
   return !!(s?.auth.loggedIn && s.auth.subscriptionLogin);
@@ -80,9 +81,11 @@ export function wireSetup(): () => void {
     playBase64(ev.data).catch(() => useSetup.setState({ sample: { voice: ev.voice, state: "error", text: "This browser couldn't play the sample." } }));
     setTimeout(() => useSetup.setState((s) => (s.sample?.voice === ev.voice && s.sample.state === "playing" ? { sample: null } : {})), 2600);
   }));
-  offs.push(on("picked", (ev) => { // Finder gave a folder: add it to the roots
+  offs.push(on("picked", (ev) => { // Finder gave a folder: the notes folder, or another code folder
+    if (!ev.path) return;
+    if (useSetup.getState().pickFor === "vault") { send({ type: "set_settings", values: { vault: ev.path } }); return; }
     const roots = useSetup.getState().status?.roots.map((r) => r.path) ?? [];
-    if (ev.path && !roots.includes(ev.path)) send({ type: "set_settings", values: { roots: [...roots, ev.path] } });
+    if (!roots.includes(ev.path)) send({ type: "set_settings", values: { roots: [...roots, ev.path] } });
   }));
   return () => offs.forEach((off) => off());
 }

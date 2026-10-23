@@ -21,6 +21,8 @@ export interface SessionState {
   picker: PickerMode | null;
   expanded: string[];
   drawer: boolean; // narrow screens: the sidebar slides over
+  quiet: boolean; // the next "opened" is the start-up reopen: keep showing Home
+  pendingAsk: string | null; // sent once the session it was asked in has opened
 }
 
 const local = {
@@ -34,7 +36,7 @@ function savedExpanded(): string[] {
 
 export const initialSession = (): SessionState => ({
   folder: null, session: null, label: "", rel: "", branch: null, busy: false, commands: [],
-  picker: null, expanded: savedExpanded(), drawer: false,
+  picker: null, expanded: savedExpanded(), drawer: false, quiet: false, pendingAsk: null,
 });
 
 /** Pure: the next state for one event. Session-scoped events for another session are ignored. */
@@ -58,18 +60,27 @@ export function wireSession(): () => void {
   const apply = (ev: ServerEvent) => useSession.setState((s) => reduce(s, ev));
   const offs = [
     on("opened", (ev) => {
+      const { quiet, pendingAsk } = useSession.getState();
       apply(ev);
+      useSession.setState({ quiet: false, pendingAsk: null });
       if (ev.folder) local.set("vd-folder", ev.folder);
       if (ev.session) local.set("vd-session", ev.session);
-      useViews.setState({ view: "chat" });
+      if (!quiet) useViews.setState({ view: "chat" });
+      if (pendingAsk) { markSent(); send({ type: "user_text", text: pendingAsk, interrupt: false }); }
     }),
     on("commands", apply),
     on("state", apply),
-    on("hello", (ev) => { // back where you were, like the full page; else the picker
+    on("user", (ev) => { // a request in the open session (spoken from Home, say): show the conversation
+      const cur = useSession.getState().session;
+      if (!ev.replay && (!ev.session || ev.session === cur) && useViews.getState().view === "home") useViews.setState({ view: "chat" });
+    }),
+    on("hello", (ev) => { // reopen where you were, so voice and chat are ready, but start on Home
       if (!ev.onboarded) return;
       const last = local.get("vd-folder", "");
-      if (last && ev.folders.some((f) => f.path === last)) openFolder(last, local.get("vd-session", "") || undefined);
-      else if (!useSession.getState().folder) openPicker("new");
+      if (last && ev.folders.some((f) => f.path === last)) {
+        useSession.setState({ quiet: true });
+        openFolder(last, local.get("vd-session", "") || undefined);
+      }
     }),
   ];
   return () => offs.forEach((off) => off());
@@ -85,6 +96,16 @@ export function openFolder(path: string, session?: string) {
 export function startSession(path: string) {
   send({ type: "start_session", path });
   useSession.setState({ drawer: false });
+}
+
+/** A fresh session in `path` that starts with `text` (Home's "Ask your notes"). */
+export function askIn(path: string, text: string) {
+  useSession.setState({ pendingAsk: text });
+  startSession(path);
+}
+
+export function newSession() {
+  send({ type: "new_session" });
 }
 
 export function pinFolder(path: string, pinned: boolean) {
