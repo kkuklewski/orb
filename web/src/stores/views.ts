@@ -4,7 +4,7 @@ import { create } from "zustand";
 import type { FolderItem, RoutineItem, RoutinesEvent, SessionItem, SettingsEvent } from "../protocol.gen";
 import { on } from "../events";
 
-export type View = "home" | "chat" | "activity" | "routines" | "settings";
+export type View = "home" | "chat" | "task" | "activity" | "routines" | "settings";
 
 export const useViews = create<{
   view: View;

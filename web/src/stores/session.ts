@@ -82,7 +82,7 @@ export function wireSession(): () => void {
       const asked = parseRoute(location.pathname);
       const target = asked.session ? ev.folders.find((f) => (f.sessions ?? []).some((x) => x.key === asked.session)) : undefined;
       if (target) { openFolder(target.path, asked.session!); return; }
-      useViews.setState({ view: asked.view === "chat" ? "home" : asked.view });
+      useViews.setState({ view: asked.view === "chat" || asked.view === "task" ? "home" : asked.view }); // a task opens once wired (route.ts)
       const last = local.get("vd-folder", "");
       if (last && ev.folders.some((f) => f.path === last)) {
         useSession.setState({ quiet: true });
@@ -136,7 +136,7 @@ export function toggleProject(path: string) {
 }
 
 export function openPicker(mode: PickerMode) { useSession.setState({ picker: mode, drawer: false }); }
-export function closePicker() { useSession.setState({ picker: null }); }
+export function closePicker() { useSession.setState({ picker: null, pendingAsk: null }); } // a question waiting for a repo goes too
 
 /** Picker choice (a listed repo or a pasted path): start a session there, or pin it. */
 export function choosePath(path: string) {

@@ -18,7 +18,7 @@ import hashlib
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import billing, chain, config, folders, home, routines, settings, setup, slash, speech, vendor, vocab
+from . import billing, chain, config, folders, home, routines, settings, setup, slash, speech, tasks, vendor, vocab
 from .agent import FolderSession, dumps, first_request
 from .brain import CaptureGuard
 from .sessions import SessionStore
@@ -527,6 +527,24 @@ async def handle(conn: Conn, msg: dict) -> None:
         return
     if t == "home":
         await conn.send(await asyncio.to_thread(home.summary, settings.settings.vault()))
+        return
+    if t == "task_detail":
+        try:
+            await conn.send(await asyncio.to_thread(tasks.detail, settings.settings.vault(), msg["file"], int(msg["line"])))
+        except (tasks.TaskError, OSError) as e:
+            await conn.send({"type": "error", "text": str(e) if isinstance(e, tasks.TaskError) else f"Couldn't read the note: {e}"})
+        return
+    if t == "task_action":
+        vault = settings.settings.vault()
+        try:
+            ev = await asyncio.to_thread(tasks.act, vault, msg["file"], int(msg["line"]), msg["expect"], msg["action"],
+                                         msg.get("until"), msg.get("value"))
+        except (tasks.TaskError, OSError, UnicodeDecodeError) as e:
+            await conn.send({"type": "error", "text": str(e) if isinstance(e, tasks.TaskError) else f"Couldn't change the note: {e}"})
+            return
+        await conn.send(ev)
+        summary = await asyncio.to_thread(home.summary, vault)
+        await asyncio.gather(*(c.send(summary) for c in hub.conns))  # every page shows the new list
         return
     if t == "routines":
         # Panel opened: show what we have, check again if it's old. "refresh": the button.

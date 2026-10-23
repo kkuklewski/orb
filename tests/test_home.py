@@ -22,7 +22,8 @@ def test_tasks_and_notes(tmp_path):
     s = home.summary(tmp_path, now=now)
 
     assert [t["text"] for t in s["tasks"]] == ["Send the invoice", "Nested task", "Old task"]
-    assert s["tasks"][0] | {"mtime": 0} == {"text": "Send the invoice", "file": "inbox/today.md", "line": 2, "mtime": 0}
+    assert s["tasks"][0] | {"mtime": 0} == {"text": "Send the invoice", "file": "inbox/today.md", "line": 2, "mtime": 0,
+                                            "raw": "- [ ] Send the invoice"}
     assert s["open_tasks"] == 3
     assert [n["title"] for n in s["notes"]] == ["Today", "old"]
     assert s["notes_week"] == 1
@@ -37,7 +38,7 @@ def test_task_limit_keeps_the_total(tmp_path):
 
 def test_no_vault():
     s = home.summary(None)
-    assert s == {"type": "home", "vault": "", "tasks": [], "open_tasks": 0, "notes": [], "notes_week": 0}
+    assert s == {"type": "home", "vault": "", "tasks": [], "open_tasks": 0, "snoozed": 0, "notes": [], "notes_week": 0}
     protocol.SERVER_EVENTS["home"].model_validate(s)
 
 

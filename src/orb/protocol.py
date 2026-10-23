@@ -349,6 +349,7 @@ class HomeTask(_Msg):
     file: str  # relative to the vault
     line: int
     mtime: float
+    raw: str  # the exact line, sent back as `expect` when the task changes
 
 
 class HomeNote(_Msg):
@@ -363,8 +364,36 @@ class HomeEvent(_Event):
     vault: str
     tasks: list[HomeTask]
     open_tasks: int
+    snoozed: int
     notes: list[HomeNote]
     notes_week: int
+
+
+class TaskLine(_Msg):
+    n: int
+    text: str
+
+
+class TaskDetailEvent(_Event):
+    """One task in its note (tasks.detail): the line, the note's title and heading, the lines around it."""
+    type: Literal["task_detail"]
+    file: str
+    line: int
+    raw: str
+    title: str
+    heading: str
+    mtime: float
+    context: list[TaskLine]
+
+
+class TaskChangedEvent(_Event):
+    """A task line was rewritten (tasks.act); `previous` is what Undo puts back."""
+    type: Literal["task_changed"]
+    file: str
+    line: int
+    action: Literal["done", "drop", "snooze", "restore"]
+    raw: str
+    previous: str
 
 
 class UserEvent(_Event):
@@ -514,7 +543,7 @@ ServerEvent = Annotated[Union[
     HelloEvent, FeaturesEvent, FoldersEvent, SetupStatusEvent, BrowseEvent, PickedEvent, VoiceSampleEvent,
     SettingsEvent, ErrorEvent, NoticeEvent, OpenedEvent, HistoryEvent, StateEvent, SessionInfoEvent,
     ContextEvent, TaskEvent, CommandsEvent, McpEvent, RateLimitEvent, RoutinesEvent, BgNoticeEvent,
-    HomeEvent, UserEvent, TextStartEvent, TextEvent, SaidEvent, ToolStartEvent, ToolInputEvent, ToolResultEvent,
+    HomeEvent, TaskDetailEvent, TaskChangedEvent, UserEvent, TextStartEvent, TextEvent, SaidEvent, ToolStartEvent, ToolInputEvent, ToolResultEvent,
     ResultEvent, TimingEvent, PartialEvent, HeardNothingEvent, HeldEvent, PermissionEvent,
     PermissionDoneEvent, UndoAvailableEvent, UndoConfirmEvent, UndoDoneEvent, AudioEvent, SpeechResetEvent,
 ], Field(discriminator="type")]
@@ -628,6 +657,22 @@ class HomeMsg(_Msg):
     type: Literal["home"]
 
 
+class TaskDetailMsg(_Msg):
+    type: Literal["task_detail"]
+    file: str
+    line: int
+
+
+class TaskActionMsg(_Msg):
+    type: Literal["task_action"]
+    file: str
+    line: int
+    expect: str  # the line as the page shows it; the server writes only if it still reads so
+    action: Literal["done", "drop", "snooze", "restore"]
+    until: str | None = None  # snooze: YYYY-MM-DD
+    value: str | None = None  # restore: the line to put back
+
+
 class InterruptMsg(_Msg):
     type: Literal["interrupt"]
 
@@ -689,7 +734,7 @@ ClientMessage = Annotated[Union[
     SetupStatusMsg, BrowseMsg, PickFolderMsg, OpenFolderMsg, AddFolderMsg, StartSessionMsg, PinFolderMsg,
     GetSettingsMsg, SetSettingsMsg, VoiceSampleMsg, RescanMsg, RoutinesMsg, RoutinesSeenMsg, MuteMsg,
     NewSessionMsg, UserTextMsg, SpeechStartMsg, BargeInMsg, SpeechCancelledMsg, UtteranceMsg, VoiceTextMsg,
-    HomeMsg, InterruptMsg, PlaybackMsg, PermissionMsg, ReadAllMsg, DictateNoteMsg, UndoRequestMsg, UndoConfirmMsg,
+    HomeMsg, TaskDetailMsg, TaskActionMsg, InterruptMsg, PlaybackMsg, PermissionMsg, ReadAllMsg, DictateNoteMsg, UndoRequestMsg, UndoConfirmMsg,
     McpStatusMsg, McpReconnectMsg, SetModeMsg, SetModelMsg,
 ], Field(discriminator="type")]
 

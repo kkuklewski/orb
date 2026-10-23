@@ -41,6 +41,30 @@ export function needsYou(folders: FolderItem[], routines: RoutinesEvent | null):
   };
 }
 
+export type Part = string | { b: string };
+const plural = (n: number, one: string, many: string) => `${n === 1 ? "One" : n} ${n === 1 ? one : many}`;
+
+/** The day in a few plain sentences, the numbers in bold: what waits, what's open, how the routines did. */
+export function brief(d: { waiting: SessionRow[]; done: SessionRow[]; routines: RoutinesEvent | null; notes: HomeEvent | null; vault: boolean; routinesOn: boolean }): Part[][] {
+  const out: Part[][] = [];
+  const where = (rows: SessionRow[]) => [...new Set(rows.map((r) => r.folder.label.split("/").pop()))].slice(0, 2).join(" and ");
+  if (d.waiting.length) out.push([{ b: plural(d.waiting.length, "session", "sessions") }, ` ${d.waiting.length === 1 ? "is" : "are"} waiting for your OK in ${where(d.waiting)}.`]);
+  if (d.done.length) out.push([{ b: plural(d.done.length, "session", "sessions") }, ` finished while you were away.`]);
+  if (d.vault && d.notes) {
+    out.push(["Your notes hold ", { b: `${d.notes.open_tasks} open task${d.notes.open_tasks === 1 ? "" : "s"}` }, ", and ", { b: `${d.notes.notes_week} note${d.notes.notes_week === 1 ? "" : "s"}` }, " changed this week."]);
+  }
+  if (d.routinesOn && d.routines) {
+    const on = d.routines.items.filter((x) => x.enabled);
+    const bad = on.filter((x) => x.needs);
+    const next = on.filter((x) => x.next_run_at).sort((a, b) => a.next_run_at! - b.next_run_at!)[0];
+    const then = next ? `; next up is ${next.name} at ${new Date(next.next_run_at! * 1000).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}.` : ".";
+    out.push(bad.length ? [{ b: plural(bad.length, "routine", "routines") }, ` need${bad.length === 1 ? "s" : ""} a look (${bad[0].name})${then}`]
+      : ["All ", { b: `${on.length} routine${on.length === 1 ? "" : "s"}` }, ` ran fine${then}`]);
+  }
+  if (!out.length) out.push(["Nothing is waiting for you. Say what you'd like to work on, or type it below."]);
+  return out;
+}
+
 /** "6 ok · 1 needs you · next: nightly at 02:00". */
 export function routinesLine(r: RoutinesEvent | null, fmt: (ts: number) => string): string {
   if (!r) return "checking…";

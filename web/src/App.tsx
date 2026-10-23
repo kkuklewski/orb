@@ -13,6 +13,8 @@ import { Sidebar } from "./screens/Sidebar";
 import { Picker } from "./screens/Picker";
 import { Composer } from "./screens/Composer";
 import { Home } from "./screens/Home";
+import { TaskScreen, TaskToast } from "./screens/Task";
+import { wireTasks } from "./stores/tasks";
 import { wireHome } from "./stores/home";
 import { wireRoute } from "./stores/route";
 import { McpPanel, TopBar } from "./screens/TopBar";
@@ -36,7 +38,7 @@ export { openSetup };
 
 export function App() {
   useEffect(() => {
-    const offs = [wireFeatures(), wireSetup(), wireViews(), wireSession(), wireChat(), wireMeta(), wireVoice(), wireHome(), wireRoute()];
+    const offs = [wireFeatures(), wireSetup(), wireViews(), wireSession(), wireChat(), wireMeta(), wireVoice(), wireHome(), wireTasks(), wireRoute()];
     const stop = start();
     return () => { stop(); offs.forEach((off) => off()); };
   }, []);
@@ -69,9 +71,11 @@ export function App() {
           : view === "routines" && features.routines ? <Routines />
           : view === "settings" ? <Settings />
           : view === "home" ? <section className="chat-next"><Home /><Dock pill={false} /></section>
+          : view === "task" ? <section className="chat-next"><TaskScreen /><Dock pill /></section>
           : <Chat />}
       </main>
       <Picker />
+      <TaskToast />
     </div>
   );
 }

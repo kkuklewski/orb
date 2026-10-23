@@ -27,6 +27,8 @@ export type ClientMessage =
   | UtteranceMsg
   | VoiceTextMsg
   | HomeMsg
+  | TaskDetailMsg
+  | TaskActionMsg
   | InterruptMsg
   | PlaybackMsg
   | PermissionMsg
@@ -65,6 +67,8 @@ export type ServerEvent =
   | RoutinesEvent
   | BgNoticeEvent
   | HomeEvent
+  | TaskDetailEvent
+  | TaskChangedEvent
   | UserEvent
   | TextStartEvent
   | TextEvent
@@ -263,6 +267,28 @@ export interface VoiceTextMsg {
  */
 export interface HomeMsg {
   type: "home";
+}
+/**
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "TaskDetailMsg".
+ */
+export interface TaskDetailMsg {
+  file: string;
+  line: number;
+  type: "task_detail";
+}
+/**
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "TaskActionMsg".
+ */
+export interface TaskActionMsg {
+  action: "done" | "drop" | "snooze" | "restore";
+  expect: string;
+  file: string;
+  line: number;
+  type: "task_action";
+  until?: string | null;
+  value?: string | null;
 }
 /**
  * This interface was referenced by `OrbProtocol`'s JSON-Schema
@@ -893,6 +919,7 @@ export interface HomeEvent {
   open_tasks: number;
   replay?: boolean | null;
   session?: string | null;
+  snoozed: number;
   tasks: HomeTask[];
   type: "home";
   vault: string;
@@ -914,7 +941,52 @@ export interface HomeTask {
   file: string;
   line: number;
   mtime: number;
+  raw: string;
   text: string;
+}
+/**
+ * One task in its note (tasks.detail): the line, the note's title and heading, the lines around it.
+ *
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "TaskDetailEvent".
+ */
+export interface TaskDetailEvent {
+  context: TaskLine[];
+  file: string;
+  folder?: string | null;
+  heading: string;
+  line: number;
+  mtime: number;
+  raw: string;
+  replay?: boolean | null;
+  session?: string | null;
+  title: string;
+  type: "task_detail";
+}
+/**
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "TaskLine".
+ */
+export interface TaskLine {
+  n: number;
+  text: string;
+}
+/**
+ * A task line was rewritten (tasks.act); `previous` is what Undo puts back.
+ *
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "TaskChangedEvent".
+ */
+export interface TaskChangedEvent {
+  action: "done" | "drop" | "snooze" | "restore";
+  file: string;
+  folder?: string | null;
+  line: number;
+  previous: string;
+  raw: string;
+  replay?: boolean | null;
+  session?: string | null;
+  type: "task_changed";
 }
 /**
  * This interface was referenced by `OrbProtocol`'s JSON-Schema

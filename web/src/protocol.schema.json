@@ -423,6 +423,8 @@
           "speech_cancelled": "#/$defs/SpeechCancelledMsg",
           "speech_start": "#/$defs/SpeechStartMsg",
           "start_session": "#/$defs/StartSessionMsg",
+          "task_action": "#/$defs/TaskActionMsg",
+          "task_detail": "#/$defs/TaskDetailMsg",
           "undo_confirm": "#/$defs/UndoConfirmMsg",
           "undo_request": "#/$defs/UndoRequestMsg",
           "user_text": "#/$defs/UserTextMsg",
@@ -498,6 +500,12 @@
         },
         {
           "$ref": "#/$defs/HomeMsg"
+        },
+        {
+          "$ref": "#/$defs/TaskDetailMsg"
+        },
+        {
+          "$ref": "#/$defs/TaskActionMsg"
         },
         {
           "$ref": "#/$defs/InterruptMsg"
@@ -1390,6 +1398,9 @@
           ],
           "default": null
         },
+        "snoozed": {
+          "type": "integer"
+        },
         "tasks": {
           "items": {
             "$ref": "#/$defs/HomeTask"
@@ -1409,6 +1420,7 @@
         "vault",
         "tasks",
         "open_tasks",
+        "snoozed",
         "notes",
         "notes_week"
       ],
@@ -1462,6 +1474,9 @@
         "mtime": {
           "type": "number"
         },
+        "raw": {
+          "type": "string"
+        },
         "text": {
           "type": "string"
         }
@@ -1470,7 +1485,8 @@
         "text",
         "file",
         "line",
-        "mtime"
+        "mtime",
+        "raw"
       ],
       "title": "HomeTask",
       "type": "object"
@@ -2877,6 +2893,8 @@
           "speech_reset": "#/$defs/SpeechResetEvent",
           "state": "#/$defs/StateEvent",
           "task": "#/$defs/TaskEvent",
+          "task_changed": "#/$defs/TaskChangedEvent",
+          "task_detail": "#/$defs/TaskDetailEvent",
           "text": "#/$defs/TextEvent",
           "text_start": "#/$defs/TextStartEvent",
           "timing": "#/$defs/TimingEvent",
@@ -2957,6 +2975,12 @@
         },
         {
           "$ref": "#/$defs/HomeEvent"
+        },
+        {
+          "$ref": "#/$defs/TaskDetailEvent"
+        },
+        {
+          "$ref": "#/$defs/TaskChangedEvent"
         },
         {
           "$ref": "#/$defs/UserEvent"
@@ -3786,6 +3810,239 @@
       "title": "Suggestion",
       "type": "object"
     },
+    "TaskActionMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "enum": [
+            "done",
+            "drop",
+            "snooze",
+            "restore"
+          ],
+          "type": "string"
+        },
+        "expect": {
+          "type": "string"
+        },
+        "file": {
+          "type": "string"
+        },
+        "line": {
+          "type": "integer"
+        },
+        "type": {
+          "const": "task_action",
+          "type": "string"
+        },
+        "until": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "type",
+        "file",
+        "line",
+        "expect",
+        "action"
+      ],
+      "title": "TaskActionMsg",
+      "type": "object"
+    },
+    "TaskChangedEvent": {
+      "additionalProperties": false,
+      "description": "A task line was rewritten (tasks.act); `previous` is what Undo puts back.",
+      "properties": {
+        "action": {
+          "enum": [
+            "done",
+            "drop",
+            "snooze",
+            "restore"
+          ],
+          "type": "string"
+        },
+        "file": {
+          "type": "string"
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "line": {
+          "type": "integer"
+        },
+        "previous": {
+          "type": "string"
+        },
+        "raw": {
+          "type": "string"
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "task_changed",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "file",
+        "line",
+        "action",
+        "raw",
+        "previous"
+      ],
+      "title": "TaskChangedEvent",
+      "type": "object"
+    },
+    "TaskDetailEvent": {
+      "additionalProperties": false,
+      "description": "One task in its note (tasks.detail): the line, the note's title and heading, the lines around it.",
+      "properties": {
+        "context": {
+          "items": {
+            "$ref": "#/$defs/TaskLine"
+          },
+          "type": "array"
+        },
+        "file": {
+          "type": "string"
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "heading": {
+          "type": "string"
+        },
+        "line": {
+          "type": "integer"
+        },
+        "mtime": {
+          "type": "number"
+        },
+        "raw": {
+          "type": "string"
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "title": {
+          "type": "string"
+        },
+        "type": {
+          "const": "task_detail",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "file",
+        "line",
+        "raw",
+        "title",
+        "heading",
+        "mtime",
+        "context"
+      ],
+      "title": "TaskDetailEvent",
+      "type": "object"
+    },
+    "TaskDetailMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "file": {
+          "type": "string"
+        },
+        "line": {
+          "type": "integer"
+        },
+        "type": {
+          "const": "task_detail",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "file",
+        "line"
+      ],
+      "title": "TaskDetailMsg",
+      "type": "object"
+    },
     "TaskEvent": {
       "additionalProperties": false,
       "properties": {
@@ -3931,6 +4188,23 @@
         "status"
       ],
       "title": "TaskInfo",
+      "type": "object"
+    },
+    "TaskLine": {
+      "additionalProperties": false,
+      "properties": {
+        "n": {
+          "type": "integer"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "n",
+        "text"
+      ],
+      "title": "TaskLine",
       "type": "object"
     },
     "TextEvent": {

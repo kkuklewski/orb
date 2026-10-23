@@ -22,7 +22,7 @@ const features = (over: Partial<Features> = {}): Features => ({
 });
 const notes = (over: Partial<HomeEvent> = {}): HomeEvent => ({
   type: "home", vault: "/Users/a/notes", open_tasks: 14, notes_week: 9,
-  tasks: [{ text: "Send the invoice", file: "inbox/today.md", line: 3, mtime: 1 }],
+  tasks: [{ text: "Send the invoice", file: "inbox/today.md", line: 3, mtime: 1, raw: "- [ ] Send the invoice" }], snoozed: 0,
   notes: [{ title: "Weekly review", file: "reviews/w43.md", mtime: Date.now() / 1000 - 3600 }], ...over,
 });
 
@@ -60,28 +60,40 @@ describe("home screen", () => {
     expect(sent).toEqual([{ type: "home" }, { type: "routines" }]);
   });
 
-  it("shows what needs you, open tasks, routines and recent notes", () => {
+  it("reads like a brief: the paragraph, the numbers, the cards and the notes", () => {
     render(<Home />);
     act(() => dispatch(notes() as ServerEvent));
-    expect(screen.getByRole("region", { name: "1 thing" })).toBeTruthy();
-    expect(screen.getByText("fix login")).toBeTruthy();
-    const todo = screen.getByRole("region", { name: "14 open tasks" });
-    expect(within(todo).getByText("Send the invoice")).toBeTruthy();
+    const brief = document.querySelector(".home-brief")!.textContent!;
+    expect(brief).toContain("One session is waiting for your OK in web.");
+    expect(brief).toContain("Your notes hold 14 open tasks, and 9 notes changed this week.");
+    expect(brief).toContain("All 1 routine ran fine.");
+    expect(screen.getByRole("article", { name: "fix login" })).toBeTruthy();
+    const todo = screen.getByRole("article", { name: "14 open tasks, newest first" });
+    expect(within(todo).getByRole("button", { name: "Send the invoice" })).toBeTruthy();
     expect(within(todo).getByText("+ 13 more in your notes")).toBeTruthy();
-    expect(screen.getByText("1 ok")).toBeTruthy();
-    expect(screen.getByRole("region", { name: "9 changed this week" })).toBeTruthy();
     expect(screen.getByText("Weekly review")).toBeTruthy();
   });
 
-  it("“Ask: what's on today?” starts a notes session and sends the question once it opens", () => {
+  it("a task's checkbox marks it done; its text opens the task", () => {
     render(<Home />);
     act(() => dispatch(notes() as ServerEvent));
     sent.length = 0;
-    fireEvent.click(screen.getByRole("button", { name: "Ask: what's on today?" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Mark done: Send the invoice" }));
+    expect(sent).toEqual([{ type: "task_action", file: "inbox/today.md", line: 3, expect: "- [ ] Send the invoice", action: "done" }]);
+    fireEvent.click(screen.getByRole("button", { name: "Send the invoice" }));
+    expect(sent.at(-1)).toEqual({ type: "task_detail", file: "inbox/today.md", line: 3 });
+    expect(useViews.getState().view).toBe("task");
+  });
+
+  it("“Ask for today's plan” starts a notes session and sends the question once it opens", () => {
+    render(<Home />);
+    act(() => dispatch(notes() as ServerEvent));
+    sent.length = 0;
+    fireEvent.click(screen.getByRole("button", { name: "Ask for today's plan →" }));
     expect(sent).toEqual([{ type: "start_session", path: "/Users/a/notes" }]);
     act(() => dispatch({ type: "opened", folder: "/Users/a/notes", session: "n1", label: "notes", rel: "notes", branch: null, session_id: null,
       live: false, busy: false, speech_gen: 0, mode: "default", model: "sonnet", info: {}, tasks: [] }));
-    expect(sent.at(-1)).toEqual({ type: "user_text", text: ASK_TODAY, interrupt: false });
+    expect(sent.at(-1)).toMatchObject({ type: "user_text", text: ASK_TODAY });
     expect(useViews.getState().view).toBe("chat");
   });
 
@@ -90,7 +102,7 @@ describe("home screen", () => {
     render(<Home />);
     fireEvent.click(screen.getByRole("button", { name: "Choose notes folder" }));
     expect(useSetup.getState()).toMatchObject({ open: true, step: 3 });
-    expect(screen.queryByRole("button", { name: "Ask: what's on today?" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Ask for today's plan →" })).toBeNull();
   });
 });
 
