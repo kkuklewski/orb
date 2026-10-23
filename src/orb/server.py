@@ -419,11 +419,17 @@ async def run_local(conn: Conn, s: FolderSession, name: str, args: str) -> None:
 
 
 # Until the onboarding is done, the page can only check the setup and change settings.
-SETUP_ONLY = {"setup_status", "get_settings", "set_settings", "mute", "voice_sample"}
+SETUP_ONLY = {"setup_status", "get_settings", "set_settings", "mute", "voice_sample", "browse", "pick_folder"}
 
 
 async def handle(conn: Conn, msg: dict) -> None:
     t = msg.get("type")
+    if t == "browse":
+        await conn.send(await asyncio.to_thread(setup.browse, msg.get("path")))
+        return
+    if t == "pick_folder":
+        await conn.send(await setup.pick_native())
+        return
     if t == "setup_status":
         ev = await setup.status()
         await conn.send(ev)

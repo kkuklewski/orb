@@ -76,6 +76,9 @@ function onEvent(ev) {
     case "routines": S.routines = ev; renderRoutinesBadge(); if (S.view === "routines") renderRoutines(); break;
     case "settings": renderSettings(ev); break;
     case "setup_status": Onb.update(ev); break;
+    case "browse": Onb.dir = ev; if (Onb.isOpen) Onb.render(false); break;
+    case "picked": Onb.picking = false; if (ev.path) send({ type: "set_settings", values: { roots: [...(Onb.ev?.roots || []).map((x) => x.path), ev.path] } });
+      else if (ev.error) notice(ev.error, "error"); if (Onb.isOpen) Onb.render(false); break;
     case "features": { const was = S.features?.onboarded; applyFeatures(ev); renderSidebar();
       if (!ev.onboarded && !Onb.isOpen) Onb.open(0); else if (ev.onboarded && !was && Onb.isOpen) Onb.finish(); else if (Onb.isOpen) $("#onb-close").hidden = !ev.onboarded; break; }
     case "voice_sample": Player.stop(); Player.reset(Player.gen); Player.enqueue({ ...ev, gen: Player.gen }); break;
@@ -407,6 +410,7 @@ const BROWSER_TTS = "speechSynthesis" in window;
 // Claude login itself: the user signs in with Claude Code's own command; this only shows the result.
 const Onb = {
   step: 0, ev: null, orb: null, mic: null, analyser: null, wave: new Float32Array(1024),
+  dir: null, browsing: false, picking: false, // folder step: the in-card browser and the system dialog
   RAIL: ["Sign in", "Folders", "Voice", "Control"],
   get isOpen() { return !$("#onboarding").hidden; },
   open(step) {
@@ -455,6 +459,38 @@ const Onb = {
     if (this.step < 4) { this.go(this.step + 1); return; }
     if (S.features?.onboarded) { this.close(); return; } // reopened from Settings
     send({ type: "set_settings", values: { onboarded: true } }); // the server answers with "features" → finish()
+  },
+  browser(roots, add, btn) { // folders under the home folder; click to go in, "Use this folder" to add it
+    const d = this.dir, box = el("div", "onb-browser");
+    if (!d) { box.append(el("p", "onb-text small", "Loading…")); return box; }
+    const crumbs = el("div", "onb-crumbs mono");
+    const rel = d.path === d.home ? "" : d.path.startsWith(d.home + "/") ? d.path.slice(d.home.length + 1) : d.path;
+    const parts = rel ? rel.split("/") : [];
+    const home = btn("~", () => send({ type: "browse", path: d.home }), "onb-crumb"); crumbs.append(home);
+    parts.forEach((part, i) => {
+      crumbs.append(el("span", "onb-crumb-sep", "/"));
+      const target = d.path.startsWith(d.home + "/") ? d.home + "/" + parts.slice(0, i + 1).join("/") : "/" + parts.slice(0, i + 1).join("/");
+      crumbs.append(btn(part, () => send({ type: "browse", path: target }), "onb-crumb" + (i === parts.length - 1 ? " on" : "")));
+    });
+    box.append(crumbs);
+    const list = el("div", "onb-dirs");
+    if (d.parent) list.append(btn("↑  ..", () => send({ type: "browse", path: d.parent }), "onb-dir up"));
+    for (const e of d.entries) {
+      const b = btn("", () => send({ type: "browse", path: e.path }), "onb-dir");
+      b.append(el("span", "onb-dir-ic", e.repo ? "◆" : "▸"), el("span", "onb-dir-name", e.name));
+      if (e.repo) b.append(el("span", "mono onb-dir-tag", "repo"));
+      list.append(b);
+    }
+    if (!d.entries.length) list.append(el("p", "onb-text small", "No folders here."));
+    box.append(list);
+    const chosen = roots.some((r) => r.path === d.path);
+    const use = btn(chosen ? "✓ Added" : `Use ${d.path === d.home ? "~" : "this folder"}`, () => {
+      if (d.path === d.home && !confirm("Give Orb your whole home folder? It would list every repo in it.")) return;
+      add(d.path); }, "onb-btn primary small");
+    use.disabled = chosen;
+    const foot = el("div", "onb-row"); foot.append(el("code", "onb-browser-path", d.path.replace(d.home, "~")), el("span", "onb-spacer"), use);
+    box.append(foot);
+    return box;
   },
   placeRings() { // centre the ring layer on the orb, wherever the layout put it
     requestAnimationFrame(() => {
@@ -538,6 +574,13 @@ const Onb = {
         list.append(item);
       }
       card.append(list);
+      // Pick a real folder: the system dialog (macOS) or a browser inside the card.
+      const finder = btn(this.picking ? "Waiting for Finder…" : "Choose in Finder…", () => { this.picking = true; send({ type: "pick_folder" }); this.render(false); });
+      finder.disabled = this.picking;
+      const browseBtn = btn(this.browsing ? "Hide browser" : "Browse folders", () => {
+        this.browsing = !this.browsing; if (this.browsing && !this.dir) send({ type: "browse" }); this.render(false); });
+      card.append(row(finder, browseBtn));
+      if (this.browsing) card.append(this.browser(roots, add, btn));
       const input = el("input", "onb-input"); input.placeholder = "Another folder, e.g. ~/code"; input.setAttribute("aria-label", "Folder path");
       const addTyped = () => { const v = input.value.trim().replace(/^~(?=\/|$)/, ev.home); if (!v) return;
         if (v === ev.home && !confirm("Give Orb your whole home folder? It would list every repo in it.")) return; add(v); };

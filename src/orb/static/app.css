@@ -510,6 +510,21 @@ button.onb-item:hover { border-color: var(--onb-acc); }
 .onb-btn:disabled { opacity: .4; cursor: not-allowed; }
 .onb :focus-visible { outline: 2px solid var(--onb-acc); outline-offset: 2px; }
 
+/* Folder browser inside the folders card */
+.onb-browser { margin-top: 12px; border: 1px solid var(--line); border-radius: 14px; padding: 10px; background: color-mix(in srgb, var(--text) 2%, transparent); }
+.onb-crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; font-size: 12.5px; margin-bottom: 8px; }
+.onb-crumb { border: 0; background: none; color: var(--text-3); font: inherit; padding: 3px 5px; border-radius: 6px; cursor: pointer; }
+.onb-crumb:hover, .onb-crumb.on { color: var(--text); background: color-mix(in srgb, var(--text) 6%, transparent); }
+.onb-crumb-sep { color: var(--text-3); opacity: .6; }
+.onb-dirs { max-height: 240px; overflow-y: auto; display: grid; gap: 1px; }
+.onb-dir { display: flex; align-items: center; gap: 10px; width: 100%; border: 0; background: none; color: var(--text); text-align: left; font: 13.5px var(--sans); padding: 7px 8px; border-radius: 8px; cursor: pointer; }
+.onb-dir:hover { background: color-mix(in srgb, var(--onb-acc) 9%, transparent); }
+.onb-dir.up { color: var(--text-3); font-family: var(--onb-mono); }
+.onb-dir-ic { width: 14px; color: var(--text-3); font-size: 11px; }
+.onb-dir-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.onb-dir-tag { font-size: 10px; letter-spacing: .1em; color: var(--onb-acc-txt); border: 1px solid color-mix(in srgb, var(--onb-acc) 40%, transparent); border-radius: 999px; padding: 1px 7px; }
+.onb-browser-path { font: 12px var(--onb-mono); color: var(--text-3); overflow-wrap: anywhere; min-width: 0; }
+
 /* Stage readout */
 .onb-meter { grid-area: meter; display: flex; align-items: center; gap: 14px; font-size: 11px; letter-spacing: .16em; color: var(--text-3); padding-top: 14px; }
 .onb-bar { width: 160px; height: 2px; background: var(--line); border-radius: 2px; overflow: hidden; }

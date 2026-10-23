@@ -11,6 +11,7 @@ import asyncio
 import json
 import os
 import shutil
+import sys
 from pathlib import Path
 
 import claude_agent_sdk
@@ -86,3 +87,55 @@ async def status() -> dict:
         "speech": {**health, "parakeet": parakeet.MODEL.is_file() and parakeet.LIB.is_file()},
         "values": {k: settings[k] for k in ("stt", "tts", "skip_names", "onboarded")},
     }
+
+
+# -- folder picking (the page can't read real paths from the browser's own picker) -----------------
+
+BROWSE_LIMIT = 300
+
+
+def browse(raw: str | None) -> dict:
+    """Subfolders of a folder in the home folder (or on /Volumes), for the setup's folder browser.
+    Hidden folders, skipped names (secrets/, node_modules, ...) and symlinks are left out."""
+    home = Path.home().resolve()
+    try:
+        p = Path(raw).expanduser().resolve() if raw else home
+    except (OSError, RuntimeError):
+        p = home
+    allowed = (home, Path("/Volumes"))
+    if not p.is_dir() or not any(p == a or a in p.parents for a in allowed):
+        p = home
+    skip = folders.skip_names()
+    entries = []
+    try:
+        for e in sorted(os.scandir(p), key=lambda e: e.name.casefold()):
+            if e.name.startswith(".") or e.name in skip or not e.is_dir(follow_symlinks=False):
+                continue
+            entries.append({"name": e.name, "path": e.path, "repo": os.path.exists(os.path.join(e.path, ".git"))})
+            if len(entries) >= BROWSE_LIMIT:
+                break
+    except OSError:
+        pass
+    parent = p.parent if p != home and p != Path("/Volumes") else None
+    return {"type": "browse", "path": str(p), "home": str(home), "parent": str(parent) if parent else None,
+            "repo": (p / ".git").exists(), "entries": entries, "truncated": len(entries) >= BROWSE_LIMIT}
+
+
+async def pick_native() -> dict:
+    """The system folder dialog (macOS: Finder's "Choose a folder"). {'path'} or {'error'}."""
+    if sys.platform != "darwin":
+        return {"type": "picked", "error": "The system folder dialog is only on macOS here; use Browse."}
+    script = ('tell application "System Events" to activate\n'
+              'POSIX path of (choose folder with prompt "Choose a folder Orb may open")')
+    try:
+        proc = await asyncio.create_subprocess_exec("osascript", "-e", script,
+                                                    stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+        out, err = await asyncio.wait_for(proc.communicate(), 300)
+    except (OSError, asyncio.TimeoutError) as e:
+        return {"type": "picked", "error": f"Could not open the folder dialog ({type(e).__name__})."}
+    if proc.returncode != 0:
+        text = err.decode(errors="replace")
+        return {"type": "picked", "error": None if "-128" in text else "The folder dialog failed; use Browse.",
+                "cancelled": "-128" in text}
+    path = out.decode().strip().rstrip("/") or None
+    return {"type": "picked", "path": path}
