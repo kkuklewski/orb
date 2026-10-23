@@ -1,7 +1,7 @@
 # Orb
 
 Talk to Claude by voice, in the code repos you choose. Orb is a small local web app: pick a repo,
-press the orb, and talk. Claude answers out loud with a short summary and shows the full answer in
+press Talk, and talk. Claude answers out loud with a short summary and shows the full answer in
 the chat. Under the hood it runs [Claude Code](https://code.claude.com) through the Claude Agent SDK,
 so it can read your code, run commands and make changes. Every change asks you first.
 
@@ -51,12 +51,12 @@ decide for yourself.
 | Action | How |
 | --- | --- |
 | Pick a repo | "+ New" lists every repo in your folders. Pin the ones you use. |
-| Talk | Click the orb or press Space. Each pause sends a request; short pauses mid-sentence are fine. |
+| Talk | Click Talk or press Space. Each pause sends a request; short pauses mid-sentence are fine. |
 | Type | The box at the bottom. `/` opens commands: your Claude Code skills, `/clear`, `/model`, `/config`. |
 | Approve a tool | Allow / Deny on the card, or say "yes" / "no" (with headphones). |
 | Stop her | Esc or ■. With headphones you can just talk over her. |
 | Hear the whole answer | "Read all" under an answer. |
-| Settings | Voice, approvals and model for new folders, vocabulary, look, and "Open setup" to change your folders. |
+| Settings | Voice, approvals and model for new folders, vocabulary, look (Studio, k.os or Classic), and "Open setup" to change your folders. |
 
 ## What Orb can and can't touch
 

@@ -21,6 +21,7 @@
 <link id="hljs-light" rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.12.0/styles/github.min.css" integrity="sha384-eFTL69TLRZTkNfYZOLM+G04821K1qZao/4QLJbet1pP4tcF+fdXq/9CdqAbWRl/L" crossorigin="anonymous" disabled>
 <link rel="stylesheet" href="/static/app.css?v=__BUILD__">
 <link rel="stylesheet" href="/static/kos.css?v=__BUILD__">
+<link rel="stylesheet" href="/static/studio.css?v=__BUILD__">
 <script src="https://cdn.jsdelivr.net/npm/marked@18.1.0/lib/marked.umd.js" integrity="sha384-IvVdUXkhyoD0shbjhiiOnuiTbervTaB0VJcnEcg3shUAMVOOF6lKj4ozJrCwvz6s" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3.4.16/dist/purify.min.js" integrity="sha384-a7SzOxErzJ3ZpQz0zJ32d67dSitNzPcbfybc/ykU9KJhMgZkwqfSxlhhdJRS+XGL" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.12.0/highlight.min.js" integrity="sha384-wjfDDhOPPdjtva8vWBhWeVprSpmxisEu5aYT3q1JyACqXpdKpo3PWZTMVq24MBix" crossorigin="anonymous"></script>
@@ -119,6 +120,7 @@
         <div class="orb-slot" id="dock-slot">
           <button class="orb" id="orb" aria-label="Talk" aria-pressed="false">
             <canvas id="orb-canvas"></canvas>
+            <span class="vpill" aria-hidden="true"><span class="vp-dot"></span><span class="vp-bars" id="vp-bars"><i></i><i></i><i></i><i></i><i></i></span><span class="vp-label" id="vp-label">Talk</span></span>
             <span class="orb-mic" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M12 15a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v6a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.93V21h2v-2.07A7 7 0 0 0 19 12h-2Z"/></svg></span>
           </button>
         </div>

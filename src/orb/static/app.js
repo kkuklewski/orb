@@ -22,12 +22,12 @@ function applyTheme(t) {
   $("#hljs-light").disabled = t !== "light";
 }
 applyTheme(store.get("vd-theme", matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark"));
-// Skin: "kos" (default) or "classic". kos.css is scoped to data-skin="kos".
+// Skin: "studio" (default), "kos" or "classic". kos.css and studio.css are scoped to their data-skin.
 function applySkin(k) {
   document.documentElement.dataset.skin = k;
   window.__orb?.refreshPalette();
 }
-applySkin(store.get("vd-skin", "kos"));
+applySkin(store.get("vd-skin", "studio"));
 
 // ---------------------------------------------------------------- state
 const S = {
@@ -381,7 +381,7 @@ function renderSettings(ev) {
   const det = el("details", "set-details"); det.append(el("summary", null, "Prompt sent to Whisper"), el("pre", null, ev.whisper_prompt)); vc.append(det);
   // Theme
   const th = section("Look", "k.os is the default look; classic is the earlier violet one.");
-  th.append(seg("Skin", [["kos", "k.os"], ["classic", "Classic"]], document.documentElement.dataset.skin, (k) => { store.set("vd-skin", k); applySkin(k); }));
+  th.append(seg("Skin", [["studio", "Studio"], ["kos", "k.os"], ["classic", "Classic"]], document.documentElement.dataset.skin, (k) => { store.set("vd-skin", k); applySkin(k); }));
   th.append(el("div", "set-row"));
   th.lastChild.append(seg("Theme", [["dark", "Dark"], ["light", "Light"]], document.documentElement.dataset.theme, (t) => { store.set("vd-theme", t); applyTheme(t); }));
   // Setup
@@ -1313,6 +1313,9 @@ function refreshState() {
   $("#state-label").textContent = flash || (S.localLabel === "starting mic" ? "Starting mic…" : labels[st] + partial);
   $("#state-dot").className = "state-dot " + (st === "hearing" ? "listening" : st);
   orb.setState(st);
+  $("#orb").dataset.state = st;
+  $("#vp-label").textContent = { idle: S.folder ? "Talk" : "Pick a repo", listening: "Listening", hearing: "Listening", transcribing: "Transcribing",
+    thinking: "Thinking", working: "Working", speaking: "Speaking · Stop", waiting: "Needs your OK", offline: "Offline" }[st] || "Talk";
   $("#orb").setAttribute("aria-pressed", String(S.micOn));
   $("#stop").hidden = !(S.busy || Player.playing);
   const mode = S.bargeMode === "auto" ? (S.headphones ? "auto · headphones" : "auto · off on speakers") : S.bargeMode;
@@ -1320,6 +1323,22 @@ function refreshState() {
   $("#barge").title = "Click to cycle barge-in: auto (headphones only) → on → off. On speakers, Esc or ■ stops her.";
   $("#hero-hint").textContent = !S.folder ? "Pick a repo to start" : S.micOn ? "Listening… just talk" : "Tap the orb to talk";
   $("#hero-sub").textContent = !S.folder ? "tap the orb or + New to choose one" : "or type below · Space toggles the mic · Esc stops";
+}
+// Studio skin: the voice pill's five bars follow the mic or her voice (the orb canvas is hidden there).
+{
+  const bars = [...document.querySelectorAll("#vp-bars i")], shape = [0.45, 0.8, 1, 0.65, 0.35];
+  const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const tick = () => {
+    if (document.documentElement.dataset.skin === "studio" && !reduced) {
+      const st = $("#orb").dataset.state;
+      if (st === "listening" || st === "hearing" || st === "speaking") {
+        const lv = Math.min(1, orb.source().level * 7), t = performance.now() / 160;
+        bars.forEach((b, i) => { b.style.height = `${2 + Math.round(14 * shape[i] * Math.max(lv, 0.08) * (0.75 + 0.25 * Math.sin(t + i * 1.7)))}px`; });
+      } else if (bars[0].style.height) bars.forEach((b) => (b.style.height = ""));
+    }
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
 }
 function placeOrb() {
   const slot = $("#app").classList.contains("has-chat") ? $("#dock-slot") : $("#hero-slot");

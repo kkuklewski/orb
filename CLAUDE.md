@@ -53,7 +53,7 @@ Python 3.14 via `uv` (`.python-version` pins the patch). Front end is plain HTML
 | `fence.py` | repo fence: file-tool paths and path-like words in Bash commands (follows `cd`) -> deny / ask |
 | `speech.py` / `parakeet.py` | local speech: Parakeet first, Whisper + vocabulary when an unsure word sounds like a name; Kokoro client |
 | `vendor.py` | downloads the VAD worklet, Silero model and ORT wasm, checks sha384 pins, serves from `/static/vendor` |
-| `static/` | `index.html` (CDN scripts pinned + SRI), `app.js` (onboarding, chat, audio queue, VAD, browser speech, barge-in), `orb.js` (voice orb) |
+| `static/` | `index.html` (CDN scripts pinned + SRI), `app.js` (onboarding, chat, audio queue, VAD, browser speech, barge-in, voice pill), `orb.js` (the animated orb of the k.os and Classic skins); skins: `studio.css` (default: grey, hairline, one orange accent for state), `kos.css`, base `app.css` (Classic) |
 
 Sessions: a folder has several sessions (`sessions.json` v2: key, resume id, label = first request).
 A page shows one session (`Conn.key`) and the others keep running. Background news (`done` /
