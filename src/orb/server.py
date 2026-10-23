@@ -29,7 +29,7 @@ STATIC = Path(__file__).parent / "static"
 def build_id() -> str:
     """Hash of the page's own files: a page from an older build reloads itself (no stale JS)."""
     h = hashlib.sha256()
-    for name in ("index.html", "app.js", "app.css", "kos.css", "orb.js"):
+    for name in ("index.html", "app.js", "app.css", "studio.css"):
         h.update((STATIC / name).read_bytes())
     return h.hexdigest()[:12]
 

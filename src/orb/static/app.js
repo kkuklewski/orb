@@ -17,17 +17,10 @@ const TOKEN = store.get("vd-token", "");
 
 function applyTheme(t) {
   document.documentElement.dataset.theme = t;
-  setTimeout(() => window.__orb?.refreshPalette(), 0);
   $("#hljs-dark").disabled = t === "light";
   $("#hljs-light").disabled = t !== "light";
 }
 applyTheme(store.get("vd-theme", matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark"));
-// Skin: "studio" (default), "kos" or "classic". kos.css and studio.css are scoped to their data-skin.
-function applySkin(k) {
-  document.documentElement.dataset.skin = k;
-  window.__orb?.refreshPalette();
-}
-applySkin(store.get("vd-skin", "studio"));
 
 // ---------------------------------------------------------------- state
 const S = {
@@ -45,15 +38,15 @@ function connect() {
   const proto = location.protocol === "https:" ? "wss" : "ws";
   const ws = new WebSocket(`${proto}://${location.host}/ws?t=${encodeURIComponent(TOKEN)}`);
   S.ws = ws;
-  ws.onopen = () => { backoff = 500; S.localLabel = null; refreshState(); send({ type: "mute", value: S.muted }); setSysline(true); };
+  ws.onopen = () => { backoff = 500; S.localLabel = null; refreshState(); send({ type: "mute", value: S.muted }); };
   ws.onmessage = (m) => onEvent(JSON.parse(m.data));
   ws.onclose = (e) => {
     if (e.code === 4403) { // stale token (a new install or state folder makes a new one) or a foreign page
-      setState("offline"); setSysline(false);
+      setState("offline");
       notice("This page's access token is out of date. Open the link Orb printed in the terminal (it ends in #t=…).", "error");
       return;
     }
-    setState("offline"); setSysline(false);
+    setState("offline");
     setTimeout(connect, backoff); backoff = Math.min(backoff * 2, 8000);
   };
 }
@@ -120,14 +113,6 @@ function onEvent(ev) {
   }
 }
 
-// "● system online · Warsaw 20:32" in the top bar (k.os skin)
-const TZ_CITY = (Intl.DateTimeFormat().resolvedOptions().timeZone || "").split("/").pop().replace(/_/g, " ");
-function setSysline(on) {
-  $("#sysline").classList.toggle("off", !on);
-  $("#sys-text").textContent = on ? "system online" : "reconnecting";
-}
-function tickClock() { $("#sys-clock").textContent = `${TZ_CITY} ${new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`; }
-tickClock(); setInterval(tickClock, 15000);
 
 // ---------------------------------------------------------------- folders
 function rel(ts) {
@@ -380,10 +365,8 @@ function renderSettings(ev) {
   const vrow = el("div", "set-row"); vrow.append(save); vc.append(ta, vrow);
   const det = el("details", "set-details"); det.append(el("summary", null, "Prompt sent to Whisper"), el("pre", null, ev.whisper_prompt)); vc.append(det);
   // Theme
-  const th = section("Look", "k.os is the default look; classic is the earlier violet one.");
-  th.append(seg("Skin", [["studio", "Studio"], ["kos", "k.os"], ["classic", "Classic"]], document.documentElement.dataset.skin, (k) => { store.set("vd-skin", k); applySkin(k); }));
-  th.append(el("div", "set-row"));
-  th.lastChild.append(seg("Theme", [["dark", "Dark"], ["light", "Light"]], document.documentElement.dataset.theme, (t) => { store.set("vd-theme", t); applyTheme(t); }));
+  const th = section("Look", "Dark or light.");
+  th.append(seg("Theme", [["dark", "Dark"], ["light", "Light"]], document.documentElement.dataset.theme, (t) => { store.set("vd-theme", t); applyTheme(t); }));
   // Setup
   const su = section("Setup", "Folders Orb may open, sign-in and speech engines.");
   const again = el("button", "chip-btn", "Open setup"); again.onclick = () => Onb.open(2); su.append(again);
@@ -405,18 +388,16 @@ function applyFeatures(f) {
 }
 const BROWSER_STT = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
 const BROWSER_TTS = "speechSynthesis" in window;
-// First run (and Settings → Setup): a full-screen setup assistant around the orb. Five screens:
+// First run (and Settings → Setup): a full-screen setup assistant. Five screens:
 // welcome, then four steps on the rail (sign in, folders, voice, control). Orb never sees the
 // Claude login itself: the user signs in with Claude Code's own command; this only shows the result.
 const Onb = {
-  step: 0, ev: null, orb: null, mic: null, analyser: null, wave: new Float32Array(1024),
+  step: 0, ev: null, mic: null, analyser: null, wave: new Float32Array(1024),
   dir: null, browsing: false, picking: false, // folder step: the in-card browser and the system dialog
   RAIL: ["Sign in", "Folders", "Voice", "Control"],
   get isOpen() { return !$("#onboarding").hidden; },
   open(step) {
     $("#onboarding").hidden = false; document.body.classList.add("onb-open");
-    if (!this.orb) { this.orb = new Orb($("#onb-orb")); this.orb.source = () => this.level(); }
-    this.orb.refreshPalette();
     if (step !== undefined) this.step = step;
     $("#onb-close").hidden = !S.features?.onboarded;
     this.render(true);
@@ -440,15 +421,14 @@ const Onb = {
       this.mic = await navigator.mediaDevices.getUserMedia({ audio: true });
       this.analyser = ctx.createAnalyser(); this.analyser.fftSize = 2048;
       ctx.createMediaStreamSource(this.mic).connect(this.analyser);
-      this.orb.setState("listening"); btn.textContent = "Listening… say something"; btn.classList.add("on");
+      btn.textContent = "Listening… say something"; btn.classList.add("on");
       setTimeout(() => { this.stopMic(); btn.textContent = "✓ Microphone works"; btn.classList.remove("on"); }, 4000);
     } catch (err) { btn.textContent = `Microphone blocked (${err.name})`; }
   },
-  stopMic() { this.mic?.getTracks().forEach((t) => t.stop()); this.mic = null; this.analyser = null; this.orb?.setState("idle"); },
+  stopMic() { this.mic?.getTracks().forEach((t) => t.stop()); this.mic = null; this.analyser = null; },
   say(text) {
     if (this.ev?.values?.tts === "browser") { speechSynthesis.cancel(); speechSynthesis.speak(new SpeechSynthesisUtterance(text)); }
     else { Player.unlock(); send({ type: "voice_sample" }); }
-    this.orb.setState("speaking"); setTimeout(() => this.orb.setState("idle"), 1800);
   },
   key(e) {
     const typing = e.target.closest?.("textarea, input");
@@ -492,12 +472,6 @@ const Onb = {
     box.append(foot);
     return box;
   },
-  placeRings() { // centre the ring layer on the orb, wherever the layout put it
-    requestAnimationFrame(() => {
-      const r = $("#onb-orb").getBoundingClientRect(), o = $("#onboarding");
-      o.style.setProperty("--cx", `${r.left + r.width / 2}px`); o.style.setProperty("--cy", `${r.top + r.height / 2}px`);
-    });
-  },
   finish() { this.close(); showView("chat"); if (!S.folder) openPicker("new"); },
 
   render(animate) {
@@ -515,7 +489,6 @@ const Onb = {
     $("#onb-bar").style.width = `${(n / 4) * 100}%`;
     $("#onb-plan").textContent = ev.auth?.subscription ? `CLAUDE · ${ev.auth.subscription.toUpperCase()}` : "";
 
-    this.placeRings();
     const card = $("#onb-card"); card.replaceChildren();
     if (animate) { card.classList.remove("enter"); void card.offsetWidth; card.classList.add("enter"); }
     const head = (kicker, title, text) => {
@@ -898,7 +871,6 @@ function permissionCard(ev) {
   if (S.perms.has(ev.id)) return;
   const a = ensureAnswer(); S.tools = null;
   const card = el("div", "perm");
-  card.append(el("div", "tile-bar", ev.tool === "AskUserQuestion" ? "question.form" : ev.tool === "ExitPlanMode" ? "plan.md" : `approval.req · ${ev.tool.replace(/^mcp__/, "").replace(/__/g, ".")}`));
   const ask = ev.tool === "AskUserQuestion";
   if (ask) card.classList.add("ask");
   card.append(el("div", "ptitle", ask ? "Claude asks · click or say an option" : "Approval needed"));
@@ -1043,7 +1015,7 @@ function undoAvailable(ev) {
 function undoCard(ev) {
   const card = el("div", "perm undo-card");
   card.dataset.id = ev.id;
-  card.append(el("div", "tile-bar", "undo.patch"), el("div", "ptitle", "Undo file changes"),
+  card.append(el("div", "ptitle", "Undo file changes"),
     el("div", "pwhat", `Restore ${ev.files.length} file${ev.files.length === 1 ? "" : "s"} to how they were before that request:`));
   const list = el("pre"); list.textContent = ev.files.join("\n"); card.append(list);
   card.append(el("div", "where-meta", ev.note));
@@ -1286,14 +1258,12 @@ function wavBase64(f32, rate) {
   return btoa(bin);
 }
 
-// ---------------------------------------------------------------- state line + orb
-const orb = new Orb($("#orb-canvas"));
-window.__orb = orb;
-orb.source = () => {
+// ---------------------------------------------------------------- state line + voice pill
+const voice = { source() { // the level the pill's bars follow: her voice while she plays, else the mic
   if (Player.src) return { level: Player.level(), wave: Player.wave };
   if (S.micOn) return { level: Mic.level(), wave: Mic.wave };
   return { level: 0, wave: null };
-};
+} };
 let flash = null;
 function setState(label) { S.localLabel = label; refreshState(); }
 function flashState(text) { flash = text; refreshState(); setTimeout(() => { flash = null; refreshState(); }, 1800); }
@@ -1312,7 +1282,6 @@ function refreshState() {
   const partial = S.partial && (st === "hearing" || st === "transcribing" || st === "listening") ? ` · “${S.partial.slice(-80)}”` : "";
   $("#state-label").textContent = flash || (S.localLabel === "starting mic" ? "Starting mic…" : labels[st] + partial);
   $("#state-dot").className = "state-dot " + (st === "hearing" ? "listening" : st);
-  orb.setState(st);
   $("#orb").dataset.state = st;
   $("#vp-label").textContent = { idle: S.folder ? "Talk" : "Pick a repo", listening: "Listening", hearing: "Listening", transcribing: "Transcribing",
     thinking: "Thinking", working: "Working", speaking: "Speaking · Stop", waiting: "Needs your OK", offline: "Offline" }[st] || "Talk";
@@ -1324,15 +1293,15 @@ function refreshState() {
   $("#hero-hint").textContent = !S.folder ? "Pick a repo to start" : S.micOn ? "Listening… just talk" : "Tap the orb to talk";
   $("#hero-sub").textContent = !S.folder ? "tap the orb or + New to choose one" : "or type below · Space toggles the mic · Esc stops";
 }
-// Studio skin: the voice pill's five bars follow the mic or her voice (the orb canvas is hidden there).
+// The voice pill's five bars follow the mic or her voice.
 {
   const bars = [...document.querySelectorAll("#vp-bars i")], shape = [0.45, 0.8, 1, 0.65, 0.35];
   const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const tick = () => {
-    if (document.documentElement.dataset.skin === "studio" && !reduced) {
+    if (!reduced) {
       const st = $("#orb").dataset.state;
       if (st === "listening" || st === "hearing" || st === "speaking") {
-        const lv = Math.min(1, orb.source().level * 7), t = performance.now() / 160;
+        const lv = Math.min(1, voice.source().level * 7), t = performance.now() / 160;
         bars.forEach((b, i) => { b.style.height = `${2 + Math.round(14 * shape[i] * Math.max(lv, 0.08) * (0.75 + 0.25 * Math.sin(t + i * 1.7)))}px`; });
       } else if (bars[0].style.height) bars.forEach((b) => (b.style.height = ""));
     }
@@ -1375,8 +1344,6 @@ $("#collapse-side").onclick = () => { $("#app").classList.add("side-collapsed");
 if (store.get("vd-collapsed", "0") === "1") $("#app").classList.add("side-collapsed");
 $("#nav-new").onclick = $("#recent-add").onclick = () => openPicker("new");
 $("#onb-close").onclick = () => Onb.close();
-addEventListener("resize", () => { if (Onb.isOpen) Onb.placeRings(); });
-$("#onboarding").addEventListener("scroll", () => Onb.placeRings(), { passive: true });
 $("#pin-add").onclick = () => openPicker("pin");
 $("#nav-activity").onclick = () => { showView(S.view === "activity" ? "chat" : "activity"); closeDrawer(); };
 $("#nav-routines").onclick = () => { showView(S.view === "routines" ? "chat" : "routines"); closeDrawer(); };

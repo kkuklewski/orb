@@ -1,6 +1,4 @@
-/* Orb — dark, calm, voice-first.
-   Orb: Lia Voice Agent. Mono status labels: Cerebrium. Charcoal side panel: Bequant.
-   Chat column: the Claude app. */
+/* Orb base styles: layout and components. The look (colours, type, the voice pill) is studio.css. */
 
 :root {
   --bg: #121212;
@@ -229,13 +227,7 @@ button { font: inherit; color: inherit; }
 .orb-slot { width: 64px; height: 64px; flex: none; display: grid; place-items: center; }
 .app:not(.has-chat) .dock .orb-slot { width: 0; margin-right: -12px; }
 .orb { position: relative; width: 100%; height: 100%; border: 0; background: none; padding: 0; cursor: pointer; border-radius: 50%; display: grid; place-items: center; -webkit-tap-highlight-color: transparent; }
-.orb canvas { position: absolute; inset: -30%; width: 160%; height: 160%; pointer-events: none; }
-.orb-mic { position: relative; width: 36%; height: 36%; min-width: 34px; min-height: 34px; border-radius: 50%; display: grid; place-items: center; color: #f5d0fe;
-  background: radial-gradient(circle at 50% 35%, #7e22ce, #3b0764); box-shadow: 0 0 0 1px rgb(217 70 239 / .5), 0 0 18px rgb(168 85 247 / .45); transition: transform .2s; }
-.orb:hover .orb-mic { transform: scale(1.06); }
-.orb[aria-pressed="true"] .orb-mic { background: radial-gradient(circle at 50% 35%, #d946ef, #7e22ce); color: #fff; }
 .orb:focus-visible { outline: 2px solid var(--violet); outline-offset: 4px; }
-.hero .orb-mic { width: 18%; height: 18%; }
 .composer { position: relative; flex: 1; display: flex; align-items: flex-end; gap: 8px; background: var(--bg-elev); border: 1px solid var(--line); border-radius: 18px; padding: 8px 8px 8px 16px; box-shadow: var(--shadow); }
 .composer:focus-within { border-color: color-mix(in srgb, var(--violet) 60%, var(--line)); }
 .composer textarea { flex: 1; resize: none; border: 0; background: none; color: var(--text); font: 15.5px/1.5 var(--sans); outline: none; max-height: 200px; padding: 6px 0; }
@@ -287,7 +279,6 @@ button { font: inherit; color: inherit; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
-.hero .orb-mic { translate: 0 95%; }
 #state-label, .barge { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #state-label { min-width: 0; flex: 1 1 auto; }
 .barge { cursor: pointer; flex: 0 1 auto; max-width: 48%; }
@@ -435,14 +426,6 @@ body.onb-open { overflow: hidden; }
 .onb-close { margin-left: auto; width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line); background: none; color: var(--text-2); font-size: 20px; cursor: pointer; }
 .onb-close:hover { color: var(--text); border-color: var(--text-3); }
 
-/* Rings: a fixed layer (never adds scroll), centred on the orb via --cx/--cy (set from JS) */
-.onb-rings { position: fixed; inset: 0; overflow: hidden; pointer-events: none; z-index: -1; }
-.onb-rings i { position: absolute; left: var(--cx, 38%); top: var(--cy, 52%); border-radius: 50%; border: 1px solid color-mix(in srgb, var(--onb-acc) 14%, transparent); transform: translate(-50%, -50%); }
-.onb-rings i:nth-child(1) { width: 380px; height: 380px; }
-.onb-rings i:nth-child(2) { width: 560px; height: 560px; border-style: dashed; border-color: color-mix(in srgb, var(--onb-acc) 18%, transparent); animation: onb-spin 90s linear infinite; }
-.onb-rings i:nth-child(3) { width: 780px; height: 780px; opacity: .7; }
-.onb-rings i:nth-child(4) { width: 1040px; height: 1040px; opacity: .45; }
-@keyframes onb-spin { to { transform: translate(-50%, -50%) rotate(360deg); } }
 
 /* Step rail */
 .onb-rail { grid-area: rail; align-self: center; display: flex; flex-direction: column; gap: 2px; position: relative; }
@@ -455,9 +438,6 @@ body.onb-open { overflow: hidden; }
 .onb-rail-item.on { color: var(--text); border-left: 2px solid var(--onb-acc); padding-left: 13px; }
 .onb-rail-item.on .onb-rail-n { color: var(--onb-acc-txt); }
 
-/* Orb */
-.onb-orb { grid-area: orb; align-self: center; justify-self: center; width: min(100%, 420px); aspect-ratio: 1; position: relative; }
-.onb-orb canvas { width: 100%; height: 100%; display: block; }
 
 /* Card */
 .onb-card { grid-area: card; align-self: center; position: relative; padding: clamp(22px, 2.6vw, 34px); border-radius: 20px;
@@ -533,16 +513,13 @@ button.onb-item:hover { border-color: var(--onb-acc); }
 @media (max-width: 980px) {
   .onb { grid-template-columns: 1fr; grid-template-rows: auto auto auto auto; grid-template-areas: "top" "orb" "card" "meter"; row-gap: 8px; }
   .onb-rail { display: none; }
-  .onb-orb { width: min(64vw, 240px); }
   .onb-card { justify-self: center; width: 100%; max-width: 560px; }
 }
 @media (max-width: 560px) {
   .onb { padding: 16px; }
-  .onb-orb { width: 170px; }
   .onb-grid { grid-template-columns: 1fr; }
   .onb-label { min-width: 0; width: 100%; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .onb-rings i, .onb-card.enter { animation: none; }
   .onb-bar i, .onb-btn { transition: none; }
 }

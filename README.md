@@ -56,7 +56,7 @@ decide for yourself.
 | Approve a tool | Allow / Deny on the card, or say "yes" / "no" (with headphones). |
 | Stop her | Esc or ■. With headphones you can just talk over her. |
 | Hear the whole answer | "Read all" under an answer. |
-| Settings | Voice, approvals and model for new folders, vocabulary, look (Studio, k.os or Classic), and "Open setup" to change your folders. |
+| Settings | Voice, approvals and model for new folders, vocabulary, dark or light, and "Open setup" to change your folders. |
 
 ## What Orb can and can't touch
 

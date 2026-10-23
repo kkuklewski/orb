@@ -1,9 +1,9 @@
-/* Studio skin (default): a tool, not a sci-fi assistant. Grey surfaces, hairline rules, IBM Plex Sans
+/* Studio, Orb's look: a tool, not a sci-fi assistant. Grey surfaces, hairline rules, IBM Plex Sans
    for reading and headings, Plex Mono only for small labels and code, and one signal-orange accent
    used only for state (recording, needs your OK, current step). Layout cues from award references:
    SSTR (hairline panels, // marks, one small orange square), Atelier Meridien (editorial type and
    space), SUPERMODELS and Serus (calm product UI). No glow, rings or gradients.
-   Everything is scoped to html[data-skin="studio"]. */
+   Scoped to html[data-skin="studio"] (set in index.html) over the base styles in app.css. */
 
 :root[data-skin="studio"] {
   --s-acc: #FE5B2A; --s-acc-txt: #FF7A4F; --s-ink: #18191B;
@@ -15,9 +15,6 @@
   --shadow: none;
   --sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
-  /* kept for the orb canvas (hidden in this skin) and code that reads them */
-  --orb-1: 236, 236, 234; --orb-2: 183, 184, 188; --orb-3: 142, 143, 148; --orb-glow: 236, 236, 234;
-  --orb-core: 255, 255, 255; --orb-core-light: 24, 25, 27;
 }
 :root[data-skin="studio"][data-theme="light"] {
   --s-acc-txt: #B83A10; --s-ink: #FFFFFF;
@@ -61,7 +58,6 @@
 [data-skin="studio"] .msg-user .bubble { background: var(--user-bubble); border: 1px solid var(--line); border-radius: 10px; }
 [data-skin="studio"] .tools > summary, [data-skin="studio"] .answer-tools button, [data-skin="studio"] .turn-end { font-family: var(--mono); font-size: 12px; color: var(--text-3); }
 [data-skin="studio"] .said-label { font: 500 10.5px var(--mono); letter-spacing: .12em; color: var(--text-3); border-color: var(--line); background: none; }
-[data-skin="studio"] .tile-bar { display: none; }
 
 /* Approval and other cards: hairline box, a small orange square says it needs you */
 [data-skin="studio"] .perm { background: var(--bg-elev); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; box-shadow: none; }
@@ -89,7 +85,6 @@
 
 /* The voice pill replaces the orb: a recording-light dot, five level bars, one word */
 .vpill { display: none; }
-[data-skin="studio"] .orb canvas, [data-skin="studio"] .orb-mic { display: none; }
 [data-skin="studio"] .orb-slot { width: auto; height: 44px; }
 [data-skin="studio"] .app:not(.has-chat) .dock .orb-slot { width: 0; overflow: hidden; margin-right: -12px; }
 [data-skin="studio"] .orb { width: auto; height: 44px; border-radius: 22px; }
@@ -119,7 +114,6 @@
 [data-skin="studio"] .hero-orb-slot { width: auto; aspect-ratio: auto; order: 2; }
 [data-skin="studio"] .hero-hint { order: 1; margin: 0; font: 600 30px/1.15 var(--sans); letter-spacing: -0.02em; color: var(--text); }
 [data-skin="studio"] .hero-sub { order: 3; font: 12px var(--mono); letter-spacing: .06em; color: var(--text-3); }
-[data-skin="studio"] .hero .orb-mic { translate: none; }
 
 /* Views, picker, settings, menus */
 [data-skin="studio"] .view-head h2::before { content: "// "; color: var(--text-3); font-weight: 500; }
@@ -135,7 +129,6 @@
 [data-skin="studio"] .onb { --onb-acc: var(--s-acc); --onb-acc-txt: var(--s-acc-txt); --onb-ink: #FFFFFF;
   background: var(--bg); grid-template-columns: minmax(240px, 340px) minmax(0, 760px); grid-template-areas: "top top" "rail card" "meter meter";
   column-gap: clamp(32px, 6vw, 96px); justify-content: start; padding: 0; }
-[data-skin="studio"] .onb-rings, [data-skin="studio"] .onb-orb { display: none; }
 [data-skin="studio"] .onb-top { padding: 20px clamp(20px, 4vw, 56px); border-bottom: 1px solid var(--line); }
 [data-skin="studio"] .onb-brand { font-family: var(--sans); font-weight: 600; font-size: 16px; }
 [data-skin="studio"] .onb-brand::before { background: var(--text); box-shadow: none; width: 13px; height: 13px; }
