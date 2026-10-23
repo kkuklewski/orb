@@ -339,7 +339,9 @@ def features() -> dict:
 
 async def settings_event() -> dict:
     vocab_file = config.STATE_DIR / "vocabulary.txt"
-    return {"type": "settings", "values": settings.settings.data, "voices": await speech.voices(),
+    installed = await speech.voices()
+    return {"type": "settings", "values": settings.settings.data, "voices": installed,
+            "recommended": speech.recommended(installed, settings.settings["voice"]),
             "vocabulary": vocab_file.read_text() if vocab_file.exists() else "",
             "vocab_seed": vocab.SEED, "whisper_prompt": speech.PROMPT,
             "vault": str(settings.settings.vault() or ""), "port": config.PORT, "host": config.HOST}
@@ -481,7 +483,7 @@ async def handle(conn: Conn, msg: dict) -> None:
             await hub.push_folders()
         if {"roots", "vault", "brain", "routines", "onboarded", "stt", "tts"} & set(values):
             await asyncio.gather(*(c.send({"type": "features", **features()}) for c in hub.conns))
-        if {"roots", "stt", "tts"} & set(values) and not values.get("onboarded"):
+        if {"roots", "stt", "tts", "voice"} & set(values) and not values.get("onboarded"):
             await conn.send(await setup.status())  # the setup page shows the result at once
         await conn.send(await settings_event())
         return

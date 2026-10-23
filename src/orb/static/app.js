@@ -339,10 +339,11 @@ function renderSettings(ev) {
     return g;
   };
   // Voice
-  const v = section("Voice", "Kokoro voice for spoken answers (English only). \"chatterbox\" speaks Polish and English but takes ~7 s per sentence on this Mac (try-out; its server runs in tmux chatterbox).");
+  const v = section("Voice", "Her Kokoro voice (English). Only the voices Kokoro rates C+ or better are listed, best first; the grade is Kokoro's own.");
   const sel = el("select", "set-select");
-  const voices = (ev.voices || []).filter((x) => /^[ab][fm]_|^chatterbox$/.test(x));
-  for (const name of voices.length ? voices : [ev.values.voice]) { const o = el("option", null, name); o.value = name; o.selected = name === ev.values.voice; sel.append(o); }
+  const opts = (ev.recommended || []).map((x) => [x.id, `${x.name} · ${x.desc}${x.grade ? ` · ${x.grade}` : ""}`]);
+  if ((ev.voices || []).includes("chatterbox")) opts.push(["chatterbox", "Chatterbox · Polish and English, slow"]);
+  for (const [id, label] of opts.length ? opts : [[ev.values.voice, ev.values.voice]]) { const o = el("option", null, label); o.value = id; o.selected = id === ev.values.voice; sel.append(o); }
   sel.onchange = () => send({ type: "set_settings", values: { voice: sel.value } });
   const hear = el("button", "chip-btn", "Hear it"); hear.onclick = () => { Player.unlock(); send({ type: "voice_sample", voice: sel.value }); };
   const vr = el("div", "set-row"); vr.append(sel, hear); v.append(vr);
@@ -472,6 +473,18 @@ const Onb = {
     box.append(foot);
     return box;
   },
+  voiceList(voices, current) { // Kokoro's recommended voices: pick one, and hear it right away
+    const list = el("div", "onb-voices"); list.setAttribute("role", "radiogroup"); list.setAttribute("aria-label", "Her voice");
+    for (const x of voices) {
+      const b = el("button", "onb-voice" + (x.id === current ? " on" : "")); b.type = "button";
+      b.setAttribute("role", "radio"); b.setAttribute("aria-checked", String(x.id === current));
+      const txt = el("span", "onb-voice-txt"); txt.append(el("strong", null, x.name), el("span", null, x.desc));
+      b.append(el("span", "onb-voice-dot"), txt, el("span", "mono onb-voice-grade", x.grade || ""));
+      b.onclick = () => { Player.unlock(); send({ type: "set_settings", values: { voice: x.id } }); send({ type: "voice_sample", voice: x.id }); };
+      list.append(b);
+    }
+    return list;
+  },
   finish() { this.close(); showView("chat"); if (!S.folder) openPicker("new"); },
 
   render(animate) {
@@ -577,6 +590,7 @@ const Onb = {
       };
       card.append(seg("HEARING YOU", [["browser", "Browser", BROWSER_STT], ["parakeet", "Parakeet", sp.parakeet], ["whisper", "Whisper", sp.whisper]], v.stt, "stt"));
       card.append(seg("HER VOICE", [["browser", "Browser", BROWSER_TTS], ["kokoro", "Kokoro", sp.kokoro]], v.tts, "tts"));
+      if (v.tts === "kokoro" && (ev.voices || []).length) card.append(this.voiceList(ev.voices, v.voice));
       card.append(row(btn("Test microphone", (e) => this.testMic(e.currentTarget)), btn("Hear her", () => this.say("Hi, I'm Orb. Pick a repo and just talk."))));
       foot("Continue", true);
     } else {

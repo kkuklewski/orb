@@ -71,7 +71,7 @@ def suggestions() -> list[dict]:
 
 async def status() -> dict:
     """Everything the onboarding page shows, in one event."""
-    auth, health = await asyncio.gather(auth_status(), speech.health())
+    auth, health, installed = await asyncio.gather(auth_status(), speech.health(), speech.voices())
     roots = await asyncio.to_thread(lambda: [{"path": str(r), "exists": r.is_dir(), "repos": _repos(r) if r.is_dir() else []}
                                              for r in settings.roots()])
     on_path = shutil.which("claude")
@@ -85,7 +85,8 @@ async def status() -> dict:
         "suggested": [s for s in await asyncio.to_thread(suggestions) if s["path"] not in settings["roots"]],
         "home": str(Path.home()),
         "speech": {**health, "parakeet": parakeet.MODEL.is_file() and parakeet.LIB.is_file()},
-        "values": {k: settings[k] for k in ("stt", "tts", "skip_names", "onboarded")},
+        "voices": speech.recommended(installed, settings["voice"]) if health.get("kokoro") else [],
+        "values": {k: settings[k] for k in ("stt", "tts", "voice", "skip_names", "onboarded")},
     }
 
 

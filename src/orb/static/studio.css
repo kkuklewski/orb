@@ -171,6 +171,20 @@
 [data-skin="studio"] .onb-meter { grid-column: 1 / -1; padding: 16px clamp(20px, 4vw, 56px); border-top: 1px solid var(--line); align-self: end; }
 [data-skin="studio"] .onb-bar i { background: var(--text); }
 [data-skin="studio"] .onb :focus-visible { outline-color: var(--text); }
+/* Step 03: Kokoro's recommended voices as a ruled list (radio rows, best first) */
+[data-skin="studio"] .onb-voices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--bg-elev); margin: 4px 0 14px; }
+[data-skin="studio"] .onb-voice { display: flex; align-items: center; gap: 12px; padding: 11px 14px; border: 0; border-bottom: 1px solid var(--line); background: none; color: var(--text); text-align: left; font: inherit; cursor: pointer; min-height: 44px; }
+[data-skin="studio"] .onb-voice:nth-child(odd) { border-right: 1px solid var(--line); }
+[data-skin="studio"] .onb-voice:hover { background: var(--side-row-hover); }
+[data-skin="studio"] .onb-voice-dot { width: 14px; height: 14px; border-radius: 50%; border: 1px solid var(--text-3); flex: none; display: grid; place-items: center; }
+[data-skin="studio"] .onb-voice.on .onb-voice-dot { border-color: var(--text); }
+[data-skin="studio"] .onb-voice.on .onb-voice-dot::after { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--text); }
+[data-skin="studio"] .onb-voice-txt { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+[data-skin="studio"] .onb-voice-txt strong { font-weight: 600; font-size: 14px; }
+[data-skin="studio"] .onb-voice-txt span { font-size: 12px; color: var(--text-3); }
+[data-skin="studio"] .onb-voice-grade { font-size: 11px; color: var(--text-3); }
+@media (max-width: 640px) { [data-skin="studio"] .onb-voices { grid-template-columns: 1fr; } [data-skin="studio"] .onb-voice:nth-child(odd) { border-right: 0; } }
+
 /* Step 04: one ruled sheet (cells share hairlines), each rule with a concrete proof */
 [data-skin="studio"] .onb-spec { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--bg-elev); margin-top: 8px; }
 [data-skin="studio"] .onb-spec-cell { display: flex; flex-direction: column; gap: 8px; padding: 20px 22px 22px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); min-width: 0; }

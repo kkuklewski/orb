@@ -25,7 +25,7 @@ TTS = env("TTS", "browser")  # "browser" (the page's own voices) or "kokoro"
 WHISPER_URL = env("WHISPER", "http://127.0.0.1:2022/v1/audio/transcriptions")
 KOKORO_URL = env("KOKORO", "http://127.0.0.1:8880/v1/audio/speech")
 CHATTERBOX_URL = env("CHATTERBOX", "http://127.0.0.1:8881/v1/audio/speech")  # spikes/chatterbox
-KOKORO_VOICE = env("VOICE", "af_sky")
+KOKORO_VOICE = env("VOICE", "af_heart")  # the best-rated Kokoro voice
 
 MAX_LIVE_SESSIONS = int(env("MAX_SESSIONS", "4"))
 IDLE_CLOSE_SECONDS = int(env("IDLE_CLOSE", str(30 * 60)))

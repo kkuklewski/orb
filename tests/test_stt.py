@@ -125,3 +125,11 @@ def test_stt_setting_accepts_only_known_engines(tmp_path):
     st = settings.Settings(tmp_path / "settings.json")
     assert st.update({"stt": "whisper"})["stt"] == "whisper"
     assert st.update({"stt": "bogus"})["stt"] == "whisper"
+
+
+def test_recommended_voices_only_good_ones_best_first():
+    installed = ["af_sky", "af_heart", "am_adam", "bf_emma", "af_bella"]
+    ids = [v["id"] for v in speech.recommended(installed)]
+    assert ids == ["af_heart", "af_bella", "bf_emma"]  # graded A, A-, B-; af_sky (C-) and am_adam (F+) left out
+    keep = speech.recommended(installed, current="af_sky")
+    assert keep[-1]["id"] == "af_sky" and keep[-1]["grade"] is None  # a weak current voice stays selectable

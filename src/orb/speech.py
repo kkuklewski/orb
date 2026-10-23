@@ -117,6 +117,24 @@ async def transcribe_whisper(wav: bytes) -> str:
 
 
 CHATTERBOX = "chatterbox"  # the voice name that picks Chatterbox instead of a Kokoro voice
+# Kokoro voices worth offering, best first, with the grade from Kokoro's own VOICES.md (hexgrad/Kokoro-82M).
+# Everything below C+ there (af_sky C-, am_adam F+, ...) sounds noticeably worse, so it isn't listed.
+RECOMMENDED = (
+    ("af_heart", "Heart", "US · female", "A"), ("af_bella", "Bella", "US · female", "A-"),
+    ("af_nicole", "Nicole", "US · female, soft", "B-"), ("bf_emma", "Emma", "UK · female", "B-"),
+    ("am_michael", "Michael", "US · male", "C+"), ("am_fenrir", "Fenrir", "US · male", "C+"),
+    ("am_puck", "Puck", "US · male", "C+"), ("af_sarah", "Sarah", "US · female", "C+"),
+    ("af_kore", "Kore", "US · female", "C+"), ("af_aoede", "Aoede", "US · female", "C+"),
+)
+
+
+def recommended(installed: list[str], current: str | None = None) -> list[dict]:
+    """The recommended voices this Kokoro has, plus the current one if it isn't among them."""
+    have = set(installed)
+    out = [{"id": v, "name": n, "desc": d, "grade": g} for v, n, d, g in RECOMMENDED if v in have]
+    if current and current not in {x["id"] for x in out}:
+        out.append({"id": current, "name": current, "desc": "your current voice", "grade": None})
+    return out
 _POLISH = re.compile(r"[ąćęłńóśźż]|\b(nie|jest|się|że|tak|dobra|mam|już|czy|jak|co)\b", re.I)
 
 
