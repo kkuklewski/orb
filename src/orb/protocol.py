@@ -310,6 +310,7 @@ class RoutineRun(_Msg):
     ended: float | None = None
     outcome: Literal["ok", "failed", "waiting", "running", "stuck"] | None = None
     summary: str = ""
+    detail: str = ""  # the whole result (the row shows only the start); untrusted text, shown as plain text
     url: str = ""
 
 
@@ -397,7 +398,7 @@ class TaskChangedEvent(_Event):
     type: Literal["task_changed"]
     file: str
     line: int
-    action: Literal["done", "drop", "snooze", "restore"]
+    action: Literal["done", "drop", "snooze", "restore", "add", "delete"]
     raw: str
     previous: str
 
@@ -618,7 +619,16 @@ class RoutinesMsg(_Msg):
 
 
 class RoutinesSeenMsg(_Msg):
+    """Read a result: one routine (`id`), everything (`all`), or, with neither, whatever doesn't notify."""
     type: Literal["routines_seen"]
+    id: str | None = None
+    all: bool = False
+
+
+class RoutineTaskMsg(_Msg):
+    """"Make it a task": one line in the notes inbox pointing at this routine's last result."""
+    type: Literal["routine_task"]
+    id: str
 
 
 class MuteMsg(_Msg):
@@ -682,7 +692,7 @@ class TaskActionMsg(_Msg):
     file: str
     line: int
     expect: str  # the line as the page shows it; the server writes only if it still reads so
-    action: Literal["done", "drop", "snooze", "restore"]
+    action: Literal["done", "drop", "snooze", "restore", "delete"]
     until: str | None = None  # snooze: YYYY-MM-DD
     value: str | None = None  # restore: the line to put back
 
@@ -748,7 +758,7 @@ ClientMessage = Annotated[Union[
     SetupStatusMsg, BrowseMsg, PickFolderMsg, OpenFolderMsg, AddFolderMsg, StartSessionMsg, PinFolderMsg,
     GetSettingsMsg, SetSettingsMsg, VoiceSampleMsg, RescanMsg, RoutinesMsg, RoutinesSeenMsg, MuteMsg,
     NewSessionMsg, UserTextMsg, SpeechStartMsg, BargeInMsg, SpeechCancelledMsg, UtteranceMsg, VoiceTextMsg,
-    HomeMsg, ScreenMsg, TaskDetailMsg, TaskActionMsg, InterruptMsg, PlaybackMsg, PermissionMsg, ReadAllMsg, DictateNoteMsg, UndoRequestMsg, UndoConfirmMsg,
+    HomeMsg, ScreenMsg, RoutineTaskMsg, TaskDetailMsg, TaskActionMsg, InterruptMsg, PlaybackMsg, PermissionMsg, ReadAllMsg, DictateNoteMsg, UndoRequestMsg, UndoConfirmMsg,
     McpStatusMsg, McpReconnectMsg, SetModeMsg, SetModelMsg,
 ], Field(discriminator="type")]
 

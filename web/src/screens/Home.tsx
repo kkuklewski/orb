@@ -7,6 +7,7 @@ import { openSetup } from "../stores/setup";
 import { setFront, useMeta, usageView, usageWarning } from "../stores/meta";
 import { ASK_TODAY, brief, greeting, needsYou, refreshHome, useHome } from "../stores/home";
 import { changeTask, openTask } from "../stores/tasks";
+import { openRoutine } from "../stores/routine";
 import { VoicePill } from "./Voice";
 import { NOTES_STEP } from "./setup/Setup";
 
@@ -153,7 +154,7 @@ export function Home() {
               <Card label="ROUTINES · EVERY 30 MIN" title={routines ? (n.routines.length ? `${n.routines.length} of ${on.length} need you` : `${ok} of ${on.length} ran fine`) : "Checking…"} mark={n.routines.length > 0}
                 foot={<><span>{next ? `next · ${next.name} ${dayTime(next.next_run_at!)}` : "nothing scheduled"}</span><button type="button" onClick={() => useViews.setState({ view: "routines" })}>Routines →</button></>}>
                 {on.slice(0, 5).map((r) => (
-                  <button key={r.id} type="button" className={"hc-row" + (r.needs || r.loud ? " needs" : "")} onClick={() => useViews.setState({ view: "routines" })}>
+                  <button key={r.id} type="button" className={"hc-row" + (r.needs || r.loud ? " needs" : "")} onClick={() => openRoutine(r.id)}>
                     <span className={"hc-dot" + (r.needs || r.loud ? " sq" : "")} />
                     <span className="hc-text">{r.name}</span>
                     <span className="hc-side mono">{r.needs ?? (r.loud ? "worth reading" : r.quiet ? "nothing to report" : r.last?.at ? `${r.last.outcome ?? "ran"} · ${dayTime(r.last.at).replace(/^today /, "")}` : "no runs yet")}</span>

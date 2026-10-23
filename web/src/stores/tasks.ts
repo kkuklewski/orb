@@ -19,7 +19,7 @@ export const useTasks = create<{
 }>(() => ({ task: null, detail: null, toast: null, next: null }));
 
 const DONE_TEXT: Record<TaskChangedEvent["action"], string> = {
-  done: "Done", drop: "Marked as not doing", snooze: "Snoozed", restore: "Put back",
+  done: "Done", drop: "Marked as not doing", snooze: "Snoozed", restore: "Put back", add: "Added to your notes", delete: "Removed from your notes",
 };
 
 /** "Done: Add approval gates…" / "Snoozed until Mon 27 Oct: …". */
@@ -67,7 +67,8 @@ export function undo() {
   const ev = useTasks.getState().toast?.undo;
   if (!ev) return;
   useTasks.setState({ toast: null, next: null });
-  send({ type: "task_action", file: ev.file, line: ev.line, expect: ev.raw, action: "restore", value: ev.previous });
+  if (ev.action === "add") send({ type: "task_action", file: ev.file, line: ev.line, expect: ev.raw, action: "delete" }); // take the added line out again
+  else send({ type: "task_action", file: ev.file, line: ev.line, expect: ev.raw, action: "restore", value: ev.previous });
 }
 
 export function wireTasks(): () => void {
@@ -76,7 +77,7 @@ export function wireTasks(): () => void {
     on("task_detail", (ev) => { if (sameTask(useTasks.getState().task, ev)) useTasks.setState({ detail: ev }); }),
     on("task_changed", (ev) => {
       clearTimeout(timer);
-      useTasks.setState({ toast: { text: toastText(ev), undo: ev.action === "restore" ? null : ev } });
+      useTasks.setState({ toast: { text: toastText(ev), undo: ev.action === "restore" || ev.action === "delete" ? null : ev } });
       timer = setTimeout(() => useTasks.setState({ toast: null }), 10000);
       if (sameTask(useTasks.getState().task, ev)) send({ type: "task_detail", file: ev.file, line: ev.line });
     }),

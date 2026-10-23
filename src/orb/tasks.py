@@ -19,6 +19,7 @@ from . import folders
 CHECKBOX = re.compile(r"^(\s*[-*+] \[)(.)(\]\s+)(.*?)(\s*)$")
 SNOOZE = re.compile(r"\s*⏳\s*(\d{4}-\d{2}-\d{2})")
 CONTEXT = 6
+TASK_INBOX = "inbox/Orb tasks.md"  # where "make it a task" appends, inside the notes folder
 
 
 class TaskError(Exception):
@@ -107,9 +108,72 @@ def apply(vault: Path | None, file: str, line: int, expect: str, new: str) -> No
         raise
 
 
+def inbox_path(vault: Path | None) -> Path:
+    """The inbox note inside the vault (not through a link, not in a hidden or skipped folder)."""
+    if not vault:
+        raise TaskError("No notes folder is set up.")
+    root = vault.resolve()
+    p = root / TASK_INBOX
+    if p.parent.exists() and (p.parent.is_symlink() or p.is_symlink()):
+        raise TaskError("The tasks inbox can't be a link.")
+    if any(x.startswith(".") or x in folders.skip_names() for x in Path(TASK_INBOX).parts):
+        raise TaskError("The tasks inbox is in a folder Orb doesn't use.")
+    return p
+
+
+def add_line(vault: Path | None, new: str) -> dict:
+    """Append one "- [ ]" line to the inbox note (created with a heading if missing); atomic.
+    {"type": "task_changed", "action": "add", …}; adding the same line twice is refused."""
+    if not CHECKBOX.match(new) or "\n" in new or "\r" in new:
+        raise TaskError("Orb only writes task lines.")
+    p = inbox_path(vault)
+    existing = p.read_text(encoding="utf-8") if p.is_file() else "# Orb tasks\n\n"
+    lines, eol = split_lines(existing)
+    if new in lines:
+        raise TaskError("That task is already in your notes.")
+    if lines and lines[-1] == "":
+        lines.insert(len(lines) - 1, new)
+        n = len(lines) - 1
+    else:
+        lines.append(new)
+        n = len(lines)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=p.parent, prefix=".orb-", suffix=".md")
+    try:
+        with os.fdopen(fd, "wb") as fh:
+            fh.write((eol.join(lines) + ("" if lines[-1] == "" else eol)).encode("utf-8"))
+        os.chmod(tmp, (p.stat().st_mode & 0o777) if p.exists() else 0o644)
+        os.replace(tmp, p)
+    except BaseException:
+        Path(tmp).unlink(missing_ok=True)
+        raise
+    return {"type": "task_changed", "file": TASK_INBOX, "line": n, "action": "add", "raw": new, "previous": ""}
+
+
+def delete_line(vault: Path | None, file: str, line: int, expect: str) -> None:
+    """Remove one task line (Undo of "make it a task"), only if it still reads `expect`."""
+    p = note_path(vault, file)
+    lines, eol = split_lines(p.read_text(encoding="utf-8"))
+    if not 1 <= line <= len(lines) or lines[line - 1] != expect or not CHECKBOX.match(expect):
+        raise TaskError("The note changed since Orb read it, so nothing was removed. Open it again.")
+    del lines[line - 1]
+    fd, tmp = tempfile.mkstemp(dir=p.parent, prefix=".orb-", suffix=".md")
+    try:
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(eol.join(lines).encode("utf-8"))
+        os.chmod(tmp, p.stat().st_mode & 0o777)
+        os.replace(tmp, p)
+    except BaseException:
+        Path(tmp).unlink(missing_ok=True)
+        raise
+
+
 def act(vault: Path | None, file: str, line: int, expect: str, action: str,
         until: str | None = None, value: str | None = None, today: dt.date | None = None) -> dict:
     """{"type": "task_changed", …}. "restore" (Undo) puts back `value`, a task line the page had."""
+    if action == "delete":
+        delete_line(vault, file, line, expect)
+        return {"type": "task_changed", "file": file, "line": line, "action": "delete", "raw": "", "previous": expect}
     new = value if action == "restore" else changed_line(expect, action, today or dt.date.today(), until)
     if new is None:
         raise TaskError("Nothing to restore.")

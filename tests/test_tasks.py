@@ -91,3 +91,40 @@ def test_windows_line_endings_survive(tmp_path):
     (tmp_path / "w.md").write_bytes(b"- [ ] one\r\n- [ ] two\r\n")
     tasks.act(tmp_path, "w.md", 2, "- [ ] two", "done", today=TODAY)
     assert (tmp_path / "w.md").read_bytes() == "- [ ] one\r\n- [x] two ✅ 2026-10-23\r\n".encode()
+
+
+def test_make_it_a_task_appends_one_line_and_undo_removes_it(vault):
+    new = '- [ ] Look at the result of "Gmail" (2026-10-23) https://claude.ai/code/s1'
+    ev = tasks.add_line(vault, new)
+    inbox = vault / "inbox" / "Orb tasks.md"
+    assert inbox.read_text() == f"# Orb tasks\n\n{new}\n"
+    assert (ev["action"], ev["file"], ev["line"], ev["raw"]) == ("add", "inbox/Orb tasks.md", 3, new)
+    protocol.SERVER_EVENTS["task_changed"].model_validate(ev)
+    two = new.replace("Gmail", "Etihad")
+    assert tasks.add_line(vault, two)["line"] == 4 and inbox.read_text().endswith(f"{new}\n{two}\n")
+    with pytest.raises(tasks.TaskError, match="already"):
+        tasks.add_line(vault, new)
+    gone = tasks.act(vault, "inbox/Orb tasks.md", 3, new, "delete")  # Undo
+    assert gone["action"] == "delete" and inbox.read_text() == f"# Orb tasks\n\n{two}\n"
+    with pytest.raises(tasks.TaskError, match="changed"):
+        tasks.act(vault, "inbox/Orb tasks.md", 3, new, "delete")  # a second Undo finds nothing to remove
+
+
+def test_only_task_lines_and_only_inside_the_notes(vault, tmp_path):
+    with pytest.raises(tasks.TaskError, match="task lines"):
+        tasks.add_line(vault, "rm -rf /")
+    with pytest.raises(tasks.TaskError, match="task lines"):
+        tasks.add_line(vault, "- [ ] a\n- [ ] b")
+    with pytest.raises(tasks.TaskError, match="No notes folder"):
+        tasks.add_line(None, "- [ ] a")
+    (vault / "inbox2").mkdir()
+    outside = tmp_path.parent / "elsewhere"
+    outside.mkdir(exist_ok=True)
+    link_vault = tmp_path / "linked"
+    link_vault.mkdir()
+    (link_vault / "inbox").symlink_to(outside)
+    with pytest.raises(tasks.TaskError, match="link"):
+        tasks.add_line(link_vault, "- [ ] a")
+    assert not list(outside.iterdir())  # nothing was written through the link
+    with pytest.raises(tasks.TaskError):
+        tasks.act(vault, "inbox/g7.md", 5, "- [ ] Inventory all agents (", "delete")  # not the line as it reads

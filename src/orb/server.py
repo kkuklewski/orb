@@ -558,7 +558,21 @@ async def handle(conn: Conn, msg: dict) -> None:
             asyncio.create_task(hub.routines.refresh())
         return
     if t == "routines_seen":
-        await hub.routines.mark_seen()
+        await hub.routines.mark_seen(msg.get("id"), bool(msg.get("all")))
+        return
+    if t == "routine_task":
+        vault = settings.settings.vault()
+        x = next((i for i in hub.routines.items() if i["id"] == msg.get("id")), None)
+        try:
+            if not x or not x["last"]:
+                raise tasks.TaskError("That routine has no result yet.")
+            ev = await asyncio.to_thread(tasks.add_line, vault, routines.task_line(x))
+        except (tasks.TaskError, OSError, UnicodeDecodeError) as e:
+            await conn.send({"type": "error", "text": str(e) if isinstance(e, tasks.TaskError) else f"Couldn't change the note: {e}"})
+            return
+        await conn.send(ev)
+        summary = await asyncio.to_thread(home.summary, vault)
+        await asyncio.gather(*(c.send(summary) for c in hub.conns))
         return
     if t == "mute":
         conn.muted = bool(msg.get("value"))

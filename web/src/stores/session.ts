@@ -24,6 +24,7 @@ export interface SessionState {
   drawer: boolean; // narrow screens: the sidebar slides over
   quiet: boolean; // the next "opened" is the start-up reopen: keep showing Home
   pendingAsk: string | null; // sent once the session it was asked in has opened
+  pendingScreen: { name: string; text: string } | null; // and what to show Claude with it (untrusted text, fenced by the server)
 }
 
 const local = {
@@ -37,7 +38,7 @@ function savedExpanded(): string[] {
 
 export const initialSession = (): SessionState => ({
   folder: null, session: null, label: "", rel: "", branch: null, busy: false, commands: [],
-  picker: null, expanded: savedExpanded(), drawer: false, quiet: false, pendingAsk: null,
+  picker: null, expanded: savedExpanded(), drawer: false, quiet: false, pendingAsk: null, pendingScreen: null,
 });
 
 /** Pure: the next state for one event. Session-scoped events for another session are ignored. */
@@ -61,13 +62,17 @@ export function wireSession(): () => void {
   const apply = (ev: ServerEvent) => useSession.setState((s) => reduce(s, ev));
   const offs = [
     on("opened", (ev) => {
-      const { quiet, pendingAsk } = useSession.getState();
+      const { quiet, pendingAsk, pendingScreen } = useSession.getState();
       apply(ev);
-      useSession.setState({ quiet: false, pendingAsk: null });
+      useSession.setState({ quiet: false, pendingAsk: null, pendingScreen: null });
       if (ev.folder) local.set("vd-folder", ev.folder);
       if (ev.session) local.set("vd-session", ev.session);
       if (!quiet) useViews.setState({ view: "chat" });
-      if (pendingAsk) { markSent(); send({ type: "user_text", text: pendingAsk, interrupt: false }); }
+      if (pendingAsk) {
+        if (pendingScreen) send({ type: "screen", name: pendingScreen.name, text: pendingScreen.text }); // the request carries it
+        markSent();
+        send({ type: "user_text", text: pendingAsk, interrupt: false });
+      }
     }),
     on("commands", apply),
     on("state", apply),
@@ -82,7 +87,7 @@ export function wireSession(): () => void {
       const asked = parseRoute(location.pathname);
       const target = asked.session ? ev.folders.find((f) => (f.sessions ?? []).some((x) => x.key === asked.session)) : undefined;
       if (target) { openFolder(target.path, asked.session!); return; }
-      useViews.setState({ view: asked.view === "chat" || asked.view === "task" ? "home" : asked.view }); // a task opens once wired (route.ts)
+      useViews.setState({ view: ["chat", "task", "routine"].includes(asked.view) ? "home" : asked.view }); // those open once wired (route.ts)
       const last = local.get("vd-folder", "");
       if (last && ev.folders.some((f) => f.path === last)) {
         useSession.setState({ quiet: true });
@@ -106,8 +111,8 @@ export function startSession(path: string) {
 }
 
 /** A fresh session in `path` that starts with `text` (Home's "Ask your notes"). */
-export function askIn(path: string, text: string) {
-  useSession.setState({ pendingAsk: text });
+export function askIn(path: string, text: string, screen: { name: string; text: string } | null = null) {
+  useSession.setState({ pendingAsk: text, pendingScreen: screen });
   startSession(path);
 }
 
@@ -136,7 +141,7 @@ export function toggleProject(path: string) {
 }
 
 export function openPicker(mode: PickerMode) { useSession.setState({ picker: mode, drawer: false }); }
-export function closePicker() { useSession.setState({ picker: null, pendingAsk: null }); } // a question waiting for a repo goes too
+export function closePicker() { useSession.setState({ picker: null, pendingAsk: null, pendingScreen: null }); } // a question waiting for a repo goes too
 
 /** Picker choice (a listed repo or a pasted path): start a session there, or pin it. */
 export function choosePath(path: string) {

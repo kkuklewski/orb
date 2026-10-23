@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { send } from "../ws";
+import { openRoutine, markAllRead } from "../stores/routine";
 import { NOTIFY_LABEL, dayTime, routineDot, routinesSubtitle, routineState, routineStatus, safeRunUrl, setNotify, useViews, whyLine, type NotifyMode } from "../stores/views";
 
 // Scheduled cloud agents (claude.ai). The server checks every 30 min; failed, stuck or missed ones
@@ -20,6 +21,7 @@ export function Routines() {
       <div className="view-head">
         <h2>Routines</h2>
         <span className="mono view-sub">{routinesSubtitle(r)}</span>
+        {(r?.read ?? 0) > 0 && <button type="button" className="chip-btn" onClick={markAllRead}>Mark all read</button>}
         <button type="button" className="chip-btn" id="routines-refresh" disabled={!!r?.checking}
           onClick={() => send({ type: "routines", refresh: true })}>Check now</button>
       </div>
@@ -33,7 +35,7 @@ export function Routines() {
             <div key={x.id} className={`rt-row ${routineState(x)}${routinesNew.has(x.id) ? " new" : ""}${x.quiet ? " quiet" : ""}`}>
               <div className="rt-head">
                 <span className={routineDot(x)} />
-                <span className="rt-name">{x.name}</span>
+                <button type="button" className="rt-name rt-open" onClick={() => openRoutine(x.id)} title="Open this result">{x.name}</button>
                 <span className="rt-status mono">{routineStatus(x)}</span>
               </div>
               <div className="rt-meta mono">

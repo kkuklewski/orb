@@ -8,6 +8,7 @@ import { useFeatures } from "./features";
 import { useHome, needsYou, brief } from "./home";
 import { useSession } from "./session";
 import { useTasks } from "./tasks";
+import { routineById, routineText, useRoutineScreen } from "./routine";
 import { activityRows, routineStatus, useViews, type View } from "./views";
 
 const day = (ts: number) => new Date(ts * 1000).toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
@@ -38,6 +39,10 @@ export function currentScreen(view: View): { name: string; text: string } | null
     const d = useTasks.getState().detail;
     return d ? { name: "Task", text: taskText(d, vault) } : null;
   }
+  if (view === "routine") {
+    const x = routineById(useRoutineScreen.getState().id);
+    return x ? { name: "Routine", text: routineText(x) } : null;
+  }
   if (view === "activity") {
     const rows = activityRows(f.folders);
     return { name: "Activity", text: ["Activity: sessions working, waiting or done.", ...rows.map((x) => `- ${x.label || "New session"} (${x.folder.label}): ${x.status}`)].join("\n") };
@@ -63,7 +68,7 @@ export function wireScreen(): () => void {
       send(s ? { type: "screen", name: s.name, text: s.text } : { type: "screen", name: null });
     }, 300);
   };
-  const offs = [useViews.subscribe(push), useHome.subscribe(push), useTasks.subscribe(push), useFeatures.subscribe(push),
+  const offs = [useViews.subscribe(push), useHome.subscribe(push), useTasks.subscribe(push), useFeatures.subscribe(push), useRoutineScreen.subscribe(push),
     useSession.subscribe((s, prev) => { if (s.session !== prev.session) { last = ""; push(); } }), // a session opened: tell it
     useConnection.subscribe((s, prev) => { if (s.state !== prev.state) { last = ""; push(); } })];
   return () => { clearTimeout(timer); offs.forEach((off) => off()); };

@@ -28,6 +28,7 @@ export type ClientMessage =
   | VoiceTextMsg
   | HomeMsg
   | ScreenMsg
+  | RoutineTaskMsg
   | TaskDetailMsg
   | TaskActionMsg
   | InterruptMsg
@@ -193,10 +194,14 @@ export interface RoutinesMsg {
   type: "routines";
 }
 /**
+ * Read a result: one routine (`id`), everything (`all`), or, with neither, whatever doesn't notify.
+ *
  * This interface was referenced by `OrbProtocol`'s JSON-Schema
  * via the `definition` "RoutinesSeenMsg".
  */
 export interface RoutinesSeenMsg {
+  all?: boolean;
+  id?: string | null;
   type: "routines_seen";
 }
 /**
@@ -281,6 +286,16 @@ export interface ScreenMsg {
   type: "screen";
 }
 /**
+ * "Make it a task": one line in the notes inbox pointing at this routine's last result.
+ *
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "RoutineTaskMsg".
+ */
+export interface RoutineTaskMsg {
+  id: string;
+  type: "routine_task";
+}
+/**
  * This interface was referenced by `OrbProtocol`'s JSON-Schema
  * via the `definition` "TaskDetailMsg".
  */
@@ -294,7 +309,7 @@ export interface TaskDetailMsg {
  * via the `definition` "TaskActionMsg".
  */
 export interface TaskActionMsg {
-  action: "done" | "drop" | "snooze" | "restore";
+  action: "done" | "drop" | "snooze" | "restore" | "delete";
   expect: string;
   file: string;
   line: number;
@@ -903,6 +918,7 @@ export interface RoutineItem {
  */
 export interface RoutineRun {
   at?: number | null;
+  detail?: string;
   ended?: number | null;
   id: string;
   outcome?: ("ok" | "failed" | "waiting" | "running" | "stuck") | null;
@@ -996,7 +1012,7 @@ export interface TaskLine {
  * via the `definition` "TaskChangedEvent".
  */
 export interface TaskChangedEvent {
-  action: "done" | "drop" | "snooze" | "restore";
+  action: "done" | "drop" | "snooze" | "restore" | "add" | "delete";
   file: string;
   folder?: string | null;
   line: number;

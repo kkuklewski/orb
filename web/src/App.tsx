@@ -14,6 +14,7 @@ import { Picker } from "./screens/Picker";
 import { Composer } from "./screens/Composer";
 import { Home } from "./screens/Home";
 import { TaskScreen, TaskToast } from "./screens/Task";
+import { RoutineScreen } from "./screens/Routine";
 import { wireTasks } from "./stores/tasks";
 import { wireHome } from "./stores/home";
 import { wireRoute } from "./stores/route";
@@ -72,6 +73,7 @@ export function App() {
           : view === "routines" && features.routines ? <Routines />
           : view === "settings" ? <Settings />
           : view === "home" ? <section className="chat-next"><Home /><Dock pill={false} /></section>
+          : view === "routine" ? <section className="chat-next"><RoutineScreen /><Dock pill /></section>
           : view === "task" ? <section className="chat-next"><TaskScreen /><Dock pill /></section>
           : <Chat />}
       </main>

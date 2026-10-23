@@ -53,7 +53,8 @@ READ_ACTIONS = ("list", "list_runs", "get_run_log")
 MODEL = config.env("ROUTINES_MODEL", "haiku")
 JUDGE_MODEL = config.env("ROUTINES_JUDGE_MODEL", "haiku")
 JUDGE_PARALLEL = 3  # judging calls at once (one per run)
-DETAIL_MAX = 1200  # chars of a result the judge reads
+DETAIL_MAX = 4000  # chars of a result kept for the result screen
+JUDGE_READS = 1200  # of which the judge reads this many
 SPEAK_WITHIN = 3 * 3600  # a result is announced only while it is this fresh (no burst after a long stop)
 NOTIFY = ("always", "never")
 POLL_SECONDS = int(config.env("ROUTINES_POLL", str(30 * 60)))
@@ -98,12 +99,20 @@ def parse_log(text: str) -> dict:
     return {"outcome": "running", "summary": ""}
 
 
+_NEXT_LOG_LINE = re.compile(r"^\[[^\]\n]{1,40}\] \w", re.M)  # "[2026-10-23T03:03:01Z] assistant: …"
+
+
 def result_detail(text: str) -> str:
-    """More of a run's result than the panel shows, for the judge: the last result line, collapsed."""
+    """The whole last result of a run (more than the panel row shows): the result line and the lines
+    that follow it until the next log line, whitespace kept, capped."""
     results = list(_RESULT.finditer(text))
     if not results:
         return ""
-    return re.sub(r"\s+", " ", results[-1].group(3) or "").strip()[:DETAIL_MAX]
+    m = results[-1]
+    tail = text[m.end():]
+    nxt = _NEXT_LOG_LINE.search(tail)
+    body = (m.group(3) or "") + (tail[:nxt.start()] if nxt else tail)
+    return re.sub(r"[ \t]+", " ", re.sub(r"\n{3,}", "\n\n", body)).strip()[:DETAIL_MAX]
 
 
 JUDGE_RULES = (
@@ -142,6 +151,15 @@ def parse_verdicts(reply: str, ids: list[str]) -> dict[str, dict]:
             why = re.sub(r"\s+", " ", str(v.get("why") or "")).strip()[:100]
             out[rid] = {"read": v["read"], "why": why}
     return out
+
+
+def task_line(x: dict) -> str:
+    """The task "make it a task" writes for a routine's last result. Only the routine's name, the date and
+    a checked claude.ai link: nothing from the result itself ends up in your notes."""
+    last = x["last"] or {}
+    name = re.sub(r"[\[\]\n\r`|]+", " ", x["name"]).strip()[:80]
+    when = dt.datetime.fromtimestamp(last.get("ended") or last.get("at") or time.time()).date().isoformat()
+    return f'- [ ] Look at the result of "{name}" ({when})' + (f" {last['url']}" if last.get("url") else "")
 
 
 def _json(resp: Any) -> dict:
@@ -193,7 +211,8 @@ def item(r: dict, runs: list[dict], logs: dict, seen: dict, now: float, verdicts
         "cron": r.get("cron_expression", ""), "next_run_at": None if missed else nxt,
         "last": None if not last else {
             "id": last["id"], "at": _ts(last.get("created_at")), "ended": _ts(last.get("last_event_at")),
-            "outcome": outcome, "summary": lg.get("summary", ""), "url": url if _URL.match(url) else "",
+            "outcome": outcome, "summary": lg.get("summary", ""), "detail": lg.get("detail", ""),
+            "url": url if _URL.match(url) else "",
         },
         "needs": needs, "new": unseen and not quiet, "worth": worth, "why": verdict["why"] if verdict else "",
         "notify": override if override in NOTIFY else None, "quiet": quiet,
@@ -244,9 +263,11 @@ class Watch:
                 "needs": sum(1 for x in items if x["needs"]), "new": sum(1 for x in items if x["new"]),
                 "read": sum(1 for x in items if x["loud"])}
 
-    async def mark_seen(self) -> None:
+    async def mark_seen(self, rid: str | None = None, everything: bool = False) -> None:
+        """Opening the panel marks seen what doesn't notify; results that do stay unread until you mark
+        them (one routine, or "mark all read"), so a glance at the list doesn't clear the badge."""
         for x in self.items():
-            if x["last"]:
+            if x["last"] and (x["id"] == rid if rid else everything or not x["loud"]):
                 self.state["seen"][x["id"]] = x["last"]["id"]
         self.save()
         await self.push()
@@ -335,7 +356,8 @@ class Watch:
             if runs:
                 last = runs[0]
                 lg = st["logs"].get(last["id"])
-                if not lg or lg.get("outcome") in ("running", "waiting") or lg.get("last_event_at") != last.get("last_event_at"):
+                if (not lg or lg.get("outcome") in ("running", "waiting") or lg.get("last_event_at") != last.get("last_event_at")
+                        or "detail" not in lg):  # logs kept before the result screen existed: fetch once more for the full text
                     need.append(last)
         if need:
             for inp, resp in await self._calls([{"action": "get_run_log", "session_id": x["id"]} for x in need]):
@@ -365,7 +387,7 @@ class Watch:
             if r["id"] in settings.settings["routines_notify"]:
                 continue  # you decided for this routine: no need to ask Haiku
             if lg and lg.get("outcome") == "ok" and runs[0]["id"] not in st["verdicts"]:
-                todo.append({"id": runs[0]["id"], "name": r.get("name") or r["id"], "text": lg.get("detail") or lg.get("summary") or ""})
+                todo.append({"id": runs[0]["id"], "name": r.get("name") or r["id"], "text": (lg.get("detail") or lg.get("summary") or "")[:JUDGE_READS]})
         gate = asyncio.Semaphore(JUDGE_PARALLEL)
 
         async def one(run: dict) -> None:

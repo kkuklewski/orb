@@ -414,6 +414,7 @@
           "playback": "#/$defs/PlaybackMsg",
           "read_all": "#/$defs/ReadAllMsg",
           "rescan": "#/$defs/RescanMsg",
+          "routine_task": "#/$defs/RoutineTaskMsg",
           "routines": "#/$defs/RoutinesMsg",
           "routines_seen": "#/$defs/RoutinesSeenMsg",
           "screen": "#/$defs/ScreenMsg",
@@ -504,6 +505,9 @@
         },
         {
           "$ref": "#/$defs/ScreenMsg"
+        },
+        {
+          "$ref": "#/$defs/RoutineTaskMsg"
         },
         {
           "$ref": "#/$defs/TaskDetailMsg"
@@ -2677,6 +2681,10 @@
           ],
           "default": null
         },
+        "detail": {
+          "default": "",
+          "type": "string"
+        },
         "ended": {
           "anyOf": [
             {
@@ -2722,6 +2730,25 @@
         "id"
       ],
       "title": "RoutineRun",
+      "type": "object"
+    },
+    "RoutineTaskMsg": {
+      "additionalProperties": false,
+      "description": "\"Make it a task\": one line in the notes inbox pointing at this routine's last result.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "type": {
+          "const": "routine_task",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "id"
+      ],
+      "title": "RoutineTaskMsg",
       "type": "object"
     },
     "RoutinesEvent": {
@@ -2843,7 +2870,23 @@
     },
     "RoutinesSeenMsg": {
       "additionalProperties": false,
+      "description": "Read a result: one routine (`id`), everything (`all`), or, with neither, whatever doesn't notify.",
       "properties": {
+        "all": {
+          "default": false,
+          "type": "boolean"
+        },
+        "id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "type": {
           "const": "routines_seen",
           "type": "string"
@@ -3899,7 +3942,8 @@
             "done",
             "drop",
             "snooze",
-            "restore"
+            "restore",
+            "delete"
           ],
           "type": "string"
         },
@@ -3958,7 +4002,9 @@
             "done",
             "drop",
             "snooze",
-            "restore"
+            "restore",
+            "add",
+            "delete"
           ],
           "type": "string"
         },

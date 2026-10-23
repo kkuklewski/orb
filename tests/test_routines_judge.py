@@ -118,29 +118,19 @@ async def test_a_failing_judge_hides_and_announces_nothing(tmp_path, monkeypatch
     assert said == [] and all(x["worth"] is None for x in w.event()["items"]) and w.event()["new"] == 3
 
 
-async def test_opening_the_panel_clears_the_unread_count(tmp_path, monkeypatch):
-    said = []
-    w = watch(tmp_path, said)
-    w.state["verdicts"] = {"c1": {"read": True, "why": "alert"}}
-    assert w.event()["read"] == 1
-    await w.mark_seen()
-    assert w.event()["read"] == 0 and w.event()["items"][0]["worth"] == "read"
-
-
-async def test_the_verdicts_that_came_back_are_kept_when_one_call_fails(tmp_path, monkeypatch):
+async def test_a_glance_at_the_panel_keeps_worth_reading_results_unread(tmp_path, monkeypatch):
     w = watch(tmp_path, [])
-
-    async def flaky(prompt):
-        if 'id="c2"' in prompt:
-            raise RuntimeError("one call failed")
-        return json.dumps({re.search(r'id="(c\d)"', prompt).group(1): {"read": False, "why": "nothing"}})
-
-    monkeypatch.setattr(w, "_ask_judge", flaky)
-    try:
-        await w._judge(list(w.state["routines"].values()))
-    except RuntimeError:
-        pass
-    assert set(w.state["verdicts"]) == {"c1", "c3"}  # c2 is retried at the next check
+    monkeypatch.setitem(live.data, "routines_notify", {})
+    monkeypatch.setitem(live.data, "routines_judge", True)
+    w.state["verdicts"] = {"c1": {"read": True, "why": "alert"}, "c2": {"read": False, "why": "nothing"}}
+    assert w.event()["read"] == 1
+    await w.mark_seen()  # opening the list: clears what doesn't notify, not what does
+    ev = w.event()
+    assert ev["read"] == 1 and [x["name"] for x in ev["items"] if x["new"]] == ["Gmail cleanup"]  # "Old one" (unjudged) was cleared
+    await w.mark_seen("t1")  # "Mark read" on one routine
+    assert w.event()["read"] == 0
+    await w.mark_seen(everything=True)
+    assert w.event()["new"] == 0
 
 
 def test_the_judge_switch_and_your_override_decide_who_notifies():
@@ -216,3 +206,44 @@ async def test_with_the_judge_off_nothing_is_judged_and_every_new_result_speaks(
     assert asked == [] and w.state["verdicts"] == {}
     assert sorted(said) == ["Routine Etihad check has a result worth reading.", "Routine Gmail cleanup has a result worth reading."]  # the third is a day old
     assert w.event()["read"] == 3 and w.event()["new"] == 3
+
+
+def test_the_whole_result_is_kept_until_the_next_log_line():
+    log = ("[2026-10-23T05:55:00Z] assistant: working\n[2026-10-23T05:55:30Z] result: success is_error=false turns=4 — **Inbox summary**\n"
+           "I reviewed 16 threads.\n\n\n\n- (a) needs attention  today\n[link](https://x.test) stays\n[2026-10-23T05:56:00Z] system: done")
+    d = result_detail(log)
+    assert d.startswith("**Inbox summary**\nI reviewed 16 threads.") and "(a) needs attention today" in d and "[link](https://x.test) stays" in d
+    assert "system: done" not in d and "\n\n\n" not in d
+    assert len(result_detail("[t] result: success is_error=false — " + "x" * 9000)) == routines.DETAIL_MAX
+
+
+def test_the_task_line_carries_no_text_from_the_result():
+    x = {"name": 'Gmail [[cleanup]]\n- [ ] injected', "last": {"id": "r", "ended": NOW, "url": "https://claude.ai/code/session_1"}}
+    line = routines.task_line(x)
+    assert re.fullmatch(r'- \[ \] Look at the result of "[^\n\[\]]+" \(\d{4}-\d{2}-\d{2}\) https://claude\.ai/code/session_1', line), line
+    assert routines.task_line({"name": "n", "last": {"id": "r", "ended": NOW, "url": ""}}).endswith(")")
+
+
+async def test_old_logs_without_the_full_text_are_fetched_once_more(tmp_path, monkeypatch):
+    w = watch(tmp_path, [])
+    w.state["logs"]["c1"].pop("detail")  # kept by an older Orb
+    fetched = []
+
+    async def fake_calls(calls):
+        fetched.extend(c["session_id"] for c in calls if c.get("action") == "get_run_log")
+        if calls[0].get("action") == "list":
+            return [(calls[0], {"json": json.dumps({"data": [{"id": "t1", "name": "Gmail cleanup", "enabled": True, "cron_expression": "", "next_run_at": None}]})})]
+        if calls[0].get("action") == "list_runs":
+            return [(c, {"json": json.dumps({"data": [{"id": "c1", "created_at": "2026-10-23T05:00:00Z", "last_event_at": w.state["runs"]["t1"][0]["last_event_at"], "url": ""}]})}) for c in calls]
+        return [(c, {"summary": "[t] result: success is_error=false turns=2 \u2014 the whole result\nover two lines"}) for c in calls]
+
+    async def no_judge(shown):
+        pass
+
+    monkeypatch.setattr(w, "_calls", fake_calls)
+    monkeypatch.setattr(w, "_judge", no_judge)
+    await w._refresh()
+    assert fetched == ["c1"] and w.state["logs"]["c1"]["detail"] == "the whole result\nover two lines"
+    fetched.clear()
+    await w._refresh()
+    assert fetched == []  # now it has it: not fetched again
