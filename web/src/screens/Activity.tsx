@@ -1,14 +1,6 @@
 import { useFeatures } from "../stores/features";
-import { activityRows, dotClass, statusText, type SessionRow } from "../stores/views";
-
-// Chat isn't in the new page yet: open the session in the full app, the way its sidebar would.
-export function openInApp(row: SessionRow) {
-  try {
-    localStorage.setItem("vd-folder", row.folder.path);
-    localStorage.setItem("vd-session", row.key);
-  } catch { /* storage blocked: the app opens its last folder */ }
-  location.href = "/";
-}
+import { openFolder } from "../stores/session";
+import { activityRows, dotClass, statusText } from "../stores/views";
 
 const time = (ts?: number | null) => (ts ? new Date(ts * 1000).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "--:--");
 
@@ -23,7 +15,7 @@ export function Activity() {
           <div className="side-hint">Nothing running. Sessions that work in the background, wait for an approval or finish while you're elsewhere show up here.</div>
         )}
         {rows.map((x) => (
-          <button type="button" key={x.key} className={`act-row ${x.status}`} onClick={() => openInApp(x)}>
+          <button type="button" key={x.key} className={`act-row ${x.status}`} onClick={() => openFolder(x.folder.path, x.key)}>
             <span className="act-time mono">{time(x.last_used)}</span>
             <span className={dotClass(x.status, x.live)} />
             <span className="act-folder">{x.folder.label.split("/").pop()}</span>

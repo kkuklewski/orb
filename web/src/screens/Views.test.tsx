@@ -28,16 +28,11 @@ describe("Activity", () => {
     expect(screen.getByText(/Nothing running/)).toBeTruthy();
   });
 
-  it("lists sessions and opens one in the full app", () => {
+  it("lists sessions and opens one here", () => {
     useFeatures.setState({ folders: [folder("web", [session("w1", "approval", { label: "fix login" })])] });
-    const assign = vi.fn();
-    vi.stubGlobal("location", { ...location, set href(v: string) { assign(v); } });
     render(<Activity />);
     fireEvent.click(screen.getByRole("button", { name: /fix login/ }));
-    expect(localStorage.getItem("vd-folder")).toBe("/Users/a/code/web");
-    expect(localStorage.getItem("vd-session")).toBe("w1");
-    expect(assign).toHaveBeenCalledWith("/");
-    vi.unstubAllGlobals();
+    expect(sent).toContainEqual({ type: "open_folder", path: "/Users/a/code/web", session: "w1" });
   });
 });
 

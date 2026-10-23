@@ -7,6 +7,7 @@ import { send } from "../ws";
 import { useFeatures } from "./features";
 import { useViews } from "./views";
 import { markSent } from "../voice/clock";
+import { parseRoute } from "./route";
 
 export type PickerMode = "new" | "pin";
 
@@ -74,8 +75,14 @@ export function wireSession(): () => void {
       const cur = useSession.getState().session;
       if (!ev.replay && (!ev.session || ev.session === cur) && useViews.getState().view === "home") useViews.setState({ view: "chat" });
     }),
-    on("hello", (ev) => { // reopen where you were, so voice and chat are ready, but start on Home
+    on("hello", (ev) => {
       if (!ev.onboarded) return;
+      // The address names a session (a link, a reload): open it. Else reopen where you were,
+      // quietly, so voice and chat are ready, but start on Home (or the view the address names).
+      const asked = parseRoute(location.pathname);
+      const target = asked.session ? ev.folders.find((f) => (f.sessions ?? []).some((x) => x.key === asked.session)) : undefined;
+      if (target) { openFolder(target.path, asked.session!); return; }
+      useViews.setState({ view: asked.view === "chat" ? "home" : asked.view });
       const last = local.get("vd-folder", "");
       if (last && ev.folders.some((f) => f.path === last)) {
         useSession.setState({ quiet: true });

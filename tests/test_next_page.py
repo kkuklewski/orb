@@ -11,6 +11,12 @@ def test_next_serves_the_built_react_page_without_cdn():
     assert "cdn.jsdelivr.net" not in policy and "script-src 'self' 'wasm-unsafe-eval'" in policy
 
 
+@pytest.mark.parametrize("route", ["/next/s/abc123", "/next/settings", "/next/routines"])
+def test_next_routes_get_the_same_page(route):
+    r = TestClient(server.app).get(route)
+    assert r.status_code == 200 and '<div id="root"></div>' in r.text and "cdn.jsdelivr.net" not in r.headers["content-security-policy"]
+
+
 def test_old_page_keeps_its_cdn_policy():
     assert "cdn.jsdelivr.net" in TestClient(server.app).get("/").headers["content-security-policy"]
 

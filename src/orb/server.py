@@ -291,8 +291,10 @@ async def index(request: Request):
 
 
 @app.get("/next")
-async def next_page(request: Request):
-    """The React page (web/, built into static/app), served beside the old one while it grows."""
+@app.get("/next/{route:path}")
+async def next_page(request: Request, route: str = ""):
+    """The React page (web/, built into static/app), served beside the old one while it grows. Its own
+    routes (/next/s/<session>, /next/settings, …) all get the same page; the page reads the path."""
     page = STATIC / "app" / "index.html"
     if not page.is_file():
         return PlainTextResponse("The new page isn't built. Run: cd web && npm ci && npm run build", status_code=404)

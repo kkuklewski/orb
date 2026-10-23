@@ -14,6 +14,7 @@ import { Picker } from "./screens/Picker";
 import { Composer } from "./screens/Composer";
 import { Home } from "./screens/Home";
 import { wireHome } from "./stores/home";
+import { wireRoute } from "./stores/route";
 import { McpPanel, TopBar } from "./screens/TopBar";
 import { DockState, VoicePill } from "./screens/Voice";
 import { wireMeta } from "./stores/meta";
@@ -35,7 +36,7 @@ export { openSetup };
 
 export function App() {
   useEffect(() => {
-    const offs = [wireFeatures(), wireSetup(), wireViews(), wireSession(), wireChat(), wireMeta(), wireVoice(), wireHome()];
+    const offs = [wireFeatures(), wireSetup(), wireViews(), wireSession(), wireChat(), wireMeta(), wireVoice(), wireHome(), wireRoute()];
     const stop = start();
     return () => { stop(); offs.forEach((off) => off()); };
   }, []);
