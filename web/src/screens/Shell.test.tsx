@@ -219,4 +219,13 @@ describe("chats view", () => {
     fireEvent.change(screen.getByLabelText("Search chats"), { target: { value: "zzz" } });
     expect(screen.getByText("Nothing found.")).toBeTruthy();
   });
+
+  it("keeps one row per label per repo, with a count", () => {
+    const same = (k: string, t: number) => session(k, "idle", { label: "What's on my plate today?", last_used: t });
+    useFeatures.setState({ folders: [folder("brain", [same("b1", 30), same("b2", 20), same("b3", 10), session("b4", "idle", { label: "other", last_used: 5 })])] });
+    render(<Chats />);
+    expect(screen.getAllByRole("button", { name: /plate today/ })).toHaveLength(1);
+    expect(screen.getByText("×3")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /other/ })).toBeTruthy();
+  });
 });

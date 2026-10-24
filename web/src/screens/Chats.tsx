@@ -8,7 +8,7 @@ export function Chats() {
   const folders = useFeatures((s) => s.folders);
   const current = useSession((s) => s.session);
   const [q, setQ] = useState("");
-  const groups = chatGroups(allSessions(folders, current), q);
+  const groups = chatGroups(allSessions(folders, current), q, current);
   return (
     <div className="view-col">
       <div className="view-head"><h2>Chats</h2><span className="mono view-sub">all conversations, by repo</span></div>
@@ -24,7 +24,7 @@ export function Chats() {
             <button type="button" key={x.key} className={`act-row chats-row ${x.status}`} onClick={() => openFolder(g.folder.path, x.key)}>
               <span className="act-time mono">{rel(x.last_used) || "--"}</span>
               <span className={dotClass(x.status, x.live)} />
-              <span className="act-label chats-label">{x.label || "New session"}</span>
+              <span className="act-label chats-label">{x.label || "New session"}{x.count > 1 && <span className="chats-count mono" title={`${x.count} chats with this request`}>×{x.count}</span>}</span>
               <span className="act-status mono">{x.status === "idle" ? (x.live ? "open" : "") : statusText(x)}</span>
             </button>
           ))}
