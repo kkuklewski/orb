@@ -19,7 +19,6 @@ const highlighter = () => (hljs ??= import("highlight.js/lib/common").then((m) =
 // style="" attributes are re-applied through .style; the SVG is inline, so its labels can be selected and copied.
 let mermaid: Promise<typeof import("mermaid").default> | null = null;
 const diagrams = new Map<string, SVGElement>();  // source + theme -> drawn SVG (cloned per use)
-let diagramSeq = 0;
 // A fence tagged mermaid, or (models forget the tag) an untagged one that opens with a diagram keyword.
 const DIAGRAM_START = /^\s*(flowchart|graph|sequenceDiagram|stateDiagram(-v2)?|erDiagram|classDiagram|gantt|pie|mindmap|timeline|journey|gitGraph)\b/;
 const isDiagram = (code: Element | null) => !!code && (code.classList.contains("language-mermaid") || (!/language-/.test(code.className) && DIAGRAM_START.test(code.textContent ?? "")));
@@ -66,7 +65,7 @@ async function drawDiagram(src: string): Promise<SVGElement> {
     fontFamily: DIAGRAM_FONT, flowchart: { htmlLabels: false, useMaxWidth: false, padding: 14, nodeSpacing: 40, rankSpacing: 50 },
     sequence: { useMaxWidth: false }, er: { useMaxWidth: false }, state: { useMaxWidth: false }, gantt: { useMaxWidth: false }, secure: SECURE });
   if (hasConfig(src)) throw new Error("diagram directives and frontmatter are not allowed");
-  const id = `orb-dg-${diagramSeq++}`;
+  const id = `orb-dg-${crypto.randomUUID()}`;  // unguessable: sanitized markdown can't carry a matching id
   let svg: string;
   try {
     await m.parse(src);  // throws on half-written or invalid source, before anything is drawn
