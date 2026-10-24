@@ -38,8 +38,10 @@ class _Event(_Msg):
 class SessionItem(_Msg):
     key: str
     label: str | None = None
+    created: float | None = None
     last_used: float | None = None
     empty: bool
+    archived: bool = False
     status: str
     live: bool
     mcp_failed: int = 0
@@ -640,6 +642,19 @@ class NewSessionMsg(_Msg):
     type: Literal["new_session"]
 
 
+class ArchiveSessionMsg(_Msg):
+    type: Literal["archive_session"]
+    folder: str
+    key: str
+    archived: bool = True
+
+
+class RemoveSessionMsg(_Msg):
+    type: Literal["remove_session"]
+    folder: str
+    key: str
+
+
 class UserTextMsg(_Msg):
     type: Literal["user_text"]
     text: str
@@ -757,7 +772,7 @@ class SetModelMsg(_Msg):
 ClientMessage = Annotated[Union[
     SetupStatusMsg, BrowseMsg, PickFolderMsg, OpenFolderMsg, AddFolderMsg, StartSessionMsg, PinFolderMsg,
     GetSettingsMsg, SetSettingsMsg, VoiceSampleMsg, RescanMsg, RoutinesMsg, RoutinesSeenMsg, MuteMsg,
-    NewSessionMsg, UserTextMsg, SpeechStartMsg, BargeInMsg, SpeechCancelledMsg, UtteranceMsg, VoiceTextMsg,
+    NewSessionMsg, ArchiveSessionMsg, RemoveSessionMsg, UserTextMsg, SpeechStartMsg, BargeInMsg, SpeechCancelledMsg, UtteranceMsg, VoiceTextMsg,
     HomeMsg, ScreenMsg, RoutineTaskMsg, TaskDetailMsg, TaskActionMsg, InterruptMsg, PlaybackMsg, PermissionMsg, ReadAllMsg, DictateNoteMsg, UndoRequestMsg, UndoConfirmMsg,
     McpStatusMsg, McpReconnectMsg, SetModeMsg, SetModelMsg,
 ], Field(discriminator="type")]

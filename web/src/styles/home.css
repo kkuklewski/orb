@@ -96,9 +96,9 @@
 .task-where .hand.first b { display: flex; align-items: center; gap: 10px; }
 .task-where .tag { font-size: 9.5px; letter-spacing: .14em; color: var(--s-acc-txt, var(--warn)); }
 .task-cols { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: 24px; padding-top: 30px; align-items: start; }
-.task-excerpt { border-top: 1px solid var(--line-soft); background: var(--code-bg); padding: 12px 0; font-size: 12.5px; line-height: 1.7; color: var(--text-2); }
-.ex-line { padding: 0 20px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
-.ex-n { display: inline-block; width: 44px; padding-right: 14px; text-align: right; color: var(--text-3); }
+.task-excerpt { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; border-top: 1px solid var(--line-soft); background: var(--code-bg); padding: 12px 0; font-size: 12.5px; line-height: 1.7; color: var(--text-2); }
+.ex-line { display: grid; grid-template-columns: 58px 1fr; padding: 0 20px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ex-n { padding-right: 14px; text-align: right; color: var(--text-3); }
 .ex-line.hit { color: var(--text); background: color-mix(in srgb, var(--s-acc, #FE5B2A) 9%, transparent); box-shadow: inset 3px 0 0 var(--s-acc, #FE5B2A); }
 .hand { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center; width: 100%; padding: 14px 20px; border: 0; border-top: 1px solid var(--line-soft); background: none; color: var(--text); text-align: left; font: 14.5px var(--sans); cursor: pointer; }
 .hand:hover { background: var(--bg); }

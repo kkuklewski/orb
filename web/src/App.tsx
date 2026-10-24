@@ -26,8 +26,7 @@ import { wireVoice } from "./voice/controller";
 import { ChatLog } from "./screens/chat/Chat";
 import { useChat, wireChat } from "./stores/chat";
 
-// The whole app: shell, chat, voice, setup, Activity, Routines and Settings. It runs at /next until
-// step 7 makes it the page at / (docs/react-migration.md).
+// The whole app: shell, chat, voice, setup, Activity, Routines and Settings. It is the page at / (the old one is at /old; docs/react-migration.md).
 const LABEL: Record<Connection, string> = {
   connecting: "Connecting…",
   online: "Online",

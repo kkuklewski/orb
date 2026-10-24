@@ -1,4 +1,7 @@
 import { useEffect, useState } from "react";
+import { useChat } from "../stores/chat";
+import { taskText } from "../stores/screen";
+import { ItemView } from "./chat/Chat";
 import { useFeatures } from "../stores/features";
 import { useViews } from "../stores/views";
 import { askIn, folderName, openPicker, suggestRepos, useSession } from "../stores/session";
@@ -25,6 +28,12 @@ export function TaskScreen() {
   const folders = useFeatures((s) => s.folders);
   useEffect(() => { if (!loaded) refreshHome(); }, [loaded]); // opened from a link: the list for ↑ ↓ and "next"
 
+  const items = useChat((c) => c.items);
+  const busy = useSession((c) => c.busy);
+  useEffect(() => { // new words: bring them into view
+    if (items.length) document.querySelector(".task-thread")?.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
+  }, [items.length]);
+
   const i = tasks.findIndex((x) => sameTask(x, task));
   const prev = i > 0 ? tasks[i - 1] : null;
   const next = i >= 0 && i < tasks.length - 1 ? tasks[i + 1] : null;
@@ -41,11 +50,20 @@ export function TaskScreen() {
   }, [prev, next, detail]);
 
   if (!task) return null;
+  let from = -1; // the conversation about this task: your messages asked on a Task screen, back to the first
+  for (let n = items.length - 1; n >= 0; n--) {
+    const it = items[n];
+    if (it.kind !== "user") continue;
+    if (it.screen !== "Task") break;
+    from = n;
+  }
+  const thread = from >= 0 ? items.slice(from) : [];
   const open = !!detail && /^\s*[-*+] \[ \]/.test(detail.raw);
   const state = !detail ? "" : open ? (detail.raw.includes("⏳") ? "SNOOZED" : "OPEN") : detail.raw.match(/\[x\]/i) ? "DONE" : "CLOSED";
   const text = detail ? plain(detail.raw) : tasks[i]?.text ?? "";
   const where = `${task.file}:${task.line}`;
-  const ask = (prompt: string) => vault && askIn(vault, prompt);
+  // The answer shows right here under the task (the page stays), like a routine's result.
+  const ask = (prompt: string) => vault && askIn(vault, prompt, detail ? { name: "Task", text: taskText(detail, vault) } : null, true);
   const repoAsk = `Help me with this task from my notes (${where}): ${text}. Look at this repo first, then propose how to do it here and what you need from me.`;
   const inRepo = () => { useSession.setState({ pendingAsk: repoAsk }); openPicker("new"); };
   const hint = detail ? `${text} ${detail.heading} ${detail.title}` : text;
@@ -146,6 +164,20 @@ export function TaskScreen() {
             </button>
           </article>
         </section>
+
+        {thread.length > 0 && (
+          <article className="hc task-thread" aria-label="Ask Claude about this task">
+            <div className="hc-head">
+              <div className="hc-label mono">ASK CLAUDE</div>
+              <h2>About this task</h2>
+            </div>
+            <div className="column">
+              {thread.map((it, n) => <ItemView key={it.key} it={it} last={n === thread.length - 1} />)}
+              {busy && <div className="turn-end mono">working…</div>}
+            </div>
+            <div className="hc-foot mono"><span>in a notes session</span><button type="button" onClick={() => useViews.setState({ view: "chat" })}>Open in chat →</button></div>
+          </article>
+        )}
       </div>
     </section>
   );

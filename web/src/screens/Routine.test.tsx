@@ -132,8 +132,8 @@ describe("routine result screen", () => {
   });
 
   it("opens by address", () => {
-    expect(parseRoute("/next/r/trig_01AB")).toEqual({ view: "routine", session: null, routine: "trig_01AB" });
-    expect(routePath({ view: "routine", session: null, routine: "trig_01AB" })).toBe("/next/r/trig_01AB");
+    expect(parseRoute("/r/trig_01AB")).toEqual({ view: "routine", session: null, routine: "trig_01AB" });
+    expect(routePath({ view: "routine", session: null, routine: "trig_01AB" })).toBe("/r/trig_01AB");
     expect(routineText(gmail())).toContain("urgent alert sent");
   });
 });

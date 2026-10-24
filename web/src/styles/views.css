@@ -98,6 +98,6 @@
 .routine-result { margin-top: 30px; }
 .routine-text { margin: 0; padding: 16px 20px; border-top: 1px solid var(--line-soft); background: var(--code-bg); font: 13px/1.65 var(--mono); color: var(--text-2); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 560px; overflow: auto; }
 a.hbtn { text-decoration: none; }
-.routine-thread { margin-top: 24px; }
-.routine-thread .column { padding: 8px 20px 16px; max-width: none; border-top: 1px solid var(--line-soft); }
-.routine-thread .msg-user { margin: 12px 0 8px; }
+.routine-thread, .task-thread { margin-top: 24px; }
+.routine-thread .column, .task-thread .column { padding: 8px 20px 16px; max-width: none; border-top: 1px solid var(--line-soft); }
+.routine-thread .msg-user, .task-thread .msg-user { margin: 12px 0 8px; }

@@ -1,5 +1,5 @@
-// The address bar follows the page: /next is Home, /next/s/<session> a conversation, /next/t/<note>/<line>
-// a task from the notes, /next/r/<routine> a routine's result, and /next/activity, /next/routines, /next/settings the views. Back / Forward
+// The address bar follows the page: / is Home, /s/<session> a conversation, /t/<note>/<line>
+// a task from the notes, /r/<routine> a routine's result, and /activity, /routines, /settings the views. Back / Forward
 // and links work, and a reload comes back to the same place.
 import type { FolderItem } from "../protocol.gen";
 import { useFeatures } from "./features";
@@ -9,13 +9,13 @@ import { openTask, sameTask, useTasks, type TaskRef } from "./tasks";
 import { openRoutine, useRoutineScreen } from "./routine";
 import { on } from "../events";
 
-const BASE = "/next";
+const BASE = "";
 const VIEWS: View[] = ["activity", "routines", "settings"];
 
 export interface Route { view: View; session: string | null; task?: TaskRef | null; routine?: string | null }
 
 export function parseRoute(pathname: string): Route {
-  const rest = pathname.startsWith(BASE) ? pathname.slice(BASE.length).replace(/^\/+|\/+$/g, "") : "";
+  const rest = pathname.replace(/^\/+|\/+$/g, "");
   const m = rest.match(/^s\/([^/]+)$/);
   if (m) return { view: "chat", session: decodeURIComponent(m[1]) };
   const t = rest.match(/^t\/([^/]+)\/(\d+)$/);
@@ -27,10 +27,10 @@ export function parseRoute(pathname: string): Route {
 }
 
 export function routePath(r: Route): string {
-  if (r.view === "home") return BASE;
+  if (r.view === "home") return "/";
   if (r.view === "chat") return r.session ? `${BASE}/s/${encodeURIComponent(r.session)}` : `${BASE}/chat`;
   if (r.view === "routine") return r.routine ? `${BASE}/r/${encodeURIComponent(r.routine)}` : `${BASE}/routines`;
-  if (r.view === "task") return r.task ? `${BASE}/t/${encodeURIComponent(r.task.file)}/${r.task.line}` : BASE;
+  if (r.view === "task") return r.task ? `${BASE}/t/${encodeURIComponent(r.task.file)}/${r.task.line}` : "/";
   return `${BASE}/${r.view}`;
 }
 

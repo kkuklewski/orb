@@ -41,7 +41,7 @@ describe("sidebar", () => {
     expect(within(repos).getByRole("button", { name: /web/ })).toBeTruthy();
     expect(within(repos).queryByRole("button", { name: /^api/ })).toBeNull();
     const recents = screen.getByRole("region", { name: "Recents" });
-    expect(within(recents).getAllByRole("button").map((b) => b.textContent)).toEqual(["add testsapi", "fix loginweb", "notesweb"]);
+    expect(within(recents).getAllByRole("button", { name: (_n, el) => el.classList.contains("session") }).map((b) => b.textContent)).toEqual(["add testsapi", "fix loginweb", "notesweb"]);
     expect(screen.getByText("1 waiting")).toBeTruthy();
     expect(screen.getByText("Claude")).toBeTruthy();
   });

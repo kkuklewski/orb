@@ -20,6 +20,8 @@ export type ClientMessage =
   | RoutinesSeenMsg
   | MuteMsg
   | NewSessionMsg
+  | ArchiveSessionMsg
+  | RemoveSessionMsg
   | UserTextMsg
   | SpeechStartMsg
   | BargeInMsg
@@ -218,6 +220,25 @@ export interface MuteMsg {
  */
 export interface NewSessionMsg {
   type: "new_session";
+}
+/**
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "ArchiveSessionMsg".
+ */
+export interface ArchiveSessionMsg {
+  archived?: boolean;
+  folder: string;
+  key: string;
+  type: "archive_session";
+}
+/**
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "RemoveSessionMsg".
+ */
+export interface RemoveSessionMsg {
+  folder: string;
+  key: string;
+  type: "remove_session";
 }
 /**
  * This interface was referenced by `OrbProtocol`'s JSON-Schema
@@ -458,6 +479,8 @@ export interface FolderItem {
  * via the `definition` "SessionItem".
  */
 export interface SessionItem {
+  archived?: boolean;
+  created?: number | null;
   empty: boolean;
   key: string;
   label?: string | null;

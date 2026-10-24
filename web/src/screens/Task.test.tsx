@@ -142,8 +142,8 @@ describe("task helpers", () => {
     const mon = new Date(2026, 9, 26, 9);
     expect(snoozeDays(mon)[1].date).toBe("2026-11-02");
   });
-  it("routes: /next/t/<note>/<line>", () => {
-    expect(parseRoute("/next/t/inbox%2Fg7.md/6")).toEqual({ view: "task", session: null, task: { file: "inbox/g7.md", line: 6 } });
-    expect(routePath({ view: "task", session: null, task: { file: "inbox/g7.md", line: 6 } })).toBe("/next/t/inbox%2Fg7.md/6");
+  it("routes: /t/<note>/<line>", () => {
+    expect(parseRoute("/t/inbox%2Fg7.md/6")).toEqual({ view: "task", session: null, task: { file: "inbox/g7.md", line: 6 } });
+    expect(routePath({ view: "task", session: null, task: { file: "inbox/g7.md", line: 6 } })).toBe("/t/inbox%2Fg7.md/6");
   });
 });

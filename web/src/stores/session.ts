@@ -174,11 +174,26 @@ export type Row = SessionItem & { folder: FolderItem };
 
 export const folderName = (f: { label: string }) => f.label.split("/").pop() || f.label;
 
-/** Every session, newest first; never-used ones only when on screen. */
+/** Every session, last request first (opening one doesn't reorder); never-used ones only when on screen. */
 export function allSessions(folders: FolderItem[], current: string | null): Row[] {
   const out: Row[] = [];
-  for (const f of folders) for (const s of f.sessions ?? []) if (!s.empty || s.key === current) out.push({ ...s, folder: f });
+  for (const f of folders) for (const s of f.sessions ?? []) if (!s.archived && (!s.empty || s.key === current)) out.push({ ...s, folder: f });
   return out.sort((a, b) => (b.last_used ?? 0) - (a.last_used ?? 0));
+}
+
+/** Archived sessions across repos, last request first. */
+export function archivedSessions(folders: FolderItem[]): Row[] {
+  const out: Row[] = [];
+  for (const f of folders) for (const s of f.sessions ?? []) if (s.archived) out.push({ ...s, folder: f });
+  return out.sort((a, b) => (b.last_used ?? 0) - (a.last_used ?? 0));
+}
+
+export function archiveSession(folder: string, key: string, archived = true) {
+  send({ type: "archive_session", folder, key, archived });
+}
+
+export function removeSession(folder: string, key: string) {
+  send({ type: "remove_session", folder, key });
 }
 
 export function pinnedFolders(folders: FolderItem[]): FolderItem[] {
@@ -186,7 +201,7 @@ export function pinnedFolders(folders: FolderItem[]): FolderItem[] {
 }
 
 export function folderSessions(f: FolderItem, current: string | null, limit = 8): Row[] {
-  return (f.sessions ?? []).filter((s) => !s.empty || s.key === current).slice(0, limit).map((s) => ({ ...s, folder: f }));
+  return (f.sessions ?? []).filter((s) => !s.archived && (!s.empty || s.key === current)).slice(0, limit).map((s) => ({ ...s, folder: f }));
 }
 
 /** Sidebar search: session titles and folder names, then folders by name or path. */

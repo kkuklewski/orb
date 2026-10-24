@@ -14,8 +14,8 @@ cd web && npm run dev       # React page with live reload (server: ORB_DEV_ORIGI
 cd web && npm run build     # builds into src/orb/static/app; commit the result (CI fails if it's stale)
 ```
 
-The page is moving to React + TypeScript + Vite (`web/`, served at `/next`), screen by screen: see
-`docs/react-migration.md`. Until step 7 the old page (`static/app.js`) is still the one at `/`.
+The page is moving to React + TypeScript + Vite (`web/`, served at `/`; the old page is at `/old`), screen by screen: see
+`docs/react-migration.md`. The old page (`static/app.js`) is kept at `/old` until it can be deleted.
 
 Python 3.14 via `uv` (`.python-version` pins the patch). Front end is plain HTML/CSS/JS in
 `src/orb/static/`, no build step. Tests run against a throwaway state folder (`tests/conftest.py`).

@@ -1,8 +1,8 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useFeatures } from "../stores/features";
 import { activityRows, dotClass, useViews, type View } from "../stores/views";
 import {
-  allSessions, folderName, folderSessions, openFolder, openPicker, pinFolder, pinnedFolders, rel, search, startSession,
+  allSessions, archiveSession, archivedSessions, folderName, folderSessions, openFolder, openPicker, pinFolder, pinnedFolders, rel, removeSession, search, startSession,
   toggleProject, useSession, type Row,
 } from "../stores/session";
 
@@ -23,17 +23,61 @@ const ICONS = {
 
 const STATUS: Record<string, string> = { approval: "needs approval", working: "working", done: "done since you looked" };
 
+const SvgIc = ({ d }: { d: ReactNode }) => (
+  <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{d}</svg>
+);
+
 function SessionRow({ x, showFolder }: { x: Row; showFolder?: boolean }) {
   const current = useSession((s) => s.session);
+  const [sure, setSure] = useState(false);
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  const [menuSure, setMenuSure] = useState(false);
   const label = x.label || "New session";
+  useEffect(() => {
+    if (!menu) return;
+    const close = () => { setMenu(null); setMenuSure(false); };
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") close(); };
+    window.addEventListener("click", close);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("keydown", esc);
+    return () => { window.removeEventListener("click", close); window.removeEventListener("scroll", close, true); window.removeEventListener("keydown", esc); };
+  }, [menu]);
   return (
-    <button type="button" className={"session" + (x.key === current ? " active" : "") + (x.status === "done" ? " unseen" : "")}
-      title={`${label} · ${x.folder.label}${STATUS[x.status] ? " · " + STATUS[x.status] : ""}`}
-      onClick={() => openFolder(x.folder.path, x.key)}>
-      <span className={dotClass(x.status, x.live)} />
-      <span className="slabel">{label}</span>
-      <span className={showFolder ? "sfolder" : "when"}>{showFolder ? folderName(x.folder) : rel(x.last_used)}</span>
-    </button>
+    <div className={"session-wrap" + (sure ? " sure" : "")} onMouseLeave={() => setSure(false)}
+      onContextMenu={(e) => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY }); }}>
+      {menu && (
+        <div className="ctx-menu" role="menu" style={{ left: menu.x, top: menu.y }} onClick={(e) => e.stopPropagation()}>
+          <button type="button" role="menuitem" onClick={() => { archiveSession(x.folder.path, x.key, !x.archived); setMenu(null); }}>{x.archived ? "Restore" : "Archive"}</button>
+          <button type="button" role="menuitem" className="danger"
+            onClick={() => { if (menuSure) { removeSession(x.folder.path, x.key); setMenu(null); } else setMenuSure(true); }}>{menuSure ? "Click again to remove" : "Remove"}</button>
+        </div>
+      )}
+      <button type="button" className={"session" + (x.key === current ? " active" : "") + (x.status === "done" ? " unseen" : "")}
+        title={`${label} · ${x.folder.label}${STATUS[x.status] ? " · " + STATUS[x.status] : ""}`}
+        onClick={() => openFolder(x.folder.path, x.key)}>
+        <span className={dotClass(x.status, x.live)} />
+        <span className="slabel">{label}</span>
+        <span className={showFolder ? "sfolder" : "when"}>{showFolder ? folderName(x.folder) : rel(x.last_used)}</span>
+      </button>
+      <span className="row-actions">
+        {x.archived ? (
+          <button type="button" className="row-btn" title="Restore" aria-label="Restore session" onClick={() => archiveSession(x.folder.path, x.key, false)}>
+            <SvgIc d={<><path d="M9 14 4 9l5-5" /><path d="M4 9h11a5 5 0 0 1 0 10h-3" /></>} />
+          </button>
+        ) : (
+          <button type="button" className="row-btn" title="Archive" aria-label="Archive session" onClick={() => archiveSession(x.folder.path, x.key)}>
+            <SvgIc d={<><rect x="3" y="4" width="18" height="4" rx="1" /><path d="M5 8v11h14V8M10 12h4" /></>} />
+          </button>
+        )}
+        {sure ? (
+          <button type="button" className="row-btn danger" aria-label="Confirm remove" onClick={() => removeSession(x.folder.path, x.key)}>Remove?</button>
+        ) : (
+          <button type="button" className="row-btn" title="Remove" aria-label="Remove session" onClick={() => setSure(true)}>
+            <SvgIc d={<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" />} />
+          </button>
+        )}
+      </span>
+    </div>
   );
 }
 
@@ -54,6 +98,8 @@ export function Sidebar() {
   const waiting = busy.filter((x) => x.status === "approval").length;
   const found = search(folders, q, session);
   const recent = allSessions(folders, session).slice(0, 14);
+  const archived = archivedSessions(folders);
+  const [showArchived, setShowArchived] = useState(false);
   const pinned = pinnedFolders(folders);
 
   return (
@@ -135,6 +181,14 @@ export function Sidebar() {
           {!recent.length && <div className="side-hint">Your conversations show up here.</div>}
           {recent.map((x) => <SessionRow key={x.key} x={x} showFolder />)}
         </section>
+        {archived.length > 0 && (
+          <section className="side-section" aria-label="Archived">
+            <button type="button" className="sec-head sec-toggle" aria-expanded={showArchived} onClick={() => setShowArchived(!showArchived)}>
+              <span>Archived · {archived.length}</span><span className={"chev" + (showArchived ? " open" : "")}>›</span>
+            </button>
+            {showArchived && archived.map((x) => <SessionRow key={x.key} x={x} showFolder />)}
+          </section>
+        )}
       </div>
       <div className="side-foot">
         <span className="avatar">C</span>

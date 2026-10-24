@@ -110,12 +110,37 @@ class SessionStore:
         """Make key (or the active / most recent session, or a new one) active; return it."""
         entry = self._folder(folder)
         if key not in entry["sessions"]:
-            key = self.active(folder) or next((s["key"] for s in self.sessions(folder)), None)
+            key = self.active(folder) or next((s["key"] for s in self.sessions(folder) if not s.get("archived")), None)
         if key is None:
             return self.new_session(folder)
-        entry["active"] = key
-        self.touch(folder, key)
+        entry["active"] = key  # opening is not use: Recents order moves only when a request is sent
+        self._save()
         return key
+
+    def set_archived(self, folder: str, key: str, archived: bool) -> bool:
+        """Hide a session from the lists (or bring it back). Its transcript is untouched."""
+        s = self._folder(folder)["sessions"].get(key)
+        if s is None:
+            return False
+        if archived:
+            s["archived"] = True
+            entry = self.data[folder]
+            if entry.get("active") == key:
+                entry.pop("active", None)
+        else:
+            s.pop("archived", None)
+        self._save()
+        return True
+
+    def remove(self, folder: str, key: str) -> bool:
+        """Forget a session in Orb. Claude Code's own transcript file is left alone."""
+        entry = self._folder(folder)
+        if entry["sessions"].pop(key, None) is None:
+            return False
+        if entry.get("active") == key:
+            entry.pop("active", None)
+        self._save()
+        return True
 
     def touch(self, folder: str, key: str) -> None:
         now = time.time()

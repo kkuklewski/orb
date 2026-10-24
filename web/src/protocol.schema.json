@@ -18,6 +18,32 @@
       "title": "AddFolderMsg",
       "type": "object"
     },
+    "ArchiveSessionMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "archived": {
+          "default": true,
+          "type": "boolean"
+        },
+        "folder": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string"
+        },
+        "type": {
+          "const": "archive_session",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "folder",
+        "key"
+      ],
+      "title": "ArchiveSessionMsg",
+      "type": "object"
+    },
     "AudioEvent": {
       "additionalProperties": false,
       "properties": {
@@ -397,6 +423,7 @@
       "discriminator": {
         "mapping": {
           "add_folder": "#/$defs/AddFolderMsg",
+          "archive_session": "#/$defs/ArchiveSessionMsg",
           "barge_in": "#/$defs/BargeInMsg",
           "browse": "#/$defs/BrowseMsg",
           "dictate_note": "#/$defs/DictateNoteMsg",
@@ -413,6 +440,7 @@
           "pin_folder": "#/$defs/PinFolderMsg",
           "playback": "#/$defs/PlaybackMsg",
           "read_all": "#/$defs/ReadAllMsg",
+          "remove_session": "#/$defs/RemoveSessionMsg",
           "rescan": "#/$defs/RescanMsg",
           "routine_task": "#/$defs/RoutineTaskMsg",
           "routines": "#/$defs/RoutinesMsg",
@@ -481,6 +509,12 @@
         },
         {
           "$ref": "#/$defs/NewSessionMsg"
+        },
+        {
+          "$ref": "#/$defs/ArchiveSessionMsg"
+        },
+        {
+          "$ref": "#/$defs/RemoveSessionMsg"
         },
         {
           "$ref": "#/$defs/UserTextMsg"
@@ -2405,6 +2439,28 @@
       "title": "ReadAllMsg",
       "type": "object"
     },
+    "RemoveSessionMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "folder": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string"
+        },
+        "type": {
+          "const": "remove_session",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "folder",
+        "key"
+      ],
+      "title": "RemoveSessionMsg",
+      "type": "object"
+    },
     "RescanMsg": {
       "additionalProperties": false,
       "properties": {
@@ -3409,6 +3465,21 @@
     "SessionItem": {
       "additionalProperties": false,
       "properties": {
+        "archived": {
+          "default": false,
+          "type": "boolean"
+        },
+        "created": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "empty": {
           "type": "boolean"
         },

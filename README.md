@@ -96,7 +96,7 @@ scripts/check-public.sh          # no private names before a push
 ```
 
 The page is moving to React + TypeScript + Vite in `web/` ([plan](docs/react-migration.md)); the new
-page is at `/next`. To work on it (Node 22.12+):
+page is now the one at `/` (the old one stays at `/old`; `/next/...` links redirect). To work on it (Node 22.12+):
 
 ```sh
 ORB_DEV_ORIGIN=http://localhost:5173 uv run orb     # the server, accepting the dev page

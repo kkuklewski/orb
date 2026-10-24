@@ -15,7 +15,7 @@ from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from starlette.websockets import WebSocketDisconnected
 import hashlib
 
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import billing, chain, config, folders, handoff, home, routines, settings, setup, slash, speech, tasks, vendor, vocab
@@ -124,7 +124,8 @@ class Hub:
         out = []
         for e in self.store.sessions(path):
             live = self.sessions.get(e["key"])
-            out.append({"key": e["key"], "label": e.get("label"), "last_used": e.get("last_used"),
+            out.append({"key": e["key"], "label": e.get("label"), "created": e.get("created"), "last_used": e.get("last_used"),
+                        "archived": bool(e.get("archived")),
                         "empty": not e.get("resume") and not (live and (live.busy or live.history)),
                         "status": live.status if live else "idle", "live": bool(live and live.live),
                         "mcp_failed": live.info.get("mcp_failed", 0) if live else 0,
@@ -165,12 +166,11 @@ class Hub:
                 viewed=lambda k=key: any(c.key == k for c in self.conns),
                 notify=self.notify,
                 guard=self.guard,
-            )
                 handoff=self.handoff,
+            )
             self.sessions[key] = s
         return s
 
-    def folder_sessions(self, path: str) -> list[FolderSession]:
     async def handoff(self, src: FolderSession, repo: str, brief: str) -> str:
         """`continue_in_repo`: a new session in another repo that starts on `brief`; pages showing the
         asking session follow it (it keeps running in the background)."""
@@ -194,6 +194,7 @@ class Hub:
         return (f"Started a new session in {self.label(str(p))} with your brief; the user's page moved there. "
                 "Say one short line that you handed it over, and stop.")
 
+    def folder_sessions(self, path: str) -> list[FolderSession]:
         return [s for s in self.sessions.values() if s.path == path]
 
     async def broadcast(self, key: str, ev: dict) -> None:
@@ -287,7 +288,7 @@ CDN = "https://cdn.jsdelivr.net"
 
 
 def csp(host: str, secure: bool, cdn: bool = True) -> str:
-    """The page's policy. The React page (/next) bundles everything, so it gets no CDN at all."""
+    """The page's policy. The React page bundles everything, so it gets no CDN at all."""
     ws = f"{'wss' if secure else 'ws'}://{host}"
     extra = f" {CDN}" if cdn else ""
     return "; ".join([
@@ -304,31 +305,46 @@ def csp(host: str, secure: bool, cdn: bool = True) -> str:
     ])
 
 
-@app.get("/")
-async def index(request: Request):
+def page(request: Request, html: str, cdn: bool) -> HTMLResponse:
     secure = request.headers.get("x-forwarded-proto") == "https" or request.url.scheme == "https"
-    html = (STATIC / "index.html").read_text().replace("__BUILD__", BUILD)
     return HTMLResponse(html, headers={
         "Cache-Control": "no-store",
-        "Content-Security-Policy": csp(request.headers.get("host", ""), secure),
+        "Content-Security-Policy": csp(request.headers.get("host", ""), secure, cdn=cdn),
         "Referrer-Policy": "no-referrer",
     })
+
+
+@app.get("/")
+@app.get("/chat")
+@app.get("/activity")
+@app.get("/routines")
+@app.get("/settings")
+@app.get("/s/{route:path}")
+@app.get("/t/{route:path}")
+@app.get("/r/{route:path}")
+async def index(request: Request, route: str = ""):
+    """The React page (web/, built into static/app). Its own routes (/s/<session>, /settings, …) all get
+    the same page; the page reads the path."""
+    built = STATIC / "app" / "index.html"
+    if not built.is_file():
+        return PlainTextResponse("The page isn't built. Run: cd web && npm ci && npm run build", status_code=404)
+    return page(request, built.read_text(), cdn=False)
+
+
+@app.get("/old")
+async def old_page(request: Request):
+    """The previous page (plain JS), kept reachable until the React page has everything."""
+    return page(request, (STATIC / "index.html").read_text().replace("__BUILD__", BUILD), cdn=True)
 
 
 @app.get("/next")
 @app.get("/next/{route:path}")
-async def next_page(request: Request, route: str = ""):
-    """The React page (web/, built into static/app), served beside the old one while it grows. Its own
-    routes (/next/s/<session>, /next/settings, …) all get the same page; the page reads the path."""
-    page = STATIC / "app" / "index.html"
-    if not page.is_file():
-        return PlainTextResponse("The new page isn't built. Run: cd web && npm ci && npm run build", status_code=404)
-    secure = request.headers.get("x-forwarded-proto") == "https" or request.url.scheme == "https"
-    return HTMLResponse(page.read_text(), headers={
-        "Cache-Control": "no-store",
-        "Content-Security-Policy": csp(request.headers.get("host", ""), secure, cdn=False),
-        "Referrer-Policy": "no-referrer",
-    })
+async def next_moved(request: Request, route: str = ""):
+    """The React page used to live here; old bookmarks and links land on the same screen at /."""
+    target = "/" + route.lstrip("/\\")  # /next//evil.com must not become the protocol-relative //evil.com
+    if request.url.query:
+        target += "?" + request.url.query
+    return RedirectResponse(target, status_code=307)
 
 
 @app.get("/manifest.webmanifest")
@@ -430,6 +446,30 @@ async def open_folder(conn: Conn, path: str, key: str | None = None) -> None:
     await open_session(conn, str(p), hub.store.open(str(p), key))
 
 
+async def change_session(conn: Conn, t: str, path: str, key: str, archived: bool) -> None:
+    """Archive / restore / remove one session. Never one with a running turn or an open card."""
+    p = hub.allowed_folder(path)
+    if p is None or key not in {x["key"] for x in hub.store.sessions(str(p))}:
+        return
+    path = str(p)
+    live = hub.sessions.get(key)
+    hiding = t == "remove_session" or archived
+    if hiding and live is not None and (live.busy or live.status == "approval"):
+        await conn.send({"type": "error", "text": "That session is working. Stop it first."})
+        return
+    if t == "remove_session":
+        hub.store.remove(path, key)
+    else:
+        hub.store.set_archived(path, key, bool(archived))
+    if hiding and live is not None:
+        hub.sessions.pop(key, None)
+        await live.close()
+    if hiding:
+        for c in [c for c in hub.conns if c.key == key]:  # pages showing it move to the folder's next session
+            await open_session(c, path, hub.store.open(path))
+    await hub.push_folders()
+
+
 async def run_local(conn: Conn, s: FolderSession, name: str, args: str) -> None:
     """A slash command the dashboard runs itself (slash.LOCAL); nothing goes to the model."""
     if name == "clear":
@@ -519,6 +559,12 @@ async def handle(conn: Conn, msg: dict) -> None:
             hub.store.set_pinned(str(p), bool(msg.get("pinned", True)))
             hub.scan()
             await hub.push_folders()
+        return
+    if t == "archive_session":
+        await change_session(conn, t, str(msg.get("folder") or ""), str(msg.get("key") or ""), bool(msg.get("archived", True)))
+        return
+    if t == "remove_session":
+        await change_session(conn, t, str(msg.get("folder") or ""), str(msg.get("key") or ""), True)
         return
     if t == "get_settings":
         await conn.send(await settings_event())
