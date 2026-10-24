@@ -84,3 +84,10 @@
 @container main (max-width: 480px) { .top-tools .mode-chip:not(.model-chip) { display: none; } .dock-state .barge { display: none; } }
 .dock-state .barge { background: none; border: 0; padding: 0; color: inherit; font: inherit; text-transform: inherit; letter-spacing: inherit; }
 .dock-state .barge:hover { color: var(--text); }
+
+/* The Talk pill floats over the composer's top-right corner: above everything, no background of its own. */
+.dock-row { position: relative; }
+.mic-float { position: absolute; right: 8px; bottom: calc(100% + 26px); z-index: 60; background: transparent; pointer-events: none; }
+.mic-float .orb { pointer-events: auto; background: transparent; }
+[data-skin="studio"] .mic-float .vpill { background: transparent; backdrop-filter: blur(6px); }
+[data-skin="studio"] .mic-float .orb[data-state="speaking"] .vpill { background: var(--text); backdrop-filter: none; }

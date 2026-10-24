@@ -9,7 +9,6 @@ import { setFront, useMeta, usageView, usageWarning } from "../stores/meta";
 import { ASK_TODAY, needsYou, refreshHome, useHome } from "../stores/home";
 import { changeTask, openTask } from "../stores/tasks";
 import { openRoutine } from "../stores/routine";
-import { VoicePill } from "./Voice";
 import { NOTES_STEP } from "./setup/Setup";
 import type { HomeAwait } from "../protocol.gen";
 import { Card } from "./HomeCard";
@@ -105,7 +104,6 @@ export function Home() {
         <span className="home-dot" aria-hidden="true" />
         <strong>Orb</strong>
         <MetaRow now={now} />
-        <VoicePill />
         {vault && <button type="button" className="hbtn" onClick={() => askIn(vault, ASK_TODAY)}>Ask for today's plan →</button>}
         <button type="button" className="home-search" onClick={() => openPicker("new")}>
           {hasRepos ? "Search or jump" : "Choose a repo"} <kbd>⌘K</kbd>
