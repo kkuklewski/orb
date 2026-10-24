@@ -13,6 +13,7 @@ import { Player } from "./player";
 import { BROWSER_STT, haltRecognizer, micLevel, runRecognizer, startMic, stopMic } from "./mic";
 import { markSpeechEnd, startClock } from "./clock";
 import { wavBase64 } from "./wav";
+import { pinFocused } from "../stores/pins";
 
 let utteranceOk = true; // false while the VAD hears what is probably her own voice on speakers
 
@@ -98,7 +99,7 @@ export function voiceLevel(): number { return Player.src ? Player.level() : micL
 
 // -- events --------------------------------------------------------------------------------------
 
-const VOICE_EVENTS = ["hello", "opened", "audio", "speech_reset", "bg_notice", "heard_nothing", "partial", "state", "user", "error"] as const;
+const VOICE_EVENTS = ["hello", "opened", "audio", "speech_reset", "bg_notice", "heard_nothing", "pin_focused", "partial", "state", "user", "error"] as const;
 const ANY_SESSION = new Set(["hello", "opened", "bg_notice"]);
 
 export function handle(ev: ServerEvent) {
@@ -111,6 +112,7 @@ export function handle(ev: ServerEvent) {
     case "speech_reset": Player.reset(ev.gen); break;
     case "bg_notice": Player.notice(ev); flash(ev.text.replace(/\.$/, "")); break;
     case "heard_nothing": flash("Didn't catch that"); break;
+    case "pin_focused": { const r = pinFocused(); flash(r === "pinned" ? "Pinned" : r === "unpinned" ? "Unpinned" : "Nothing focused to pin"); break; }
     case "partial": useVoice.setState({ partial: ev.text }); break;
     case "state": useVoice.setState({ serverState: ev.value }); break;
     case "user": useVoice.setState({ partial: null }); if (!ev.replay) startClock(ev.id, ev.source); break;

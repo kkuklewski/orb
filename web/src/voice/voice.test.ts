@@ -157,6 +157,8 @@ describe("speech rules", () => {
     expect(useVoice.getState().partial).toBeNull();
     C.handle({ type: "heard_nothing" });
     expect(useVoice.getState().flash).toBe("Didn't catch that");
+    C.handle({ type: "pin_focused" });
+    expect(useVoice.getState().flash).toBe("Nothing focused to pin");
   });
 
   it("mute is remembered and told to the server; Esc stops her and the turn", async () => {

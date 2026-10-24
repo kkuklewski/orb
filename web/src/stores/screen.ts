@@ -6,6 +6,7 @@ import { send } from "../ws";
 import { useConnection } from "./connection";
 import { useFeatures } from "./features";
 import { useHome, needsYou, brief } from "./home";
+import { pinsNote, usePins } from "./pins";
 import { useSession } from "./session";
 import { useTasks } from "./tasks";
 import { routineById, routineText, useRoutineScreen } from "./routine";
@@ -19,7 +20,8 @@ export const SCREEN_MAX = 8000;
 
 export function homeText(folders: FolderItem[], routines: RoutinesEvent | null, notes: HomeEvent | null, vault: string, routinesOn: boolean, watch: HomeWatchEvent | null = null): string {
   const n = needsYou(folders, routines);
-  const out = ["Home, a brief of the day.", brief({ waiting: n.waiting, done: n.done, routines, notes, vault: !!vault, routinesOn, watch }).map(flat).join(" ")];
+  const pinned = pinsNote(usePins.getState().pins);
+  const out = [...(pinned ? [pinned] : []), "Home, a brief of the day.", brief({ waiting: n.waiting, done: n.done, routines, notes, vault: !!vault, routinesOn, watch }).map(flat).join(" ")];
   const sessions = [...n.waiting, ...n.done, ...n.working];
   if (sessions.length) out.push("Sessions:", ...sessions.map((x) => `- ${x.label || "New session"} (${x.folder.label}, ${x.status === "approval" ? "waiting for an approval" : x.status === "done" ? "finished while away" : "working"})`));
   const tr = watch?.tracker;
@@ -33,7 +35,7 @@ export function homeText(folders: FolderItem[], routines: RoutinesEvent | null, 
   if (notes?.notes.length) out.push("Recently changed notes:", ...notes.notes.map((x) => `- ${x.title} (${x.file})`));
   // Trim whole lines from the end rather than letting the server cut a line in half.
   let text = out.join("\n");
-  while (text.length > SCREEN_MAX && out.length > 2) { out.pop(); text = out.join("\n"); }
+  while (text.length > SCREEN_MAX && out.length > (pinned ? 3 : 2)) { out.pop(); text = out.join("\n"); }
   return text;
 }
 
@@ -80,7 +82,7 @@ export function wireScreen(): () => void {
       send(s ? { type: "screen", name: s.name, text: s.text } : { type: "screen", name: null });
     }, 300);
   };
-  const offs = [useViews.subscribe(push), useHome.subscribe(push), useTasks.subscribe(push), useFeatures.subscribe(push), useRoutineScreen.subscribe(push),
+  const offs = [useViews.subscribe(push), useHome.subscribe(push), useTasks.subscribe(push), useFeatures.subscribe(push), useRoutineScreen.subscribe(push), usePins.subscribe(push),
     useSession.subscribe((s, prev) => { if (s.session !== prev.session) { last = ""; push(); } }), // a session opened: tell it
     useConnection.subscribe((s, prev) => { if (s.state !== prev.state) { last = ""; push(); } })];
   return () => { clearTimeout(timer); offs.forEach((off) => off()); };

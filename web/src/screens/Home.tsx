@@ -12,7 +12,7 @@ import { openRoutine } from "../stores/routine";
 import { VoicePill } from "./Voice";
 import { NOTES_STEP } from "./setup/Setup";
 import type { HomeAwait } from "../protocol.gen";
-import { Card } from "./HomeCard";
+import { Card, PinRow, usePinKey } from "./HomeCard";
 import { DontForget, Links, TrackerTasks, Unsaved } from "./HomeWatch";
 
 // The start screen: a header bar (day, voice, jump), then an auto-fill bento of cards. The lead card is what
@@ -77,6 +77,7 @@ export function Home() {
   const ok = on.filter((x) => !x.needs && x.last?.outcome === "ok").length;
   const next = on.filter((x) => x.next_run_at).sort((a, b) => a.next_run_at! - b.next_run_at!)[0];
   const waiting = n.waiting.length + n.routines.length;
+  usePinKey();
   useEffect(() => { refreshHome(); }, [vault]);
   const tracker = watch?.tracker;
   const trackerError = tracker ? null : watch?.tracker_error;  // Vikunja is set up but down: say so, don't show the notes' tasks instead
@@ -143,11 +144,7 @@ export function Home() {
             text: on.map((r) => `${r.name}: ${r.needs ?? r.last?.outcome ?? "no runs yet"}`).join("\n") || "No routines are on." }} label="ROUTINES · EVERY 30 MIN" title={routines ? (n.routines.length ? `${n.routines.length} of ${on.length} need you` : `${ok} of ${on.length} ran fine`) : "Checking…"} mark={n.routines.length > 0}
             foot={<><span>{hot.length < on.length ? `${on.length - hot.length} fine · ` : ""}{next ? `next · ${next.name} ${dayTime(next.next_run_at!)}` : "nothing scheduled"}</span><button type="button" onClick={() => useViews.setState({ view: "routines" })}>Routines <kbd className="kbd">R</kbd></button></>}>
             {hot.slice(0, 5).map((r) => (
-              <button key={r.id} type="button" className="hc-row needs" onClick={() => openRoutine(r.id)}>
-                <span className="hc-dot sq" />
-                <span className="hc-text">{r.name}</span>
-                <span className="hc-side mono">{r.needs ?? "worth reading"}</span>
-              </button>
+              <PinRow key={r.id} pin={{ kind: "routine", id: r.id, label: r.name }} className="needs" onOpen={() => openRoutine(r.id)} dot={<span className="hc-dot sq" />} text={r.name} side={r.needs ?? "worth reading"} />
             ))}
             {routines && !hot.length && <p className="hc-empty">Nothing to read or decide.</p>}
           </Card>
@@ -188,11 +185,9 @@ export function Home() {
               title={notes.awaiting_count ? `${notes.awaiting_count} note${notes.awaiting_count === 1 ? "" : "s"} wait for your verdict` : `${notes.notes_week} changed this week`}
               foot={<><span>{notes.awaiting_count ? `${notes.notes_week} changed this week` : vault.split("/").pop()}</span><span className="hc-foot-actions">{!!notes.awaiting_count && <button type="button" onClick={() => openItems("notes")}>All {notes.awaiting_count} →</button>}<button type="button" onClick={() => openFolder(vault)}>Open notes <kbd className="kbd">N</kbd></button></span></>}>
               {(waitingNotes.length ? waitingNotes : notes.notes.map((x): HomeAwait => ({ ...x, tag: "" }))).slice(0, SHOWN).map((x) => (
-                <button key={x.file} type="button" className="hc-row" title={x.file} onClick={() => askIn(vault, `Read my note "${x.file}" and tell me in a few sentences what it says and what, if anything, I still need to do about it.`)}>
-                  <span className={"hc-dot" + (x.tag ? " sq" : "")} />
-                  <span className="hc-text">{x.title}</span>
-                  <span className="hc-side mono">{x.tag && <span className="note-chip">{x.tag}{x.verified != null ? ` ${x.verified}%` : ""}</span>}{folderOf(x.file)} · {relTime(x.mtime)}</span>
-                </button>
+                <PinRow key={x.file} pin={{ kind: "note", id: x.file, label: x.title }} title={x.file} onOpen={() => askIn(vault, `Read my note "${x.file}" and tell me in a few sentences what it says and what, if anything, I still need to do about it.`)}
+                  dot={<span className={"hc-dot" + (x.tag ? " sq" : "")} />} text={x.title}
+                  side={<>{x.tag && <span className="note-chip">{x.tag}{x.verified != null ? ` ${x.verified}%` : ""}</span>}{folderOf(x.file)} · {relTime(x.mtime)}</>} />
               ))}
             </Card>
           </div>

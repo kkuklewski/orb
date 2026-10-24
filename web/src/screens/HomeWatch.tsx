@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import type { DirtyRepo, Reminder } from "../protocol.gen";
 import { askIn } from "../stores/session";
 import { dueSoon, LEFT_BEHIND, quietPrs, SOON, useHome } from "../stores/home";
-import { Card } from "./HomeCard";
+import { Card, PinRow } from "./HomeCard";
 import { openItem, openItems } from "../stores/items";
 
 // Home's "don't forget" cards (server: watch.summary): dated reminders and stale pull requests, repos with
@@ -51,11 +51,8 @@ export function DontForget() {
         );
       })}
       {shown.map((p) => (
-        <div key={p.url} className="hc-row">
-          <span className="hc-dot" />
-          <button type="button" className="hc-text" onClick={() => openItem("prs", `${p.repo}#${p.number}`)}>PR #{p.number} · {p.title}</button>
-          <span className="hc-side mono" title={`${p.repo}, no activity for ${p.idle_days} days${p.draft ? " (draft)" : ""}`}>{p.repo.split("/").pop()} · {p.idle_days}d</span>
-        </div>
+        <PinRow key={p.url} pin={{ kind: "pr", id: `${p.repo}#${p.number}`, label: `${p.repo}#${p.number}` }} onOpen={() => openItem("prs", `${p.repo}#${p.number}`)} dot={<span className="hc-dot" />}
+          text={<>PR #{p.number} · {p.title}</>} side={<>{p.repo.split("/").pop()} · {p.idle_days}d</>} sideTitle={`${p.repo}, no activity for ${p.idle_days} days${p.draft ? " (draft)" : ""}`} />
       ))}
       {more > 0 && (
         <div className="hc-row">
@@ -77,11 +74,8 @@ export function Unsaved() {
       text: repos.slice(0, 8).map((r) => `${r.label}: ${repoText(r)}`).join("\n") }} label="NOT SAVED YET" title={`${plural(repos.length, "repo")} with unsaved work`}
       foot={<><span>{unpushed ? `${plural(unpushed, "repo")} with commits not pushed` : "everything committed is pushed"}</span><button type="button" onClick={() => openItems("repos")}>All repos →</button></>}>
       {repos.slice(0, 8).map((r) => (
-        <button key={r.path} type="button" className="hc-row" title={r.path} onClick={() => askIn(r.path, ASK_UNSAVED)}>
-          <span className="hc-dot" />
-          <span className="hc-text">{r.label}{r.branch && r.branch !== "main" && r.branch !== "master" ? ` · ${r.branch}` : ""}</span>
-          <span className="hc-side mono">{repoText(r)}</span>
-        </button>
+        <PinRow key={r.path} pin={{ kind: "repo", id: r.path, label: r.label }} title={r.path} onOpen={() => askIn(r.path, ASK_UNSAVED)} dot={<span className="hc-dot" />}
+          text={<>{r.label}{r.branch && r.branch !== "main" && r.branch !== "master" ? ` · ${r.branch}` : ""}</>} side={repoText(r)} />
       ))}
     </Card>
   );
@@ -95,11 +89,9 @@ export function TrackerTasks() {
       text: tr.tasks.map((t) => `#${t.id} ${t.title} (${[t.project, t.due ? `due ${t.due}` : null].filter(Boolean).join(", ") || "no project"})`).join("\n") || "none" }} label="TO DO · VIKUNJA" title={`${plural(tr.total, "open task")}, most urgent first`}
       foot={<><span>{tr.total > tr.tasks.length ? `+ ${tr.total - tr.tasks.length} more` : "that's all of them"}</span><button type="button" onClick={() => openItems("vikunja")}>All tasks →</button></>}>
       {tr.tasks.map((t) => (
-        <div key={t.id} className={"hc-row" + (t.priority >= 4 ? " needs" : "")}>
-          <span className={"hc-dot" + (t.priority >= 4 ? " sq" : "")} />
-          <button type="button" className="hc-text" onClick={() => openItem("vikunja", String(t.id))}>{t.title}</button>
-          <span className="hc-side mono" title={t.project}>{[t.project, t.due ? `due ${t.due.slice(5)}` : null].filter(Boolean).join(" · ")}</span>
-        </div>
+        <PinRow key={t.id} pin={{ kind: "task", id: String(t.id), label: t.title }} className={t.priority >= 4 ? "needs" : ""} onOpen={() => openItem("vikunja", String(t.id))}
+          dot={<span className={"hc-dot" + (t.priority >= 4 ? " sq" : "")} />} text={t.title} sideTitle={t.project}
+          side={[t.project, t.due ? `due ${t.due.slice(5)}` : null].filter(Boolean).join(" · ")} />
       ))}
       {!tr.tasks.length && <p className="hc-empty">No open tasks in Vikunja.</p>}
     </Card>
