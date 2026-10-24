@@ -378,6 +378,64 @@ class HomeEvent(_Event):
     notes_week: int
 
 
+class Reminder(_Msg):
+    text: str
+    due: str | None = None  # YYYY-MM-DD
+    days: int | None = None  # days left; negative = overdue
+    url: str | None = None
+
+
+class PinnedLink(_Msg):
+    label: str
+    url: str
+
+
+class DirtyRepo(_Msg):
+    path: str
+    label: str
+    branch: str | None = None
+    changed: int  # uncommitted files
+    ahead: int | None = None  # commits not pushed; None = no upstream
+
+
+class OpenPr(_Msg):
+    repo: str
+    number: int
+    title: str
+    url: str
+    updated: float
+    idle_days: int
+    stale: bool
+    draft: bool
+
+
+class TrackerTask(_Msg):
+    id: int
+    title: str
+    project: str
+    due: str | None = None
+    priority: int
+    updated: float
+    url: str
+
+
+class Tracker(_Msg):
+    tasks: list[TrackerTask]
+    total: int
+    url: str
+
+
+class HomeWatchEvent(_Event):
+    """The home screen's "don't forget" part (watch.summary): reminders, links, unsaved repos, open PRs, Vikunja tasks."""
+    type: Literal["home_watch"]
+    reminders: list[Reminder]
+    links: list[PinnedLink]
+    repos: list[DirtyRepo]
+    prs: list[OpenPr]
+    tracker: Tracker | None = None
+    tracker_error: str | None = None
+
+
 class TaskLine(_Msg):
     n: int
     text: str
@@ -553,7 +611,7 @@ ServerEvent = Annotated[Union[
     HelloEvent, FeaturesEvent, FoldersEvent, SetupStatusEvent, BrowseEvent, PickedEvent, VoiceSampleEvent,
     SettingsEvent, ErrorEvent, NoticeEvent, OpenedEvent, HistoryEvent, StateEvent, SessionInfoEvent,
     ContextEvent, TaskEvent, CommandsEvent, McpEvent, RateLimitEvent, RoutinesEvent, BgNoticeEvent,
-    HomeEvent, TaskDetailEvent, TaskChangedEvent, UserEvent, TextStartEvent, TextEvent, SaidEvent, ToolStartEvent, ToolInputEvent, ToolResultEvent,
+    HomeEvent, HomeWatchEvent, TaskDetailEvent, TaskChangedEvent, UserEvent, TextStartEvent, TextEvent, SaidEvent, ToolStartEvent, ToolInputEvent, ToolResultEvent,
     ResultEvent, TimingEvent, PartialEvent, HeardNothingEvent, HeldEvent, PermissionEvent,
     PermissionDoneEvent, UndoAvailableEvent, UndoConfirmEvent, UndoDoneEvent, AudioEvent, SpeechResetEvent,
 ], Field(discriminator="type")]

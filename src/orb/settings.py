@@ -29,6 +29,9 @@ DEFAULTS = {
     "routines_judge": True,  # Haiku judges each result: only the ones worth reading notify (off: every result does)
     "routines_notify": {},  # routine id -> "always" | "never": overrides the judge for that routine's results
     "routines_hidden": [n.strip() for n in config.env("ROUTINES_HIDDEN", "").split(",") if n.strip()],
+    "reminders": [],  # home "Don't forget": [{"text", "due": "YYYY-MM-DD" (optional), "url" (optional)}]
+    "links": [],  # home pinned links: [{"label", "url"}]
+    "vikunja_url": config.env("VIKUNJA_URL", ""),  # open tasks from Vikunja (token: ORB_VIKUNJA_TOKEN, env only)
     "onboarded": False,
 }
 MODES = ("default", "auto", "plan")
@@ -54,6 +57,10 @@ def _names(raw: object) -> list[str] | None:
     if not isinstance(raw, list):
         return None
     return sorted({n.strip() for n in raw if isinstance(n, str) and NAME.match(n.strip()) and n.strip() not in (".", "..")})
+
+
+def _web(url: object) -> bool:
+    return isinstance(url, str) and url.startswith(("http://", "https://")) and len(url) <= 500
 
 
 class Settings:
@@ -97,6 +104,14 @@ class Settings:
                     else:
                         merged.pop(rid, None)  # "auto" (or anything else): back to the judge
             self.data["routines_notify"] = dict(list(merged.items())[-100:])
+        if isinstance(changes.get("reminders"), list):
+            self.data["reminders"] = [{k: str(x[k])[:300] for k in ("text", "due", "url") if x.get(k)}
+                                      for x in changes["reminders"][:100] if isinstance(x, dict) and x.get("text")]
+        if isinstance(changes.get("links"), list):
+            self.data["links"] = [{"label": str(x.get("label") or x["url"])[:80], "url": str(x["url"])}
+                                  for x in changes["links"][:50] if isinstance(x, dict) and _web(x.get("url"))]
+        if "vikunja_url" in changes:
+            self.data["vikunja_url"] = str(changes["vikunja_url"]).strip() if _web(changes["vikunja_url"]) else ""
         for key in ("brain", "routines", "routines_judge", "onboarded"):
             if isinstance(changes.get(key), bool):
                 self.data[key] = changes[key]

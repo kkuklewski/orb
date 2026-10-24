@@ -35,7 +35,7 @@ beforeEach(() => {
   useSession.setState(initialSession());
   useViews.setState({ view: "home", settings: null, routines: routines({ items: [routine({ last: { id: "r", outcome: "ok" } })] }), routinesNew: new Set() });
   useFeatures.setState({ features: features(), folders: [folder("web", [session("w1", "approval", { label: "fix login" })])], services: {}, build: null });
-  useHome.setState({ notes: null });
+  useHome.setState({ notes: null, watch: null });
   useSetup.setState(initialSetup);
 });
 afterEach(() => { cleanup(); offs.forEach((off) => off()); });

@@ -751,6 +751,49 @@
       "title": "DictateNoteMsg",
       "type": "object"
     },
+    "DirtyRepo": {
+      "additionalProperties": false,
+      "properties": {
+        "ahead": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "branch": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "changed": {
+          "type": "integer"
+        },
+        "label": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "label",
+        "changed"
+      ],
+      "title": "DirtyRepo",
+      "type": "object"
+    },
     "ErrorEvent": {
       "additionalProperties": false,
       "properties": {
@@ -1533,6 +1576,104 @@
       "title": "HomeTask",
       "type": "object"
     },
+    "HomeWatchEvent": {
+      "additionalProperties": false,
+      "description": "The home screen's \"don't forget\" part (watch.summary): reminders, links, unsaved repos, open PRs, Vikunja tasks.",
+      "properties": {
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "links": {
+          "items": {
+            "$ref": "#/$defs/PinnedLink"
+          },
+          "type": "array"
+        },
+        "prs": {
+          "items": {
+            "$ref": "#/$defs/OpenPr"
+          },
+          "type": "array"
+        },
+        "reminders": {
+          "items": {
+            "$ref": "#/$defs/Reminder"
+          },
+          "type": "array"
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "repos": {
+          "items": {
+            "$ref": "#/$defs/DirtyRepo"
+          },
+          "type": "array"
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "tracker": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Tracker"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "tracker_error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "home_watch",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "reminders",
+        "links",
+        "repos",
+        "prs"
+      ],
+      "title": "HomeWatchEvent",
+      "type": "object"
+    },
     "InterruptMsg": {
       "additionalProperties": false,
       "properties": {
@@ -1823,6 +1964,47 @@
         "path"
       ],
       "title": "OpenFolderMsg",
+      "type": "object"
+    },
+    "OpenPr": {
+      "additionalProperties": false,
+      "properties": {
+        "draft": {
+          "type": "boolean"
+        },
+        "idle_days": {
+          "type": "integer"
+        },
+        "number": {
+          "type": "integer"
+        },
+        "repo": {
+          "type": "string"
+        },
+        "stale": {
+          "type": "boolean"
+        },
+        "title": {
+          "type": "string"
+        },
+        "updated": {
+          "type": "number"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "repo",
+        "number",
+        "title",
+        "url",
+        "updated",
+        "idle_days",
+        "stale",
+        "draft"
+      ],
+      "title": "OpenPr",
       "type": "object"
     },
     "OpenedEvent": {
@@ -2320,6 +2502,23 @@
       "title": "PinFolderMsg",
       "type": "object"
     },
+    "PinnedLink": {
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "label",
+        "url"
+      ],
+      "title": "PinnedLink",
+      "type": "object"
+    },
     "PlaybackMsg": {
       "additionalProperties": false,
       "properties": {
@@ -2437,6 +2636,52 @@
         "text"
       ],
       "title": "ReadAllMsg",
+      "type": "object"
+    },
+    "Reminder": {
+      "additionalProperties": false,
+      "properties": {
+        "days": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "due": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "text": {
+          "type": "string"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "title": "Reminder",
       "type": "object"
     },
     "RemoveSessionMsg": {
@@ -3055,6 +3300,7 @@
           "hello": "#/$defs/HelloEvent",
           "history": "#/$defs/HistoryEvent",
           "home": "#/$defs/HomeEvent",
+          "home_watch": "#/$defs/HomeWatchEvent",
           "mcp": "#/$defs/McpEvent",
           "notice": "#/$defs/NoticeEvent",
           "opened": "#/$defs/OpenedEvent",
@@ -3154,6 +3400,9 @@
         },
         {
           "$ref": "#/$defs/HomeEvent"
+        },
+        {
+          "$ref": "#/$defs/HomeWatchEvent"
         },
         {
           "$ref": "#/$defs/TaskDetailEvent"
@@ -4822,6 +5071,74 @@
         "name"
       ],
       "title": "ToolStartEvent",
+      "type": "object"
+    },
+    "Tracker": {
+      "additionalProperties": false,
+      "properties": {
+        "tasks": {
+          "items": {
+            "$ref": "#/$defs/TrackerTask"
+          },
+          "type": "array"
+        },
+        "total": {
+          "type": "integer"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "tasks",
+        "total",
+        "url"
+      ],
+      "title": "Tracker",
+      "type": "object"
+    },
+    "TrackerTask": {
+      "additionalProperties": false,
+      "properties": {
+        "due": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "id": {
+          "type": "integer"
+        },
+        "priority": {
+          "type": "integer"
+        },
+        "project": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "updated": {
+          "type": "number"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "project",
+        "priority",
+        "updated",
+        "url"
+      ],
+      "title": "TrackerTask",
       "type": "object"
     },
     "UndoAvailableEvent": {

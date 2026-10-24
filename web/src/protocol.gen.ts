@@ -71,6 +71,7 @@ export type ServerEvent =
   | RoutinesEvent
   | BgNoticeEvent
   | HomeEvent
+  | HomeWatchEvent
   | TaskDetailEvent
   | TaskChangedEvent
   | UserEvent
@@ -1000,6 +1001,89 @@ export interface HomeTask {
   mtime: number;
   raw: string;
   text: string;
+}
+/**
+ * The home screen's "don't forget" part (watch.summary): reminders, links, unsaved repos, open PRs, Vikunja tasks.
+ *
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "HomeWatchEvent".
+ */
+export interface HomeWatchEvent {
+  folder?: string | null;
+  links: PinnedLink[];
+  prs: OpenPr[];
+  reminders: Reminder[];
+  replay?: boolean | null;
+  repos: DirtyRepo[];
+  session?: string | null;
+  tracker?: Tracker | null;
+  tracker_error?: string | null;
+  type: "home_watch";
+}
+/**
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "PinnedLink".
+ */
+export interface PinnedLink {
+  label: string;
+  url: string;
+}
+/**
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "OpenPr".
+ */
+export interface OpenPr {
+  draft: boolean;
+  idle_days: number;
+  number: number;
+  repo: string;
+  stale: boolean;
+  title: string;
+  updated: number;
+  url: string;
+}
+/**
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "Reminder".
+ */
+export interface Reminder {
+  days?: number | null;
+  due?: string | null;
+  text: string;
+  url?: string | null;
+}
+/**
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "DirtyRepo".
+ */
+export interface DirtyRepo {
+  ahead?: number | null;
+  branch?: string | null;
+  changed: number;
+  label: string;
+  path: string;
+}
+/**
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "Tracker".
+ */
+export interface Tracker {
+  tasks: TrackerTask[];
+  total: number;
+  url: string;
+}
+/**
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "TrackerTask".
+ */
+export interface TrackerTask {
+  due?: string | null;
+  id: number;
+  priority: number;
+  project: string;
+  title: string;
+  updated: number;
+  url: string;
 }
 /**
  * One task in its note (tasks.detail): the line, the note's title and heading, the lines around it.

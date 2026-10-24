@@ -1,17 +1,36 @@
 // Home: what needs you (sessions, routines), open tasks and recent notes from the notes folder.
 // The notes part comes from the server's home.summary (read-only, no model call).
 import { create } from "zustand";
-import type { FolderItem, HomeEvent, RoutineItem, RoutinesEvent } from "../protocol.gen";
+import type { FolderItem, HomeEvent, HomeWatchEvent, RoutineItem, RoutinesEvent } from "../protocol.gen";
 import { on } from "../events";
 import { send } from "../ws";
 import { useFeatures } from "./features";
 import { activityRows, type SessionRow } from "./views";
 
-export const useHome = create<{ notes: HomeEvent | null }>(() => ({ notes: null }));
+// watch: reminders, pinned links, repos with unsaved work, open pull requests, Vikunja (server: watch.summary).
+export const useHome = create<{ notes: HomeEvent | null; watch: HomeWatchEvent | null }>(() => ({ notes: null, watch: null }));
 
 export function wireHome(): () => void {
-  const off = on("home", (ev) => useHome.setState({ notes: ev }));
-  return off;
+  const offs = [on("home", (ev) => useHome.setState({ notes: ev })), on("home_watch", (ev) => useHome.setState({ watch: ev }))];
+  return () => offs.forEach((off) => off());
+}
+
+/** A dated reminder this close (days) turns orange and counts as due soon. */
+export const SOON = 7;
+
+/** A pull request quiet longer than this (days) counts as left behind, not as due. */
+export const LEFT_BEHIND = 30;
+
+/** Pull requests gone quiet: the recent ones (most recently touched first) and the long-forgotten ones. */
+export function quietPrs(w: HomeWatchEvent | null) {
+  const stale = (w?.prs ?? []).filter((p) => p.stale).sort((a, b) => a.idle_days - b.idle_days);
+  return { recent: stale.filter((p) => p.idle_days <= LEFT_BEHIND), old: stale.filter((p) => p.idle_days > LEFT_BEHIND) };
+}
+
+/** Reminders due within SOON days (or overdue) plus pull requests that went quiet in the last month. */
+export function dueSoon(w: HomeWatchEvent | null): number {
+  if (!w) return 0;
+  return w.reminders.filter((r) => r.days !== null && r.days !== undefined && r.days <= SOON).length + quietPrs(w).recent.length;
 }
 
 /** Ask the server for the notes summary, and the routines when they're on. */
@@ -45,12 +64,15 @@ export type Part = string | { b: string };
 const plural = (n: number, one: string, many: string) => `${n === 1 ? "One" : n} ${n === 1 ? one : many}`;
 
 /** The day in a few plain sentences, the numbers in bold: what waits, what's open, how the routines did. */
-export function brief(d: { waiting: SessionRow[]; done: SessionRow[]; routines: RoutinesEvent | null; notes: HomeEvent | null; vault: boolean; routinesOn: boolean }): Part[][] {
+export function brief(d: { waiting: SessionRow[]; done: SessionRow[]; routines: RoutinesEvent | null; notes: HomeEvent | null; vault: boolean; routinesOn: boolean; watch?: HomeWatchEvent | null }): Part[][] {
   const out: Part[][] = [];
   const where = (rows: SessionRow[]) => [...new Set(rows.map((r) => r.folder.label.split("/").pop()))].slice(0, 2).join(" and ");
   if (d.waiting.length) out.push([{ b: plural(d.waiting.length, "session", "sessions") }, ` ${d.waiting.length === 1 ? "is" : "are"} waiting for your OK in ${where(d.waiting)}.`]);
   if (d.done.length) out.push([{ b: plural(d.done.length, "session", "sessions") }, ` finished while you were away.`]);
-  if (d.vault && d.notes) {
+  const tr = d.watch?.tracker;
+  if (tr) {
+    out.push(["Vikunja holds ", { b: `${tr.total} open task${tr.total === 1 ? "" : "s"}` }, d.vault && d.notes ? [", and ", { b: `${d.notes.notes_week} note${d.notes.notes_week === 1 ? "" : "s"}` }, " changed this week."] : ["."]].flat());
+  } else if (d.vault && d.notes) {
     out.push(["Your notes hold ", { b: `${d.notes.open_tasks} open task${d.notes.open_tasks === 1 ? "" : "s"}` }, ", and ", { b: `${d.notes.notes_week} note${d.notes.notes_week === 1 ? "" : "s"}` }, " changed this week."]);
   }
   if (d.routinesOn && d.routines) {

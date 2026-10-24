@@ -125,3 +125,16 @@
 .usage-warn p { margin: 0; flex: 1 1 280px; font-size: 14px; color: var(--text-2); }
 .usage-warn strong { color: var(--text); font-weight: 600; }
 .usage-warn .hbtn { height: 38px; font-size: 13px; }
+
+/* Don't forget, unsaved work, Vikunja tasks, pinned links (HomeWatch.tsx). */
+.home-right { display: flex; flex-direction: column; gap: 24px; }
+.hc, .home-links { scroll-margin-top: 16px; }
+.hc-row a.hc-text { color: inherit; text-decoration: none; }
+.hc-row a.hc-text:hover { text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1px; }
+.hc-foot a { color: inherit; text-decoration: none; }
+.hc-foot a:hover { color: var(--text); }
+.home-links { display: flex; flex-direction: column; gap: 10px; }
+.link-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.link-chip { display: inline-flex; align-items: center; min-height: 36px; padding: 0 14px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg-elev); color: var(--text); font: 13.5px var(--sans); text-decoration: none; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.link-chip:hover { border-color: var(--text); }
+.link-chip:focus-visible, .hc-row a.hc-text:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }

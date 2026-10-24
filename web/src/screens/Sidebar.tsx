@@ -87,6 +87,17 @@ function showView(v: View) {
   useSession.setState({ drawer: false });
 }
 
+/** Recents without repeats: one row per label in a folder (the newest; the list is newest first). A repeat
+ *  that is open, running or the current session stays. */
+export function recentRows<T extends { key: string; label?: string | null; live: boolean; folder: { path: string } }>(rows: T[], current: string | null): T[] {
+  const seen = new Set<string>();
+  return rows.filter((r) => {
+    if (!r.label || r.live || r.key === current) return true;
+    const id = `${r.folder.path}\n${r.label.trim().toLowerCase()}`;
+    return seen.has(id) ? false : (seen.add(id), true);
+  });
+}
+
 export function Sidebar() {
   const { features, folders } = useFeatures();
   const { folder, session, expanded } = useSession();
@@ -97,7 +108,7 @@ export function Sidebar() {
   const busy = activityRows(folders);
   const waiting = busy.filter((x) => x.status === "approval").length;
   const found = search(folders, q, session);
-  const recent = allSessions(folders, session).slice(0, 14);
+  const recent = recentRows(allSessions(folders, session), session).slice(0, 14);
   const archived = archivedSessions(folders);
   const [showArchived, setShowArchived] = useState(false);
   const pinned = pinnedFolders(folders);

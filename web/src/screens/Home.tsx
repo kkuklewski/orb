@@ -1,19 +1,21 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState } from "react";
 import { useFeatures } from "../stores/features";
 import { useViews, dayTime, relTime } from "../stores/views";
 import { askIn, folderName, openFolder, openPicker, useSession } from "../stores/session";
 import { send } from "../ws";
 import { openSetup } from "../stores/setup";
 import { setFront, useMeta, usageView, usageWarning } from "../stores/meta";
-import { ASK_TODAY, brief, greeting, needsYou, refreshHome, useHome } from "../stores/home";
+import { ASK_TODAY, brief, dueSoon, greeting, needsYou, refreshHome, useHome } from "../stores/home";
 import { changeTask, openTask } from "../stores/tasks";
 import { openRoutine } from "../stores/routine";
 import { VoicePill } from "./Voice";
 import { NOTES_STEP } from "./setup/Setup";
+import { Card } from "./HomeCard";
+import { DontForget, Links, TrackerTasks, Unsaved } from "./HomeWatch";
 
 // The start screen, read top to bottom like a short brief: the day in one paragraph, four numbers,
-// then what needs you, the routines, your open tasks (done right here, or opened) and the notes
-// that changed. Layout after the Bluejack summary, Field Rank's cards and SSTR's rules.
+// then what needs you, the routines, what not to forget (reminders, quiet pull requests, unsaved work),
+// your open tasks (Vikunja, else the notes; done right here, or opened), pinned links and the notes that changed. Layout after the Bluejack summary, Field Rank's cards and SSTR's rules.
 
 const noteName = (file: string) => file.split("/").pop()!.replace(/\.md$/, "");
 const folderOf = (file: string) => file.split("/").slice(0, -1).join("/") || "/";
@@ -23,19 +25,6 @@ function useNow(ms = 30000) {
   const [now, setNow] = useState(() => new Date());
   useEffect(() => { const t = setInterval(() => setNow(new Date()), ms); return () => clearInterval(t); }, [ms]);
   return now;
-}
-
-function Card({ label, title, mark, children, foot }: { label: string; title: string; mark?: boolean; children?: ReactNode; foot?: ReactNode }) {
-  return (
-    <article className="hc" aria-label={title}>
-      <div className="hc-head">
-        <div className={"hc-label mono" + (mark ? " mark" : "")}>{mark && <span className="sq" />}{label}</div>
-        <h2>{title}</h2>
-      </div>
-      {children}
-      {foot && <div className="hc-foot mono">{foot}</div>}
-    </article>
-  );
 }
 
 function MetaRow({ now }: { now: Date }) {
@@ -76,6 +65,7 @@ export function Home() {
   const folders = useFeatures((s) => s.folders);
   const routines = useViews((s) => s.routines);
   const notes = useHome((s) => s.notes);
+  const watch = useHome((s) => s.watch);
   const now = useNow();
   const vault = features?.vault ?? "";
   const hasRepos = folders.length > 0;
@@ -86,7 +76,10 @@ export function Home() {
   const next = on.filter((x) => x.next_run_at).sort((a, b) => a.next_run_at! - b.next_run_at!)[0];
   const waiting = n.waiting.length + n.routines.length;
   useEffect(() => { refreshHome(); }, [vault]);
-  const lines = brief({ waiting: n.waiting, done: n.done, routines, notes, vault: !!vault, routinesOn: !!features?.routines });
+  const lines = brief({ waiting: n.waiting, done: n.done, routines, notes, vault: !!vault, routinesOn: !!features?.routines, watch });
+  const tracker = watch?.tracker;
+  const soon = dueSoon(watch);
+  const unsaved = watch?.repos.length ?? 0;
 
   return (
     <section className="home" aria-label="Home">
@@ -117,36 +110,39 @@ export function Home() {
           </button>
           <a className="stat" href="#todo">
             <span className="stat-label mono">OPEN TASKS</span>
-            <span className="stat-num">{vault ? notes?.open_tasks ?? "–" : "–"}</span>
-            <span className="stat-note">{vault ? (notes?.snoozed ? `in your notes · ${notes.snoozed} snoozed` : "in your notes") : "no notes folder yet"}</span>
+            <span className="stat-num">{tracker ? tracker.total : vault ? notes?.open_tasks ?? "–" : "–"}</span>
+            <span className="stat-note">{tracker ? "in Vikunja" : vault ? (notes?.snoozed ? `in your notes · ${notes.snoozed} snoozed` : "in your notes") : "no notes folder yet"}</span>
           </a>
-          {features?.routines && (
+          <a className="stat" href="#forget">
+            <span className="stat-label mono">{soon > 0 && <span className="sq" />}DUE SOON</span>
+            <span className="stat-num">{watch ? soon : "–"}</span>
+            <span className="stat-note">{soon ? "this week or gone quiet" : "nothing due this week"}</span>
+          </a>
+          <a className="stat" href="#unsaved">
+            <span className="stat-label mono">UNSAVED</span>
+            <span className="stat-num">{watch ? unsaved : "–"}</span>
+            <span className="stat-note">{unsaved === 1 ? "repo not committed or pushed" : "repos not committed or pushed"}</span>
+          </a>
+          {features?.routines && n.routines.length > 0 && (
             <button type="button" className="stat" onClick={() => useViews.setState({ view: "routines" })}>
-              <span className="stat-label mono">{n.routines.length > 0 && <span className="sq" />}ROUTINES</span>
-              <span className="stat-num">{routines ? ok : "–"}<small>/{on.length || "–"}</small></span>
-              <span className="stat-note">{n.routines.length ? `${n.routines.length} need you` : "ran fine"}</span>
+              <span className="stat-label mono"><span className="sq" />ROUTINES</span>
+              <span className="stat-num">{ok}<small>/{on.length || "–"}</small></span>
+              <span className="stat-note">{n.routines.length} need you</span>
             </button>
           )}
-          <a className="stat" href="#notes">
-            <span className="stat-label mono">NOTES</span>
-            <span className="stat-num">{vault ? notes?.notes_week ?? "–" : "–"}</span>
-            <span className="stat-note">changed this week</span>
-          </a>
         </section>
+
+        {/* daily cards */}
 
         <section className="home-cards">
           <div className="home-left">
-            {first ? (
+            {first && (
               <Card label={first.status === "approval" ? "NEEDS YOUR OK" : "DONE WHILE YOU WERE AWAY"} title={first.label || "New session"} mark={first.status === "approval"}
                 foot={<><span>{n.waiting.length + n.done.length > 1 ? `${n.waiting.length + n.done.length - 1} more` : "nothing else is waiting"}</span><button type="button" onClick={() => useViews.setState({ view: "activity" })}>Activity →</button></>}>
                 <div className="hc-meta mono">{folderName(first.folder)} · {first.last_used ? `${relTime(first.last_used)} ago` : "now"}</div>
                 <div className="hc-actions">
                   <button type="button" className="hbtn dark" onClick={() => openFolder(first.folder.path, first.key)}>{first.status === "approval" ? "Review card" : "Read the answer"}</button>
                 </div>
-              </Card>
-            ) : (
-              <Card label="NEEDS YOU" title="Nothing waiting">
-                <p className="hc-empty">No session is waiting for an approval and nothing finished while you were away.</p>
               </Card>
             )}
 
@@ -162,10 +158,12 @@ export function Home() {
                 ))}
               </Card>
             )}
+            <DontForget />
+            <Unsaved />
           </div>
 
-          <div className="home-right" id="todo">
-            {vault ? (
+          <div className="home-right" id={tracker ? undefined : "todo"}>
+            {tracker ? <TrackerTasks /> : vault ? (
               <Card label="TO DO · FROM YOUR NOTES" title={notes ? `${notes.open_tasks} open task${notes.open_tasks === 1 ? "" : "s"}, newest first` : "Reading your notes…"}
                 foot={notes && <><span>{notes.open_tasks > SHOWN ? `+ ${notes.open_tasks - Math.min(SHOWN, notes.tasks.length)} more in your notes` : "that's all of them"}</span><button type="button" onClick={() => askIn(vault, ASK_TODAY)}>Ask what's first →</button></>}>
                 {notes?.tasks.slice(0, SHOWN).map((t) => (
@@ -183,6 +181,7 @@ export function Home() {
                 <div className="hc-actions"><button type="button" className="hbtn dark" onClick={() => openSetup(NOTES_STEP)}>Choose notes folder</button></div>
               </Card>
             )}
+            <Links />
           </div>
         </section>
 

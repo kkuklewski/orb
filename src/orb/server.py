@@ -18,7 +18,7 @@ import hashlib
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import billing, chain, config, folders, handoff, home, routines, settings, setup, slash, speech, tasks, vendor, vocab
+from . import billing, chain, config, folders, handoff, home, routines, settings, setup, slash, speech, tasks, vendor, vocab, watch
 from .agent import SCREEN_MAX, FolderSession, dumps, first_request
 from .brain import CaptureGuard
 from .sessions import SessionStore
@@ -600,6 +600,8 @@ async def handle(conn: Conn, msg: dict) -> None:
         return
     if t == "home":
         await conn.send(await asyncio.to_thread(home.summary, settings.settings.vault()))
+        # Git, gh and Vikunja are slower than the notes: a second event, so the notes don't wait.
+        await conn.send(await asyncio.to_thread(watch.summary, settings.settings.data, hub.folders or hub.scan()))
         return
     if t == "task_detail":
         try:
