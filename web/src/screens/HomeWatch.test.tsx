@@ -7,6 +7,7 @@ import { useFeatures } from "../stores/features";
 import { useViews } from "../stores/views";
 import { initialSession, useSession, wireSession } from "../stores/session";
 import { brief, dueSoon, useHome, wireHome } from "../stores/home";
+import { clearPins, usePins } from "../stores/pins";
 import { folder, routines, session } from "../test/fixtures";
 
 const sent: Record<string, unknown>[] = [];
@@ -42,6 +43,7 @@ beforeEach(() => {
   useViews.setState({ view: "home", settings: null, routines: routines({ items: [] }), routinesNew: new Set() });
   useFeatures.setState({ features: features(), folders: [folder("web")], services: {}, build: null });
   useHome.setState({ notes: null, watch: null });
+  clearPins();
 });
 afterEach(() => { cleanup(); offs.forEach((off) => off()); });
 
@@ -102,11 +104,30 @@ describe("home watch cards", () => {
     render(<Home />);
     act(() => dispatch(watch()));
     const card = screen.getByRole("article", { name: "1 repo with unsaved work" });
-    fireEvent.click(within(card).getByRole("button", { name: /acme\/web/ }));
+    fireEvent.click(within(card).getByRole("button", { name: /^acme\/web/ }));
     expect(sent.at(-1)).toEqual({ type: "start_session", path: "/Users/a/code/web" });
     act(() => dispatch({ type: "opened", folder: "/Users/a/code/web", session: "s1", label: "web", rel: "web", branch: null, session_id: null,
       live: false, busy: false, speech_gen: 0, mode: "default", model: "sonnet", info: {}, tasks: [] }));
     expect(sent.at(-1)).toMatchObject({ type: "user_text", text: ASK_UNSAVED });
+  });
+
+  it("the pin button pins the repo row without opening its session", () => {
+    render(<Home />);
+    act(() => dispatch(watch()));
+    const card = screen.getByRole("article", { name: "1 repo with unsaved work" });
+    fireEvent.click(within(card).getByRole("button", { name: "Pin: acme/web" }));
+    expect(sent.some((m) => m.type === "start_session")).toBe(false);
+    expect(usePins.getState().pins).toEqual([{ kind: "repo", id: "/Users/a/code/web", label: "acme/web" }]);
+    expect(within(card).getByRole("button", { name: "Unpin: acme/web" }).getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("p pins the row that has focus", () => {
+    render(<Home />);
+    act(() => dispatch(watch()));
+    const text = within(screen.getByRole("article", { name: /open task/ })).getByRole("button", { name: "Ship the invoice export" });
+    text.focus();
+    fireEvent.keyDown(text, { key: "p" });
+    expect(usePins.getState().pins).toEqual([{ kind: "task", id: "4", label: "Ship the invoice export" }]);
   });
 
   it("hides the cards that have nothing to show", () => {
