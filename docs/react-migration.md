@@ -107,6 +107,12 @@ Home chat (`askIn(vault, question, {name, text}, true)`, the `routine.ts` patter
 The Home chat itself has the `orb` read tools (`desk.py`), write tools behind cards, and `/today`, `/standup`,
 `/task <id>` (precomputed on the server, vault session only).
 
+### Chats view
+
+The rail's **Chats** button opens `/chats`: every session grouped by repo (repos with a waiting or running session first),
+status dots from the same data as Activity, and a search box. The sidebar's Recents shows five (approvals and running
+sessions first) and an "All chats →" link there. The side panel itself has its own small toggle at the top of the rail.
+
 ## Risks and how each is handled
 
 - **Protocol drift** between Python and the page: generated types plus the CI diff check.

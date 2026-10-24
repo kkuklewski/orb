@@ -101,6 +101,14 @@ export function recentRows<T extends { key: string; label?: string | null; live:
   });
 }
 
+export const RECENTS = 5;
+
+/** The few Recents shown: approvals and running sessions first, then the newest; the rest live in Chats. */
+export function topRecents<T extends { status: string }>(rows: T[], n = RECENTS): T[] {
+  const urgent = (r: T) => (r.status === "approval" ? 0 : r.status === "working" ? 1 : 2);
+  return rows.map((r, i) => ({ r, i })).sort((a, b) => urgent(a.r) - urgent(b.r) || a.i - b.i).slice(0, n).map((x) => x.r);
+}
+
 export function Sidebar() {
   const { features, folders } = useFeatures();
   const { folder, session, expanded } = useSession();
@@ -111,7 +119,8 @@ export function Sidebar() {
   const busy = activityRows(folders);
   const waiting = busy.filter((x) => x.status === "approval").length;
   const found = search(folders, q, session);
-  const recent = recentRows(allSessions(folders, session), session).slice(0, 14);
+  const allRecent = recentRows(allSessions(folders, session), session);
+  const recent = topRecents(allRecent);
   const archived = archivedSessions(folders);
   const [showArchived, setShowArchived] = useState(false);
   const [panel, setPanel] = useState(() => { try { return localStorage.getItem("orb-panel") !== "closed"; } catch { return true; } });
@@ -122,7 +131,10 @@ export function Sidebar() {
     <aside className="sidebar" aria-label="Navigation">
       <nav className="rail" aria-label="Sections">
         <span className="rail-brand" aria-hidden="true">O</span>
-        <button type="button" className={"nav-item" + (panel ? " active" : "")} aria-pressed={panel} onClick={togglePanel} title="Show or hide the chats panel"><Icon d={ICONS.chats} />Chats</button>
+        <button type="button" className="rail-toggle" aria-pressed={panel} onClick={togglePanel} title="Show or hide the side panel" aria-label="Show or hide the side panel">
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><rect x="3.5" y="4.5" width="17" height="15" rx="2" /><path d="M9.5 4.5v15" /></svg>
+        </button>
+        <button type="button" className={"nav-item" + (view === "chats" ? " active" : "")} aria-current={view === "chats" ? "page" : undefined} onClick={() => showView("chats")}><Icon d={ICONS.chats} />Chats</button>
         <button type="button" className={"nav-item" + (view === "home" ? " active" : "")} aria-current={view === "home" ? "page" : undefined} onClick={() => showView("home")}><Icon d={ICONS.home} />Home</button>
         {features?.vault && (
           <button type="button" className={"nav-item" + (folder === features.vault && view === "chat" ? " active" : "")} onClick={() => openFolder(features.vault)}><Icon d={ICONS.brain} />Brain</button>
@@ -200,6 +212,7 @@ export function Sidebar() {
           <div className="sec-head"><span>Recents</span></div>
           {!recent.length && <div className="side-hint">Your conversations show up here.</div>}
           {recent.map((x) => <SessionRow key={x.key} x={x} showFolder />)}
+          {allRecent.length > 0 && <button type="button" className="session new all-chats" onClick={() => { useViews.setState({ view: "chats" }); useSession.setState({ drawer: false }); }}>All chats →</button>}
         </section>
         {archived.length > 0 && (
           <section className="side-section" aria-label="Archived">

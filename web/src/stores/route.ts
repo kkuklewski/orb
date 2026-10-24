@@ -1,5 +1,5 @@
 // The address bar follows the page: / is Home, /s/<session> a conversation, /t/<note>/<line>
-// a task from the notes, /r/<routine> a routine's result, and /activity, /routines, /settings, /vikunjas the views. Back / Forward
+// a task from the notes, /r/<routine> a routine's result, and /activity, /routines, /chats, /settings, /vikunjas the views. Back / Forward
 // and links work, and a reload comes back to the same place.
 import type { FolderItem } from "../protocol.gen";
 import { useFeatures } from "./features";
@@ -11,7 +11,7 @@ import { openItem, openItems, SOURCES, useItems, type ItemSource } from "./items
 import { on } from "../events";
 
 const BASE = "";
-const VIEWS: View[] = ["activity", "routines", "settings"];
+const VIEWS: View[] = ["activity", "routines", "chats", "settings"];
 
 export interface Route { view: View; session: string | null; task?: TaskRef | null; routine?: string | null; items?: { source: ItemSource; id?: string } }
 

@@ -7,6 +7,7 @@ import { useViews, wireViews } from "./stores/views";
 import { folderName, openPicker, useSession, wireSession } from "./stores/session";
 import { Setup } from "./screens/setup/Setup";
 import { Activity } from "./screens/Activity";
+import { Chats } from "./screens/Chats";
 import { Routines } from "./screens/Routines";
 import { Settings } from "./screens/Settings";
 import { Sidebar } from "./screens/Sidebar";
@@ -105,6 +106,7 @@ export function App() {
           </div>
         ) : view === "activity" ? <Activity />
           : view === "routines" && features.routines ? <Routines />
+          : view === "chats" ? <Chats />
           : view === "settings" ? <Settings />
           : view === "home" ? <section className="chat-next"><Home /><Dock pill={false} /></section>
           : view === "routine" ? <section className="chat-next"><RoutineScreen /><Dock pill /></section>
