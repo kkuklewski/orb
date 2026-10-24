@@ -42,6 +42,21 @@ describe("what the screen says", () => {
     expect(s.text).toContain("- Frontend stack (notes/ideas/stack.md)");
   });
 
+  it("Home: Vikunja tasks, unsaved repos, pull requests and reminders come with it, within the server's limit", () => {
+    useHome.setState({ watch: { type: "home_watch", links: [], reminders: [{ text: "Renew acme domain", due: "2026-11-01", days: -2 }],
+      repos: [{ path: "/r/globex", label: "acme/globex", branch: "main", changed: 3, ahead: 2 }],
+      prs: [{ repo: "acme/globex", number: 7, title: "Fix login", url: "u", updated: 1, idle_days: 5, stale: true, draft: false }],
+      tracker: { total: 40, url: "http://v", tasks: [{ id: 12, title: "Ship the globex invoice", project: "acme", due: "2026-10-30", priority: 3, updated: 1, url: "u" }] }, tracker_error: null } });
+    const t = currentScreen("home")!.text;
+    expect(t).toContain("- #12 Ship the globex invoice (acme, due 2026-10-30)");
+    expect(t).toContain("- acme/globex (main): 3 changed files, 2 unpushed commits");
+    expect(t).toContain("- acme/globex#7 Fix login, quiet 5 days");
+    expect(t).toContain("- Renew acme domain (due 2026-11-01, overdue)");
+    expect(t.indexOf("#12")).toBeLessThan(t.indexOf("Fix n8n summary")); // Vikunja leads, notes are context
+    useHome.setState({ watch: { ...useHome.getState().watch!, repos: Array.from({ length: 8 }, (_, i) => ({ path: `/r/${i}`, label: "x".repeat(2000), branch: null, changed: i + 1, ahead: 0 })) } });
+    expect(currentScreen("home")!.text.length).toBeLessThanOrEqual(8000);
+  });
+
   it("the chat sends nothing; a task sends its line and the note around it", () => {
     expect(currentScreen("chat")).toBeNull();
     expect(currentScreen("task")).toBeNull(); // not loaded yet
