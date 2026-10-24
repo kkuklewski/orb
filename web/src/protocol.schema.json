@@ -2971,6 +2971,53 @@
       "title": "PickedEvent",
       "type": "object"
     },
+    "PinFocusedEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "pin_focused",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "PinFocusedEvent",
+      "type": "object"
+    },
     "PinFolderMsg": {
       "additionalProperties": false,
       "properties": {
@@ -3801,6 +3848,7 @@
           "permission": "#/$defs/PermissionEvent",
           "permission_done": "#/$defs/PermissionDoneEvent",
           "picked": "#/$defs/PickedEvent",
+          "pin_focused": "#/$defs/PinFocusedEvent",
           "rate_limit": "#/$defs/RateLimitEvent",
           "result": "#/$defs/ResultEvent",
           "routines": "#/$defs/RoutinesEvent",
@@ -3941,6 +3989,9 @@
         },
         {
           "$ref": "#/$defs/HeardNothingEvent"
+        },
+        {
+          "$ref": "#/$defs/PinFocusedEvent"
         },
         {
           "$ref": "#/$defs/HeldEvent"

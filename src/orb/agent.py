@@ -57,6 +57,9 @@ PERMISSION_MODES = ("default", "auto", "plan")
 EDIT_TOOLS = ("Edit", "Write", "MultiEdit", "NotebookEdit")
 UNDO_TRIGGER = re.compile(r"^\s*(undo(\s+(that|this|it|the\s+last\s+change))?|cofnij(\s+(to|zmiany|ostatnie\s+zmiany))?)[\s.!]*$",
                           re.IGNORECASE)
+# Spoken only: "ping" pins the Home row that has focus. It never reaches the model (typed text goes through as before).
+PING_TRIGGER = re.compile(r"^\s*(ping|pin\s+(this|that|it)(\s+one)?|take\s+this\s+one|przypnij(\s+(to|ten|tego))?|zapisz\s+to|we[zź]\s+to)[\s.!]*$",
+                          re.IGNORECASE)
 UNDO_NOTE = "Commands run in Bash and edits made by subagents are not undone."
 UNDO_CARD_TTL = 120  # seconds a spoken yes/no can still answer the undo card
 MCP_PROBLEM = ("failed",)  # "needs-auth" / "disabled" are expected for unused connectors
@@ -638,6 +641,10 @@ class FolderSession:
                                         "; it changes your whole account, so use a terminal.")})
             return
         self.last_active = time.time()
+        if source == "voice" and PING_TRIGGER.match(text):
+            self.next_marks = {}
+            await self.emit({"type": "pin_focused"})  # the page pins the focused row; no model turn, no chat bubble
+            return
         uid = uuid.uuid4().hex
         marks, self.next_marks = (self.next_marks if source == "voice" else {}), {}
         timing = TurnTiming(uid, source, marks)
