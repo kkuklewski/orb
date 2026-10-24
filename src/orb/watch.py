@@ -20,7 +20,8 @@ STALE_DAYS = 3  # a pull request untouched this long is "going stale"
 GIT_TIMEOUT = 4
 GH_TIMEOUT = 12
 PR_CACHE_SECONDS = 300
-# A repo's own .git/config could name a program for git to run (fsmonitor); a status check never runs one.
+# A repo's own .git/config can name programs for `git status` to run (fsmonitor, filter drivers, also in
+# submodules); the check never runs one. Filters from the user's global config (git-lfs) stay.
 GIT_SAFE = ("-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null")
 
 _prs: dict = {"at": 0.0, "items": []}
@@ -70,10 +71,23 @@ def parse_status(out: str) -> dict:
     return {"branch": branch.split(" ")[0] or None, "changed": sum(1 for x in lines[1:] if x.strip()), "ahead": ahead}
 
 
+def repo_filters(out: str) -> list[str]:
+    """`git config --show-scope --get-regexp`: -c overrides that blank the filter drivers set in the repo itself."""
+    keys = []
+    for line in out.splitlines():
+        scope, _, rest = line.partition("\t")
+        key = rest.split(" ", 1)[0]
+        if scope in ("local", "worktree") and key.startswith("filter.") and key.rsplit(".", 1)[-1] in ("clean", "smudge", "process"):
+            keys += ["-c", f"{key}="]
+    return keys
+
+
 def _repo(f: dict) -> dict | None:
     try:
-        r = subprocess.run(["git", "-C", f["path"], *GIT_SAFE, "status", "--porcelain=v1", "-b"], capture_output=True,
-                           text=True, timeout=GIT_TIMEOUT)
+        c = subprocess.run(["git", "-C", f["path"], "config", "--show-scope", "--includes", "--get-regexp", r"^filter\."],
+                           capture_output=True, text=True, timeout=GIT_TIMEOUT)
+        r = subprocess.run(["git", "-C", f["path"], *GIT_SAFE, *repo_filters(c.stdout), "status", "--porcelain=v1", "-b",
+                            "--ignore-submodules=all"], capture_output=True, text=True, timeout=GIT_TIMEOUT)
     except (OSError, subprocess.TimeoutExpired):
         return None
     if r.returncode != 0:

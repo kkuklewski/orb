@@ -2,6 +2,7 @@
 
 import datetime as dt
 import json
+import os
 import subprocess
 
 from orb import protocol, settings, vikunja, watch
@@ -53,14 +54,27 @@ def test_repos_lists_only_unsaved(tmp_path):
         {"path": dirty["path"], "label": "acme/dirty", "branch": "main", "changed": 1, "ahead": None}]
 
 
-def test_repos_never_run_a_repos_fsmonitor(tmp_path):
+def test_repos_never_run_programs_from_the_repos_config(tmp_path):
     p = tmp_path / "acme"
+    git = lambda *a: subprocess.run(["git", "-C", str(p), *a], check=True, capture_output=True)
     subprocess.run(["git", "init", "-q", "-b", "main", str(p)], check=True)
-    hook = tmp_path / "ran"
-    subprocess.run(["git", "-C", str(p), "config", "core.fsmonitor", f"touch {hook}"], check=True)
+    (p / ".gitattributes").write_text("* filter=evil\n")
     (p / "x.txt").write_text("x")
+    git("-c", "user.email=a@acme.example", "-c", "user.name=a", "-c", "filter.evil.clean=cat", "add", ".")
+    git("-c", "user.email=a@acme.example", "-c", "user.name=a", "-c", "filter.evil.clean=cat", "commit", "-qm", "x")
+    ran = tmp_path / "ran"
+    git("config", "core.fsmonitor", f"touch {ran}-fsmonitor")
+    git("config", "filter.evil.clean", f"touch {ran}-clean; cat")
+    git("config", "filter.evil.process", f"sh -c 'touch {ran}-process; exit 1'")
+    os.utime(p / "x.txt", (1, 1))  # stat changed, content not: git re-reads the file through its filter
+    (p / "y.txt").write_text("y")
     assert watch.repos([{"path": str(p), "label": "acme"}])[0]["changed"] == 1
-    assert not hook.exists()
+    assert not list(tmp_path.glob("ran-*"))
+
+
+def test_repo_filters_only_blanks_the_repos_own():
+    out = "global\tfilter.lfs.clean git-lfs clean -- %f\nlocal\tfilter.evil.process sh x\nlocal\tfilter.evil.required true\n"
+    assert watch.repo_filters(out) == ["-c", "filter.evil.process="]
 
 
 def test_parse_prs_marks_stale():
