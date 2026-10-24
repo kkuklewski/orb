@@ -125,7 +125,7 @@ export function App() {
           : view === "routines" && features.routines ? <Routines />
           : view === "chats" ? <Chats />
           : view === "settings" ? <Settings />
-          : view === "home" ? <section className="chat-next"><Home /><Dock pill={false} /></section>
+          : view === "home" ? <section className="chat-next"><Home /><Dock pill /></section>
           : view === "routine" ? <section className="chat-next"><RoutineScreen /><Dock pill /></section>
           : view === "task" ? <section className="chat-next"><TaskScreen /><Dock pill /></section>
           : view === "items" ? <section className="chat-next"><ItemList /><Dock pill /></section>
@@ -171,7 +171,6 @@ function Chat() {
             <>
               <p className="next-kicker mono">// {folderName({ label }).toUpperCase()}</p>
               <h1>What should we work on?</h1>
-              <div className="hero-pill"><VoicePill /></div>
               <p className="next-note mono">or type below · Space toggles the mic · Esc stops</p>
             </>
           ) : (
@@ -183,7 +182,7 @@ function Chat() {
           )}
         </div>
       )}
-      <Dock pill={!!folder && !empty} />
+      <Dock pill />
     </section>
   );
 }
@@ -194,8 +193,8 @@ function Dock({ pill }: { pill: boolean }) {
       <PinChips />
       <DockState />
       <div className="dock-row">
-        {pill && <div className="orb-slot"><VoicePill /></div>}
         <Composer />
+        {pill && <div className="mic-float"><VoicePill /></div>}
       </div>
     </footer>
   );
