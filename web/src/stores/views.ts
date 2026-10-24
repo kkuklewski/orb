@@ -5,7 +5,7 @@ import type { FolderItem, RoutineItem, RoutinesEvent, SessionItem, SettingsEvent
 import { on } from "../events";
 import { send } from "../ws";
 
-export type View = "home" | "chat" | "task" | "item" | "items" | "routine" | "activity" | "routines" | "settings";
+export type View = "home" | "chat" | "task" | "item" | "items" | "routine" | "activity" | "routines" | "chats" | "settings";
 
 export const useViews = create<{
   view: View;
@@ -33,6 +33,24 @@ export function activityRows(folders: FolderItem[], limit = 40): SessionRow[] {
   for (const f of folders) for (const s of f.sessions ?? []) if (!s.empty && (s.status !== "idle" || s.live)) rows.push({ ...s, folder: f });
   rows.sort((a, b) => (ORDER[a.status] ?? 3) - (ORDER[b.status] ?? 3) || (b.last_used ?? 0) - (a.last_used ?? 0));
   return rows.slice(0, limit);
+}
+
+/** Chats view: every session grouped by repo (repos with something running or waiting first, then newest), filtered by `q`
+ *  on the label and the repo name. */
+export function chatGroups(rows: SessionRow[], q: string): { folder: FolderItem; rows: SessionRow[] }[] {
+  const needle = q.trim().toLowerCase();
+  const by = new Map<string, { folder: FolderItem; rows: SessionRow[] }>();
+  for (const r of rows) {
+    if (needle && !`${r.label ?? ""} ${r.folder.label}`.toLowerCase().includes(needle)) continue;
+    const g = by.get(r.folder.path) ?? { folder: r.folder, rows: [] };
+    g.rows.push(r);
+    by.set(r.folder.path, g);
+  }
+  const rank = (g: { rows: SessionRow[] }) => Math.min(...g.rows.map((r) => ORDER[r.status] ?? 3));
+  const newest = (g: { rows: SessionRow[] }) => Math.max(...g.rows.map((r) => r.last_used ?? 0));
+  const groups = [...by.values()];
+  for (const g of groups) g.rows.sort((a, b) => (ORDER[a.status] ?? 3) - (ORDER[b.status] ?? 3) || (b.last_used ?? 0) - (a.last_used ?? 0));
+  return groups.sort((a, b) => Math.min(rank(a), 2) - Math.min(rank(b), 2) || newest(b) - newest(a));
 }
 
 export function statusText(s: SessionItem): string {
