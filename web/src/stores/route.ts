@@ -7,13 +7,13 @@ import { openFolder, useSession } from "./session";
 import { useViews, type View } from "./views";
 import { openTask, sameTask, useTasks, type TaskRef } from "./tasks";
 import { openRoutine, useRoutineScreen } from "./routine";
-import { openVikunjaList } from "./vikunja";
+import { openItem, openItems, SOURCES, useItems, type ItemSource } from "./items";
 import { on } from "../events";
 
 const BASE = "";
-const VIEWS: View[] = ["activity", "routines", "settings", "vikunjas"];
+const VIEWS: View[] = ["activity", "routines", "settings"];
 
-export interface Route { view: View; session: string | null; task?: TaskRef | null; routine?: string | null }
+export interface Route { view: View; session: string | null; task?: TaskRef | null; routine?: string | null; items?: { source: ItemSource; id?: string } }
 
 export function parseRoute(pathname: string): Route {
   const rest = pathname.replace(/^\/+|\/+$/g, "");
@@ -23,6 +23,12 @@ export function parseRoute(pathname: string): Route {
   if (t) return { view: "task", session: null, task: { file: decodeURIComponent(t[1]), line: Number(t[2]) } };
   const r = rest.match(/^r\/([^/]+)$/);
   if (r) return { view: "routine", session: null, routine: decodeURIComponent(r[1]) };
+  const it = rest.match(/^items\/([a-z]+)(?:\/(.+))?$/);
+  if (it && (SOURCES as string[]).includes(it[1])) {
+    const items = { source: it[1] as ItemSource, id: it[2] ? decodeURIComponent(it[2]) : undefined };
+    return { view: items.id ? "item" : "items", session: null, items };
+  }
+  if (rest === "vikunjas") return { view: "items", session: null, items: { source: "vikunja" } };
   if (rest === "chat") return { view: "chat", session: null };
   return { view: (VIEWS as string[]).includes(rest) ? (rest as View) : "home", session: null };
 }
@@ -31,6 +37,10 @@ export function routePath(r: Route): string {
   if (r.view === "home") return "/";
   if (r.view === "chat") return r.session ? `${BASE}/s/${encodeURIComponent(r.session)}` : `${BASE}/chat`;
   if (r.view === "routine") return r.routine ? `${BASE}/r/${encodeURIComponent(r.routine)}` : `${BASE}/routines`;
+  if (r.view === "items" || r.view === "item") {
+    const i = r.items;
+    return i ? `${BASE}/items/${i.source}${r.view === "item" && i.id ? `/${encodeURIComponent(i.id)}` : ""}` : "/";
+  }
   if (r.view === "task") return r.task ? `${BASE}/t/${encodeURIComponent(r.task.file)}/${r.task.line}` : "/";
   return `${BASE}/${r.view}`;
 }
@@ -58,16 +68,30 @@ export function applyRoute(r: Route): boolean {
     openFolder(f.path, r.session);
     return true;
   }
+  if (r.view === "items" || r.view === "item") {
+    if (!r.items) return false;
+    if (r.view === "item" && r.items.id) openItem(r.items.source, r.items.id); else openItems(r.items.source);
+    return true;
+  }
   useViews.setState({ view: r.view });
-  if (r.view === "vikunjas") openVikunjaList();
   return true;
 }
 
 /** The route the page asked for when it loaded; hello uses it instead of the quiet reopen. */
 export const startRoute = (): Route => parseRoute(location.pathname);
 
+function itemsRoute(): Route["items"] {
+  const { source, id } = useItems.getState();
+  return source ? { source, id: id ?? undefined } : undefined;
+}
+
+function applyItems(r: Route) {
+  if (r.items && r.view === "items") openItems(r.items.source);
+  if (r.items?.id && r.view === "item") openItem(r.items.source, r.items.id);
+}
+
 export function wireRoute(): () => void {
-  const current = (): Route => ({ view: useViews.getState().view, session: useSession.getState().session, task: useTasks.getState().task, routine: useRoutineScreen.getState().id });
+  const current = (): Route => ({ view: useViews.getState().view, session: useSession.getState().session, task: useTasks.getState().task, routine: useRoutineScreen.getState().id, items: itemsRoute() });
   const sync = () => {
     const path = routePath(current());
     if (path !== location.pathname) history.pushState(null, "", path + location.search);
@@ -75,12 +99,13 @@ export function wireRoute(): () => void {
   const offViews = useViews.subscribe((s, prev) => { if (s.view !== prev.view) sync(); });
   const offSession = useSession.subscribe((s, prev) => { if (s.session !== prev.session && useViews.getState().view === "chat") sync(); });
   const offTask = useTasks.subscribe((s, prev) => { if (s.task !== prev.task && useViews.getState().view === "task") sync(); });
+  const offItems = useItems.subscribe((s, prev) => { if ((s.source !== prev.source || s.id !== prev.id) && ["items", "item"].includes(useViews.getState().view)) sync(); });
   const offRoutine = useRoutineScreen.subscribe((s, prev) => { if (s.id !== prev.id && useViews.getState().view === "routine") sync(); });
   let start: Route | null = parseRoute(location.pathname); // the address the page was opened with
   const offHello = on("hello", () => { // a link to a task: open it once the server is there
     if (start?.view === "task" && start.task) openTask(start.task);
     if (start?.view === "routine" && start.routine) openRoutine(start.routine);
-    if (start?.view === "vikunjas") openVikunjaList();
+    if (start) applyItems(start);
     start = null;
   });
   const onPop = () => {
@@ -88,5 +113,5 @@ export function wireRoute(): () => void {
     if (!applyRoute(r)) history.replaceState(null, "", routePath(current())); // a session that's gone
   };
   addEventListener("popstate", onPop);
-  return () => { offViews(); offSession(); offTask(); offRoutine(); offHello(); removeEventListener("popstate", onPop); };
+  return () => { offViews(); offSession(); offTask(); offRoutine(); offItems(); offHello(); removeEventListener("popstate", onPop); };
 }

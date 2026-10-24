@@ -430,6 +430,10 @@
           "get_settings": "#/$defs/GetSettingsMsg",
           "home": "#/$defs/HomeMsg",
           "interrupt": "#/$defs/InterruptMsg",
+          "item_done": "#/$defs/ItemDoneMsg",
+          "item_get": "#/$defs/ItemGetMsg",
+          "item_list": "#/$defs/ItemListMsg",
+          "item_start": "#/$defs/ItemStartMsg",
           "mcp_reconnect": "#/$defs/McpReconnectMsg",
           "mcp_status": "#/$defs/McpStatusMsg",
           "mute": "#/$defs/MuteMsg",
@@ -459,10 +463,6 @@
           "undo_request": "#/$defs/UndoRequestMsg",
           "user_text": "#/$defs/UserTextMsg",
           "utterance": "#/$defs/UtteranceMsg",
-          "vikunja_done": "#/$defs/VikunjaDoneMsg",
-          "vikunja_list": "#/$defs/VikunjaListMsg",
-          "vikunja_start": "#/$defs/VikunjaStartMsg",
-          "vikunja_task": "#/$defs/VikunjaTaskMsg",
           "voice_sample": "#/$defs/VoiceSampleMsg",
           "voice_text": "#/$defs/VoiceTextMsg"
         },
@@ -551,16 +551,16 @@
           "$ref": "#/$defs/TaskDetailMsg"
         },
         {
-          "$ref": "#/$defs/VikunjaTaskMsg"
+          "$ref": "#/$defs/ItemListMsg"
         },
         {
-          "$ref": "#/$defs/VikunjaListMsg"
+          "$ref": "#/$defs/ItemGetMsg"
         },
         {
-          "$ref": "#/$defs/VikunjaDoneMsg"
+          "$ref": "#/$defs/ItemDoneMsg"
         },
         {
-          "$ref": "#/$defs/VikunjaStartMsg"
+          "$ref": "#/$defs/ItemStartMsg"
         },
         {
           "$ref": "#/$defs/TaskActionMsg"
@@ -1450,10 +1450,58 @@
       "title": "HistoryEvent",
       "type": "object"
     },
+    "HomeAwait": {
+      "additionalProperties": false,
+      "description": "A note waiting for the owner's verdict (fact-checked with no human_verdict, or AI-curated and unreviewed).",
+      "properties": {
+        "file": {
+          "type": "string"
+        },
+        "mtime": {
+          "type": "number"
+        },
+        "tag": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "verified": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "title",
+        "file",
+        "mtime",
+        "tag"
+      ],
+      "title": "HomeAwait",
+      "type": "object"
+    },
     "HomeEvent": {
       "additionalProperties": false,
       "description": "The home screen's notes part (home.summary): open tasks and recent notes in the vault.",
       "properties": {
+        "awaiting": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/HomeAwait"
+          },
+          "type": "array"
+        },
+        "awaiting_count": {
+          "default": 0,
+          "type": "integer"
+        },
         "folder": {
           "anyOf": [
             {
@@ -1702,6 +1750,433 @@
         "type"
       ],
       "title": "InterruptMsg",
+      "type": "object"
+    },
+    "ItemColumn": {
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "kind": {
+          "default": "text",
+          "enum": [
+            "title",
+            "repo",
+            "text",
+            "chip",
+            "due",
+            "priority",
+            "num",
+            "age"
+          ],
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "label"
+      ],
+      "title": "ItemColumn",
+      "type": "object"
+    },
+    "ItemDoneMsg": {
+      "additionalProperties": false,
+      "description": "Archive: mark a Vikunja task done (done=False brings it back). The server answers with the new item_list.",
+      "properties": {
+        "done": {
+          "default": true,
+          "type": "boolean"
+        },
+        "id": {
+          "type": "string"
+        },
+        "source": {
+          "enum": [
+            "vikunja",
+            "prs",
+            "repos",
+            "notes"
+          ],
+          "type": "string"
+        },
+        "type": {
+          "const": "item_done",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "source",
+        "id"
+      ],
+      "title": "ItemDoneMsg",
+      "type": "object"
+    },
+    "ItemEvent": {
+      "additionalProperties": false,
+      "description": "One item in full (items.get): chips, plain-text body, the repo it maps to (label, None = no repo), the prompt to copy.",
+      "properties": {
+        "body": {
+          "type": "string"
+        },
+        "brief": {
+          "type": "string"
+        },
+        "can_archive": {
+          "default": false,
+          "type": "boolean"
+        },
+        "chips": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "done": {
+          "default": false,
+          "type": "boolean"
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "id": {
+          "type": "string"
+        },
+        "kicker": {
+          "type": "string"
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "repo": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "source": {
+          "enum": [
+            "vikunja",
+            "prs",
+            "repos",
+            "notes"
+          ],
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "type": {
+          "const": "item",
+          "type": "string"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "url_label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "type",
+        "source",
+        "id",
+        "title",
+        "kicker",
+        "chips",
+        "body",
+        "brief"
+      ],
+      "title": "ItemEvent",
+      "type": "object"
+    },
+    "ItemGetMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "source": {
+          "enum": [
+            "vikunja",
+            "prs",
+            "repos",
+            "notes"
+          ],
+          "type": "string"
+        },
+        "type": {
+          "const": "item_get",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "source",
+        "id"
+      ],
+      "title": "ItemGetMsg",
+      "type": "object"
+    },
+    "ItemListEvent": {
+      "additionalProperties": false,
+      "description": "One table (items.list_): its columns and rows. `group_key` is the column to group by (\"repo\" = the Repo column).",
+      "properties": {
+        "can_archive": {
+          "default": false,
+          "type": "boolean"
+        },
+        "columns": {
+          "items": {
+            "$ref": "#/$defs/ItemColumn"
+          },
+          "type": "array"
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "group_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "heading": {
+          "type": "string"
+        },
+        "kicker": {
+          "type": "string"
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "rows": {
+          "items": {
+            "$ref": "#/$defs/ItemRow"
+          },
+          "type": "array"
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "source": {
+          "enum": [
+            "vikunja",
+            "prs",
+            "repos",
+            "notes"
+          ],
+          "type": "string"
+        },
+        "type": {
+          "const": "item_list",
+          "type": "string"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "url_label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "type",
+        "source",
+        "kicker",
+        "heading",
+        "columns",
+        "rows"
+      ],
+      "title": "ItemListEvent",
+      "type": "object"
+    },
+    "ItemListMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "enum": [
+            "vikunja",
+            "prs",
+            "repos",
+            "notes"
+          ],
+          "type": "string"
+        },
+        "type": {
+          "const": "item_list",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "source"
+      ],
+      "title": "ItemListMsg",
+      "type": "object"
+    },
+    "ItemRow": {
+      "additionalProperties": false,
+      "properties": {
+        "cells": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "hot": {
+          "default": false,
+          "type": "boolean"
+        },
+        "id": {
+          "type": "string"
+        },
+        "repo": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "cells"
+      ],
+      "title": "ItemRow",
+      "type": "object"
+    },
+    "ItemStartMsg": {
+      "additionalProperties": false,
+      "description": "Start in Orb: a new session in the item's repo (found by the server), first request = the brief.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "source": {
+          "enum": [
+            "vikunja",
+            "prs",
+            "repos",
+            "notes"
+          ],
+          "type": "string"
+        },
+        "type": {
+          "const": "item_start",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "source",
+        "id"
+      ],
+      "title": "ItemStartMsg",
       "type": "object"
     },
     "McpEvent": {
@@ -3317,6 +3792,8 @@
           "history": "#/$defs/HistoryEvent",
           "home": "#/$defs/HomeEvent",
           "home_watch": "#/$defs/HomeWatchEvent",
+          "item": "#/$defs/ItemEvent",
+          "item_list": "#/$defs/ItemListEvent",
           "mcp": "#/$defs/McpEvent",
           "notice": "#/$defs/NoticeEvent",
           "opened": "#/$defs/OpenedEvent",
@@ -3346,8 +3823,6 @@
           "undo_confirm": "#/$defs/UndoConfirmEvent",
           "undo_done": "#/$defs/UndoDoneEvent",
           "user": "#/$defs/UserEvent",
-          "vikunja_list": "#/$defs/VikunjaListEvent",
-          "vikunja_task": "#/$defs/VikunjaTaskEvent",
           "voice_sample": "#/$defs/VoiceSampleEvent"
         },
         "propertyName": "type"
@@ -3426,10 +3901,10 @@
           "$ref": "#/$defs/TaskDetailEvent"
         },
         {
-          "$ref": "#/$defs/VikunjaTaskEvent"
+          "$ref": "#/$defs/ItemEvent"
         },
         {
-          "$ref": "#/$defs/VikunjaListEvent"
+          "$ref": "#/$defs/ItemListEvent"
         },
         {
           "$ref": "#/$defs/TaskChangedEvent"
@@ -3741,6 +4216,17 @@
         "archived": {
           "default": false,
           "type": "boolean"
+        },
+        "ask": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "created": {
           "anyOf": [
@@ -5633,300 +6119,6 @@
         "open_tasks"
       ],
       "title": "VaultInfo",
-      "type": "object"
-    },
-    "VikunjaDoneMsg": {
-      "additionalProperties": false,
-      "description": "Archive: mark a Vikunja task done (done=False brings it back). The server answers with the new vikunja_list.",
-      "properties": {
-        "done": {
-          "default": true,
-          "type": "boolean"
-        },
-        "id": {
-          "type": "integer"
-        },
-        "type": {
-          "const": "vikunja_done",
-          "type": "string"
-        }
-      },
-      "required": [
-        "type",
-        "id"
-      ],
-      "title": "VikunjaDoneMsg",
-      "type": "object"
-    },
-    "VikunjaListEvent": {
-      "additionalProperties": false,
-      "description": "Every open Vikunja task with the repo its project maps to (None = no repo here).",
-      "properties": {
-        "folder": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
-        },
-        "replay": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
-        },
-        "session": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
-        },
-        "tasks": {
-          "items": {
-            "$ref": "#/$defs/VikunjaRow"
-          },
-          "type": "array"
-        },
-        "total": {
-          "type": "integer"
-        },
-        "type": {
-          "const": "vikunja_list",
-          "type": "string"
-        },
-        "url": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "type",
-        "tasks",
-        "total",
-        "url"
-      ],
-      "title": "VikunjaListEvent",
-      "type": "object"
-    },
-    "VikunjaListMsg": {
-      "additionalProperties": false,
-      "properties": {
-        "type": {
-          "const": "vikunja_list",
-          "type": "string"
-        }
-      },
-      "required": [
-        "type"
-      ],
-      "title": "VikunjaListMsg",
-      "type": "object"
-    },
-    "VikunjaRow": {
-      "additionalProperties": false,
-      "properties": {
-        "due": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
-        },
-        "id": {
-          "type": "integer"
-        },
-        "priority": {
-          "type": "integer"
-        },
-        "project": {
-          "type": "string"
-        },
-        "repo": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
-        },
-        "title": {
-          "type": "string"
-        },
-        "updated": {
-          "type": "number"
-        },
-        "url": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "id",
-        "title",
-        "project",
-        "priority",
-        "updated",
-        "url"
-      ],
-      "title": "VikunjaRow",
-      "type": "object"
-    },
-    "VikunjaStartMsg": {
-      "additionalProperties": false,
-      "description": "Start in Orb: a new session in the repo mapped to this task's project, first request = the brief.",
-      "properties": {
-        "id": {
-          "type": "integer"
-        },
-        "type": {
-          "const": "vikunja_start",
-          "type": "string"
-        }
-      },
-      "required": [
-        "type",
-        "id"
-      ],
-      "title": "VikunjaStartMsg",
-      "type": "object"
-    },
-    "VikunjaTaskEvent": {
-      "additionalProperties": false,
-      "description": "One Vikunja task in full (vikunja.task): plain-text description, the repo it maps to (label, None = no repo), the prompt to copy.",
-      "properties": {
-        "brief": {
-          "type": "string"
-        },
-        "description": {
-          "type": "string"
-        },
-        "done": {
-          "type": "boolean"
-        },
-        "due": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
-        },
-        "folder": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
-        },
-        "id": {
-          "type": "integer"
-        },
-        "priority": {
-          "type": "integer"
-        },
-        "project": {
-          "type": "string"
-        },
-        "replay": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
-        },
-        "repo": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
-        },
-        "session": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
-        },
-        "title": {
-          "type": "string"
-        },
-        "type": {
-          "const": "vikunja_task",
-          "type": "string"
-        },
-        "url": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "type",
-        "id",
-        "title",
-        "description",
-        "project",
-        "priority",
-        "done",
-        "url",
-        "brief"
-      ],
-      "title": "VikunjaTaskEvent",
-      "type": "object"
-    },
-    "VikunjaTaskMsg": {
-      "additionalProperties": false,
-      "properties": {
-        "id": {
-          "type": "integer"
-        },
-        "type": {
-          "const": "vikunja_task",
-          "type": "string"
-        }
-      },
-      "required": [
-        "type",
-        "id"
-      ],
-      "title": "VikunjaTaskMsg",
       "type": "object"
     },
     "Voice": {

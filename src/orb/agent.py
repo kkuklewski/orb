@@ -12,6 +12,7 @@ import time
 import uuid
 from collections import deque
 from collections.abc import Awaitable, Callable
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -30,6 +31,7 @@ from claude_agent_sdk import (
     TaskStartedMessage,
     TaskUpdatedMessage,
     TextBlock,
+    ToolAnnotations,
     ToolPermissionContext,
     ToolResultBlock,
     ToolUseBlock,
@@ -40,7 +42,7 @@ from claude_agent_sdk import (
 )
 from claude_agent_sdk.types import TERMINAL_TASK_STATUSES
 
-from . import billing, chain, config, handoff, settings, slash, speech
+from . import billing, chain, config, desk, handoff, settings, slash, speech
 from .brain import BRAIN_READ_TOOLS, CAPTURE_TOOL, NOTE_REQUEST, CaptureGuard, brain_prompt, split_note, vault_rule
 from .fence import Fence, strictest
 from .replies import NO, YES, classify_reply, match_option
@@ -110,6 +112,8 @@ def spoken_permission_prompt(name: str, inp: dict[str, Any], display_name: str |
             what = "go online for this"
         elif name == "Bash":
             what = "run a command"
+        elif name in desk.WRITE_TOOLS:
+            what = ("mark task " if name.endswith("task_done") else "snooze task ") + str(inp.get("id") or "?")
         elif name == handoff.TOOL:
             what = f"continue in {inp.get('repo') or 'another repo'}"
         else:
@@ -392,8 +396,10 @@ class FolderSession:
     def __init__(self, path: str, key: str, store, emit: Emit, wants_audio: Callable[[], bool],
                  viewed: Callable[[], bool] = lambda: True, notify=_no_notify,
                  guard: CaptureGuard | None = None,
-                 handoff: Callable[["FolderSession", str, str], Awaitable[str]] | None = None) -> None:
+                 handoff: Callable[["FolderSession", str, str], Awaitable[str]] | None = None,
+                 desk: "desk.Sources | None" = None) -> None:
         self.path = path
+        self.sources = desk  # what the desk tools read; they exist only in the notes-vault session
         self.handoff = handoff  # "continue in another repo": opens a session there, returns a line for the model
         self.key = key
         self.store = store
@@ -489,28 +495,74 @@ class FolderSession:
             can_use_tool=self._can_use_tool,
             enable_file_checkpointing=True,  # "undo that": rewind_files to a user message's checkpoint
             extra_args={"replay-user-messages": None},
-            allowed_tools=list(BRAIN_READ_TOOLS) if settings.settings["brain"] else [],  # reading the second brain needs no card
-            mcp_servers={handoff.SERVER: self._handoff_server()} if self.handoff else {},
+            # reading the second brain and the dashboard needs no card
+            allowed_tools=(list(BRAIN_READ_TOOLS) if settings.settings["brain"] else []) + (desk.READ_TOOLS if self.is_desk else []),
+            mcp_servers={handoff.SERVER: self._orb_server()} if self.handoff or self.is_desk else {},
             hooks={
-                "PreToolUse": [HookMatcher(matcher=f"Edit|Write|MultiEdit|NotebookEdit|Bash|Read|Glob|Grep|{CAPTURE_TOOL}|{handoff.TOOL}",
+                "PreToolUse": [HookMatcher(matcher=f"Edit|Write|MultiEdit|NotebookEdit|Bash|Read|Glob|Grep|{CAPTURE_TOOL}|{handoff.TOOL}|{'|'.join(desk.WRITE_TOOLS)}",
                                            hooks=[self._pre_tool])],
                 "PostToolUse": [HookMatcher(matcher=CAPTURE_TOOL, hooks=[self._capture_done])],
                 "PostToolUseFailure": [HookMatcher(matcher=CAPTURE_TOOL, hooks=[self._capture_failed])],
             },
             env=billing.sdk_env(),
-            system_prompt={"type": "preset", "preset": "claude_code", "append": "\n".join((VOICE_PROMPT, self._brain_prompt(), chain.routing_prompt(self.model), handoff.PROMPT if self.handoff else ""))},
+            system_prompt={"type": "preset", "preset": "claude_code", "append": "\n".join((VOICE_PROMPT, self._brain_prompt(), chain.routing_prompt(self.model), handoff.PROMPT if self.handoff else "", chain.DESK_PROMPT if self.is_desk else ""))},
             stderr=lambda line: log.debug("claude[%s]: %s", self.path, line),
         )
 
-    def _handoff_server(self):
-        @tool(handoff.NAME, handoff.DESCRIPTION, {"repo": str, "brief": str})
-        async def continue_in_repo(args: dict[str, Any]) -> dict[str, Any]:
-            try:
-                text = await self.handoff(self, str(args.get("repo") or ""), str(args.get("brief") or ""))
-            except handoff.HandoffError as e:
-                return handoff.result(str(e), error=True)
-            return handoff.result(text)
-        return create_sdk_mcp_server(handoff.SERVER, tools=[continue_in_repo])
+    @property
+    def is_desk(self) -> bool:
+        """The session in the notes vault folder: the Home chat, which gets the dashboard tools."""
+        vault = settings.settings.vault()
+        return bool(self.sources and vault and Path(self.path).resolve() == vault.resolve())
+
+    def _orb_server(self):
+        tools = []
+        if self.handoff:
+            @tool(handoff.NAME, handoff.DESCRIPTION, {"repo": str, "brief": str})
+            async def continue_in_repo(args: dict[str, Any]) -> dict[str, Any]:
+                try:
+                    text = await self.handoff(self, str(args.get("repo") or ""), str(args.get("brief") or ""))
+                except handoff.HandoffError as e:
+                    return handoff.result(str(e), error=True)
+                return handoff.result(text)
+            tools.append(continue_in_repo)
+        if self.is_desk:
+            tools += self._desk_tools()
+        return create_sdk_mcp_server(handoff.SERVER, tools=tools)
+
+    def _desk_tools(self) -> list:
+        src, none = self.sources, desk.schema()
+        read_only = ToolAnnotations(readOnlyHint=True)
+
+        def reader(name: str, fn: Callable[..., str], schema: dict, *keys: str):
+            @tool(name, desk.DESCRIPTIONS[name], schema, annotations=read_only)
+            async def run(args: dict[str, Any]) -> dict[str, Any]:
+                try:
+                    return handoff.result(await asyncio.to_thread(fn, src, *[args.get(k) for k in keys]))
+                except (desk.DeskError, ValueError) as e:
+                    return handoff.result(str(e), error=True)
+            return run
+
+        def writer(name: str, fn: Callable[..., str], schema: dict, *keys: str):
+            @tool(name, desk.DESCRIPTIONS[name], schema)
+            async def run(args: dict[str, Any]) -> dict[str, Any]:  # reached only after the Allow card
+                try:
+                    return handoff.result(await asyncio.to_thread(fn, src, *[args.get(k) for k in keys]))
+                except desk.DeskError as e:
+                    return handoff.result(str(e), error=True)
+            return run
+
+        return [
+            reader("home_brief", lambda s: desk.home_brief(s), none),
+            reader("tasks", desk.tasks, desk.schema(project="string"), "project"),
+            reader("task", desk.task, desk.schema("id", id="integer"), "id"),
+            reader("sessions", lambda s: desk.sessions(s, self.path), none),
+            reader("routines", desk.routines, none),
+            reader("notes_recent", desk.notes_recent, none),
+            reader("unsaved", desk.unsaved, none),
+            *[writer("task_done", desk.task_done, desk.schema("id", id="integer"), "id"),
+              writer("task_snooze", desk.task_snooze, desk.schema("id", "until", id="integer", until="string"), "id", "until")],
+        ]
 
     @staticmethod
     def _brain_prompt() -> str:
@@ -868,6 +920,8 @@ class FolderSession:
             out = self.guard.pre_capture(self.key, inp)
         elif name == handoff.TOOL:  # a card in every permission mode (auto included): it starts work in another repo
             out = handoff.ask(inp)
+        elif name in desk.WRITE_TOOLS:  # a card in every mode: it changes a task in Vikunja
+            out = desk.ask(name, inp, await asyncio.to_thread(desk.card_title, self.sources, inp.get("id")) if self.sources else "")
         else:
             out = strictest(self.fence.rule(name, inp), vault_rule(settings.settings.vault(), name, inp, cwd=self.path,
                                                                       protected=tuple(settings.settings["vault_protected"])))

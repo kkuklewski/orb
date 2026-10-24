@@ -39,7 +39,7 @@ export function refreshHome() {
   if (useFeatures.getState().features?.routines) send({ type: "routines" });
 }
 
-export const ASK_TODAY = "What's on my plate today? Look at the open tasks in my notes, my recent notes and anything dated today, and give me a short plan: the three things to do first, then what can wait.";
+export const ASK_TODAY = "What's on my plate today? My tasks live in Vikunja: look at those first, then what's waiting for me in Orb (sessions, routines, unsaved work, pull requests), and use my notes only as context. Give me a short plan: the three things to do first, then what can wait.";
 
 export const askAboutNote = (file: string) => `Read my note "${file}" and tell me in a few sentences what it says and what, if anything, I still need to do about it.`;
 

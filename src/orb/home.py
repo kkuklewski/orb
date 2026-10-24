@@ -59,6 +59,62 @@ def _title(path: Path) -> str:
     return path.stem
 
 
+_FM_CACHE: dict[Path, tuple[float, dict[str, str]]] = {}
+FM_LINES = 40
+
+
+def _front(path: Path, mtime: float) -> dict[str, str]:
+    """Top-level "key: value" pairs of a note's frontmatter (first lines only), cached by mtime. Lists and
+    nested values are kept as raw text; quotes are stripped."""
+    hit = _FM_CACHE.get(path)
+    if hit and hit[0] == mtime:
+        return hit[1]
+    fm: dict[str, str] = {}
+    try:
+        with path.open(encoding="utf-8", errors="replace") as fh:
+            if fh.readline().strip() == "---":
+                for i, line in enumerate(fh):
+                    if line.strip() == "---" or i >= FM_LINES:
+                        break
+                    m = re.match(r"^([A-Za-z_][\w-]*):\s*(.*?)\s*$", line)
+                    if m:
+                        fm[m.group(1)] = m.group(2).strip("\"'")
+    except OSError:
+        pass
+    _FM_CACHE[path] = (mtime, fm)
+    return fm
+
+
+def _awaiting(vault: Path, files: list[tuple[Path, float]], limit: int | None) -> tuple[list[dict], int]:
+    """Notes that wait for the owner's verdict: fact-checked with no human_verdict, or AI-curated and not yet
+    reviewed. Vetoed, dismissed and review stubs are left out. Returns (newest `limit`, None = all; total)."""
+    out: list[dict] = []
+    total = 0
+    for p, t in files:
+        fm = _front(p, t)
+        if not fm or fm.get("kind") == "review" or fm.get("status") == "vetoed" or fm.get("rag_dismissed", "").lower() == "true":
+            continue
+        ai = fm.get("curated_by") == "ai"
+        waiting = (ai and fm.get("human_reviewed", "").lower() == "false") or (bool(fm.get("fact_checked_at")) and not fm.get("human_verdict"))
+        if not waiting:
+            continue
+        total += 1
+        if limit is None or len(out) < limit:
+            tag = "unverified view" if fm.get("knowledge_tier") == "perspective" else "AI" if ai else "your note" if fm.get("written_by") == "owner" else "capture"
+            try:
+                verified = round(float(fm["verification_rate"]) * 100) if fm.get("verification_rate") else None
+            except ValueError:
+                verified = None
+            out.append({"title": _title(p)[:120], "file": str(p.relative_to(vault)), "mtime": t, "tag": tag,
+                        "verified": verified if verified is None or 0 <= verified <= 100 else None})
+    return out, total
+
+
+def awaiting_notes(vault: Path) -> list[dict]:
+    """Every note that waits for the owner's verdict, newest first (the Notes page)."""
+    return _awaiting(vault, _notes(vault), None)[0]
+
+
 def _tasks(vault: Path, files: list[tuple[Path, float]], limit: int, today: str = "") -> tuple[list[dict], int, int]:
     """The first `limit` open tasks (newest notes first, so the freshest lead), how many are open, and how
     many are snoozed past `today` (those are left out). `raw` is the exact line, for edits."""
@@ -87,13 +143,14 @@ def _tasks(vault: Path, files: list[tuple[Path, float]], limit: int, today: str 
 def summary(vault: Path | None, tasks: int = 40, notes: int = 6, now: float | None = None) -> dict:
     """{"type": "home", ...}: what the home screen shows about the notes (empty without a vault)."""
     if not vault or not vault.is_dir():
-        return {"type": "home", "vault": "", "tasks": [], "open_tasks": 0, "snoozed": 0, "notes": [], "notes_week": 0}
+        return {"type": "home", "vault": "", "tasks": [], "open_tasks": 0, "snoozed": 0, "notes": [], "notes_week": 0, "awaiting": [], "awaiting_count": 0}
     now = time.time() if now is None else now
     files = _notes(vault)
     found, total, snoozed = _tasks(vault, files, tasks, dt.date.fromtimestamp(now).isoformat())
     recent = [{"title": _title(p)[:120], "file": str(p.relative_to(vault)), "mtime": t} for p, t in files[:notes]]
+    waiting, waiting_total = _awaiting(vault, files, 6)
     return {"type": "home", "vault": str(vault), "tasks": found, "open_tasks": total, "snoozed": snoozed, "notes": recent,
-            "notes_week": sum(1 for _, t in files if now - t < WEEK)}
+            "notes_week": sum(1 for _, t in files if now - t < WEEK), "awaiting": waiting, "awaiting_count": waiting_total}
 
 
 def vault_info(vault: Path | None) -> dict | None:

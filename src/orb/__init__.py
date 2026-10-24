@@ -21,5 +21,10 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
     url = f"http://{config.HOST}:{config.PORT}/#t={config.token()}"
     print(f"\n  Orb: {url}\n", flush=True)
+    if config.env("OPEN", ""):
+        import threading
+        import webbrowser
+
+        threading.Timer(2.0, webbrowser.open, args=(url,)).start()
     uvicorn.run("orb.server:app", host=config.HOST, port=config.PORT, log_level="warning",
                 ws_max_size=32 * 1024 * 1024)

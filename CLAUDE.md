@@ -51,6 +51,7 @@ Python 3.14 via `uv` (`.python-version` pins the patch). Front end is plain HTML
 | `chain.py` | front model per folder (Sonnet default, effort `ORB_SONNET_EFFORT`), `opus-coder` subagent, routing prompt, "switch to Opus" |
 | `slash.py` | `/` menu: Claude Code's commands plus the app's own (`/clear`, `/model`, `/mcp`, `/rewind`, `/config` per repo); account-wide commands blocked |
 | `handoff.py` | `continue_in_repo` tool (in-process MCP): the session's Claude asks to continue in another repo; Allow card, then `Hub.handoff` opens a new session there (pages follow), first request = the brief |
+| `desk.py` | the Home chat's (vault session) dashboard tools on the `orb` MCP server: read tools (`home_brief`, `tasks`, `task`, `sessions`, `routines`, `notes_recent`, `unsaved`) are pre-allowed and every result is fenced as untrusted data; write tools (`task_done`, `task_snooze`) always raise a card and return the re-read state |
 | `routines.py` | optional Routines panel: claude.ai scheduled agents via a locked-down Haiku session (read actions only) |
 | `brain.py` | optional second brain: notes vault rules, claude.ai Brain connectors, dictated notes |
 | `timing.py` | per-turn hop timings: logged, shown under each answer, appended to `~/.orb/timing.jsonl` |

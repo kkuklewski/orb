@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { start } from "./ws";
 import { useConnection, type Connection } from "./stores/connection";
 import { useFeatures, wireFeatures } from "./stores/features";
@@ -16,9 +16,9 @@ import { Home } from "./screens/Home";
 import { TaskScreen, TaskToast } from "./screens/Task";
 import { RoutineScreen } from "./screens/Routine";
 import { wireTasks } from "./stores/tasks";
-import { wireVikunja } from "./stores/vikunja";
-import { VikunjaTaskScreen } from "./screens/VikunjaTask";
-import { VikunjaList } from "./screens/VikunjaList";
+import { wireItems } from "./stores/items";
+import { ItemPage } from "./screens/ItemPage";
+import { ItemList } from "./screens/ItemList";
 import { wireHome } from "./stores/home";
 import { wireRoute } from "./stores/route";
 import { wireScreen } from "./stores/screen";
@@ -42,7 +42,7 @@ export { openSetup };
 
 export function App() {
   useEffect(() => {
-    const offs = [wireFeatures(), wireSetup(), wireViews(), wireSession(), wireChat(), wireMeta(), wireVoice(), wireHome(), wireTasks(), wireVikunja(), wireRoute(), wireScreen()];
+    const offs = [wireFeatures(), wireSetup(), wireViews(), wireSession(), wireChat(), wireMeta(), wireVoice(), wireHome(), wireTasks(), wireItems(), wireRoute(), wireScreen()];
     const stop = start();
     return () => { stop(); offs.forEach((off) => off()); };
   }, []);
@@ -52,6 +52,23 @@ export function App() {
   const open = useSetup((s) => s.open);
   const view = useViews((s) => s.view);
   const drawer = useSession((s) => s.drawer);
+  // A task, routine result or item list opens as a panel on the right of the screen it was opened from
+  // (Home, Activity or Routines) when the window is wide; "full page" detaches it, close goes back.
+  const wide = useWide(1100);
+  const detail = ["task", "routine", "item", "items"].includes(view);
+  const [full, setFull] = useState(false);
+  const baseRef = useRef<"home" | "activity" | "routines">("home");
+  if (view === "home" || view === "activity" || view === "routines") baseRef.current = view;
+  useEffect(() => { if (!detail) setFull(false); }, [detail]);
+  const base = baseRef.current;
+  const peeking = detail && wide && !full;
+  const peekW = usePeekWidth();
+  useEffect(() => {
+    if (!peeking) return;
+    const k = (e: KeyboardEvent) => { if (e.key === "Escape" && !(e.target as HTMLElement).closest("input, textarea")) useViews.setState({ view: base }); };
+    window.addEventListener("keydown", k);
+    return () => window.removeEventListener("keydown", k);
+  }, [peeking, base]);
 
   // Not set up: the setup opens by itself. Setup just finished: close it.
   const wasOnboarded = useRef<boolean | null>(null);
@@ -71,20 +88,56 @@ export function App() {
       <main className="main">
         <TopBar />
         <McpPanel />
-        {view === "activity" ? <Activity />
+        {peeking ? (
+          <div className="peek-wrap">
+            <div className="peek-base" onClick={(e) => { if (!(e.target as HTMLElement).closest("button, a, input, select, textarea, summary, label, [role=button]")) useViews.setState({ view: base }); }}>{base === "activity" ? <Activity /> : base === "routines" && features.routines ? <Routines /> : <section className="chat-next"><Home /></section>}</div>
+            <aside className="peek" aria-label="Details" style={peekW.w ? { flexBasis: peekW.w } : undefined}>
+              <div className="peek-grip" role="separator" aria-orientation="vertical" aria-label="Resize panel (double-click to reset)" onPointerDown={peekW.drag} onDoubleClick={peekW.reset} />
+              <div className="peek-bar mono">
+                <button type="button" onClick={() => useViews.setState({ view: base })} aria-label="Close panel">✕ CLOSE</button>
+                <button type="button" onClick={() => setFull(true)} aria-label="Open as full page">⤢ FULL PAGE</button>
+              </div>
+              <div className="peek-body">
+                {view === "routine" ? <RoutineScreen /> : view === "task" ? <TaskScreen /> : view === "items" ? <ItemList /> : <ItemPage />}
+              </div>
+            </aside>
+          </div>
+        ) : view === "activity" ? <Activity />
           : view === "routines" && features.routines ? <Routines />
           : view === "settings" ? <Settings />
           : view === "home" ? <section className="chat-next"><Home /><Dock pill={false} /></section>
           : view === "routine" ? <section className="chat-next"><RoutineScreen /><Dock pill /></section>
           : view === "task" ? <section className="chat-next"><TaskScreen /><Dock pill /></section>
-          : view === "vikunjas" ? <section className="chat-next"><VikunjaList /><Dock pill /></section>
-          : view === "vikunja" ? <section className="chat-next"><VikunjaTaskScreen /><Dock pill /></section>
+          : view === "items" ? <section className="chat-next"><ItemList /><Dock pill /></section>
+          : view === "item" ? <section className="chat-next"><ItemPage /><Dock pill /></section>
           : <Chat />}
       </main>
       <Picker />
       <TaskToast />
     </div>
   );
+}
+
+const PEEK_KEY = "orb-peek-w";
+function usePeekWidth() {
+  const [w, setW] = useState<number | null>(() => { try { return Number(localStorage.getItem(PEEK_KEY)) || null; } catch { return null; } });
+  const drag = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const right = e.currentTarget.parentElement!.getBoundingClientRect().right;
+    const max = Math.max(420, window.innerWidth - 360);
+    let last = 0;
+    const move = (m: PointerEvent) => { last = Math.round(Math.min(max, Math.max(360, right - m.clientX))); setW(last); };
+    const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); if (last) try { localStorage.setItem(PEEK_KEY, String(last)); } catch { /* no storage */ } };
+    window.addEventListener("pointermove", move); window.addEventListener("pointerup", up);
+  };
+  return { w, drag, reset: () => { setW(null); try { localStorage.removeItem(PEEK_KEY); } catch { /* no storage */ } } };
+}
+
+function useWide(px: number) {
+  const q = `(min-width: ${px}px)`;
+  const [on, setOn] = useState(() => window.matchMedia(q).matches);
+  useEffect(() => { const m = window.matchMedia(q); const f = () => setOn(m.matches); m.addEventListener("change", f); return () => m.removeEventListener("change", f); }, [q]);
+  return on;
 }
 
 function Chat() {

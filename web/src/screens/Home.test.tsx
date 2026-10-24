@@ -61,14 +61,12 @@ describe("home screen", () => {
     expect(sent).toEqual([{ type: "home" }, { type: "routines" }]);
   });
 
-  it("reads like a brief: the paragraph, the numbers, the cards and the notes", () => {
+  it("leads with what needs you, then the status cards and the notes", () => {
     render(<Home />);
     act(() => dispatch(notes() as ServerEvent));
-    const brief = document.querySelector(".home-brief")!.textContent!;
-    expect(brief).toContain("One session is waiting for your OK in web.");
-    expect(brief).toContain("Your notes hold 14 open tasks, and 9 notes changed this week.");
-    expect(brief).toContain("All 1 routine ran fine.");
-    expect(screen.getByRole("article", { name: "fix login" })).toBeTruthy();
+    const lead = screen.getByRole("article", { name: "1 thing needs you now" });
+    expect(within(lead).getByText("fix login")).toBeTruthy();
+    expect(screen.getByRole("article", { name: "1 of 1 ran fine" })).toBeTruthy();
     const todo = screen.getByRole("article", { name: "14 open tasks, newest first" });
     expect(within(todo).getByRole("button", { name: "Send the invoice" })).toBeTruthy();
     expect(within(todo).getByText("+ 13 more in your notes")).toBeTruthy();
@@ -108,6 +106,17 @@ describe("home screen", () => {
     expect(useViews.getState().view).toBe("chat");
   });
 
+  it("a tile's Ask about this sends its question in the notes folder, with the tile's lines as the screen", () => {
+    useHome.setState({ notes: notes() });
+    render(<Home />);
+    fireEvent.click(within(screen.getByRole("article", { name: /open task/ })).getByRole("button", { name: "Ask about this →" }));
+    expect(sent.at(-1)).toEqual({ type: "start_session", path: "/Users/a/notes" });
+    const p = useSession.getState();
+    expect(p.pendingAsk).toMatch(/which of these tasks/i);
+    expect(p.pendingScreen).toEqual({ name: "Tasks in notes", text: "Send the invoice (today)" });
+    expect(p.pendingStay).toBe(true);
+  });
+
   it("without a notes folder it offers to connect one", () => {
     useFeatures.setState((s) => ({ features: { ...s.features!, vault: "" } }));
     render(<Home />);
@@ -118,15 +127,14 @@ describe("home screen", () => {
 });
 
 describe("routine results on Home", () => {
-  it("the brief mentions only new results worth reading", () => {
+  it("the routines card lists only the results worth reading", () => {
     useViews.setState({ routines: routines({ items: [
       routine({ id: "a", name: "Gmail cleanup", new: true, loud: true, worth: "read", last: { id: "r1", outcome: "ok" } }),
       routine({ id: "b", name: "Etihad check", quiet: true, worth: "skip", last: { id: "r2", outcome: "ok" } }),
     ] }) });
     render(<Home />);
-    const brief = document.querySelector(".home-brief")!.textContent!;
-    expect(brief).toContain("One result is worth reading (Gmail cleanup).");
-    expect(brief).not.toContain("Etihad check)");
+    expect(screen.getByText("Gmail cleanup")).toBeTruthy();
+    expect(screen.queryByText("Etihad check")).toBeNull();
   });
 });
 
@@ -192,28 +200,28 @@ describe("setup: notes step", () => {
   });
 });
 
-describe("Vikunja tasks", () => {
+describe("Item pages", () => {
   const tracker = { tasks: [{ id: 7, title: "Fix the login", project: "acme", due: null, priority: 0, updated: 1, url: "http://v/tasks/7" }], total: 1, url: "http://v" };
-  const detail = { type: "vikunja_task", id: 7, title: "Fix the login", description: "Users get logged out.\n\n**bold** step", project: "acme", due: null, priority: 0,
-    done: false, url: "http://v/tasks/7", repo: "acme/web", brief: "Help me with a task…" } as const;
+  const detail = { type: "item", source: "vikunja", id: "7", title: "Fix the login", kicker: "VIKUNJA", chips: ["acme"], body: "Users get logged out.\n\n**bold** step",
+    url: "http://v/tasks/7", url_label: "Open in Vikunja →", repo: "acme/web", brief: "Help me with a task…", done: false, can_archive: true } as const;
 
-  it("a task opens its page; Start in Orb sends only the id; Copy prompt copies the brief", async () => {
+  it("a task opens its page; Start in Orb sends only the source and id; Copy prompt copies the brief", async () => {
     const writeText = vi.fn(() => Promise.resolve());
     vi.stubGlobal("navigator", { clipboard: { writeText } });
-    const { VikunjaTaskScreen } = await import("./VikunjaTask");
-    const off = (await import("../stores/vikunja")).wireVikunja();
+    const { ItemPage } = await import("./ItemPage");
+    const off = (await import("../stores/items")).wireItems();
     render(<Home />);
     act(() => useHome.setState({ watch: { type: "home_watch", reminders: [], links: [], repos: [], prs: [], tracker, tracker_error: null } }));
     fireEvent.click(screen.getByRole("button", { name: "Fix the login" }));
-    expect(sent.at(-1)).toEqual({ type: "vikunja_task", id: 7 });
-    expect(useViews.getState().view).toBe("vikunja");
+    expect(sent.at(-1)).toEqual({ type: "item_get", source: "vikunja", id: "7" });
+    expect(useViews.getState().view).toBe("item");
     cleanup();
-    render(<VikunjaTaskScreen />);
+    render(<ItemPage />);
     act(() => dispatch(detail as unknown as ServerEvent));
     expect(screen.getByText("Users get logged out.")).toBeTruthy();
     expect(document.querySelector(".vk-desc strong")?.textContent).toBe("bold");
     fireEvent.click(screen.getByRole("button", { name: "Start in Orb · acme/web" }));
-    expect(sent.at(-1)).toEqual({ type: "vikunja_start", id: 7 });
+    expect(sent.at(-1)).toEqual({ type: "item_start", source: "vikunja", id: "7" });
     fireEvent.click(screen.getByRole("button", { name: "Copy prompt" }));
     expect(writeText).toHaveBeenCalledWith("Help me with a task…");
     act(() => dispatch({ ...detail, repo: null } as unknown as ServerEvent));
@@ -222,45 +230,68 @@ describe("Vikunja tasks", () => {
   });
 });
 
-describe("Vikunja table", () => {
-  const row = (id: number, title: string, repo: string | null, priority = 0) => ({ id, title, project: "acme", repo, due: null, priority, updated: 1, url: `http://v/tasks/${id}` });
-  const list = (tasks: ReturnType<typeof row>[]) => ({ type: "vikunja_list", total: tasks.length, url: "http://v", tasks }) as unknown as ServerEvent;
-  const setup = async () => {
-    const { VikunjaList } = await import("./VikunjaList");
-    const off = (await import("../stores/vikunja")).wireVikunja();
-    render(<VikunjaList />);
+describe("Item table", () => {
+  const col = (key: string, label: string, kind = "text") => ({ key, label, kind });
+  const row = (id: string, title: string, repo: string | null, priority = 0) => ({ id, title, repo, hot: priority >= 4, cells: { project: "acme", due: "", priority: String(priority) } });
+  const list = (rows: ReturnType<typeof row>[]) => ({ type: "item_list", source: "vikunja", kicker: "VIKUNJA", heading: `${rows.length} open tasks`, rows,
+    columns: [col("title", "Task", "title"), col("repo", "Repo", "repo"), col("project", "Project", "chip"), col("due", "Due", "due"), col("priority", "Priority", "priority")],
+    group_key: "repo", can_archive: true, url: "http://v", url_label: "OPEN VIKUNJA →" }) as unknown as ServerEvent;
+  const setup = async (source: "vikunja" | "prs" | "repos" = "vikunja") => {
+    const { ItemList } = await import("./ItemList");
+    const items = await import("../stores/items");
+    const off = items.wireItems();
+    items.useItems.setState({ source, lists: {} });
+    render(<ItemList />);
     return off;
   };
   const titles = () => screen.getAllByRole("row").map((r) => r.querySelector("td button")?.textContent).filter(Boolean);
 
-  it("groups by repo (biggest first, no repo last), sorts, filters, opens a task", async () => {
+  it("groups by repo (biggest first, no repo last), sorts, filters, opens an item", async () => {
     const off = await setup();
-    act(() => dispatch(list([row(1, "Beta", null), row(2, "Alpha", "acme/web"), row(3, "Gamma", "acme/api", 4), row(4, "Delta", "acme/api")])));
+    act(() => dispatch(list([row("1", "Beta", null), row("2", "Alpha", "acme/web"), row("3", "Gamma", "acme/api", 4), row("4", "Delta", "acme/api")])));
     expect([...document.querySelectorAll(".vk-grp th")].map((h) => h.textContent)).toEqual(["acme/api 2", "acme/web 1", "No repo 1"]);
     expect(titles()).toEqual(["Gamma", "Delta", "Alpha", "Beta"]);
+    expect([...document.querySelectorAll("td.vk-n")].map((c) => c.textContent)).toEqual(["1", "2", "3", "4"]); // Lp. runs on across groups
     fireEvent.click(screen.getByLabelText("Group by repo"));
     expect(document.querySelectorAll(".vk-grp")).toHaveLength(0);
     expect(titles()).toEqual(["Beta", "Alpha", "Gamma", "Delta"]);
     fireEvent.click(screen.getByRole("button", { name: "Repo" }));
     expect(titles()).toEqual(["Gamma", "Delta", "Alpha", "Beta"]); // no repo goes last
-    fireEvent.change(screen.getByLabelText("Filter tasks"), { target: { value: "web" } });
+    fireEvent.change(screen.getByLabelText("Filter items"), { target: { value: "web" } });
     expect(titles()).toEqual(["Alpha"]);
     sent.length = 0;
     fireEvent.click(screen.getByRole("button", { name: "Alpha" }));
-    expect(sent.at(-1)).toEqual({ type: "vikunja_task", id: 2 });
+    expect(sent.at(-1)).toEqual({ type: "item_get", source: "vikunja", id: "2" });
     off();
   });
 
   it("Archive marks the task done and offers Undo", async () => {
     const off = await setup();
-    act(() => dispatch(list([row(5, "Old chore", "acme/web")])));
+    act(() => dispatch(list([row("5", "Old chore", "acme/web")])));
     sent.length = 0;
     fireEvent.click(screen.getByRole("button", { name: "Archive: Old chore" }));
-    expect(sent.at(-1)).toEqual({ type: "vikunja_done", id: 5, done: true });
+    expect(sent.at(-1)).toEqual({ type: "item_done", source: "vikunja", id: "5", done: true });
     expect(screen.getByRole("status").textContent).toContain("Archived: Old chore");
     fireEvent.click(screen.getByRole("button", { name: "Undo" }));
-    expect(sent.at(-1)).toEqual({ type: "vikunja_done", id: 5, done: false });
+    expect(sent.at(-1)).toEqual({ type: "item_done", source: "vikunja", id: "5", done: false });
     expect(screen.queryByRole("status")).toBeNull();
+    off();
+  });
+
+  it("another source gets the same table: its own columns, grouping by a column, no Archive", async () => {
+    const off = await setup("prs");
+    const pr = (id: string, title: string, repository: string, idle: string) => ({ id, title, repo: null, hot: false, cells: { repository, state: "", idle } });
+    act(() => dispatch({ type: "item_list", source: "prs", kicker: "GITHUB", heading: "3 open pull requests", group_key: "repository", can_archive: false, url: null, url_label: null,
+      columns: [col("title", "Pull request", "title"), col("repo", "Local repo", "repo"), col("repository", "Repository", "chip"), col("idle", "Idle", "age")],
+      rows: [pr("a/x#1", "#1 · One", "a/x", "9"), pr("a/y#2", "#2 · Two", "a/y", "30"), pr("a/y#3", "#3 · Three", "a/y", "2")] } as unknown as ServerEvent));
+    expect([...document.querySelectorAll(".vk-grp th")].map((h) => h.textContent)).toEqual(["a/y 2", "a/x 1"]);
+    expect(screen.queryByRole("button", { name: /Archive/ })).toBeNull();
+    expect(screen.getByLabelText("Group by repository")).toBeTruthy();
+    fireEvent.click(screen.getByLabelText("Group by repository"));
+    fireEvent.click(screen.getByRole("button", { name: "Idle" }));
+    fireEvent.click(screen.getByRole("button", { name: "Idle ↑" })); // descending: numeric, not text
+    expect(titles()).toEqual(["#2 · Two", "#1 · One", "#3 · Three"]);
+    expect(screen.getByText("30d")).toBeTruthy();
     off();
   });
 });
