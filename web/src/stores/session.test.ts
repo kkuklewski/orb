@@ -127,3 +127,36 @@ describe("which repo a task belongs to", () => {
     expect(S.suggestRepos(repos, "Write the weekly review", "/v")).toEqual([]);
   });
 });
+
+describe("reusableSession", () => {
+  const now = Date.UTC(2026, 9, 24, 12) / 1000;
+  const f = (sessions: object[]) => [{ path: "/v", label: "v", sessions }] as never;
+  const s = (over: object) => ({ key: "k", label: "What's first?", status: "idle", live: false, empty: false, created: now - 3600, ...over });
+  it("finds today's idle session with the same request", () => {
+    expect(S.reusableSession(f([s({})]), "/v", "What's first?", now)?.key).toBe("k");
+  });
+  it("not when busy, from another day, archived, or a different request", () => {
+    expect(S.reusableSession(f([s({ status: "working" })]), "/v", "What's first?", now)).toBeUndefined();
+    expect(S.reusableSession(f([s({ created: now - 3 * 86400 })]), "/v", "What's first?", now)).toBeUndefined();
+    expect(S.reusableSession(f([s({ archived: true })]), "/v", "What's first?", now)).toBeUndefined();
+    expect(S.reusableSession(f([s({})]), "/v", "Something else", now)).toBeUndefined();
+  });
+  it("matches a long request by its cut label", () => {
+    const text = "x".repeat(80);
+    expect(S.reusableSession(f([s({ label: "x".repeat(60) + "…" })]), "/v", text, now)?.key).toBe("k");
+  });
+});
+
+describe("askIn", () => {
+  it("opens today's idle session with the same request instead of starting a copy, and starts one when none fits", async () => {
+    const { useFeatures } = await import("./features");
+    const now = Date.now() / 1000;
+    useFeatures.setState({ folders: [{ path: "/v", label: "v", sessions: [{ key: "k1", label: "What's first?", status: "idle", live: false, empty: false, created: now - 60 }] }] as never });
+    S.askIn("/v", "What's first?", null, true);
+    expect(sent).toContainEqual({ type: "open_folder", path: "/v", session: "k1" });
+    expect(S.useSession.getState().pendingAsk).toBe("What's first?");
+    sent.length = 0;
+    S.askIn("/v", "A new question");
+    expect(sent).toContainEqual({ type: "start_session", path: "/v" });
+  });
+});

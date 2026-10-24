@@ -57,13 +57,21 @@ export function activityRows(folders: FolderItem[], limit = 40): SessionRow[] {
 
 /** Chats view: every session grouped by repo (repos with something running or waiting first, then newest), filtered by `q`
  *  on the label and the repo name. */
-export function chatGroups(rows: SessionRow[], q: string): { folder: FolderItem; rows: SessionRow[] }[] {
+export function chatGroups(rows: SessionRow[], q: string, current: string | null = null): { folder: FolderItem; rows: (SessionRow & { count: number })[] }[] {
   const needle = q.trim().toLowerCase();
-  const by = new Map<string, { folder: FolderItem; rows: SessionRow[] }>();
+  const by = new Map<string, { folder: FolderItem; rows: (SessionRow & { count: number })[] }>();
+  const seen = new Map<string, SessionRow & { count: number }>(); // one row per label per repo (the newest wins; `rows` is newest first)
   for (const r of rows) {
+    if (r.label && !r.live && r.key !== current) {
+      const id = `${r.folder.path}\n${r.label.trim().toLowerCase()}`;
+      const first = seen.get(id);
+      if (first) { first.count++; continue; }
+    }
+    const row = { ...r, count: 1 };
+    if (r.label) seen.set(`${r.folder.path}\n${r.label.trim().toLowerCase()}`, row);
     if (needle && !`${r.label ?? ""} ${r.folder.label}`.toLowerCase().includes(needle)) continue;
     const g = by.get(r.folder.path) ?? { folder: r.folder, rows: [] };
-    g.rows.push(r);
+    g.rows.push(row);
     by.set(r.folder.path, g);
   }
   const rank = (g: { rows: SessionRow[] }) => Math.min(...g.rows.map((r) => ORDER[r.status] ?? 3));

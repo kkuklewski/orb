@@ -111,10 +111,23 @@ export function startSession(path: string) {
   useSession.setState({ drawer: false });
 }
 
-/** A fresh session in `path` that starts with `text` (Home's "Ask your notes"). */
+const LABEL_MAX = 60; // the server labels a session with its first request, cut here (sessions.py)
+const sameDay = (a: number, b: number) => new Date(a * 1000).toDateString() === new Date(b * 1000).toDateString();
+
+/** The session in `path` opened today by this same request that is idle now (so asking again doesn't pile up copies). */
+export function reusableSession(folders: FolderItem[], path: string, text: string, now = Date.now() / 1000): SessionItem | undefined {
+  const t = text.trim();
+  const label = t.slice(0, LABEL_MAX) + (t.length > LABEL_MAX ? "…" : "");
+  const f = folders.find((x) => x.path === path);
+  return (f?.sessions ?? []).find((x) => !x.archived && !x.empty && x.status === "idle" && x.label === label && x.created != null && sameDay(x.created, now));
+}
+
+/** A session in `path` that starts with `text` (Home's "Ask your notes"): today's idle one with the same request when
+ *  there is one, a fresh one otherwise. */
 export function askIn(path: string, text: string, screen: { name: string; text: string } | null = null, stay = false) {
   useSession.setState({ pendingAsk: text, pendingScreen: screen, pendingStay: stay });
-  startSession(path);
+  const again = reusableSession(useFeatures.getState().folders, path, text);
+  if (again) openFolder(path, again.key); else startSession(path);
 }
 
 export function newSession() {

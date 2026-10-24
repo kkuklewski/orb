@@ -109,3 +109,4 @@ a.hbtn { text-decoration: none; }
 .chats-label { color: var(--text); }
 .rail-toggle { width: 40px; height: 28px; margin: 0 auto 8px; display: grid; place-items: center; background: none; border: 0; border-radius: 8px; color: var(--text-3); cursor: pointer; }
 .rail-toggle:hover, .rail-toggle[aria-pressed="true"] { color: var(--text); background: var(--bg-elev); }
+.chats-count { margin-left: 8px; font-size: 11px; color: var(--text-3); }
