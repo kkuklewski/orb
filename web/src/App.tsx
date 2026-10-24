@@ -13,6 +13,7 @@ import { Routines } from "./screens/Routines";
 import { Settings } from "./screens/Settings";
 import { Sidebar } from "./screens/Sidebar";
 import { Picker } from "./screens/Picker";
+import { PinChips } from "./screens/PinChips";
 import { Composer } from "./screens/Composer";
 import { Home } from "./screens/Home";
 import { TaskScreen, TaskToast } from "./screens/Task";
@@ -190,6 +191,7 @@ function Chat() {
 function Dock({ pill }: { pill: boolean }) {
   return (
     <footer className="dock">
+      <PinChips />
       <DockState />
       <div className="dock-row">
         {pill && <div className="orb-slot"><VoicePill /></div>}

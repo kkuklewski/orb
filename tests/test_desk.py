@@ -256,3 +256,11 @@ async def test_the_permission_card_for_a_write_tool_names_the_task(src, tmp_path
 def test_the_new_commands_are_local():
     from orb import slash
     assert {"today", "standup", "task"} <= slash.LOCAL_NAMES and slash.local_command("/task 12") == ("task", "12")
+
+
+def test_the_desk_prompt_treats_pinned_items_as_references():
+    from orb import chain
+    assert "Pinned by the user" in chain.DESK_PROMPT
+    assert "never means" in chain.DESK_PROMPT
+    for tool in ("`task`", "`routines`", "`notes_recent`", "`unsaved`"):
+        assert tool in chain.DESK_PROMPT

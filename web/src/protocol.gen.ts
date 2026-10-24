@@ -91,6 +91,7 @@ export type ServerEvent =
   | TimingEvent
   | PartialEvent
   | HeardNothingEvent
+  | PinFocusedEvent
   | HeldEvent
   | PermissionEvent
   | PermissionDoneEvent
@@ -1407,6 +1408,16 @@ export interface HeardNothingEvent {
   replay?: boolean | null;
   session?: string | null;
   type: "heard_nothing";
+}
+/**
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "PinFocusedEvent".
+ */
+export interface PinFocusedEvent {
+  folder?: string | null;
+  replay?: boolean | null;
+  session?: string | null;
+  type: "pin_focused";
 }
 /**
  * This interface was referenced by `OrbProtocol`'s JSON-Schema
