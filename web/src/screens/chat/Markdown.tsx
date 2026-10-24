@@ -33,7 +33,28 @@ function themeVars() {
            lineColor: v("--text-2", "#999"), secondaryColor: v("--side", "#181818"), tertiaryColor: v("--side", "#181818"), fontFamily: DIAGRAM_FONT, fontSize: "14px" };
 }
 
+// Inline style="" on the drawn SVG: nothing that loads, overlays or generates content.
 const UNSAFE_CSS = /@import|url\(|expression\(|position\s*:\s*(fixed|absolute|sticky)|content\s*:/i;
+// The diagram's own <style> sheet: every rule is confined to #orb-dg-N (scopedSheet), so Mermaid's own absolute-positioned
+// tooltip is fine; loads (url() other than a #fragment, which Mermaid uses for gradients) and fixed overlays are still refused.
+export const UNSAFE_SHEET = /@import|url\((?!\s*["']?#)|expression\(|position\s*:\s*fixed/i;
+
+/** The diagram's CSS as a sheet, only if every rule is scoped to this diagram's own id (or is a keyframes rule): the
+ *  sheet is adopted document-wide, so a rule like `body{...}` smuggled in through a theme setting must not get in. */
+export function scopedSheet(css: string, id: string): CSSStyleSheet | null {
+  const sheet = new CSSStyleSheet();
+  try { sheet.replaceSync(css); } catch { return null; }
+  const own = (sel: string) => { const t = sel.trim(); return t === `#${id}` || new RegExp(`^#${id}(?![\\w-])`).test(t); };
+  const ok = [...sheet.cssRules].every((r) => r instanceof CSSKeyframesRule || (r instanceof CSSStyleRule && r.selectorText.split(",").every(own)));
+  return ok ? sheet : null;
+}
+
+/** Mermaid reads per-diagram config from `%%{init}%%` directives and from a leading `---` frontmatter block; both can
+ *  set theme CSS, so neither is accepted. */
+export const hasConfig = (src: string) => /%%\{/.test(src) || /^\s*---/.test(src);
+
+// Settings a diagram's own text may never change, whatever route it takes (directive, frontmatter, init).
+const SECURE = ["secure", "securityLevel", "startOnLoad", "suppressErrorRendering", "maxTextSize", "maxEdges", "theme", "themeCSS", "themeVariables", "fontFamily"];
 
 async function drawDiagram(src: string): Promise<SVGElement> {
   const vars = themeVars();
@@ -43,8 +64,8 @@ async function drawDiagram(src: string): Promise<SVGElement> {
   const m = await (mermaid ??= import("mermaid").then((x) => x.default));
   m.initialize({ startOnLoad: false, suppressErrorRendering: true, securityLevel: "strict", theme: "base", themeVariables: vars,
     fontFamily: DIAGRAM_FONT, flowchart: { htmlLabels: false, useMaxWidth: false, padding: 14, nodeSpacing: 40, rankSpacing: 50 },
-    sequence: { useMaxWidth: false }, er: { useMaxWidth: false }, state: { useMaxWidth: false }, gantt: { useMaxWidth: false } });
-  if (/%%\{/.test(src)) throw new Error("diagram directives are not allowed");  // %%{init}%% can inject themeCSS
+    sequence: { useMaxWidth: false }, er: { useMaxWidth: false }, state: { useMaxWidth: false }, gantt: { useMaxWidth: false }, secure: SECURE });
+  if (hasConfig(src)) throw new Error("diagram directives and frontmatter are not allowed");
   const id = `orb-dg-${diagramSeq++}`;
   let svg: string;
   try {
@@ -56,9 +77,9 @@ async function drawDiagram(src: string): Promise<SVGElement> {
   }
   const el = new DOMParser().parseFromString(svg, "image/svg+xml").documentElement as unknown as SVGElement;
   const css = [...el.querySelectorAll("style")].map((st) => { const t = st.textContent ?? ""; st.remove(); return t; }).join("\n");
-  if (UNSAFE_CSS.test(css)) throw new Error("diagram style refused");  // the sheet is document-wide: no loads, no overlays
-  const sheet = new CSSStyleSheet();
-  sheet.replaceSync(css);
+  if (UNSAFE_SHEET.test(css)) throw new Error("diagram style refused");  // no loads; scoping (below) keeps every rule inside this diagram
+  const sheet = scopedSheet(css, id);
+  if (!sheet) throw new Error("diagram style refused");  // a rule outside #orb-dg-N
   document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
   diagrams.set(key, el);
   return el.cloneNode(true) as SVGElement;
