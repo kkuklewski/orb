@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import os
 import shutil
 import subprocess
 import time
@@ -72,22 +73,33 @@ def parse_status(out: str) -> dict:
 
 
 def repo_filters(out: str) -> list[str]:
-    """`git config --show-scope --get-regexp`: -c overrides that blank the filter drivers set in the repo itself."""
+    """`git config -z --show-scope --get-regexp ^filter\\.`: the filter commands set in the repo itself."""
     keys = []
-    for line in out.splitlines():
-        scope, _, rest = line.partition("\t")
-        key = rest.split(" ", 1)[0]
+    parts = out.split("\0")
+    for scope, entry in zip(parts[0::2], parts[1::2]):
+        key = entry.split("\n", 1)[0]
         if scope in ("local", "worktree") and key.startswith("filter.") and key.rsplit(".", 1)[-1] in ("clean", "smudge", "process"):
-            keys += ["-c", f"{key}="]
+            keys.append(key)
     return keys
+
+
+def blank_env(keys: list[str]) -> dict[str, str]:
+    """GIT_CONFIG_* overrides that set each key to "": key and value stay apart (a "-c k=v" splits at the first "=")."""
+    env = {"GIT_CONFIG_COUNT": str(len(keys))}
+    for i, k in enumerate(keys):
+        env |= {f"GIT_CONFIG_KEY_{i}": k, f"GIT_CONFIG_VALUE_{i}": ""}
+    return env
 
 
 def _repo(f: dict) -> dict | None:
     try:
-        c = subprocess.run(["git", "-C", f["path"], "config", "--show-scope", "--includes", "--get-regexp", r"^filter\."],
+        c = subprocess.run(["git", "-C", f["path"], "config", "-z", "--show-scope", "--includes", "--get-regexp", r"^filter\."],
                            capture_output=True, text=True, timeout=GIT_TIMEOUT)
-        r = subprocess.run(["git", "-C", f["path"], *GIT_SAFE, *repo_filters(c.stdout), "status", "--porcelain=v1", "-b",
-                            "--ignore-submodules=all"], capture_output=True, text=True, timeout=GIT_TIMEOUT)
+        if c.returncode not in (0, 1) or (c.returncode == 1 and c.stdout):  # 1 = no filters; anything else: don't guess
+            return None
+        r = subprocess.run(["git", "-C", f["path"], *GIT_SAFE, "status", "--porcelain=v1", "-b", "--ignore-submodules=all"],
+                           capture_output=True, text=True, timeout=GIT_TIMEOUT,
+                           env=os.environ | blank_env(repo_filters(c.stdout)))
     except (OSError, subprocess.TimeoutExpired):
         return None
     if r.returncode != 0:

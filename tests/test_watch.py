@@ -58,14 +58,16 @@ def test_repos_never_run_programs_from_the_repos_config(tmp_path):
     p = tmp_path / "acme"
     git = lambda *a: subprocess.run(["git", "-C", str(p), *a], check=True, capture_output=True)
     subprocess.run(["git", "init", "-q", "-b", "main", str(p)], check=True)
-    (p / ".gitattributes").write_text("* filter=evil\n")
+    (p / ".gitattributes").write_text("* filter=ev=il\n")
     (p / "x.txt").write_text("x")
-    git("-c", "user.email=a@acme.example", "-c", "user.name=a", "-c", "filter.evil.clean=cat", "add", ".")
-    git("-c", "user.email=a@acme.example", "-c", "user.name=a", "-c", "filter.evil.clean=cat", "commit", "-qm", "x")
+    git("-c", "user.email=a@acme.example", "-c", "user.name=a", "-c", "filter.ev=il.clean=cat", "add", ".")
+    git("-c", "user.email=a@acme.example", "-c", "user.name=a", "-c", "filter.ev=il.clean=cat", "commit", "-qm", "x")
     ran = tmp_path / "ran"
     git("config", "core.fsmonitor", f"touch {ran}-fsmonitor")
-    git("config", "filter.evil.clean", f"touch {ran}-clean; cat")
-    git("config", "filter.evil.process", f"sh -c 'touch {ran}-process; exit 1'")
+    git("config", "filter.ev=il.clean", f"touch {ran}-clean; cat")
+    git("config", "filter.ev=il.process", f"sh -c 'touch {ran}-process; exit 1'")
+    for x in tmp_path.glob("ran-*"):  # set-up runs, not the check's
+        x.unlink()
     os.utime(p / "x.txt", (1, 1))  # stat changed, content not: git re-reads the file through its filter
     (p / "y.txt").write_text("y")
     assert watch.repos([{"path": str(p), "label": "acme"}])[0]["changed"] == 1
@@ -73,8 +75,9 @@ def test_repos_never_run_programs_from_the_repos_config(tmp_path):
 
 
 def test_repo_filters_only_blanks_the_repos_own():
-    out = "global\tfilter.lfs.clean git-lfs clean -- %f\nlocal\tfilter.evil.process sh x\nlocal\tfilter.evil.required true\n"
-    assert watch.repo_filters(out) == ["-c", "filter.evil.process="]
+    out = "global\0filter.lfs.clean\ngit-lfs clean -- %f\0local\0filter.a b=c.process\nsh x\0local\0filter.evil.required\ntrue\0"
+    assert watch.repo_filters(out) == ["filter.a b=c.process"]
+    assert watch.blank_env(["filter.x=y.clean"]) == {"GIT_CONFIG_COUNT": "1", "GIT_CONFIG_KEY_0": "filter.x=y.clean", "GIT_CONFIG_VALUE_0": ""}
 
 
 def test_parse_prs_marks_stale():
