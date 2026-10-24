@@ -53,6 +53,16 @@ def test_repos_lists_only_unsaved(tmp_path):
         {"path": dirty["path"], "label": "acme/dirty", "branch": "main", "changed": 1, "ahead": None}]
 
 
+def test_repos_never_run_a_repos_fsmonitor(tmp_path):
+    p = tmp_path / "acme"
+    subprocess.run(["git", "init", "-q", "-b", "main", str(p)], check=True)
+    hook = tmp_path / "ran"
+    subprocess.run(["git", "-C", str(p), "config", "core.fsmonitor", f"touch {hook}"], check=True)
+    (p / "x.txt").write_text("x")
+    assert watch.repos([{"path": str(p), "label": "acme"}])[0]["changed"] == 1
+    assert not hook.exists()
+
+
 def test_parse_prs_marks_stale():
     now = dt.datetime(2030, 3, 10, tzinfo=dt.timezone.utc).timestamp()
     raw = json.dumps([

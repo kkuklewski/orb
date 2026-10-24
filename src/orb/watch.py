@@ -20,6 +20,8 @@ STALE_DAYS = 3  # a pull request untouched this long is "going stale"
 GIT_TIMEOUT = 4
 GH_TIMEOUT = 12
 PR_CACHE_SECONDS = 300
+# A repo's own .git/config could name a program for git to run (fsmonitor); a status check never runs one.
+GIT_SAFE = ("-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null")
 
 _prs: dict = {"at": 0.0, "items": []}
 
@@ -70,8 +72,8 @@ def parse_status(out: str) -> dict:
 
 def _repo(f: dict) -> dict | None:
     try:
-        r = subprocess.run(["git", "-C", f["path"], "status", "--porcelain=v1", "-b"], capture_output=True, text=True,
-                           timeout=GIT_TIMEOUT)
+        r = subprocess.run(["git", "-C", f["path"], *GIT_SAFE, "status", "--porcelain=v1", "-b"], capture_output=True,
+                           text=True, timeout=GIT_TIMEOUT)
     except (OSError, subprocess.TimeoutExpired):
         return None
     if r.returncode != 0:
