@@ -505,7 +505,7 @@ class FolderSession:
                 "PostToolUseFailure": [HookMatcher(matcher=CAPTURE_TOOL, hooks=[self._capture_failed])],
             },
             env=billing.sdk_env(),
-            system_prompt={"type": "preset", "preset": "claude_code", "append": "\n".join((VOICE_PROMPT, self._brain_prompt(), chain.routing_prompt(self.model), handoff.PROMPT if self.handoff else ""))},
+            system_prompt={"type": "preset", "preset": "claude_code", "append": "\n".join((VOICE_PROMPT, self._brain_prompt(), chain.routing_prompt(self.model), handoff.PROMPT if self.handoff else "", chain.DESK_PROMPT if self.is_desk else ""))},
             stderr=lambda line: log.debug("claude[%s]: %s", self.path, line),
         )
 

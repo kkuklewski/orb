@@ -106,6 +106,7 @@ def test_only_the_vault_session_gets_the_tools_and_they_need_no_card(src, tmp_pa
     assert not set(desk.WRITE_TOOLS) & set(o.allowed_tools)  # changing a task is always a card
     assert "orb" in o.mcp_servers
     other = make("/r/globex", src)._options()
+    assert "# The desk" in o.system_prompt["append"] and "# The desk" not in other.system_prompt["append"]
     assert not set(desk.READ_TOOLS) & set(other.allowed_tools) and "orb" not in other.mcp_servers
 
 
