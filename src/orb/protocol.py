@@ -438,7 +438,7 @@ class Tracker(_Msg):
     url: str
 
 
-ItemSource = Literal["vikunja", "prs", "repos"]
+ItemSource = Literal["vikunja", "prs", "repos", "notes"]
 
 
 class ItemColumn(_Msg):

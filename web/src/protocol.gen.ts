@@ -337,7 +337,7 @@ export interface TaskDetailMsg {
  * via the `definition` "ItemListMsg".
  */
 export interface ItemListMsg {
-  source: "vikunja" | "prs" | "repos";
+  source: "vikunja" | "prs" | "repos" | "notes";
   type: "item_list";
 }
 /**
@@ -346,7 +346,7 @@ export interface ItemListMsg {
  */
 export interface ItemGetMsg {
   id: string;
-  source: "vikunja" | "prs" | "repos";
+  source: "vikunja" | "prs" | "repos" | "notes";
   type: "item_get";
 }
 /**
@@ -358,7 +358,7 @@ export interface ItemGetMsg {
 export interface ItemDoneMsg {
   done?: boolean;
   id: string;
-  source: "vikunja" | "prs" | "repos";
+  source: "vikunja" | "prs" | "repos" | "notes";
   type: "item_done";
 }
 /**
@@ -369,7 +369,7 @@ export interface ItemDoneMsg {
  */
 export interface ItemStartMsg {
   id: string;
-  source: "vikunja" | "prs" | "repos";
+  source: "vikunja" | "prs" | "repos" | "notes";
   type: "item_start";
 }
 /**
@@ -1193,7 +1193,7 @@ export interface ItemEvent {
   replay?: boolean | null;
   repo?: string | null;
   session?: string | null;
-  source: "vikunja" | "prs" | "repos";
+  source: "vikunja" | "prs" | "repos" | "notes";
   title: string;
   type: "item";
   url?: string | null;
@@ -1215,7 +1215,7 @@ export interface ItemListEvent {
   replay?: boolean | null;
   rows: ItemRow[];
   session?: string | null;
-  source: "vikunja" | "prs" | "repos";
+  source: "vikunja" | "prs" | "repos" | "notes";
   type: "item_list";
   url?: string | null;
   url_label?: string | null;

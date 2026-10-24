@@ -150,3 +150,14 @@
 .ctx-menu button { background: none; border: 0; text-align: left; padding: 7px 10px; border-radius: 5px; cursor: pointer; color: var(--text); font-size: 13px; }
 .ctx-menu button:hover { background: var(--side-row-hover); }
 .ctx-menu button.danger { color: var(--err); }
+
+/* Dot grid behind the top of a page, fading out downwards. */
+:root { --dot: rgba(10, 12, 16, 0.13); }
+:root:not([data-theme="light"]) { --dot: rgba(255, 255, 255, 0.09); }
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) { --dot: rgba(10, 12, 16, 0.13); } }
+.chat-next { isolation: isolate; }
+.chat-next::before {
+  content: ""; position: absolute; inset: 0 0 auto 0; height: 700px; z-index: -1; pointer-events: none;
+  background-image: radial-gradient(var(--dot) 1px, transparent 1.2px); background-size: 24px 24px;
+  -webkit-mask-image: linear-gradient(180deg, #000, transparent); mask-image: linear-gradient(180deg, #000, transparent);
+}

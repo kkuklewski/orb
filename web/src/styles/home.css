@@ -54,6 +54,7 @@
 .hc-foot { display: flex; justify-content: space-between; gap: 12px; padding: 12px 20px; background: var(--side); border-top: 1px solid var(--line-soft); font-size: 11.5px; color: var(--text-2); }
 .hc-foot button { background: none; border: 0; padding: 0; font: inherit; color: var(--text-2); cursor: pointer; white-space: nowrap; }
 .hc-foot button:hover { color: var(--text); }
+.hc-foot-actions { display: flex; gap: 16px; }
 .hc-row { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; gap: 14px; align-items: center; width: 100%; box-sizing: border-box; padding: 10px 20px; min-height: 44px; border: 0; border-top: 1px solid var(--line-soft); background: none; color: var(--text); text-align: left; font: 14.5px/1.4 var(--sans); cursor: pointer; }
 .hc-row:hover { background: var(--bg); }
 .hc-row input[type=checkbox] { width: 15px; height: 15px; margin: 0; accent-color: var(--text); cursor: pointer; }

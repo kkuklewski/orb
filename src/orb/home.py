@@ -85,9 +85,9 @@ def _front(path: Path, mtime: float) -> dict[str, str]:
     return fm
 
 
-def _awaiting(vault: Path, files: list[tuple[Path, float]], limit: int) -> tuple[list[dict], int]:
+def _awaiting(vault: Path, files: list[tuple[Path, float]], limit: int | None) -> tuple[list[dict], int]:
     """Notes that wait for the owner's verdict: fact-checked with no human_verdict, or AI-curated and not yet
-    reviewed. Vetoed, dismissed and review stubs are left out. Returns (newest `limit`, total)."""
+    reviewed. Vetoed, dismissed and review stubs are left out. Returns (newest `limit`, None = all; total)."""
     out: list[dict] = []
     total = 0
     for p, t in files:
@@ -99,7 +99,7 @@ def _awaiting(vault: Path, files: list[tuple[Path, float]], limit: int) -> tuple
         if not waiting:
             continue
         total += 1
-        if len(out) < limit:
+        if limit is None or len(out) < limit:
             tag = "unverified view" if fm.get("knowledge_tier") == "perspective" else "AI" if ai else "your note" if fm.get("written_by") == "owner" else "capture"
             try:
                 verified = round(float(fm["verification_rate"]) * 100) if fm.get("verification_rate") else None
@@ -108,6 +108,11 @@ def _awaiting(vault: Path, files: list[tuple[Path, float]], limit: int) -> tuple
             out.append({"title": _title(p)[:120], "file": str(p.relative_to(vault)), "mtime": t, "tag": tag,
                         "verified": verified if verified is None or 0 <= verified <= 100 else None})
     return out, total
+
+
+def awaiting_notes(vault: Path) -> list[dict]:
+    """Every note that waits for the owner's verdict, newest first (the Notes page)."""
+    return _awaiting(vault, _notes(vault), None)[0]
 
 
 def _tasks(vault: Path, files: list[tuple[Path, float]], limit: int, today: str = "") -> tuple[list[dict], int, int]:

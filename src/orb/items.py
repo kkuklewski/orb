@@ -8,13 +8,14 @@ from __future__ import annotations
 
 import json
 import re
+import time
 import shutil
 import subprocess
 
-from . import vikunja, watch
+from . import home, vikunja, watch
 from .brief import quoted
 
-SOURCES = ("vikunja", "prs", "repos")
+SOURCES = ("vikunja", "prs", "repos", "notes")
 GH_TIMEOUT = 12
 PR_ID = re.compile(r"^[\w.-]+/[\w.-]+#\d+$")
 ASK_UNSAVED = ("Show me what's uncommitted or not pushed in this repo, and propose how to commit it "
@@ -61,6 +62,17 @@ def list_(source: str, cfg: dict, vault, found: list[dict]) -> dict:
         return {"source": source, "kicker": "NOT SAVED YET", "heading": f"{len(rows)} repos with unsaved work", "rows": rows,
                 "columns": [_col("title", "Repo", "title"), _col("branch", "Branch"), _col("unpushed", "Unpushed", "num"), _col("changed", "Changed", "num")],
                 "group_key": None, "can_archive": False, "url": None, "url_label": None}
+    if source == "notes":
+        if not vault:
+            raise ItemError("No notes folder is set.")
+        now = time.time()
+        rows = [{"id": n["file"], "title": n["title"], "repo_path": str(vault), "hot": False,
+                 "cells": {"kind": n["tag"], "verified": f"{n['verified']}%" if n["verified"] is not None else "",
+                           "folder": n["file"].rpartition("/")[0], "age": str(max(0, int((now - n["mtime"]) // 86400)))}}
+                for n in home.awaiting_notes(vault)]
+        return {"source": source, "kicker": "NOTES", "heading": f"{len(rows)} notes wait for your verdict", "rows": rows,
+                "columns": [_col("title", "Note", "title"), _col("kind", "Kind", "chip"), _col("verified", "Verified", "num"), _col("folder", "Folder"), _col("age", "Age", "age")],
+                "group_key": "kind", "can_archive": False, "url": None, "url_label": None}
     raise ItemError(f"Unknown list: {source}")
 
 
@@ -108,4 +120,15 @@ def get(source: str, item_id: str, cfg: dict, vault, found: list[dict]) -> dict:
         return {"title": r["label"], "kicker": "NOT SAVED YET", "chips": [c for c in (r.get("branch") or "",) if c], "body": body,
                 "url": None, "url_label": None, "done": False, "can_archive": False, "repo_path": r["path"],
                 "brief": quoted("a repo with unsaved work", [("Repo", r["label"]), ("Branch", r.get("branch"))], body, ASK_UNSAVED)}
+    if source == "notes":
+        n = next((x for x in home.awaiting_notes(vault) if x["file"] == item_id), None) if vault else None
+        if n is None:
+            raise ItemError("That note isn't waiting for a verdict any more.")
+        body = (vault / n["file"]).read_text(encoding="utf-8", errors="replace")
+        ask = ("What I want: read the note and tell me in a few sentences what it says and what, if anything, I still need to "
+               "do about it. Don't change the note.")
+        chips = [n["tag"]] + ([f"{n['verified']}% verified"] if n["verified"] is not None else [])
+        return {"title": n["title"], "kicker": "NOTES", "chips": chips, "body": body, "url": None, "url_label": None,
+                "done": False, "can_archive": False, "repo_path": str(vault),
+                "brief": quoted("a note in my notes folder", [("Note", n["file"]), ("Title", n["title"])], body, ask)}
     raise ItemError(f"Unknown item: {source}")

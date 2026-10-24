@@ -1,3 +1,4 @@
+import { openItems } from "../stores/items";
 import { useEffect, useState } from "react";
 import { useFeatures } from "../stores/features";
 import { useViews, dayTime, relTime } from "../stores/views";
@@ -182,7 +183,7 @@ export function Home() {
           <div className="home-wide">
             <Card id="notes" label="NOTES" mark={waitingNotes.length > 0}
               title={notes.awaiting_count ? `${notes.awaiting_count} note${notes.awaiting_count === 1 ? "" : "s"} wait for your verdict` : `${notes.notes_week} changed this week`}
-              foot={<><span>{notes.awaiting_count ? `${notes.notes_week} changed this week` : vault.split("/").pop()}</span><button type="button" onClick={() => openFolder(vault)}>Open notes <kbd className="kbd">N</kbd></button></>}>
+              foot={<><span>{notes.awaiting_count ? `${notes.notes_week} changed this week` : vault.split("/").pop()}</span><span className="hc-foot-actions">{!!notes.awaiting_count && <button type="button" onClick={() => openItems("notes")}>All {notes.awaiting_count} →</button>}<button type="button" onClick={() => openFolder(vault)}>Open notes <kbd className="kbd">N</kbd></button></span></>}>
               {(waitingNotes.length ? waitingNotes : notes.notes.map((x): HomeAwait => ({ ...x, tag: "" }))).slice(0, SHOWN).map((x) => (
                 <button key={x.file} type="button" className="hc-row" title={x.file} onClick={() => askIn(vault, `Read my note "${x.file}" and tell me in a few sentences what it says and what, if anything, I still need to do about it.`)}>
                   <span className={"hc-dot" + (x.tag ? " sq" : "")} />

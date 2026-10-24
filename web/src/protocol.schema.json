@@ -1798,7 +1798,8 @@
           "enum": [
             "vikunja",
             "prs",
-            "repos"
+            "repos",
+            "notes"
           ],
           "type": "string"
         },
@@ -1893,7 +1894,8 @@
           "enum": [
             "vikunja",
             "prs",
-            "repos"
+            "repos",
+            "notes"
           ],
           "type": "string"
         },
@@ -1950,7 +1952,8 @@
           "enum": [
             "vikunja",
             "prs",
-            "repos"
+            "repos",
+            "notes"
           ],
           "type": "string"
         },
@@ -2041,7 +2044,8 @@
           "enum": [
             "vikunja",
             "prs",
-            "repos"
+            "repos",
+            "notes"
           ],
           "type": "string"
         },
@@ -2090,7 +2094,8 @@
           "enum": [
             "vikunja",
             "prs",
-            "repos"
+            "repos",
+            "notes"
           ],
           "type": "string"
         },
@@ -2156,7 +2161,8 @@
           "enum": [
             "vikunja",
             "prs",
-            "repos"
+            "repos",
+            "notes"
           ],
           "type": "string"
         },

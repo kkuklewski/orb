@@ -7,7 +7,7 @@ import { send } from "../ws";
 import { useViews } from "./views";
 
 export type ItemSource = ItemListEvent["source"];
-export const SOURCES: ItemSource[] = ["vikunja", "prs", "repos"];
+export const SOURCES: ItemSource[] = ["vikunja", "prs", "repos", "notes"];
 
 export const useItems = create<{ source: ItemSource | null; id: string | null; lists: Partial<Record<ItemSource, ItemListEvent>>; item: ItemEvent | null }>(
   () => ({ source: null, id: null, lists: {}, item: null }));
