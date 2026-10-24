@@ -164,7 +164,7 @@ def test_task_snooze_moves_the_due_date_and_validates_it(src, store):
 def test_write_tools_force_a_card_in_every_mode(src):
     for name, inp in (("mcp__orb__task_done", {"id": 12}), ("mcp__orb__task_snooze", {"id": 12, "until": "2026-11-03"})):
         out = desk.ask(name, inp, "Ship it")["hookSpecificOutput"]
-        assert out["permissionDecision"] == "ask" and '#12 "Ship it"' in out["permissionDecisionReason"]
+        assert out["permissionDecision"] == "ask" and "task 12 'Ship it'" in out["permissionDecisionReason"]
     assert desk.card_title(src, 12) == "Ship it" and desk.card_title(src, "x") == ""
 
 
@@ -180,11 +180,77 @@ def test_set_done_and_set_due_send_the_whole_task(monkeypatch):
 def test_slash_messages_carry_the_data_and_never_look_like_a_command(src):
     from orb import slash
     for name, args, want in (("today", "", "#12 Ship the globex invoice"), ("standup", "", "Fix the login"), ("task", "12", "Ship it")):
-        text = desk.slash_message(src, name, args, TODAY)
-        assert not slash.is_command(text) and want in text and "<desk-" in text
+        m = desk.slash_message(src, name, args, TODAY)
+        assert not slash.is_command(m.ask) and len(m.ask) < 120 and "<desk-" not in m.ask
+        assert want in m.data and "<desk-" in m.data
     for bad in ("", "abc", "12; rm", "-3"):
         with pytest.raises(desk.DeskError):
             desk.slash_message(src, "task", bad, TODAY)
+
+
+async def test_a_slash_command_shows_the_short_ask_and_sends_the_data_as_the_screen(src, tmp_path, monkeypatch):
+    from orb import agent, server
+    from orb.sessions import SessionStore
+    events, queries = [], []
+
+    async def emit(ev):
+        events.append(ev)
+
+    class Client:
+        async def query(self, q):
+            queries.append(q)
+
+    async def sent(*a, **k):
+        pass
+
+    monkeypatch.setattr(agent.config, "STATE_DIR", tmp_path)
+    monkeypatch.setitem(settings.settings.data, "vault", str(tmp_path))
+    s = FolderSession(str(tmp_path), "k1", SessionStore(tmp_path / "sessions.json"), emit, lambda: False, desk=src)
+
+    async def ensure_client():
+        s.client = Client()
+
+    monkeypatch.setattr(s, "ensure_client", ensure_client)
+    monkeypatch.setattr(server.hub, "enforce_limits", sent)
+    conn = type("Conn", (), {"send": staticmethod(sent)})()
+    s.screen = ("Home", "the page")
+    await server.run_local(conn, s, "task", "12")
+    user = [e for e in events if e["type"] == "user"][-1]
+    assert len(user["text"]) < 120 and "<desk-" not in user["text"] and user["screen"] == "task 12"
+    assert "<desk-" in queries[-1] and "Ship it" in queries[-1] and queries[-1].endswith(user["text"])
+    assert agent.request_text(queries[-1]) == user["text"]  # history shows the short ask too
+    assert s.screen == ("Home", "the page")  # the page's own screen is back for the next request
+
+
+async def test_the_permission_card_for_a_write_tool_names_the_task(src, tmp_path, monkeypatch):
+    from orb import agent
+    from orb.sessions import SessionStore
+    events, said = [], []
+
+    async def emit(ev):
+        events.append(ev)
+
+    monkeypatch.setattr(agent.config, "STATE_DIR", tmp_path)
+    s = FolderSession(str(tmp_path), "k1", SessionStore(tmp_path / "sessions.json"), emit, lambda: False, desk=src)
+    monkeypatch.setattr(s.speaker, "say", lambda lines: said.extend(lines))
+
+    class Ctx:
+        tool_use_id = "toolu_9"
+        title = description = blocked_path = display_name = None
+
+    for name, inp, card, spoken in (
+            ("mcp__orb__task_done", {"id": 12}, "Mark task 12 'Ship it' done", "Allow: mark task 12 'Ship it' done?"),
+            ("mcp__orb__task_snooze", {"id": 12, "until": "2026-11-03"}, "Move task 12 'Ship it' to 2026-11-03",
+             "Allow: move task 12 'Ship it' to 2026-11-03?")):
+        events.clear(), said.clear()
+        await s._pre_tool({"tool_name": name, "tool_input": inp}, "toolu_9", None)  # the hook fetches the title once
+        decision = asyncio.create_task(s._can_use_tool(name, inp, Ctx()))
+        await asyncio.sleep(0.01)
+        ev = next(e for e in events if e["type"] == "permission")
+        assert ev["summary"] == card and said == [spoken]
+        assert not s.card_titles  # used up by the card
+        await s._deny_pending("no")
+        await decision
 
 
 def test_the_new_commands_are_local():
