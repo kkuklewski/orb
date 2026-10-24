@@ -193,8 +193,7 @@ function Dock({ pill }: { pill: boolean }) {
       <PinChips />
       <DockState />
       <div className="dock-row">
-        <Composer />
-        {pill && <div className="mic-float"><VoicePill /></div>}
+        <Composer lead={pill ? <VoicePill /> : undefined} />
       </div>
     </footer>
   );

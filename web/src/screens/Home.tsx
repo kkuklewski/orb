@@ -1,5 +1,5 @@
 import { openItems } from "../stores/items";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useFeatures } from "../stores/features";
 import { useViews, dayTime, relTime } from "../stores/views";
 import { askIn, folderName, openFolder, openPicker, useSession } from "../stores/session";
@@ -12,6 +12,7 @@ import { openRoutine } from "../stores/routine";
 import { NOTES_STEP } from "./setup/Setup";
 import type { HomeAwait } from "../protocol.gen";
 import { Card, PinRow, usePinKey } from "./HomeCard";
+import { useMasonry } from "./masonry";
 import { DontForget, Links, TrackerTasks, Unsaved } from "./HomeWatch";
 
 // The start screen: a header bar (day, voice, jump), then an auto-fill bento of cards. The lead card is what
@@ -62,6 +63,8 @@ function UsageWarning() {
 }
 
 export function Home() {
+  const grid = useRef<HTMLDivElement>(null);
+  useMasonry(grid);
   const features = useFeatures((s) => s.features);
   const folders = useFeatures((s) => s.folders);
   const routines = useViews((s) => s.routines);
@@ -112,7 +115,7 @@ export function Home() {
       </header>
       <UsageWarning />
 
-      <div className="home-grid">
+      <div className="home-grid" ref={grid}>
         <Card id="needs" className="lead" ask={{ name: "Needs you", question: "What needs me first here, and what should I do about each item?",
           text: [...n.waiting, ...n.done].slice(0, 12).map((x) => `${folderName(x.folder)}: ${x.label || "New session"} (${x.status === "approval" ? "paused on an approval" : "finished"})`).join("\n") || "Nothing is waiting." }} label={waiting ? "NEEDS YOU" : first ? "DONE WHILE YOU WERE AWAY" : "NEEDS YOU"} mark={waiting > 0}
           title={waiting ? `${waiting} thing${waiting === 1 ? "" : "s"} need${waiting === 1 ? "s" : ""} you now` : first ? "Results are ready to read" : "Nothing is waiting for you"}

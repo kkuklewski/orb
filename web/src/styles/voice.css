@@ -87,7 +87,14 @@
 
 /* The Talk pill floats over the composer's top-right corner: above everything, no background of its own. */
 .dock-row { position: relative; }
-.mic-float { position: absolute; right: 8px; bottom: calc(100% + 26px); z-index: 60; background: transparent; pointer-events: none; }
-.mic-float .orb { pointer-events: auto; background: transparent; }
-[data-skin="studio"] .mic-float .vpill { background: transparent; backdrop-filter: blur(6px); }
-[data-skin="studio"] .mic-float .orb[data-state="speaking"] .vpill { background: var(--text); backdrop-filter: none; }
+[data-skin="studio"] [data-skin="studio"] 
+/* Dock status: a small pill (readable over tiles); barge-in moved to the top bar as an icon with a tiny mode tag. */
+.dock-state { width: max-content; max-width: 100%; padding: 3px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--bg-elev); backdrop-filter: blur(6px); }
+.barge-btn { position: relative; }
+.barge-tag { position: absolute; right: -2px; bottom: -3px; font-size: 8.5px; letter-spacing: .04em; text-transform: uppercase; color: var(--text-3); background: var(--bg); border-radius: 4px; padding: 0 2px; line-height: 1.2; }
+.barge-btn[data-mode="on"] .barge-tag { color: var(--text); }
+
+/* The Talk pill sits inside the composer bar, on its left. */
+.dock-state-gap { height: 0; }
+.composer > .orb { width: auto; height: 36px; flex: none; align-self: center; border-radius: 18px; }
+[data-skin="studio"] .composer > .orb .vpill { height: 34px; padding: 0 12px; border-radius: 17px; background: var(--bg); }

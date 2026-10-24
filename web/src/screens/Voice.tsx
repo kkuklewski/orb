@@ -50,12 +50,26 @@ export function VoicePill() {
 
 export function DockState() {
   const { v, st, hasFolder } = useDock();
+  if (st === "idle" && !v.flash) return <div role="status" className="dock-state-gap" />;  // nothing to say: no pill over the tiles
   return (
     <div className="dock-state mono" role="status">
       <span className={"state-dot " + (st === "hearing" ? "listening" : st)} />
       <span>{dockLabel(st, v, hasFolder)}</span>
-      <button type="button" className="barge mono" title="Click to cycle barge-in: auto (headphones only) → on → off. On speakers, Esc or ■ stops her."
-        onClick={() => setBarge(nextBarge(v.barge))}>{bargeText(v)}</button>
     </div>
+  );
+}
+
+// Barge-in = talking over her to cut her off. It lives in the top bar next to the speaker toggle.
+export function BargeButton() {
+  const v = useVoice();
+  const tag = v.barge === "auto" ? "auto" : v.barge;
+  return (
+    <button type="button" className="icon-btn barge-btn" data-mode={v.barge} aria-pressed={v.barge === "off"} aria-label={bargeText(v)}
+      title={`${bargeText(v)}. Barge-in lets you interrupt her by speaking while she talks. Auto arms it only with headphones, because on speakers the mic would hear her. Click to cycle auto → on → off. Esc or ■ always stops her.`}
+      onClick={() => setBarge(nextBarge(v.barge))}>
+      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></svg>
+      <span className="barge-tag mono" aria-hidden="true">{tag}</span>
+      <span className="slash" aria-hidden="true" />
+    </button>
   );
 }

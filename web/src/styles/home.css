@@ -190,7 +190,7 @@
 .home-search { display: inline-flex; align-items: center; gap: 10px; min-width: 220px; height: 42px; padding: 0 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg-elev); color: var(--text-3); font: 14px var(--sans); cursor: pointer; }
 .home-search kbd, .hc-foot kbd, .hbtn kbd { margin-left: auto; font: 11px var(--mono); border: 1px solid currentColor; border-radius: 4px; padding: 0 5px; opacity: .7; }
 .hc-foot kbd { margin-left: 6px; }
-.home-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(380px, 100%), 1fr)); grid-auto-flow: dense; gap: 16px; padding: 24px clamp(16px, 2.5vw, 32px) 40px; align-items: start; }
+.home-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(380px, 100%), 1fr)); grid-auto-rows: 8px; grid-auto-flow: dense; column-gap: 16px; row-gap: 0; padding: 24px clamp(16px, 2.5vw, 32px) 40px; align-items: start; }
 .home-grid > .usage-warn { grid-column: 1 / -1; }
 .home .usage-warn { margin: 16px clamp(16px, 2.5vw, 32px) 0; }
 .home-wide, .hc.lead { min-width: 0; }
@@ -205,7 +205,6 @@
 .hbtn kbd { margin-left: 4px; }
 @media (min-width: 900px) {
   .hc.lead, .home-wide { grid-column: span 2; }
-  .home-tasks { grid-row: span 2; }
 }
 @media (max-width: 860px) { .home-bar .orb { margin-left: 0; } .home-search { flex: 1; } }
 .note-chip { margin-right: 8px; padding: 1px 7px; border: 1px solid var(--line); border-radius: 999px; font-size: 10.5px; color: var(--text-2); }
@@ -258,3 +257,8 @@
 .pin-chip button:hover, .pin-clear:hover { color: var(--text); }
 .pin-keep { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
 .pin-ask { margin-left: auto; border: 1px solid var(--text); border-radius: 14px; background: var(--text); color: var(--bg); padding: 4px 12px; cursor: pointer; }
+
+/* Home: the composer floats over the tiles (they scroll under it); the dock itself has no background. */
+.chat-next:has(> .home) > .dock { position: absolute; left: 0; right: 0; bottom: 0; z-index: 30; background: transparent; pointer-events: none; }
+.chat-next:has(> .home) > .dock .composer, .chat-next:has(> .home) > .dock .dock-state, .chat-next:has(> .home) > .dock .pin-chips { pointer-events: auto; }
+.chat-next:has(> .home) > .home { grid-row: 1 / -1; padding-bottom: 140px; }
