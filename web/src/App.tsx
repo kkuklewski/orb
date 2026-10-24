@@ -62,6 +62,7 @@ export function App() {
   useEffect(() => { if (!detail) setFull(false); }, [detail]);
   const base = baseRef.current;
   const peeking = detail && wide && !full;
+  const peekW = usePeekWidth();
   useEffect(() => {
     if (!peeking) return;
     const k = (e: KeyboardEvent) => { if (e.key === "Escape" && !(e.target as HTMLElement).closest("input, textarea")) useViews.setState({ view: base }); };
@@ -90,7 +91,8 @@ export function App() {
         {peeking ? (
           <div className="peek-wrap">
             <div className="peek-base" onClick={(e) => { if (!(e.target as HTMLElement).closest("button, a, input, select, textarea, summary, label, [role=button]")) useViews.setState({ view: base }); }}>{base === "activity" ? <Activity /> : base === "routines" && features.routines ? <Routines /> : <section className="chat-next"><Home /></section>}</div>
-            <aside className="peek" aria-label="Details">
+            <aside className="peek" aria-label="Details" style={peekW.w ? { flexBasis: peekW.w } : undefined}>
+              <div className="peek-grip" role="separator" aria-orientation="vertical" aria-label="Resize panel (double-click to reset)" onPointerDown={peekW.drag} onDoubleClick={peekW.reset} />
               <div className="peek-bar mono">
                 <button type="button" onClick={() => useViews.setState({ view: base })} aria-label="Close panel">✕ CLOSE</button>
                 <button type="button" onClick={() => setFull(true)} aria-label="Open as full page">⤢ FULL PAGE</button>
@@ -114,6 +116,21 @@ export function App() {
       <TaskToast />
     </div>
   );
+}
+
+const PEEK_KEY = "orb-peek-w";
+function usePeekWidth() {
+  const [w, setW] = useState<number | null>(() => { try { return Number(localStorage.getItem(PEEK_KEY)) || null; } catch { return null; } });
+  const drag = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const right = e.currentTarget.parentElement!.getBoundingClientRect().right;
+    const max = Math.max(420, window.innerWidth - 360);
+    let last = 0;
+    const move = (m: PointerEvent) => { last = Math.round(Math.min(max, Math.max(360, right - m.clientX))); setW(last); };
+    const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); if (last) try { localStorage.setItem(PEEK_KEY, String(last)); } catch { /* no storage */ } };
+    window.addEventListener("pointermove", move); window.addEventListener("pointerup", up);
+  };
+  return { w, drag, reset: () => { setW(null); try { localStorage.removeItem(PEEK_KEY); } catch { /* no storage */ } } };
 }
 
 function useWide(px: number) {

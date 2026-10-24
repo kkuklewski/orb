@@ -1,8 +1,19 @@
 /* App shell: sidebar, top bar, repo picker, composer and slash menu. Ported from app.css + studio.css. */
-.app { display: grid; grid-template-columns: var(--side-w) minmax(0, 1fr); height: 100dvh; overflow: hidden; }
+.app { display: grid; grid-template-columns: auto minmax(0, 1fr); height: 100dvh; overflow: hidden; }
 
 /* ---- Sidebar (after the Claude desktop app: calm, few items, generous spacing) ---- */
-.sidebar { background: var(--side); border-right: 1px solid var(--line-soft); display: flex; flex-direction: column; min-height: 0; padding: 10px 10px 0; }
+.sidebar { background: var(--side); border-right: 1px solid var(--line-soft); display: flex; flex-direction: row; min-height: 0; }
+.side-panel { width: var(--side-w); display: flex; flex-direction: column; min-height: 0; padding: 10px 10px 0; border-left: 1px solid var(--line-soft); }
+.side-panel[hidden] { display: none; }
+.rail { width: 76px; flex: none; display: flex; flex-direction: column; align-items: stretch; gap: 4px; padding: 12px 8px; overflow-y: auto; scrollbar-width: none; }
+.rail-brand { width: 40px; height: 40px; margin: 0 auto 10px; border-radius: 12px; display: grid; place-items: center; background: var(--s-ink, var(--text)); color: var(--bg); font: 600 16px var(--mono); }
+.rail-gap { flex: 1; }
+.rail .nav-item { flex-direction: column; justify-content: center; gap: 4px; padding: 9px 2px 7px; font-size: 11.5px; text-align: center; color: var(--text-2); position: relative; }
+.rail .nav-item.active { color: var(--text); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.rail .nav-item.active .nav-ic { color: var(--accent); }
+.rail .nav-badge { position: absolute; top: 2px; right: 4px; margin: 0; }
+.panel-new { margin-left: auto; display: flex; align-items: center; gap: 6px; border: 1px solid var(--line-soft); background: var(--side-row); color: var(--text); border-radius: 9px; padding: 5px 10px 5px 6px; font: inherit; font-size: 13px; cursor: pointer; }
+.panel-new:hover { background: var(--side-row-hover); }
 .side-head { display: flex; align-items: center; gap: 8px; padding: 4px 4px 12px; }
 .icon-btn.ghost { border-color: transparent; background: none; }
 .icon-btn.ghost:hover { background: var(--side-row-hover); }
@@ -115,7 +126,7 @@
 
 @media (max-width: 900px) {
   .app { grid-template-columns: minmax(0, 1fr); }
-  .sidebar { position: fixed; inset: 0 auto 0 0; width: min(320px, 86vw); z-index: 20; transform: translateX(-102%); transition: transform .22s ease; }
+  .sidebar { position: fixed; inset: 0 auto 0 0; width: min(364px, 92vw); z-index: 20; transform: translateX(-102%); transition: transform .22s ease; }
   .app.side-open .sidebar { transform: none; }
   .scrim { display: block; position: fixed; inset: 0; background: rgb(0 0 0 / .45); z-index: 15; opacity: 0; pointer-events: none; transition: opacity .2s; }
   .app.side-open .scrim { opacity: 1; pointer-events: auto; }

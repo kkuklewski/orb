@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useFeatures } from "../stores/features";
+import { openItems } from "../stores/items";
 import { activityRows, dotClass, useViews, type View } from "../stores/views";
 import {
   allSessions, archiveSession, archivedSessions, folderName, folderSessions, openFolder, openPicker, pinFolder, pinnedFolders, rel, removeSession, search, startSession,
@@ -16,7 +17,9 @@ const ICONS = {
   home: <><path d="M4 11l8-7 8 7" /><path d="M6 9.5V20h12V9.5" /></>,
   new: <><circle cx="12" cy="12" r="9" /><path d="M12 8v8M8 12h8" /></>,
   brain: <><path d="M9 4a3 3 0 0 0-3 3 3 3 0 0 0-2 5 3 3 0 0 0 2 5 3 3 0 0 0 6 1V6a2 2 0 0 0-3-2Z" /><path d="M15 4a3 3 0 0 1 3 3 3 3 0 0 1 2 5 3 3 0 0 1-2 5 3 3 0 0 1-6 1" /></>,
+  chats: <path d="M5 5h14a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-7l-4 3.5V16H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z" />,
   activity: <path d="M3 12h4l2-6 4 12 2-6h6" />,
+  tasks: <><rect x="4" y="4" width="16" height="16" rx="3" /><path d="m8.5 12 2.5 2.5 4.5-5" /></>,
   routines: <><circle cx="12" cy="13" r="8" /><path d="M12 9v4l2.5 2.5M9 2h6" /></>,
   settings: <><circle cx="12" cy="12" r="3" /><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1" /></>,
 };
@@ -111,11 +114,38 @@ export function Sidebar() {
   const recent = recentRows(allSessions(folders, session), session).slice(0, 14);
   const archived = archivedSessions(folders);
   const [showArchived, setShowArchived] = useState(false);
+  const [panel, setPanel] = useState(() => { try { return localStorage.getItem("orb-panel") !== "closed"; } catch { return true; } });
+  const togglePanel = () => { setPanel(!panel); try { localStorage.setItem("orb-panel", panel ? "closed" : "open"); } catch { /* per-viewer convenience only */ } };
   const pinned = pinnedFolders(folders);
 
   return (
     <aside className="sidebar" aria-label="Navigation">
-      <div className="side-head"><span className="brand">Orb</span></div>
+      <nav className="rail" aria-label="Sections">
+        <span className="rail-brand" aria-hidden="true">O</span>
+        <button type="button" className={"nav-item" + (panel ? " active" : "")} aria-pressed={panel} onClick={togglePanel} title="Show or hide the chats panel"><Icon d={ICONS.chats} />Chats</button>
+        <button type="button" className={"nav-item" + (view === "home" ? " active" : "")} aria-current={view === "home" ? "page" : undefined} onClick={() => showView("home")}><Icon d={ICONS.home} />Home</button>
+        {features?.vault && (
+          <button type="button" className={"nav-item" + (folder === features.vault && view === "chat" ? " active" : "")} onClick={() => openFolder(features.vault)}><Icon d={ICONS.brain} />Brain</button>
+        )}
+        <button type="button" className={"nav-item" + (view === "items" ? " active" : "")} onClick={() => openItems("vikunja")} title="Vikunja tasks"><Icon d={ICONS.tasks} />Tasks</button>
+        <button type="button" className={"nav-item" + (view === "activity" ? " active" : "")} aria-current={view === "activity" ? "page" : undefined} onClick={() => showView("activity")}>
+          <Icon d={ICONS.activity} />Activity
+          {busy.length > 0 && (
+            <span className={"nav-badge" + (waiting ? " approval" : busy.some((x) => x.status === "working") ? " busy" : " done")}>{waiting ? `${waiting} waiting` : busy.length}</span>
+          )}
+        </button>
+        {features?.routines && (
+          <button type="button" className={"nav-item" + (view === "routines" ? " active" : "")} aria-current={view === "routines" ? "page" : undefined} onClick={() => showView("routines")}>
+            <Icon d={ICONS.routines} />Routines
+            {!!routines?.needs && <span className="nav-badge approval">{routines.needs}</span>}
+            {!routines?.needs && !!routines?.read && <span className="nav-badge done" title="results worth reading">{routines.read}</span>}
+          </button>
+        )}
+        <span className="rail-gap" />
+        <button type="button" className={"nav-item" + (view === "settings" ? " active" : "")} aria-current={view === "settings" ? "page" : undefined} onClick={() => showView("settings")}><Icon d={ICONS.settings} />Settings</button>
+      </nav>
+      <div className="side-panel" hidden={!panel}>
+      <div className="side-head"><span className="brand">Orb</span><button type="button" className="panel-new" onClick={() => openPicker("new")}><Icon d={ICONS.new} />New</button></div>
       <label className="search">
         <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
         <input type="search" placeholder="Search" aria-label="Search sessions and repos" autoComplete="off" spellCheck={false}
@@ -134,27 +164,6 @@ export function Sidebar() {
           {!found.sessions.length && !found.folders.length && <div className="side-hint">Nothing found.</div>}
         </div>
       )}
-      <nav className="side-nav">
-        <button type="button" className={"nav-item" + (view === "home" ? " active" : "")} aria-current={view === "home" ? "page" : undefined} onClick={() => showView("home")}><Icon d={ICONS.home} />Home</button>
-        <button type="button" className="nav-item" onClick={() => openPicker("new")}><Icon d={ICONS.new} />New</button>
-        {features?.vault && (
-          <button type="button" className={"nav-item" + (folder === features.vault && view === "chat" ? " active" : "")} onClick={() => openFolder(features.vault)}><Icon d={ICONS.brain} />Brain</button>
-        )}
-        <button type="button" className={"nav-item" + (view === "activity" ? " active" : "")} aria-current={view === "activity" ? "page" : undefined} onClick={() => showView("activity")}>
-          <Icon d={ICONS.activity} />Activity
-          {busy.length > 0 && (
-            <span className={"nav-badge" + (waiting ? " approval" : busy.some((x) => x.status === "working") ? " busy" : " done")}>{waiting ? `${waiting} waiting` : busy.length}</span>
-          )}
-        </button>
-        {features?.routines && (
-          <button type="button" className={"nav-item" + (view === "routines" ? " active" : "")} aria-current={view === "routines" ? "page" : undefined} onClick={() => showView("routines")}>
-            <Icon d={ICONS.routines} />Routines
-            {!!routines?.needs && <span className="nav-badge approval">{routines.needs}</span>}
-            {!routines?.needs && !!routines?.read && <span className="nav-badge done" title="results worth reading">{routines.read}</span>}
-          </button>
-        )}
-        <button type="button" className={"nav-item" + (view === "settings" ? " active" : "")} aria-current={view === "settings" ? "page" : undefined} onClick={() => showView("settings")}><Icon d={ICONS.settings} />Settings</button>
-      </nav>
       <div className="side-scroll">
         <section className="side-section" aria-label="Repos">
           <div className="sec-head"><span>Repos</span>
@@ -204,6 +213,7 @@ export function Sidebar() {
       <div className="side-foot">
         <span className="avatar">C</span>
         <span className="who">Claude {features?.plan && <span className="plan">· {features.plan[0].toUpperCase() + features.plan.slice(1)}</span>}</span>
+      </div>
       </div>
     </aside>
   );

@@ -33,6 +33,8 @@ function themeVars() {
            lineColor: v("--text-2", "#999"), secondaryColor: v("--side", "#181818"), tertiaryColor: v("--side", "#181818"), fontFamily: DIAGRAM_FONT, fontSize: "14px" };
 }
 
+const UNSAFE_CSS = /@import|url\(|expression\(|position\s*:\s*(fixed|absolute|sticky)|content\s*:/i;
+
 async function drawDiagram(src: string): Promise<SVGElement> {
   const vars = themeVars();
   const key = src + JSON.stringify(vars);
@@ -42,6 +44,7 @@ async function drawDiagram(src: string): Promise<SVGElement> {
   m.initialize({ startOnLoad: false, suppressErrorRendering: true, securityLevel: "strict", theme: "base", themeVariables: vars,
     fontFamily: DIAGRAM_FONT, flowchart: { htmlLabels: false, useMaxWidth: false, padding: 14, nodeSpacing: 40, rankSpacing: 50 },
     sequence: { useMaxWidth: false }, er: { useMaxWidth: false }, state: { useMaxWidth: false }, gantt: { useMaxWidth: false } });
+  if (/%%\{/.test(src)) throw new Error("diagram directives are not allowed");  // %%{init}%% can inject themeCSS
   const id = `orb-dg-${diagramSeq++}`;
   let svg: string;
   try {
@@ -53,6 +56,7 @@ async function drawDiagram(src: string): Promise<SVGElement> {
   }
   const el = new DOMParser().parseFromString(svg, "image/svg+xml").documentElement as unknown as SVGElement;
   const css = [...el.querySelectorAll("style")].map((st) => { const t = st.textContent ?? ""; st.remove(); return t; }).join("\n");
+  if (UNSAFE_CSS.test(css)) throw new Error("diagram style refused");  // the sheet is document-wide: no loads, no overlays
   const sheet = new CSSStyleSheet();
   sheet.replaceSync(css);
   document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
@@ -73,7 +77,7 @@ function enhance(root: HTMLElement) {
     if (isDiagram(code)) {  // a diagram; if it doesn't parse (still streaming), it stays a code block
       drawDiagram(code!.textContent ?? "").then((svg) => {
         if (!pre.isConnected) return;
-        svg.querySelectorAll<SVGElement>("[style]").forEach((n) => { const css = n.getAttribute("style") ?? ""; n.removeAttribute("style"); n.style.cssText = css; });
+        svg.querySelectorAll<SVGElement>("[style]").forEach((n) => { const css = n.getAttribute("style") ?? ""; n.removeAttribute("style"); if (!UNSAFE_CSS.test(css)) n.style.cssText = css; });
         const fig = document.createElement("figure");
         fig.className = "diagram";
         fig.append(document.importNode(svg, true));
