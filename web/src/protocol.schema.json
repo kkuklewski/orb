@@ -459,6 +459,10 @@
           "undo_request": "#/$defs/UndoRequestMsg",
           "user_text": "#/$defs/UserTextMsg",
           "utterance": "#/$defs/UtteranceMsg",
+          "vikunja_done": "#/$defs/VikunjaDoneMsg",
+          "vikunja_list": "#/$defs/VikunjaListMsg",
+          "vikunja_start": "#/$defs/VikunjaStartMsg",
+          "vikunja_task": "#/$defs/VikunjaTaskMsg",
           "voice_sample": "#/$defs/VoiceSampleMsg",
           "voice_text": "#/$defs/VoiceTextMsg"
         },
@@ -545,6 +549,18 @@
         },
         {
           "$ref": "#/$defs/TaskDetailMsg"
+        },
+        {
+          "$ref": "#/$defs/VikunjaTaskMsg"
+        },
+        {
+          "$ref": "#/$defs/VikunjaListMsg"
+        },
+        {
+          "$ref": "#/$defs/VikunjaDoneMsg"
+        },
+        {
+          "$ref": "#/$defs/VikunjaStartMsg"
         },
         {
           "$ref": "#/$defs/TaskActionMsg"
@@ -3330,6 +3346,8 @@
           "undo_confirm": "#/$defs/UndoConfirmEvent",
           "undo_done": "#/$defs/UndoDoneEvent",
           "user": "#/$defs/UserEvent",
+          "vikunja_list": "#/$defs/VikunjaListEvent",
+          "vikunja_task": "#/$defs/VikunjaTaskEvent",
           "voice_sample": "#/$defs/VoiceSampleEvent"
         },
         "propertyName": "type"
@@ -3406,6 +3424,12 @@
         },
         {
           "$ref": "#/$defs/TaskDetailEvent"
+        },
+        {
+          "$ref": "#/$defs/VikunjaTaskEvent"
+        },
+        {
+          "$ref": "#/$defs/VikunjaListEvent"
         },
         {
           "$ref": "#/$defs/TaskChangedEvent"
@@ -5120,6 +5144,10 @@
         "project": {
           "type": "string"
         },
+        "project_id": {
+          "default": 0,
+          "type": "integer"
+        },
         "title": {
           "type": "string"
         },
@@ -5605,6 +5633,300 @@
         "open_tasks"
       ],
       "title": "VaultInfo",
+      "type": "object"
+    },
+    "VikunjaDoneMsg": {
+      "additionalProperties": false,
+      "description": "Archive: mark a Vikunja task done (done=False brings it back). The server answers with the new vikunja_list.",
+      "properties": {
+        "done": {
+          "default": true,
+          "type": "boolean"
+        },
+        "id": {
+          "type": "integer"
+        },
+        "type": {
+          "const": "vikunja_done",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "id"
+      ],
+      "title": "VikunjaDoneMsg",
+      "type": "object"
+    },
+    "VikunjaListEvent": {
+      "additionalProperties": false,
+      "description": "Every open Vikunja task with the repo its project maps to (None = no repo here).",
+      "properties": {
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "tasks": {
+          "items": {
+            "$ref": "#/$defs/VikunjaRow"
+          },
+          "type": "array"
+        },
+        "total": {
+          "type": "integer"
+        },
+        "type": {
+          "const": "vikunja_list",
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "tasks",
+        "total",
+        "url"
+      ],
+      "title": "VikunjaListEvent",
+      "type": "object"
+    },
+    "VikunjaListMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "vikunja_list",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "VikunjaListMsg",
+      "type": "object"
+    },
+    "VikunjaRow": {
+      "additionalProperties": false,
+      "properties": {
+        "due": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "id": {
+          "type": "integer"
+        },
+        "priority": {
+          "type": "integer"
+        },
+        "project": {
+          "type": "string"
+        },
+        "repo": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "title": {
+          "type": "string"
+        },
+        "updated": {
+          "type": "number"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "project",
+        "priority",
+        "updated",
+        "url"
+      ],
+      "title": "VikunjaRow",
+      "type": "object"
+    },
+    "VikunjaStartMsg": {
+      "additionalProperties": false,
+      "description": "Start in Orb: a new session in the repo mapped to this task's project, first request = the brief.",
+      "properties": {
+        "id": {
+          "type": "integer"
+        },
+        "type": {
+          "const": "vikunja_start",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "id"
+      ],
+      "title": "VikunjaStartMsg",
+      "type": "object"
+    },
+    "VikunjaTaskEvent": {
+      "additionalProperties": false,
+      "description": "One Vikunja task in full (vikunja.task): plain-text description, the repo it maps to (label, None = no repo), the prompt to copy.",
+      "properties": {
+        "brief": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "done": {
+          "type": "boolean"
+        },
+        "due": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "id": {
+          "type": "integer"
+        },
+        "priority": {
+          "type": "integer"
+        },
+        "project": {
+          "type": "string"
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "repo": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "title": {
+          "type": "string"
+        },
+        "type": {
+          "const": "vikunja_task",
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "title",
+        "description",
+        "project",
+        "priority",
+        "done",
+        "url",
+        "brief"
+      ],
+      "title": "VikunjaTaskEvent",
+      "type": "object"
+    },
+    "VikunjaTaskMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "integer"
+        },
+        "type": {
+          "const": "vikunja_task",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "id"
+      ],
+      "title": "VikunjaTaskMsg",
       "type": "object"
     },
     "Voice": {

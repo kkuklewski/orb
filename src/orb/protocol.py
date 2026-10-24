@@ -413,6 +413,7 @@ class TrackerTask(_Msg):
     id: int
     title: str
     project: str
+    project_id: int = 0
     due: str | None = None
     priority: int
     updated: float
@@ -421,6 +422,25 @@ class TrackerTask(_Msg):
 
 class Tracker(_Msg):
     tasks: list[TrackerTask]
+    total: int
+    url: str
+
+
+class VikunjaRow(_Msg):
+    id: int
+    title: str
+    project: str
+    repo: str | None = None
+    due: str | None = None
+    priority: int
+    updated: float
+    url: str
+
+
+class VikunjaListEvent(_Event):
+    """Every open Vikunja task with the repo its project maps to (None = no repo here)."""
+    type: Literal["vikunja_list"]
+    tasks: list[VikunjaRow]
     total: int
     url: str
 
@@ -451,6 +471,21 @@ class TaskDetailEvent(_Event):
     heading: str
     mtime: float
     context: list[TaskLine]
+
+
+class VikunjaTaskEvent(_Event):
+    """One Vikunja task in full (vikunja.task): plain-text description, the repo it maps to (label, None = no repo), the prompt to copy."""
+    type: Literal["vikunja_task"]
+    id: int
+    title: str
+    description: str
+    project: str
+    due: str | None = None
+    priority: int
+    done: bool
+    url: str
+    repo: str | None = None
+    brief: str
 
 
 class TaskChangedEvent(_Event):
@@ -611,7 +646,7 @@ ServerEvent = Annotated[Union[
     HelloEvent, FeaturesEvent, FoldersEvent, SetupStatusEvent, BrowseEvent, PickedEvent, VoiceSampleEvent,
     SettingsEvent, ErrorEvent, NoticeEvent, OpenedEvent, HistoryEvent, StateEvent, SessionInfoEvent,
     ContextEvent, TaskEvent, CommandsEvent, McpEvent, RateLimitEvent, RoutinesEvent, BgNoticeEvent,
-    HomeEvent, HomeWatchEvent, TaskDetailEvent, TaskChangedEvent, UserEvent, TextStartEvent, TextEvent, SaidEvent, ToolStartEvent, ToolInputEvent, ToolResultEvent,
+    HomeEvent, HomeWatchEvent, TaskDetailEvent, VikunjaTaskEvent, VikunjaListEvent, TaskChangedEvent, UserEvent, TextStartEvent, TextEvent, SaidEvent, ToolStartEvent, ToolInputEvent, ToolResultEvent,
     ResultEvent, TimingEvent, PartialEvent, HeardNothingEvent, HeldEvent, PermissionEvent,
     PermissionDoneEvent, UndoAvailableEvent, UndoConfirmEvent, UndoDoneEvent, AudioEvent, SpeechResetEvent,
 ], Field(discriminator="type")]
@@ -760,6 +795,28 @@ class TaskDetailMsg(_Msg):
     line: int
 
 
+class VikunjaTaskMsg(_Msg):
+    type: Literal["vikunja_task"]
+    id: int
+
+
+class VikunjaListMsg(_Msg):
+    type: Literal["vikunja_list"]
+
+
+class VikunjaDoneMsg(_Msg):
+    """Archive: mark a Vikunja task done (done=False brings it back). The server answers with the new vikunja_list."""
+    type: Literal["vikunja_done"]
+    id: int
+    done: bool = True
+
+
+class VikunjaStartMsg(_Msg):
+    """Start in Orb: a new session in the repo mapped to this task's project, first request = the brief."""
+    type: Literal["vikunja_start"]
+    id: int
+
+
 class TaskActionMsg(_Msg):
     type: Literal["task_action"]
     file: str
@@ -831,7 +888,7 @@ ClientMessage = Annotated[Union[
     SetupStatusMsg, BrowseMsg, PickFolderMsg, OpenFolderMsg, AddFolderMsg, StartSessionMsg, PinFolderMsg,
     GetSettingsMsg, SetSettingsMsg, VoiceSampleMsg, RescanMsg, RoutinesMsg, RoutinesSeenMsg, MuteMsg,
     NewSessionMsg, ArchiveSessionMsg, RemoveSessionMsg, UserTextMsg, SpeechStartMsg, BargeInMsg, SpeechCancelledMsg, UtteranceMsg, VoiceTextMsg,
-    HomeMsg, ScreenMsg, RoutineTaskMsg, TaskDetailMsg, TaskActionMsg, InterruptMsg, PlaybackMsg, PermissionMsg, ReadAllMsg, DictateNoteMsg, UndoRequestMsg, UndoConfirmMsg,
+    HomeMsg, ScreenMsg, RoutineTaskMsg, TaskDetailMsg, VikunjaTaskMsg, VikunjaListMsg, VikunjaDoneMsg, VikunjaStartMsg, TaskActionMsg, InterruptMsg, PlaybackMsg, PermissionMsg, ReadAllMsg, DictateNoteMsg, UndoRequestMsg, UndoConfirmMsg,
     McpStatusMsg, McpReconnectMsg, SetModeMsg, SetModelMsg,
 ], Field(discriminator="type")]
 

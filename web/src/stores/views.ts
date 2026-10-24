@@ -5,7 +5,7 @@ import type { FolderItem, RoutineItem, RoutinesEvent, SessionItem, SettingsEvent
 import { on } from "../events";
 import { send } from "../ws";
 
-export type View = "home" | "chat" | "task" | "routine" | "activity" | "routines" | "settings";
+export type View = "home" | "chat" | "task" | "vikunja" | "vikunjas" | "routine" | "activity" | "routines" | "settings";
 
 export const useViews = create<{
   view: View;

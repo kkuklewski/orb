@@ -1,5 +1,5 @@
 // The address bar follows the page: / is Home, /s/<session> a conversation, /t/<note>/<line>
-// a task from the notes, /r/<routine> a routine's result, and /activity, /routines, /settings the views. Back / Forward
+// a task from the notes, /r/<routine> a routine's result, and /activity, /routines, /settings, /vikunjas the views. Back / Forward
 // and links work, and a reload comes back to the same place.
 import type { FolderItem } from "../protocol.gen";
 import { useFeatures } from "./features";
@@ -7,10 +7,11 @@ import { openFolder, useSession } from "./session";
 import { useViews, type View } from "./views";
 import { openTask, sameTask, useTasks, type TaskRef } from "./tasks";
 import { openRoutine, useRoutineScreen } from "./routine";
+import { openVikunjaList } from "./vikunja";
 import { on } from "../events";
 
 const BASE = "";
-const VIEWS: View[] = ["activity", "routines", "settings"];
+const VIEWS: View[] = ["activity", "routines", "settings", "vikunjas"];
 
 export interface Route { view: View; session: string | null; task?: TaskRef | null; routine?: string | null }
 
@@ -58,6 +59,7 @@ export function applyRoute(r: Route): boolean {
     return true;
   }
   useViews.setState({ view: r.view });
+  if (r.view === "vikunjas") openVikunjaList();
   return true;
 }
 
@@ -78,6 +80,7 @@ export function wireRoute(): () => void {
   const offHello = on("hello", () => { // a link to a task: open it once the server is there
     if (start?.view === "task" && start.task) openTask(start.task);
     if (start?.view === "routine" && start.routine) openRoutine(start.routine);
+    if (start?.view === "vikunjas") openVikunjaList();
     start = null;
   });
   const onPop = () => {

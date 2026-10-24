@@ -78,6 +78,7 @@ export function Home() {
   useEffect(() => { refreshHome(); }, [vault]);
   const lines = brief({ waiting: n.waiting, done: n.done, routines, notes, vault: !!vault, routinesOn: !!features?.routines, watch });
   const tracker = watch?.tracker;
+  const trackerError = tracker ? null : watch?.tracker_error;  // Vikunja is set up but down: say so, don't show the notes' tasks instead
   const soon = dueSoon(watch);
   const unsaved = watch?.repos.length ?? 0;
 
@@ -110,8 +111,8 @@ export function Home() {
           </button>
           <a className="stat" href="#todo">
             <span className="stat-label mono">OPEN TASKS</span>
-            <span className="stat-num">{tracker ? tracker.total : vault ? notes?.open_tasks ?? "–" : "–"}</span>
-            <span className="stat-note">{tracker ? "in Vikunja" : vault ? (notes?.snoozed ? `in your notes · ${notes.snoozed} snoozed` : "in your notes") : "no notes folder yet"}</span>
+            <span className="stat-num">{tracker ? tracker.total : trackerError ? "–" : vault ? notes?.open_tasks ?? "–" : "–"}</span>
+            <span className="stat-note">{tracker ? "in Vikunja" : trackerError ? "Vikunja unreachable" : vault ? (notes?.snoozed ? `in your notes · ${notes.snoozed} snoozed` : "in your notes") : "no notes folder yet"}</span>
           </a>
           <a className="stat" href="#forget">
             <span className="stat-label mono">{soon > 0 && <span className="sq" />}DUE SOON</span>
@@ -163,7 +164,11 @@ export function Home() {
           </div>
 
           <div className="home-right" id={tracker ? undefined : "todo"}>
-            {tracker ? <TrackerTasks /> : vault ? (
+            {tracker ? <TrackerTasks /> : trackerError ? (
+              <Card label="TO DO · VIKUNJA" title="Vikunja unreachable">
+                <p className="hc-empty">{trackerError}</p>
+              </Card>
+            ) : vault ? (
               <Card label="TO DO · FROM YOUR NOTES" title={notes ? `${notes.open_tasks} open task${notes.open_tasks === 1 ? "" : "s"}, newest first` : "Reading your notes…"}
                 foot={notes && <><span>{notes.open_tasks > SHOWN ? `+ ${notes.open_tasks - Math.min(SHOWN, notes.tasks.length)} more in your notes` : "that's all of them"}</span><button type="button" onClick={() => askIn(vault, ASK_TODAY)}>Ask what's first →</button></>}>
                 {notes?.tasks.slice(0, SHOWN).map((t) => (

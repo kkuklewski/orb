@@ -32,6 +32,10 @@ export type ClientMessage =
   | ScreenMsg
   | RoutineTaskMsg
   | TaskDetailMsg
+  | VikunjaTaskMsg
+  | VikunjaListMsg
+  | VikunjaDoneMsg
+  | VikunjaStartMsg
   | TaskActionMsg
   | InterruptMsg
   | PlaybackMsg
@@ -73,6 +77,8 @@ export type ServerEvent =
   | HomeEvent
   | HomeWatchEvent
   | TaskDetailEvent
+  | VikunjaTaskEvent
+  | VikunjaListEvent
   | TaskChangedEvent
   | UserEvent
   | TextStartEvent
@@ -325,6 +331,42 @@ export interface TaskDetailMsg {
   file: string;
   line: number;
   type: "task_detail";
+}
+/**
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "VikunjaTaskMsg".
+ */
+export interface VikunjaTaskMsg {
+  id: number;
+  type: "vikunja_task";
+}
+/**
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "VikunjaListMsg".
+ */
+export interface VikunjaListMsg {
+  type: "vikunja_list";
+}
+/**
+ * Archive: mark a Vikunja task done (done=False brings it back). The server answers with the new vikunja_list.
+ *
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "VikunjaDoneMsg".
+ */
+export interface VikunjaDoneMsg {
+  done?: boolean;
+  id: number;
+  type: "vikunja_done";
+}
+/**
+ * Start in Orb: a new session in the repo mapped to this task's project, first request = the brief.
+ *
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "VikunjaStartMsg".
+ */
+export interface VikunjaStartMsg {
+  id: number;
+  type: "vikunja_start";
 }
 /**
  * This interface was referenced by `OrbProtocol`'s JSON-Schema
@@ -1081,6 +1123,7 @@ export interface TrackerTask {
   id: number;
   priority: number;
   project: string;
+  project_id?: number;
   title: string;
   updated: number;
   url: string;
@@ -1111,6 +1154,57 @@ export interface TaskDetailEvent {
 export interface TaskLine {
   n: number;
   text: string;
+}
+/**
+ * One Vikunja task in full (vikunja.task): plain-text description, the repo it maps to (label, None = no repo), the prompt to copy.
+ *
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "VikunjaTaskEvent".
+ */
+export interface VikunjaTaskEvent {
+  brief: string;
+  description: string;
+  done: boolean;
+  due?: string | null;
+  folder?: string | null;
+  id: number;
+  priority: number;
+  project: string;
+  replay?: boolean | null;
+  repo?: string | null;
+  session?: string | null;
+  title: string;
+  type: "vikunja_task";
+  url: string;
+}
+/**
+ * Every open Vikunja task with the repo its project maps to (None = no repo here).
+ *
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "VikunjaListEvent".
+ */
+export interface VikunjaListEvent {
+  folder?: string | null;
+  replay?: boolean | null;
+  session?: string | null;
+  tasks: VikunjaRow[];
+  total: number;
+  type: "vikunja_list";
+  url: string;
+}
+/**
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "VikunjaRow".
+ */
+export interface VikunjaRow {
+  due?: string | null;
+  id: number;
+  priority: number;
+  project: string;
+  repo?: string | null;
+  title: string;
+  updated: number;
+  url: string;
 }
 /**
  * A task line was rewritten (tasks.act); `previous` is what Undo puts back.

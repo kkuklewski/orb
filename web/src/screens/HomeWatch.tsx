@@ -3,6 +3,7 @@ import type { DirtyRepo, Reminder } from "../protocol.gen";
 import { askIn } from "../stores/session";
 import { dueSoon, LEFT_BEHIND, quietPrs, SOON, useHome } from "../stores/home";
 import { Card } from "./HomeCard";
+import { openVikunjaList, openVikunjaTask } from "../stores/vikunja";
 
 // Home's "don't forget" cards (server: watch.summary): dated reminders and stale pull requests, repos with
 // unsaved work, the open tasks in Vikunja and pinned links. Each hides itself when it has nothing to show.
@@ -24,7 +25,7 @@ export function repoText(r: DirtyRepo): string {
     .filter(Boolean).join(" · ");
 }
 
-const Ext = ({ href, children, className = "hc-text" }: { href: string; children: ReactNode; className?: string }) =>
+export const Ext = ({ href, children, className = "hc-text" }: { href: string; children: ReactNode; className?: string }) =>
   <a className={className} href={href} target="_blank" rel="noopener noreferrer">{children}</a>;
 
 export function DontForget() {
@@ -90,11 +91,11 @@ export function TrackerTasks() {
   if (!tr) return null;
   return (
     <Card id="todo" label="TO DO · VIKUNJA" title={`${plural(tr.total, "open task")}, most urgent first`}
-      foot={<><span>{tr.total > tr.tasks.length ? `+ ${tr.total - tr.tasks.length} more` : "that's all of them"}</span><Ext href={tr.url} className="">Open Vikunja →</Ext></>}>
+      foot={<><span>{tr.total > tr.tasks.length ? `+ ${tr.total - tr.tasks.length} more` : "that's all of them"}</span><button type="button" onClick={openVikunjaList}>All tasks →</button></>}>
       {tr.tasks.map((t) => (
         <div key={t.id} className={"hc-row" + (t.priority >= 4 ? " needs" : "")}>
           <span className={"hc-dot" + (t.priority >= 4 ? " sq" : "")} />
-          <Ext href={t.url}>{t.title}</Ext>
+          <button type="button" className="hc-text" onClick={() => openVikunjaTask(t.id)}>{t.title}</button>
           <span className="hc-side mono" title={t.project}>{[t.project, t.due ? `due ${t.due.slice(5)}` : null].filter(Boolean).join(" · ")}</span>
         </div>
       ))}

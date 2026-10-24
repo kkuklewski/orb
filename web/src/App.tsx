@@ -16,6 +16,9 @@ import { Home } from "./screens/Home";
 import { TaskScreen, TaskToast } from "./screens/Task";
 import { RoutineScreen } from "./screens/Routine";
 import { wireTasks } from "./stores/tasks";
+import { wireVikunja } from "./stores/vikunja";
+import { VikunjaTaskScreen } from "./screens/VikunjaTask";
+import { VikunjaList } from "./screens/VikunjaList";
 import { wireHome } from "./stores/home";
 import { wireRoute } from "./stores/route";
 import { wireScreen } from "./stores/screen";
@@ -39,7 +42,7 @@ export { openSetup };
 
 export function App() {
   useEffect(() => {
-    const offs = [wireFeatures(), wireSetup(), wireViews(), wireSession(), wireChat(), wireMeta(), wireVoice(), wireHome(), wireTasks(), wireRoute(), wireScreen()];
+    const offs = [wireFeatures(), wireSetup(), wireViews(), wireSession(), wireChat(), wireMeta(), wireVoice(), wireHome(), wireTasks(), wireVikunja(), wireRoute(), wireScreen()];
     const stop = start();
     return () => { stop(); offs.forEach((off) => off()); };
   }, []);
@@ -74,6 +77,8 @@ export function App() {
           : view === "home" ? <section className="chat-next"><Home /><Dock pill={false} /></section>
           : view === "routine" ? <section className="chat-next"><RoutineScreen /><Dock pill /></section>
           : view === "task" ? <section className="chat-next"><TaskScreen /><Dock pill /></section>
+          : view === "vikunjas" ? <section className="chat-next"><VikunjaList /><Dock pill /></section>
+          : view === "vikunja" ? <section className="chat-next"><VikunjaTaskScreen /><Dock pill /></section>
           : <Chat />}
       </main>
       <Picker />

@@ -97,6 +97,29 @@
 .task-where .tag { font-size: 9.5px; letter-spacing: .14em; color: var(--s-acc-txt, var(--warn)); }
 .task-cols { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: 24px; padding-top: 30px; align-items: start; }
 .task-excerpt { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; border-top: 1px solid var(--line-soft); background: var(--code-bg); padding: 12px 0; font-size: 12.5px; line-height: 1.7; color: var(--text-2); }
+.vk-desc { border-top: 1px solid var(--line-soft); padding: 8px 32px 24px; font-size: 15px; line-height: 1.6; overflow-wrap: anywhere; }
+.vk-filter { width: 100%; box-sizing: border-box; margin: 4px 0 12px; padding: 10px 14px; border: 1px solid var(--line-soft); border-radius: 10px; background: var(--bg); color: var(--text); font: 14px var(--sans); }
+.vk-table-wrap { overflow-x: auto; border: 1px solid var(--line-soft); border-radius: 14px; background: var(--card, var(--bg)); }
+.vk-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.vk-table th, .vk-table td { padding: 10px 14px; text-align: left; border-top: 1px solid var(--line-soft); vertical-align: top; }
+.vk-table thead th { border-top: 0; font: 11px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); white-space: nowrap; }
+.vk-table th button { background: none; border: 0; padding: 0; font: inherit; letter-spacing: inherit; text-transform: inherit; color: inherit; cursor: pointer; }
+.vk-table td.mono { font-size: 12px; color: var(--text-2); white-space: nowrap; }
+.vk-table td button.hc-text { background: none; border: 0; padding: 0; font: inherit; color: var(--text); text-align: left; cursor: pointer; }
+.vk-table td button.hc-text:hover { text-decoration: underline; text-underline-offset: 3px; }
+.vk-table tr.needs td.mono:last-child { color: var(--s-acc-txt, var(--warn)); }
+.vk-none { color: var(--text-3); }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.vk-tools { display: flex; gap: 14px; align-items: center; margin: 4px 0 12px; }
+.vk-tools .vk-filter { margin: 0; flex: 1; }
+.vk-group { display: flex; gap: 6px; align-items: center; font-size: 12px; color: var(--text-2); white-space: nowrap; cursor: pointer; }
+.vk-grp th { background: var(--bg); font: 12px var(--mono); letter-spacing: .04em; color: var(--text-2); }
+.vk-grp th span { color: var(--text-3); margin-left: 6px; }
+.vk-arch { background: none; border: 1px solid var(--line-soft); border-radius: 8px; padding: 3px 9px; font-size: 11px; color: var(--text-2); cursor: pointer; }
+.vk-arch:hover { color: var(--text); border-color: var(--text-3); }
+.vk-undo { display: flex; gap: 12px; align-items: center; margin: 0 0 12px; padding: 10px 14px; border-radius: 10px; background: var(--bg); border: 1px solid var(--line-soft); font-size: 12px; }
+.vk-undo span { flex: 1; }
+.vk-undo button { background: none; border: 0; font: inherit; color: var(--text); cursor: pointer; text-decoration: underline; }
 .ex-line { display: grid; grid-template-columns: 58px 1fr; padding: 0 20px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .ex-n { padding-right: 14px; text-align: right; color: var(--text-3); }
 .ex-line.hit { color: var(--text); background: color-mix(in srgb, var(--s-acc, #FE5B2A) 9%, transparent); box-shadow: inset 3px 0 0 var(--s-acc, #FE5B2A); }
