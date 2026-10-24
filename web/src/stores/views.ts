@@ -5,7 +5,7 @@ import type { FolderItem, RoutineItem, RoutinesEvent, SessionItem, SettingsEvent
 import { on } from "../events";
 import { send } from "../ws";
 
-export type View = "home" | "chat" | "task" | "item" | "items" | "routine" | "activity" | "routines" | "chats" | "settings";
+export type View = "home" | "chat" | "task" | "item" | "items" | "routine" | "activity" | "routines" | "chats" | "session" | "settings";
 
 export const useViews = create<{
   view: View;
@@ -14,8 +14,28 @@ export const useViews = create<{
   routinesNew: Set<string>; // "new" dots stay for this visit; the server forgets them at once
 }>(() => ({ view: "home", settings: null, routines: null, routinesNew: new Set() }));
 
+/** The chat panel (view "session") opens over Home, Activity or Routines; closing returns to the one it opened over. */
+const PANEL_BASES: View[] = ["home", "activity", "routines"];
+let panelBase: View = "home";
+export const canOpenPanel = (v: View) => v === "session" || PANEL_BASES.includes(v);
+export function togglePanelChat() {
+  const v = useViews.getState().view;
+  useViews.setState({ view: v === "session" ? panelBase : canOpenPanel(v) ? "session" : v });
+}
+export function closePanelChat() {
+  if (useViews.getState().view === "session") useViews.setState({ view: panelBase });
+}
+
+/** Esc closes the panel unless something is being typed: a non-empty composer keeps its text. */
+export function escClosesPanel(target: EventTarget | null): boolean {
+  const el = target as HTMLElement | null;
+  const field = el?.closest?.("input, textarea, select") as HTMLInputElement | null;
+  return !field || (field.tagName === "TEXTAREA" && field.value === "");
+}
+
 export function wireViews(): () => void {
   const offs = [
+    useViews.subscribe((s) => { if (PANEL_BASES.includes(s.view)) panelBase = s.view; }),
     on("settings", (ev) => useViews.setState({ settings: ev })),
     on("routines", (ev) => useViews.setState({ routines: ev })),
   ];

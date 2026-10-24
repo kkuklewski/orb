@@ -233,3 +233,11 @@
 
 .peek-grip { position: absolute; left: -4px; top: 0; bottom: 0; width: 9px; cursor: col-resize; z-index: 5; touch-action: none; }
 .peek-grip:hover, .peek-grip:active { background: linear-gradient(90deg, transparent 3px, var(--accent) 3px, var(--accent) 5px, transparent 5px); }
+
+/* The chat sheet: over the screen (never shrinking it), above the dock; full width on a phone. */
+.sheet-host { position: relative; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+.sheet-base { flex: 1; min-height: 0; overflow-y: auto; }
+.chat-sheet { position: absolute; top: 0; right: 0; bottom: 0; width: min(100%, 520px); z-index: 20; display: flex; flex-direction: column; min-height: 0; border-left: 1px solid var(--text); background: var(--bg-elev); box-shadow: -12px 0 32px rgb(0 0 0 / .08); }
+.chat-sheet .chat { flex: 1; }
+.chat-sheet .column { padding: 12px 16px 16px; }
+.sheet-title { padding: 10px 16px 0; font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

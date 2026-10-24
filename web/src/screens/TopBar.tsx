@@ -1,5 +1,6 @@
 import { folderName, newSession, useSession } from "../stores/session";
 import { FRONT_TITLE, contextView, cycleMode, mcpRows, metaLine, reconnectMcp, toggleMcp, toggleModel, usageView, useMeta } from "../stores/meta";
+import { canOpenPanel, togglePanelChat, useViews } from "../stores/views";
 import { useVoice } from "../stores/voice";
 import { toggleMute } from "../voice/controller";
 import { Player } from "../voice/player";
@@ -69,6 +70,7 @@ export function TopBar() {
   const { info, front, mode, sessionId } = useMeta();
   const muted = useVoice((s) => s.muted);
   const failed = info.mcp_failed ?? 0;
+  const view = useViews((s) => s.view);
   return (
     <header className="top">
       <button type="button" className="icon-btn ghost open-side" aria-label="Open the sidebar" onClick={() => useSession.setState({ drawer: true })}>
@@ -95,6 +97,9 @@ export function TopBar() {
         )}
         {folder && (
           <button type="button" className={"chip-btn mono mode-chip " + mode} onClick={cycleMode} aria-label={`approvals: ${mode}`} title={MODE_TITLE[mode] ?? mode}><span className="chip-key">approvals: </span>{mode}</button>
+        )}
+        {folder && canOpenPanel(view) && (
+          <button type="button" className="chip-btn mono" aria-pressed={view === "session"} onClick={togglePanelChat} title="Show this session's chat beside the screen">Chat</button>
         )}
         {folder && (
           <button type="button" className="chip-btn new-session" title="Start a fresh session in this folder" onClick={() => { Player.stop(); newSession(); }}>New session</button>
