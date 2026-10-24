@@ -14,6 +14,7 @@ import secrets
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import NamedTuple
 
 from . import home, vikunja, watch
 from .brief import one
@@ -181,17 +182,26 @@ def unsaved(src: Sources) -> str:
 SLASH_NAMES = ("today", "standup", "task")
 
 
-def slash_message(src: Sources, name: str, args: str, today: dt.date | None = None) -> str:
-    """The first message of /today, /standup and /task <id>: a question plus the data it needs, computed here so no
-    tool round trip comes first. Never starts with "/", or the session would take it for a Claude Code command."""
+class SlashMessage(NamedTuple):
+    ask: str     # what the user is taken to have said: short, shown in the bubble and the history
+    screen: str  # name for the screen note the data rides in
+    data: str    # the fenced data, computed here so no tool round trip comes first
+
+
+def slash_message(src: Sources, name: str, args: str, today: dt.date | None = None) -> SlashMessage:
+    """/today, /standup and /task <id>: a short question plus the data it needs. The server sends the data as the
+    screen note, so it never shows in the bubble. The ask never starts with "/" (a command to Claude Code)."""
     if name == "task":
         if not args.strip().isdigit():
             raise DeskError("Use /task <id>, the number after # in the task list.")
-        return f"Look at Vikunja task #{int(args)} and tell me what is going on and what I should do about it.\n\n" + task(src, int(args))
+        n = int(args)
+        return SlashMessage(f"Look at Vikunja task #{n} and tell me what is going on and what I should do about it.",
+                            f"task {n}", task(src, n))
     if name == "standup":
-        return ("Give me a short standup from this data: what I worked on, what is in progress or unsaved, and what is next. "
-                "Name the repo for each item.\n\n" + home_brief(src, today))
-    return "What should I do first today? Rank by what needs me now, then due tasks, then routines.\n\n" + home_brief(src, today)
+        return SlashMessage("Give me a short standup from this data: worked on, in progress or unsaved, next. "
+                            "Name the repo for each item.", "standup", home_brief(src, today))
+    return SlashMessage("What should I do first today? Rank by what needs me now, then due tasks, then routines.",
+                        "today", home_brief(src, today))
 
 
 def label(name: str, inp: dict, title: str = "") -> str:

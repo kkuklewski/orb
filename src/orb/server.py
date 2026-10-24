@@ -556,11 +556,15 @@ async def run_local(conn: Conn, s: FolderSession, name: str, args: str) -> None:
             await conn.send({"type": "notice", "level": "warn", "text": f"/{name} works in the Home chat (your notes folder) only."})
             return
         try:
-            text = await asyncio.to_thread(desk.slash_message, s.sources, name, args)
+            msg = await asyncio.to_thread(desk.slash_message, s.sources, name, args)
         except desk.DeskError as e:
             await conn.send({"type": "notice", "level": "warn", "text": str(e)})
             return
-        await s.send(text, "text")
+        before, s.screen = s.screen, (msg.screen, msg.data)  # the data rides as the screen note: not in the bubble
+        try:
+            await s.send(msg.ask, "text")
+        finally:
+            s.screen = before
         await hub.enforce_limits()
     elif name == "rewind":
         await s.request_undo(None)
