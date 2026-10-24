@@ -441,3 +441,46 @@ async def test_browser_recognition_on_speakers_never_answers_a_card(monkeypatch)
     await s.voice.text("Yes.", echo_risk=False)  # headphones: a real answer
     await asyncio.sleep(0.05)
     assert decision.done()
+
+
+def test_ping_trigger():
+    from orb.agent import PING_TRIGGER
+    for t in ("Ping.", "ping", "Pin this", "pin that one!", "Take this one.", "Przypnij to", "przypnij", "Zapisz to.", "Weź to", "wez to"):
+        assert PING_TRIGGER.match(t), t
+    for t in ("ping the server and tell me the latency", "Pin this version in package.json", "take this one to the review", "zapisz to w pliku notes.md"):
+        assert not PING_TRIGGER.match(t), t
+
+
+async def test_spoken_ping_pins_without_a_model_call_or_bubble(monkeypatch):
+    events = []
+
+    async def emit(ev):
+        events.append(ev)
+
+    s = FolderSession("/x", "k1", Store(), emit, lambda: False)
+
+    async def no_model():
+        raise AssertionError("ping must not reach the model")
+
+    monkeypatch.setattr(s, "ensure_client", no_model)
+    await s.send("Ping.", "voice")
+    assert [e["type"] for e in events] == ["pin_focused"]
+    assert s.open_turns == 0
+
+
+async def test_typed_ping_is_an_ordinary_request(monkeypatch):
+    events = []
+
+    async def emit(ev):
+        events.append(ev)
+
+    s = FolderSession("/x", "k1", Store(), emit, lambda: False)
+
+    async def stop():
+        raise RuntimeError("model reached")
+
+    monkeypatch.setattr(s, "ensure_client", stop)
+    await s.send("ping", "text")
+    assert [e["type"] for e in events][:1] == ["user"]
+    assert any(e["type"] == "error" and "model reached" in e["text"] for e in events)
+    assert not any(e["type"] == "pin_focused" for e in events)

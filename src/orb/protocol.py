@@ -601,6 +601,10 @@ class HeardNothingEvent(_Event):
     type: Literal["heard_nothing"]
 
 
+class PinFocusedEvent(_Event):
+    type: Literal["pin_focused"]
+
+
 class HeldEvent(_Event):
     type: Literal["held"]
     text: str
@@ -673,7 +677,7 @@ ServerEvent = Annotated[Union[
     SettingsEvent, ErrorEvent, NoticeEvent, OpenedEvent, HistoryEvent, StateEvent, SessionInfoEvent,
     ContextEvent, TaskEvent, CommandsEvent, McpEvent, RateLimitEvent, RoutinesEvent, BgNoticeEvent,
     HomeEvent, HomeWatchEvent, TaskDetailEvent, ItemEvent, ItemListEvent, TaskChangedEvent, UserEvent, TextStartEvent, TextEvent, SaidEvent, ToolStartEvent, ToolInputEvent, ToolResultEvent,
-    ResultEvent, TimingEvent, PartialEvent, HeardNothingEvent, HeldEvent, PermissionEvent,
+    ResultEvent, TimingEvent, PartialEvent, HeardNothingEvent, PinFocusedEvent, HeldEvent, PermissionEvent,
     PermissionDoneEvent, UndoAvailableEvent, UndoConfirmEvent, UndoDoneEvent, AudioEvent, SpeechResetEvent,
 ], Field(discriminator="type")]
 

@@ -3,14 +3,17 @@ import { start } from "./ws";
 import { useConnection, type Connection } from "./stores/connection";
 import { useFeatures, wireFeatures } from "./stores/features";
 import { openSetup, useSetup, wireSetup } from "./stores/setup";
-import { useViews, wireViews } from "./stores/views";
+import { escClosesPanel, useViews, wireViews } from "./stores/views";
 import { folderName, openPicker, useSession, wireSession } from "./stores/session";
 import { Setup } from "./screens/setup/Setup";
 import { Activity } from "./screens/Activity";
+import { Chats } from "./screens/Chats";
+import { ChatSheet } from "./screens/ChatSheet";
 import { Routines } from "./screens/Routines";
 import { Settings } from "./screens/Settings";
 import { Sidebar } from "./screens/Sidebar";
 import { Picker } from "./screens/Picker";
+import { PinChips } from "./screens/PinChips";
 import { Composer } from "./screens/Composer";
 import { Home } from "./screens/Home";
 import { TaskScreen, TaskToast } from "./screens/Task";
@@ -70,6 +73,14 @@ export function App() {
     return () => window.removeEventListener("keydown", k);
   }, [peeking, base]);
 
+  const sheet = view === "session";
+  useEffect(() => {
+    if (!sheet) return;
+    const k = (e: KeyboardEvent) => { if (e.key === "Escape" && escClosesPanel(e.target)) useViews.setState({ view: baseRef.current }); };
+    window.addEventListener("keydown", k);
+    return () => window.removeEventListener("keydown", k);
+  }, [sheet]);
+
   // Not set up: the setup opens by itself. Setup just finished: close it.
   const wasOnboarded = useRef<boolean | null>(null);
   useEffect(() => {
@@ -102,8 +113,17 @@ export function App() {
               </div>
             </aside>
           </div>
+        ) : sheet ? (
+          <section className="chat-next">
+            <div className="sheet-host">
+              <div className="sheet-base">{base === "activity" ? <Activity /> : base === "routines" && features.routines ? <Routines /> : <Home />}</div>
+              <ChatSheet />
+            </div>
+            <Dock pill />
+          </section>
         ) : view === "activity" ? <Activity />
           : view === "routines" && features.routines ? <Routines />
+          : view === "chats" ? <Chats />
           : view === "settings" ? <Settings />
           : view === "home" ? <section className="chat-next"><Home /><Dock pill /></section>
           : view === "routine" ? <section className="chat-next"><RoutineScreen /><Dock pill /></section>
@@ -170,6 +190,7 @@ function Chat() {
 function Dock({ pill }: { pill: boolean }) {
   return (
     <footer className="dock">
+      <PinChips />
       <DockState />
       <div className="dock-row">
         <Composer />

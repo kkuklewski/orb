@@ -101,3 +101,12 @@ a.hbtn { text-decoration: none; }
 .routine-thread, .task-thread { margin-top: 24px; }
 .routine-thread .column, .task-thread .column { padding: 8px 20px 16px; max-width: none; border-top: 1px solid var(--line-soft); }
 .routine-thread .msg-user, .task-thread .msg-user { margin: 12px 0 8px; }
+.chats-search input { width: 100%; box-sizing: border-box; padding: 9px 12px; margin-bottom: 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg-elev); color: var(--text); font: inherit; font-size: 14px; }
+.chats-group { margin-bottom: 18px; }
+.chats-repo { display: flex; align-items: baseline; gap: 8px; margin: 0 0 2px; padding: 0 6px; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); font-weight: 600; }
+.chats-repo .mono { font-weight: 400; }
+.chats-row { grid-template-columns: 34px 8px 1fr auto; }
+.chats-label { color: var(--text); }
+.rail-toggle { width: 40px; height: 28px; margin: 0 auto 8px; display: grid; place-items: center; background: none; border: 0; border-radius: 8px; color: var(--text-3); cursor: pointer; }
+.rail-toggle:hover, .rail-toggle[aria-pressed="true"] { color: var(--text); background: var(--bg-elev); }
+.chats-count { margin-left: 8px; font-size: 11px; color: var(--text-3); }

@@ -13,6 +13,7 @@ vi.mock("../ws", () => ({ send: (m: Record<string, unknown>) => { sent.push(m); 
 const { Sidebar } = await import("./Sidebar");
 const { Picker } = await import("./Picker");
 const { Composer } = await import("./Composer");
+const { Chats } = await import("./Chats");
 
 const features = (over: Partial<Features> = {}): Features => ({
   brain: false, onboarded: true, plan: "max", roots: ["/Users/a/code"], routines: true, stt: "browser", tts: "kokoro", vault: "", ...over,
@@ -41,9 +42,29 @@ describe("sidebar", () => {
     expect(within(repos).getByRole("button", { name: /web/ })).toBeTruthy();
     expect(within(repos).queryByRole("button", { name: /^api/ })).toBeNull();
     const recents = screen.getByRole("region", { name: "Recents" });
-    expect(within(recents).getAllByRole("button", { name: (_n, el) => el.classList.contains("session") }).map((b) => b.textContent)).toEqual(["add testsapi", "fix loginweb", "notesweb"]);
+    expect(within(recents).getAllByRole("button", { name: (_n, el) => el.classList.contains("session") && !el.classList.contains("all-chats") }).map((b) => b.textContent)).toEqual(["fix loginweb", "add testsapi", "notesweb"]);
     expect(screen.getByText("1 waiting")).toBeTruthy();
     expect(screen.getByText("Claude")).toBeTruthy();
+  });
+
+  it("Recents is capped at five, the waiting one first, with an All chats link into the Chats view", () => {
+    const many = Array.from({ length: 8 }, (_, i) => session(`m${i}`, "idle", { label: `old ${i}`, last_used: 100 + i }));
+    useFeatures.setState({ folders: [folder("web", [...many, session("w9", "approval", { label: "needs you", last_used: 1 })])] });
+    render(<Sidebar />);
+    const recents = screen.getByRole("region", { name: "Recents" });
+    const rows = within(recents).getAllByRole("button", { name: (_n, el) => el.classList.contains("session") && !el.classList.contains("all-chats") });
+    expect(rows).toHaveLength(5);
+    expect(rows[0].textContent).toContain("needs you");
+    fireEvent.click(within(recents).getByRole("button", { name: "All chats →" }));
+    expect(useViews.getState().view).toBe("chats");
+  });
+
+  it("the Chats rail button opens the view and the panel toggle only hides the panel", () => {
+    render(<Sidebar />);
+    fireEvent.click(screen.getByRole("button", { name: "Chats" }));
+    expect(useViews.getState().view).toBe("chats");
+    fireEvent.click(screen.getByRole("button", { name: "Show or hide the side panel" }));
+    expect(useViews.getState().view).toBe("chats");
   });
 
   it("a pinned repo opens, unfolds to its sessions, and can start or unpin", () => {
@@ -183,5 +204,28 @@ describe("composer and slash menu", () => {
     expect(document.activeElement).toBe(box());
     expect(box().value).toBe("/");
     expect(screen.getAllByRole("option")).toHaveLength(3);
+  });
+});
+
+describe("chats view", () => {
+  it("groups sessions by repo, waiting repo first, and searches", () => {
+    render(<Chats />);
+    const groups = screen.getAllByRole("region").map((g) => g.getAttribute("aria-label"));
+    expect(groups).toEqual(["web", "api"]);
+    fireEvent.click(screen.getByRole("button", { name: /add tests/ }));
+    expect(sent).toContainEqual({ type: "open_folder", path: "/Users/a/code/api", session: "a1" });
+    fireEvent.change(screen.getByLabelText("Search chats"), { target: { value: "login" } });
+    expect(screen.getAllByRole("region").map((g) => g.getAttribute("aria-label"))).toEqual(["web"]);
+    fireEvent.change(screen.getByLabelText("Search chats"), { target: { value: "zzz" } });
+    expect(screen.getByText("Nothing found.")).toBeTruthy();
+  });
+
+  it("keeps one row per label per repo, with a count", () => {
+    const same = (k: string, t: number) => session(k, "idle", { label: "What's on my plate today?", last_used: t });
+    useFeatures.setState({ folders: [folder("brain", [same("b1", 30), same("b2", 20), same("b3", 10), session("b4", "idle", { label: "other", last_used: 5 })])] });
+    render(<Chats />);
+    expect(screen.getAllByRole("button", { name: /plate today/ })).toHaveLength(1);
+    expect(screen.getByText("×3")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /other/ })).toBeTruthy();
   });
 });

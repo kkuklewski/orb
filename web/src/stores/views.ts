@@ -5,7 +5,7 @@ import type { FolderItem, RoutineItem, RoutinesEvent, SessionItem, SettingsEvent
 import { on } from "../events";
 import { send } from "../ws";
 
-export type View = "home" | "chat" | "task" | "item" | "items" | "routine" | "activity" | "routines" | "settings";
+export type View = "home" | "chat" | "task" | "item" | "items" | "routine" | "activity" | "routines" | "chats" | "session" | "settings";
 
 export const useViews = create<{
   view: View;
@@ -14,8 +14,28 @@ export const useViews = create<{
   routinesNew: Set<string>; // "new" dots stay for this visit; the server forgets them at once
 }>(() => ({ view: "home", settings: null, routines: null, routinesNew: new Set() }));
 
+/** The chat panel (view "session") opens over Home, Activity or Routines; closing returns to the one it opened over. */
+const PANEL_BASES: View[] = ["home", "activity", "routines"];
+let panelBase: View = "home";
+export const canOpenPanel = (v: View) => v === "session" || PANEL_BASES.includes(v);
+export function togglePanelChat() {
+  const v = useViews.getState().view;
+  useViews.setState({ view: v === "session" ? panelBase : canOpenPanel(v) ? "session" : v });
+}
+export function closePanelChat() {
+  if (useViews.getState().view === "session") useViews.setState({ view: panelBase });
+}
+
+/** Esc closes the panel unless something is being typed: a non-empty composer keeps its text. */
+export function escClosesPanel(target: EventTarget | null): boolean {
+  const el = target as HTMLElement | null;
+  const field = el?.closest?.("input, textarea, select") as HTMLInputElement | null;
+  return !field || (field.tagName === "TEXTAREA" && field.value === "");
+}
+
 export function wireViews(): () => void {
   const offs = [
+    useViews.subscribe((s) => { if (PANEL_BASES.includes(s.view)) panelBase = s.view; }),
     on("settings", (ev) => useViews.setState({ settings: ev })),
     on("routines", (ev) => useViews.setState({ routines: ev })),
   ];
@@ -33,6 +53,32 @@ export function activityRows(folders: FolderItem[], limit = 40): SessionRow[] {
   for (const f of folders) for (const s of f.sessions ?? []) if (!s.empty && (s.status !== "idle" || s.live)) rows.push({ ...s, folder: f });
   rows.sort((a, b) => (ORDER[a.status] ?? 3) - (ORDER[b.status] ?? 3) || (b.last_used ?? 0) - (a.last_used ?? 0));
   return rows.slice(0, limit);
+}
+
+/** Chats view: every session grouped by repo (repos with something running or waiting first, then newest), filtered by `q`
+ *  on the label and the repo name. */
+export function chatGroups(rows: SessionRow[], q: string, current: string | null = null): { folder: FolderItem; rows: (SessionRow & { count: number })[] }[] {
+  const needle = q.trim().toLowerCase();
+  const by = new Map<string, { folder: FolderItem; rows: (SessionRow & { count: number })[] }>();
+  const seen = new Map<string, SessionRow & { count: number }>(); // one row per label per repo (the newest wins; `rows` is newest first)
+  for (const r of rows) {
+    if (r.label && !r.live && r.key !== current) {
+      const id = `${r.folder.path}\n${r.label.trim().toLowerCase()}`;
+      const first = seen.get(id);
+      if (first) { first.count++; continue; }
+    }
+    const row = { ...r, count: 1 };
+    if (r.label) seen.set(`${r.folder.path}\n${r.label.trim().toLowerCase()}`, row);
+    if (needle && !`${r.label ?? ""} ${r.folder.label}`.toLowerCase().includes(needle)) continue;
+    const g = by.get(r.folder.path) ?? { folder: r.folder, rows: [] };
+    g.rows.push(row);
+    by.set(r.folder.path, g);
+  }
+  const rank = (g: { rows: SessionRow[] }) => Math.min(...g.rows.map((r) => ORDER[r.status] ?? 3));
+  const newest = (g: { rows: SessionRow[] }) => Math.max(...g.rows.map((r) => r.last_used ?? 0));
+  const groups = [...by.values()];
+  for (const g of groups) g.rows.sort((a, b) => (ORDER[a.status] ?? 3) - (ORDER[b.status] ?? 3) || (b.last_used ?? 0) - (a.last_used ?? 0));
+  return groups.sort((a, b) => Math.min(rank(a), 2) - Math.min(rank(b), 2) || newest(b) - newest(a));
 }
 
 export function statusText(s: SessionItem): string {

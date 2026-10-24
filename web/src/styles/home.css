@@ -233,3 +233,28 @@
 
 .peek-grip { position: absolute; left: -4px; top: 0; bottom: 0; width: 9px; cursor: col-resize; z-index: 5; touch-action: none; }
 .peek-grip:hover, .peek-grip:active { background: linear-gradient(90deg, transparent 3px, var(--accent) 3px, var(--accent) 5px, transparent 5px); }
+
+/* The chat sheet: over the screen (never shrinking it), above the dock; full width on a phone. */
+.sheet-host { position: relative; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+.sheet-base { flex: 1; min-height: 0; overflow-y: auto; }
+.chat-sheet { position: absolute; top: 0; right: 0; bottom: 0; width: min(100%, 520px); z-index: 20; display: flex; flex-direction: column; min-height: 0; border-left: 1px solid var(--text); background: var(--bg-elev); box-shadow: -12px 0 32px rgb(0 0 0 / .08); }
+.chat-sheet .chat { flex: 1; }
+.chat-sheet .column { padding: 12px 16px 16px; }
+.sheet-title { padding: 10px 16px 0; font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* pins */
+.hc-row.pinnable { grid-template-columns: 16px minmax(0, 1fr) auto 28px; }
+.pin-btn { width: 28px; height: 28px; display: grid; place-items: center; border: 0; border-radius: 6px; background: none; color: var(--text-3); cursor: pointer; opacity: 0; }
+.hc-row:hover .pin-btn, .hc-row:focus-within .pin-btn, .pin-btn.on { opacity: 1; }
+.pin-btn:hover { color: var(--text); }
+.pin-btn.on { color: var(--s-acc, var(--text)); }
+.pin-btn:focus-visible { outline: 2px solid var(--text); outline-offset: 1px; }
+@media (hover: none) { .pin-btn { opacity: .7; } }
+.pin-chips { max-width: 780px; margin: 0 auto 8px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12px; }
+.pin-count, .pin-keep, .pin-clear, .pin-ask { font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--text-3); }
+.pin-chip { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 3px 4px 3px 10px; border: 1px solid var(--line); border-radius: 14px; background: var(--bg-elev); color: var(--text); }
+.pin-chip .mono { font-size: 10px; color: var(--text-3); text-transform: uppercase; }
+.pin-chip button, .pin-clear { border: 0; background: none; color: var(--text-3); cursor: pointer; padding: 0 6px; font: inherit; }
+.pin-chip button:hover, .pin-clear:hover { color: var(--text); }
+.pin-keep { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+.pin-ask { margin-left: auto; border: 1px solid var(--text); border-radius: 14px; background: var(--text); color: var(--bg); padding: 4px 12px; cursor: pointer; }

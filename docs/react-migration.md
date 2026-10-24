@@ -107,6 +107,19 @@ Home chat (`askIn(vault, question, {name, text}, true)`, the `routine.ts` patter
 The Home chat itself has the `orb` read tools (`desk.py`), write tools behind cards, and `/today`, `/standup`,
 `/task <id>` (precomputed on the server, vault session only).
 
+### Chats view
+
+The rail's **Chats** button opens `/chats`: every session grouped by repo (repos with a waiting or running session first),
+status dots from the same data as Activity, and a search box. The sidebar's Recents shows five (approvals and running
+sessions first) and an "All chats →" link there. The side panel itself has its own small toggle at the top of the rail.
+
+### Chat panel
+
+The top bar's **Chat** chip (Home, Activity, Routines) opens the current session's conversation (`ChatLog`) as a sheet over
+that screen: it never shrinks the tiles, is full width on a phone, and has no input of its own, so the dock's composer and
+voice pill stay the single input. "Open in Chats →" goes to the full chat; Esc or ✕ closes it (Esc only when the composer
+is empty). It adds no keyboard handler besides that one Esc listener; Space and the rest stay with the voice controller.
+
 ## Risks and how each is handled
 
 - **Protocol drift** between Python and the page: generated types plus the CI diff check.

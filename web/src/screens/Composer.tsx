@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { sendText, slashMatches, slashQuery, useSession } from "../stores/session";
 import { useVoice } from "../stores/voice";
+import { sendWithPins, usePins } from "../stores/pins";
+import { currentScreen } from "../stores/screen";
+import { useViews } from "../stores/views";
 import { stopAll } from "../voice/controller";
 import { Player } from "../voice/player";
 
@@ -50,10 +53,13 @@ export function Composer() {
     box.current?.focus();
   };
 
+  const hasPins = usePins((s) => s.pins.length > 0);
+  const onHome = useViews((s) => s.view) === "home";
+  const pinned = hasPins && onHome;
   const submit = () => {
-    if (!text.trim()) return;
+    if (!text.trim() && !pinned) return;
     Player.unlock(); Player.stop(); // a typed request cuts her off, like speaking would
-    if (sendText(text)) setText("");
+    if (pinned ? sendWithPins(text, () => currentScreen("home")) : sendText(text)) setText("");
   };
 
   return (
@@ -90,7 +96,7 @@ export function Composer() {
       {(busy || playing) && !text.trim() ? (
         <button type="button" className="stop" aria-label="Stop" title="Stop this answer (Esc)" onClick={stopAll}>■</button>
       ) : (
-      <button type="submit" className="send" aria-label="Send" disabled={!text.trim()}>
+      <button type="submit" className="send" aria-label="Send" disabled={!text.trim() && !pinned}>
         <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 19V5M5 12l7-7 7 7" /></svg>
       </button>
       )}
