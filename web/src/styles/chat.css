@@ -1,6 +1,6 @@
 /* Chat: messages, markdown, tool steps, approval / plan / undo cards, notices. Ported from app.css + studio.css. */
 /* ---- Chat (Claude app) ---- */
-.chat { overflow-y: auto; min-height: 0; position: relative; scroll-behavior: auto; }
+.chat { container-type: inline-size; overflow-y: auto; min-height: 0; position: relative; scroll-behavior: auto; }
 .column { max-width: 780px; margin: 0 auto; padding: 28px 24px 24px; }
 .msg-user { display: flex; justify-content: flex-end; margin: 22px 0 18px; }
 .msg-user .bubble { background: var(--user-bubble); border-radius: 18px; padding: 10px 16px; max-width: 85%; white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -155,3 +155,5 @@
 :root[data-theme="light"] .hljs-addition { color: #22863a; background-color: #f0fff4 }
 :root[data-theme="light"] .hljs-deletion { color: #b31d28; background-color: #ffeef0 }
 :root[data-theme="light"] .hljs-char.escape_, :root[data-theme="light"] .hljs-link, :root[data-theme="light"] .hljs-params, :root[data-theme="light"] .hljs-property, :root[data-theme="light"] .hljs-punctuation, :root[data-theme="light"] .hljs-tag {  }
+.md figure.diagram { position: relative; left: 50%; transform: translateX(-50%); box-sizing: border-box; width: max(100%, min(1240px, calc(100cqw - 48px))); margin: 12px 0; padding: 12px; border: 1px solid var(--line-soft); border-radius: 8px; background: var(--code-bg); overflow-x: auto; }
+.md figure.diagram svg { display: block; max-width: 100%; height: auto; margin: 0 auto; user-select: text; }  /* natural size, shrinks only when wider than the column */

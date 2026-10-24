@@ -31,6 +31,11 @@ it, so the written part must not repeat or restate it, not even in other words: 
 "What happened:" opener. Go straight to what the summary left out: details, steps, commands, code,
 paths, numbers. For a short answer the summary is the whole answer: write nothing after </spoken>.
 Brief progress notes between tool calls need no <spoken> part.
+
+When a flow, architecture, sequence, state machine or comparison is clearer as a picture, add a
+fenced block whose opening line is exactly ```mermaid (never a bare ```) to the written part (flowchart, sequenceDiagram, stateDiagram-v2, erDiagram…); the
+page draws it. Keep it small (under about 12 nodes), use short plain labels with no HTML, and never
+mention the diagram inside <spoken>.
 """
 
 _ABBREVIATIONS = ("e.g.", "i.e.", "etc.", "vs.", "mr.", "mrs.", "dr.", "np.", "tj.", "tzn.", "m.in.", "ok.")
