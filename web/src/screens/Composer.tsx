@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { sendText, slashMatches, slashQuery, useSession } from "../stores/session";
 import { useVoice } from "../stores/voice";
 import { sendWithPins, usePins } from "../stores/pins";
@@ -11,7 +11,7 @@ import { Player } from "../voice/player";
 // Claude Code built-ins, Orb's own); ↑↓ move, Tab/Enter complete, Esc closes. The text is sent as
 // typed and Claude Code expands it, except Orb's own (/clear, /model, /mcp, /rewind), which the
 // server runs. Typed input only: voice never goes through here.
-export function Composer() {
+export function Composer({ lead }: { lead?: ReactNode }) {
   const commands = useSession((s) => s.commands);
   const busy = useSession((s) => s.busy);
   const playing = useVoice((s) => s.playing);
@@ -77,6 +77,7 @@ export function Composer() {
           ))}
         </div>
       )}
+      {lead}
       <textarea ref={box} className="composer-input" rows={1} placeholder="Type, or / for commands" aria-label="Message"
         role="combobox" aria-expanded={open} aria-controls="slash-menu" aria-autocomplete="list" aria-activedescendant={open ? `slash-opt-${idx}` : undefined}
         value={text} onChange={(e) => change(e.target.value)}

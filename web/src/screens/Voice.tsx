@@ -50,6 +50,7 @@ export function VoicePill() {
 
 export function DockState() {
   const { v, st, hasFolder } = useDock();
+  if (st === "idle" && !v.flash) return <div role="status" className="dock-state-gap" />;  // nothing to say: no pill over the tiles
   return (
     <div className="dock-state mono" role="status">
       <span className={"state-dot " + (st === "hearing" ? "listening" : st)} />
