@@ -130,6 +130,21 @@ describe("home watch cards", () => {
     expect(usePins.getState().pins).toEqual([{ kind: "task", id: "4", label: "Ship the invoice export" }]);
   });
 
+  it("a spoken ping (pin_focused) pins the focused row, unpins it on a second ping, and says so when nothing is focused", async () => {
+    const { pinFocused } = await import("../stores/pins");
+    useViews.setState({ view: "home" });
+    render(<Home />);
+    act(() => dispatch(watch()));
+    (document.activeElement as HTMLElement | null)?.blur();
+    expect(pinFocused()).toBeNull();
+    const text = within(screen.getByRole("article", { name: /open task/ })).getByRole("button", { name: "Ship the invoice export" });
+    text.focus();
+    expect(pinFocused()).toBe("pinned");
+    expect(usePins.getState().pins).toEqual([{ kind: "task", id: "4", label: "Ship the invoice export" }]);
+    expect(pinFocused()).toBe("unpinned");
+    expect(usePins.getState().pins).toEqual([]);
+  });
+
   it("hides the cards that have nothing to show", () => {
     render(<Home />);
     act(() => dispatch(watch({ reminders: [], prs: [], repos: [], links: [], tracker: null })));

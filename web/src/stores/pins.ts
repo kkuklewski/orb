@@ -20,6 +20,20 @@ export const usePins = create<{ pins: Pin[]; keep: boolean }>(() => ({ pins: [],
 export const isPinned = (pins: Pin[], p: { kind: PinKind; id: string }) => pins.some((x) => pinKey(x) === pinKey(p));
 export const addPin = (p: Pin) => usePins.setState((s) => (isPinned(s.pins, p) ? s : { pins: [...s.pins, p] }));
 export const removePin = (p: { kind: PinKind; id: string }) => usePins.setState((s) => ({ pins: s.pins.filter((x) => pinKey(x) !== pinKey(p)) }));
+/** The pin a dashboard row stands for (its data-pin-* attributes). */
+export const pinOfRow = (row: HTMLElement): Pin => ({ kind: row.dataset.pinKind as PinKind, id: row.dataset.pinId ?? "", label: row.dataset.pinLabel ?? "" });
+
+/** Pins (or unpins) the Home row that has focus, else the one under the pointer (a spoken "ping"). Null when there is none. */
+export function pinFocused(): "pinned" | "unpinned" | null {
+  if (useViews.getState().view !== "home") return null;
+  const row = (document.activeElement as HTMLElement | null)?.closest?.<HTMLElement>("[data-pin-kind]") ?? document.querySelector<HTMLElement>("[data-pin-kind]:hover");
+  if (!row) return null;
+  const p = pinOfRow(row);
+  const was = isPinned(usePins.getState().pins, p);
+  togglePin(p);
+  return was ? "unpinned" : "pinned";
+}
+
 export const togglePin = (p: Pin) => (isPinned(usePins.getState().pins, p) ? removePin(p) : addPin(p));
 export const setKeep = (keep: boolean) => usePins.setState({ keep });
 export const clearPins = () => usePins.setState({ pins: [] });

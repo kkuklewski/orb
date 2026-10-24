@@ -1,5 +1,5 @@
 import { useEffect, type ReactNode } from "react";
-import { isPinned, togglePin, usePins, type Pin, type PinKind } from "../stores/pins";
+import { isPinned, pinOfRow, togglePin, usePins, type Pin } from "../stores/pins";
 import { useFeatures } from "../stores/features";
 import { askIn } from "../stores/session";
 
@@ -55,7 +55,7 @@ export function usePinKey() {
       const row = el.closest<HTMLElement>("[data-pin-kind]");
       if (!row) return;
       e.preventDefault();
-      togglePin({ kind: row.dataset.pinKind as PinKind, id: row.dataset.pinId ?? "", label: row.dataset.pinLabel ?? "" });
+      togglePin(pinOfRow(row));
     };
     window.addEventListener("keydown", on);
     return () => window.removeEventListener("keydown", on);
