@@ -18,7 +18,7 @@ import hashlib
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import billing, chain, config, folders, handoff, home, items, routines, settings, setup, slash, speech, tasks, vendor, vikunja, vocab, watch
+from . import billing, chain, config, desk, folders, handoff, home, items, routines, settings, setup, slash, speech, tasks, vendor, vikunja, vocab, watch
 from .agent import SCREEN_MAX, FolderSession, dumps, first_request
 from .brain import CaptureGuard
 from .sessions import SessionStore
@@ -88,6 +88,11 @@ class Hub:
         self.auth: dict = {}
         self.handoffs: set[asyncio.Task] = set()  # first requests of sessions opened by continue_in_repo
         self.last_commands: list[dict] = []
+        self.desk = desk.Sources(  # what the Home chat's tools read; live, so settings changes apply at once
+            cfg=lambda: settings.settings.data, vault=settings.settings.vault,
+            folders=lambda: self.folders or self.scan(),
+            routines=lambda: self.routines.items() if settings.settings["routines"] else None,
+            sessions=self.store.sessions)
 
     async def check_auth(self) -> None:
         """Which plan Claude Code is signed in with, for the sidebar (never the account itself)."""
@@ -168,6 +173,7 @@ class Hub:
                 notify=self.notify,
                 guard=self.guard,
                 handoff=self.handoff,
+                desk=self.desk,
             )
             self.sessions[key] = s
         return s
