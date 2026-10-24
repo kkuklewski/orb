@@ -97,7 +97,7 @@ def tool_summary(name: str, inp: dict[str, Any]) -> str:
     return f"{name}({arg[:120]}{'…' if len(arg) > 120 else ''})" if arg else name
 
 
-def spoken_permission_prompt(name: str, inp: dict[str, Any], display_name: str | None = None) -> str:
+def spoken_permission_prompt(name: str, inp: dict[str, Any], display_name: str | None = None, title: str = "") -> str:
     """Short question for an approval card, e.g. "Allow: check current speech models?"."""
     if name == "ExitPlanMode":
         return "The plan is ready. Approve it?"
@@ -113,7 +113,7 @@ def spoken_permission_prompt(name: str, inp: dict[str, Any], display_name: str |
         elif name == "Bash":
             what = "run a command"
         elif name in desk.WRITE_TOOLS:
-            what = ("mark task " if name.endswith("task_done") else "snooze task ") + str(inp.get("id") or "?")
+            what = desk.label(name, inp, title)
         elif name == handoff.TOOL:
             what = f"continue in {inp.get('repo') or 'another repo'}"
         else:
@@ -421,6 +421,7 @@ class FolderSession:
         self.history: list[dict] = []
         self.history_loaded = False
         self.lost: list[str] = []  # background tasks a restart stopped; told to the model on the next request
+        self.card_titles: dict[str, str] = {}  # tool_use_id -> task title the hook fetched, for the card that follows
         self.screen: tuple[str, str] | None = None  # (name, text) of the page the user is looking at, if not the chat
         self.pending: dict[str, tuple[asyncio.Future, dict]] = {}
         self.open_turns = 0
@@ -871,6 +872,11 @@ class FolderSession:
         ev = {"type": "permission", "id": pid, "tool": name, "input": inp,
               "summary": tool_summary(name, inp), "tool_use_id": ctx.tool_use_id,
               "title": ctx.title, "description": ctx.description, "blocked_path": ctx.blocked_path}
+        if name in desk.WRITE_TOOLS:  # "Mark task 12 'Ship it' done", the title the hook already fetched
+            title = self.card_titles.pop(ctx.tool_use_id or "", "")
+            ev["summary"] = (lambda t: t[:1].upper() + t[1:])(desk.label(name, inp, title))
+        else:
+            title = ""
         if where := self.fence.reason(name, inp):  # "Other repo: brain. This session is in voicemode."
             ev["description"] = f"{where} {ev['description'] or ''}".strip()
         self.pending[pid] = (fut, {**ev, "_created": time.monotonic()})
@@ -880,7 +886,7 @@ class FolderSession:
             await self.notify(self, "approval")
         await self.state("waiting")
         if name != "AskUserQuestion":
-            self.speaker.say(([where] if where else []) + [spoken_permission_prompt(name, inp, ctx.display_name)])
+            self.speaker.say(([where] if where else []) + [spoken_permission_prompt(name, inp, ctx.display_name, title)])
         else:
             self.speaker.say([q.get("question", "") for q in inp.get("questions", [])][:1])
         try:
@@ -921,7 +927,10 @@ class FolderSession:
         elif name == handoff.TOOL:  # a card in every permission mode (auto included): it starts work in another repo
             out = handoff.ask(inp)
         elif name in desk.WRITE_TOOLS:  # a card in every mode: it changes a task in Vikunja
-            out = desk.ask(name, inp, await asyncio.to_thread(desk.card_title, self.sources, inp.get("id")) if self.sources else "")
+            title = await asyncio.to_thread(desk.card_title, self.sources, inp.get("id")) if self.sources else ""
+            if tool_use_id and title:
+                self.card_titles = {**dict(list(self.card_titles.items())[-8:]), tool_use_id: title}
+            out = desk.ask(name, inp, title)
         else:
             out = strictest(self.fence.rule(name, inp), vault_rule(settings.settings.vault(), name, inp, cwd=self.path,
                                                                       protected=tuple(settings.settings["vault_protected"])))

@@ -194,6 +194,12 @@ def slash_message(src: Sources, name: str, args: str, today: dt.date | None = No
     return "What should I do first today? Rank by what needs me now, then due tasks, then routines.\n\n" + home_brief(src, today)
 
 
+def label(name: str, inp: dict, title: str = "") -> str:
+    """What a write tool is about to do, for the card and the spoken question: mark task 12 'Ship it' done."""
+    who = f"task {one(inp.get('id'))}" + (f" '{title}'" if title else "")
+    return f"mark {who} done" if name.endswith("task_done") else f"move {who} to {one(inp.get('until'))}"
+
+
 def _id(raw: object) -> int:
     try:
         n = int(raw)  # type: ignore[arg-type]
@@ -258,10 +264,8 @@ def card_title(src: Sources, raw_id: object) -> str:
 
 def ask(name: str, inp: dict, title: str = "") -> dict:
     """The PreToolUse decision for a write tool: always a card, whatever the session's permission mode."""
-    what = "mark done" if name.endswith("task_done") else f"move to {one(inp.get('until'))}"
-    label = f"#{one(inp.get('id'))}" + (f" \"{title}\"" if title else "")
     return {"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "ask",
-                                   "permissionDecisionReason": f"Claude wants to change a Vikunja task: {what} - {label}."}}
+                                   "permissionDecisionReason": f"Claude wants to change a Vikunja task: {label(name, inp, title)}."}}
 
 
 DESCRIPTIONS = {

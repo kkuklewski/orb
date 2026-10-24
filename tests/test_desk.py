@@ -164,7 +164,7 @@ def test_task_snooze_moves_the_due_date_and_validates_it(src, store):
 def test_write_tools_force_a_card_in_every_mode(src):
     for name, inp in (("mcp__orb__task_done", {"id": 12}), ("mcp__orb__task_snooze", {"id": 12, "until": "2026-11-03"})):
         out = desk.ask(name, inp, "Ship it")["hookSpecificOutput"]
-        assert out["permissionDecision"] == "ask" and '#12 "Ship it"' in out["permissionDecisionReason"]
+        assert out["permissionDecision"] == "ask" and "task 12 'Ship it'" in out["permissionDecisionReason"]
     assert desk.card_title(src, 12) == "Ship it" and desk.card_title(src, "x") == ""
 
 
@@ -185,6 +185,42 @@ def test_slash_messages_carry_the_data_and_never_look_like_a_command(src):
     for bad in ("", "abc", "12; rm", "-3"):
         with pytest.raises(desk.DeskError):
             desk.slash_message(src, "task", bad, TODAY)
+
+
+def test_the_new_commands_are_local():
+    from orb import slash
+    assert {"today", "standup", "task"} <= slash.LOCAL_NAMES and slash.local_command("/task 12") == ("task", "12")
+
+
+async def test_the_permission_card_for_a_write_tool_names_the_task(src, tmp_path, monkeypatch):
+    from orb import agent
+    from orb.sessions import SessionStore
+    events, said = [], []
+
+    async def emit(ev):
+        events.append(ev)
+
+    monkeypatch.setattr(agent.config, "STATE_DIR", tmp_path)
+    s = FolderSession(str(tmp_path), "k1", SessionStore(tmp_path / "sessions.json"), emit, lambda: False, desk=src)
+    monkeypatch.setattr(s.speaker, "say", lambda lines: said.extend(lines))
+
+    class Ctx:
+        tool_use_id = "toolu_9"
+        title = description = blocked_path = display_name = None
+
+    for name, inp, card, spoken in (
+            ("mcp__orb__task_done", {"id": 12}, "Mark task 12 'Ship it' done", "Allow: mark task 12 'Ship it' done?"),
+            ("mcp__orb__task_snooze", {"id": 12, "until": "2026-11-03"}, "Move task 12 'Ship it' to 2026-11-03",
+             "Allow: move task 12 'Ship it' to 2026-11-03?")):
+        events.clear(), said.clear()
+        await s._pre_tool({"tool_name": name, "tool_input": inp}, "toolu_9", None)  # the hook fetches the title once
+        decision = asyncio.create_task(s._can_use_tool(name, inp, Ctx()))
+        await asyncio.sleep(0.01)
+        ev = next(e for e in events if e["type"] == "permission")
+        assert ev["summary"] == card and said == [spoken]
+        assert not s.card_titles  # used up by the card
+        await s._deny_pending("no")
+        await decision
 
 
 def test_the_new_commands_are_local():
