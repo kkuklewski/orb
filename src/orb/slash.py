@@ -21,6 +21,9 @@ LOCAL: tuple[dict, ...] = (
      "argumentHint": "[haiku|sonnet|opus]"},
     {"name": "mcp", "description": "MCP servers of this session: status and reconnect", "argumentHint": ""},
     {"name": "rewind", "description": "Undo the file changes of the last request (asks first)", "argumentHint": ""},
+    {"name": "today", "description": "Home chat: what to do first today, from your tasks, routines and repos", "argumentHint": ""},
+    {"name": "standup", "description": "Home chat: a short standup from your recent sessions, open work and tasks", "argumentHint": ""},
+    {"name": "task", "description": "Home chat: look at one Vikunja task and say what to do about it", "argumentHint": "<id>"},
     {"name": "config", "description": "Settings of this repo's sessions (not your global Claude Code settings)",
      "argumentHint": "[permissionMode=default|auto|plan] [model=haiku|sonnet|opus]"},
 )

@@ -36,7 +36,8 @@ export function DontForget() {
   const shown = recent.slice(0, PRS_SHOWN);
   const more = recent.length - shown.length + old.length;
   return (
-    <Card id="forget" label="DON'T FORGET" mark={soon > 0}
+    <Card id="forget" ask={{ name: "Don't forget", question: "What here do I need to act on this week, in order?",
+      text: [...w.reminders.map((r) => `${r.text} (${r.days != null ? dueText(r) : "no date"})`), ...shown.map((p) => `PR ${p.repo}#${p.number} ${p.title} (${p.idle_days}d quiet)`)].join("\n") }} label="DON'T FORGET" mark={soon > 0}
       title={soon ? `${plural(soon, "thing")} need${soon === 1 ? "s" : ""} you this week` : `${plural(w.reminders.length + recent.length, "thing")} to keep in mind`}
       foot={<><span>{w.prs.length ? `${plural(w.prs.length, "open pull request")} · ${recent.length + old.length} gone quiet` : "no open pull requests"}</span><span>reminders: settings.json</span></>}>
       {w.reminders.map((r, i) => {
@@ -72,7 +73,8 @@ export function Unsaved() {
   if (!repos?.length) return null;
   const unpushed = repos.filter((r) => r.ahead).length;
   return (
-    <Card id="unsaved" label="NOT SAVED YET" title={`${plural(repos.length, "repo")} with unsaved work`}
+    <Card id="unsaved" ask={{ name: "Not saved yet", question: "Which repos have unsaved work that matters most, and what should I do about each?",
+      text: repos.slice(0, 8).map((r) => `${r.label}: ${repoText(r)}`).join("\n") }} label="NOT SAVED YET" title={`${plural(repos.length, "repo")} with unsaved work`}
       foot={<><span>{unpushed ? `${plural(unpushed, "repo")} with commits not pushed` : "everything committed is pushed"}</span><button type="button" onClick={() => openItems("repos")}>All repos →</button></>}>
       {repos.slice(0, 8).map((r) => (
         <button key={r.path} type="button" className="hc-row" title={r.path} onClick={() => askIn(r.path, ASK_UNSAVED)}>
@@ -89,7 +91,8 @@ export function TrackerTasks() {
   const tr = useHome((s) => s.watch?.tracker);
   if (!tr) return null;
   return (
-    <Card id="todo" label="TO DO · VIKUNJA" title={`${plural(tr.total, "open task")}, most urgent first`}
+    <Card id="todo" ask={{ name: "Vikunja tasks", question: "Which of my open tasks should I do first, and why?",
+      text: tr.tasks.map((t) => `#${t.id} ${t.title} (${[t.project, t.due ? `due ${t.due}` : null].filter(Boolean).join(", ") || "no project"})`).join("\n") || "none" }} label="TO DO · VIKUNJA" title={`${plural(tr.total, "open task")}, most urgent first`}
       foot={<><span>{tr.total > tr.tasks.length ? `+ ${tr.total - tr.tasks.length} more` : "that's all of them"}</span><button type="button" onClick={() => openItems("vikunja")}>All tasks →</button></>}>
       {tr.tasks.map((t) => (
         <div key={t.id} className={"hc-row" + (t.priority >= 4 ? " needs" : "")}>

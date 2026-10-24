@@ -551,6 +551,17 @@ async def run_local(conn: Conn, s: FolderSession, name: str, args: str) -> None:
     elif name == "mcp":
         await conn.send({"type": "mcp", "folder": s.path, "session": s.key, "servers": await s.mcp_status(), "open": True})
         await hub.push_folders()
+    elif name in desk.SLASH_NAMES:
+        if not s.is_desk:
+            await conn.send({"type": "notice", "level": "warn", "text": f"/{name} works in the Home chat (your notes folder) only."})
+            return
+        try:
+            text = await asyncio.to_thread(desk.slash_message, s.sources, name, args)
+        except desk.DeskError as e:
+            await conn.send({"type": "notice", "level": "warn", "text": str(e)})
+            return
+        await s.send(text, "text")
+        await hub.enforce_limits()
     elif name == "rewind":
         await s.request_undo(None)
     elif name == "config":

@@ -106,6 +106,17 @@ describe("home screen", () => {
     expect(useViews.getState().view).toBe("chat");
   });
 
+  it("a tile's Ask about this sends its question in the notes folder, with the tile's lines as the screen", () => {
+    useHome.setState({ notes: notes() });
+    render(<Home />);
+    fireEvent.click(within(screen.getByRole("article", { name: /open task/ })).getByRole("button", { name: "Ask about this →" }));
+    expect(sent.at(-1)).toEqual({ type: "start_session", path: "/Users/a/notes" });
+    const p = useSession.getState();
+    expect(p.pendingAsk).toMatch(/which of these tasks/i);
+    expect(p.pendingScreen).toEqual({ name: "Tasks in notes", text: "Send the invoice (today)" });
+    expect(p.pendingStay).toBe(true);
+  });
+
   it("without a notes folder it offers to connect one", () => {
     useFeatures.setState((s) => ({ features: { ...s.features!, vault: "" } }));
     render(<Home />);

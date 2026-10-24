@@ -175,3 +175,18 @@ def test_set_done_and_set_due_send_the_whole_task(monkeypatch):
     monkeypatch.setattr(vikunja, "_post", lambda b, t, path, body: sent.append((path, body)))
     vikunja.set_due("http://v", 9, "2026-11-03")
     assert sent == [("/tasks/9", {"id": 9, "title": "x", "done": False, "due_date": "2026-11-03T12:00:00Z"})]
+
+
+def test_slash_messages_carry_the_data_and_never_look_like_a_command(src):
+    from orb import slash
+    for name, args, want in (("today", "", "#12 Ship the globex invoice"), ("standup", "", "Fix the login"), ("task", "12", "Ship it")):
+        text = desk.slash_message(src, name, args, TODAY)
+        assert not slash.is_command(text) and want in text and "<desk-" in text
+    for bad in ("", "abc", "12; rm", "-3"):
+        with pytest.raises(desk.DeskError):
+            desk.slash_message(src, "task", bad, TODAY)
+
+
+def test_the_new_commands_are_local():
+    from orb import slash
+    assert {"today", "standup", "task"} <= slash.LOCAL_NAMES and slash.local_command("/task 12") == ("task", "12")

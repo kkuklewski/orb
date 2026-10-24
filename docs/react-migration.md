@@ -100,6 +100,13 @@ Voice goes last on purpose. It's timing-sensitive and is already isolated (Playe
 don't touch the DOM much), so it moves as plain TypeScript modules with a small store bridge,
 not as React components.
 
+### Desk session (Home chat)
+
+Home tiles (Needs you, Routines, Tasks, Notes, Don't forget, Not saved yet) carry "Ask about this →": it opens the
+Home chat (`askIn(vault, question, {name, text}, true)`, the `routine.ts` pattern) with the tile's lines as the screen.
+The Home chat itself has the `orb` read tools (`desk.py`), write tools behind cards, and `/today`, `/standup`,
+`/task <id>` (precomputed on the server, vault session only).
+
 ## Risks and how each is handled
 
 - **Protocol drift** between Python and the page: generated types plus the CI diff check.

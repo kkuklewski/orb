@@ -114,7 +114,8 @@ export function Home() {
       <UsageWarning />
 
       <div className="home-grid">
-        <Card id="needs" className="lead" label={waiting ? "NEEDS YOU" : first ? "DONE WHILE YOU WERE AWAY" : "NEEDS YOU"} mark={waiting > 0}
+        <Card id="needs" className="lead" ask={{ name: "Needs you", question: "What needs me first here, and what should I do about each item?",
+          text: [...n.waiting, ...n.done].slice(0, 12).map((x) => `${folderName(x.folder)}: ${x.label || "New session"} (${x.status === "approval" ? "paused on an approval" : "finished"})`).join("\n") || "Nothing is waiting." }} label={waiting ? "NEEDS YOU" : first ? "DONE WHILE YOU WERE AWAY" : "NEEDS YOU"} mark={waiting > 0}
           title={waiting ? `${waiting} thing${waiting === 1 ? "" : "s"} need${waiting === 1 ? "s" : ""} you now` : first ? "Results are ready to read" : "Nothing is waiting for you"}
           foot={<><span>{n.working.length ? `${n.working.length} running · ${n.working.slice(0, 2).map((x) => folderName(x.folder)).join(", ")}` : "nothing running"}</span><button type="button" onClick={() => useViews.setState({ view: "activity" })}>Activity →</button></>}>
           {first ? (
@@ -138,7 +139,8 @@ export function Home() {
         </Card>
 
         {features?.routines && (
-          <Card id="routines" label="ROUTINES · EVERY 30 MIN" title={routines ? (n.routines.length ? `${n.routines.length} of ${on.length} need you` : `${ok} of ${on.length} ran fine`) : "Checking…"} mark={n.routines.length > 0}
+          <Card id="routines" ask={{ name: "Routines", question: "Which of my routines need me, and what should I do about them?",
+            text: on.map((r) => `${r.name}: ${r.needs ?? r.last?.outcome ?? "no runs yet"}`).join("\n") || "No routines are on." }} label="ROUTINES · EVERY 30 MIN" title={routines ? (n.routines.length ? `${n.routines.length} of ${on.length} need you` : `${ok} of ${on.length} ran fine`) : "Checking…"} mark={n.routines.length > 0}
             foot={<><span>{hot.length < on.length ? `${on.length - hot.length} fine · ` : ""}{next ? `next · ${next.name} ${dayTime(next.next_run_at!)}` : "nothing scheduled"}</span><button type="button" onClick={() => useViews.setState({ view: "routines" })}>Routines <kbd className="kbd">R</kbd></button></>}>
             {hot.slice(0, 5).map((r) => (
               <button key={r.id} type="button" className="hc-row needs" onClick={() => openRoutine(r.id)}>
@@ -157,7 +159,7 @@ export function Home() {
               <p className="hc-empty">{trackerError}</p>
             </Card>
           ) : vault ? (
-            <Card label="TO DO · FROM YOUR NOTES" title={notes ? `${notes.open_tasks} open task${notes.open_tasks === 1 ? "" : "s"}, newest first` : "Reading your notes…"}
+            <Card ask={{ name: "Tasks in notes", question: "Which of these tasks should I do first, and why?", text: (notes?.tasks ?? []).slice(0, SHOWN).map((t) => `${t.text} (${noteName(t.file)})`).join("\n") || "none" }} label="TO DO · FROM YOUR NOTES" title={notes ? `${notes.open_tasks} open task${notes.open_tasks === 1 ? "" : "s"}, newest first` : "Reading your notes…"}
               foot={notes && <><span>{notes.open_tasks > SHOWN ? `+ ${notes.open_tasks - Math.min(SHOWN, notes.tasks.length)} more in your notes` : "that's all of them"}</span><button type="button" onClick={() => askIn(vault, ASK_TODAY)}>Ask what's first →</button></>}>
               {notes?.tasks.slice(0, SHOWN).map((t) => (
                 <div key={`${t.file}:${t.line}`} className="hc-row task">
@@ -181,7 +183,8 @@ export function Home() {
 
         {vault && notes && notes.notes.length > 0 && (
           <div className="home-wide">
-            <Card id="notes" label="NOTES" mark={waitingNotes.length > 0}
+            <Card id="notes" ask={{ name: "Notes", question: "What changed in my notes lately, and is anything waiting for me?",
+              text: (waitingNotes.length ? waitingNotes : notes.notes).slice(0, SHOWN).map((x) => `${x.title} (${x.file})`).join("\n") }} label="NOTES" mark={waitingNotes.length > 0}
               title={notes.awaiting_count ? `${notes.awaiting_count} note${notes.awaiting_count === 1 ? "" : "s"} wait for your verdict` : `${notes.notes_week} changed this week`}
               foot={<><span>{notes.awaiting_count ? `${notes.notes_week} changed this week` : vault.split("/").pop()}</span><span className="hc-foot-actions">{!!notes.awaiting_count && <button type="button" onClick={() => openItems("notes")}>All {notes.awaiting_count} →</button>}<button type="button" onClick={() => openFolder(vault)}>Open notes <kbd className="kbd">N</kbd></button></span></>}>
               {(waitingNotes.length ? waitingNotes : notes.notes.map((x): HomeAwait => ({ ...x, tag: "" }))).slice(0, SHOWN).map((x) => (
