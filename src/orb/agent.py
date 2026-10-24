@@ -112,6 +112,8 @@ def spoken_permission_prompt(name: str, inp: dict[str, Any], display_name: str |
             what = "go online for this"
         elif name == "Bash":
             what = "run a command"
+        elif name in desk.WRITE_TOOLS:
+            what = ("mark task " if name.endswith("task_done") else "snooze task ") + str(inp.get("id") or "?")
         elif name == handoff.TOOL:
             what = f"continue in {inp.get('repo') or 'another repo'}"
         else:
@@ -497,7 +499,7 @@ class FolderSession:
             allowed_tools=(list(BRAIN_READ_TOOLS) if settings.settings["brain"] else []) + (desk.READ_TOOLS if self.is_desk else []),
             mcp_servers={handoff.SERVER: self._orb_server()} if self.handoff or self.is_desk else {},
             hooks={
-                "PreToolUse": [HookMatcher(matcher=f"Edit|Write|MultiEdit|NotebookEdit|Bash|Read|Glob|Grep|{CAPTURE_TOOL}|{handoff.TOOL}",
+                "PreToolUse": [HookMatcher(matcher=f"Edit|Write|MultiEdit|NotebookEdit|Bash|Read|Glob|Grep|{CAPTURE_TOOL}|{handoff.TOOL}|{'|'.join(desk.WRITE_TOOLS)}",
                                            hooks=[self._pre_tool])],
                 "PostToolUse": [HookMatcher(matcher=CAPTURE_TOOL, hooks=[self._capture_done])],
                 "PostToolUseFailure": [HookMatcher(matcher=CAPTURE_TOOL, hooks=[self._capture_failed])],
@@ -541,6 +543,15 @@ class FolderSession:
                     return handoff.result(str(e), error=True)
             return run
 
+        def writer(name: str, fn: Callable[..., str], schema: dict, *keys: str):
+            @tool(name, desk.DESCRIPTIONS[name], schema)
+            async def run(args: dict[str, Any]) -> dict[str, Any]:  # reached only after the Allow card
+                try:
+                    return handoff.result(await asyncio.to_thread(fn, src, *[args.get(k) for k in keys]))
+                except desk.DeskError as e:
+                    return handoff.result(str(e), error=True)
+            return run
+
         return [
             reader("home_brief", lambda s: desk.home_brief(s), none),
             reader("tasks", desk.tasks, desk.schema(project="string"), "project"),
@@ -549,6 +560,8 @@ class FolderSession:
             reader("routines", desk.routines, none),
             reader("notes_recent", desk.notes_recent, none),
             reader("unsaved", desk.unsaved, none),
+            *[writer("task_done", desk.task_done, desk.schema("id", id="integer"), "id"),
+              writer("task_snooze", desk.task_snooze, desk.schema("id", "until", id="integer", until="string"), "id", "until")],
         ]
 
     @staticmethod
@@ -907,6 +920,8 @@ class FolderSession:
             out = self.guard.pre_capture(self.key, inp)
         elif name == handoff.TOOL:  # a card in every permission mode (auto included): it starts work in another repo
             out = handoff.ask(inp)
+        elif name in desk.WRITE_TOOLS:  # a card in every mode: it changes a task in Vikunja
+            out = desk.ask(name, inp, await asyncio.to_thread(desk.card_title, self.sources, inp.get("id")) if self.sources else "")
         else:
             out = strictest(self.fence.rule(name, inp), vault_rule(settings.settings.vault(), name, inp, cwd=self.path,
                                                                       protected=tuple(settings.settings["vault_protected"])))

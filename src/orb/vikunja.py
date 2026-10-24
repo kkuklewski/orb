@@ -129,9 +129,9 @@ def task(url: str, task_id: int) -> dict:
             "url": f"{base}/tasks/{t['id']}"}
 
 
-def set_done(url: str, task_id: int, done: bool) -> None:
-    """Archive (or bring back) a task: Vikunja has no per-task archive, so this marks it done (or open again).
-    The whole task goes back with the change, because Vikunja's update resets the fields it isn't given."""
+def _update(url: str, task_id: int, change: dict) -> None:
+    """Change fields of a task. The whole task goes back with the change, because Vikunja's update resets the
+    fields it isn't given."""
     cfg = configured(url)
     if not cfg:
         raise VikunjaError("Vikunja isn't set up (vikunja_url and ORB_VIKUNJA_TOKEN).")
@@ -139,8 +139,17 @@ def set_done(url: str, task_id: int, done: bool) -> None:
     t = _fetch(base, token, f"/tasks/{int(task_id)}", {})
     if not isinstance(t, dict) or not t.get("id"):
         raise VikunjaError(f"Task {task_id} not found in Vikunja.")
-    t["done"] = bool(done)
-    _post(base, token, f"/tasks/{int(task_id)}", t)
+    _post(base, token, f"/tasks/{int(task_id)}", {**t, **change})
+
+
+def set_done(url: str, task_id: int, done: bool) -> None:
+    """Archive (or bring back) a task: Vikunja has no per-task archive, so this marks it done (or open again)."""
+    _update(url, task_id, {"done": bool(done)})
+
+
+def set_due(url: str, task_id: int, day: str) -> None:
+    """Move a task's due date to `day` (YYYY-MM-DD): Vikunja has no snooze. Noon UTC, so the date reads the same in any zone."""
+    _update(url, task_id, {"due_date": f"{dt.date.fromisoformat(day).isoformat()}T12:00:00Z"})
 
 
 def repo_map(vault: Path | None) -> dict[int, str]:

@@ -103,6 +103,7 @@ def test_only_the_vault_session_gets_the_tools_and_they_need_no_card(src, tmp_pa
     monkeypatch.setitem(settings.settings.data, "vault", str(tmp_path))
     o = make(str(tmp_path), src)._options()
     assert set(desk.READ_TOOLS) <= set(o.allowed_tools)  # pre-allowed: no Allow card
+    assert not set(desk.WRITE_TOOLS) & set(o.allowed_tools)  # changing a task is always a card
     assert "orb" in o.mcp_servers
     other = make("/r/globex", src)._options()
     assert not set(desk.READ_TOOLS) & set(other.allowed_tools) and "orb" not in other.mcp_servers
@@ -111,9 +112,65 @@ def test_only_the_vault_session_gets_the_tools_and_they_need_no_card(src, tmp_pa
 def test_a_tool_call_returns_the_fenced_text_or_an_error(src, tmp_path, monkeypatch):
     monkeypatch.setitem(settings.settings.data, "vault", str(tmp_path))
     tools = {t.name: t for t in make(str(tmp_path), src)._desk_tools()}
-    assert set(tools) == set(desk.READ_NAMES)
+    assert set(tools) == set(desk.READ_NAMES) | set(desk.WRITE_NAMES)
     ok = asyncio.run(tools["tasks"].handler({}))
     assert not ok["is_error"] and unfence(ok["content"][0]["text"])[0] == "tasks"
     monkeypatch.setattr(vikunja, "task", lambda url, i: (_ for _ in ()).throw(vikunja.VikunjaError("nope")))
     bad = asyncio.run(tools["task"].handler({"id": 9}))
     assert bad["is_error"] and "nope" in bad["content"][0]["text"]
+
+
+@pytest.fixture
+def store(src, monkeypatch):
+    """A fake Vikunja task #12 that set_done / set_due really change, so the re-read shows the result."""
+    state = {"id": 12, "title": "Ship it", "description": "", "project": "acme", "project_id": 3, "due": "2026-10-20",
+             "priority": 1, "done": False, "url": "u"}
+    calls = []
+    monkeypatch.setattr(vikunja, "task", lambda url, i: dict(state))
+    monkeypatch.setattr(vikunja, "set_done", lambda url, i, d: (calls.append(("done", i)), state.update(done=d)))
+    monkeypatch.setattr(vikunja, "set_due", lambda url, i, day: (calls.append(("due", day)), state.update(due=day)))
+    return state, calls
+
+
+def test_task_done_writes_then_reports_the_re_read_state(src, store):
+    state, calls = store
+    name, body = unfence(desk.task_done(src, 12))
+    assert name == "task_done" and calls == [("done", 12)] and "Marked done" in body
+
+
+def test_task_done_says_when_nothing_changed_and_errors_when_it_did_not_stick(src, store, monkeypatch):
+    state, calls = store
+    state["done"] = True
+    assert "already done" in unfence(desk.task_done(src, 12))[1] and calls == []
+    state["done"] = False
+    monkeypatch.setattr(vikunja, "set_done", lambda url, i, d: None)  # Vikunja ignores the change
+    with pytest.raises(desk.DeskError, match="still shows"):
+        desk.task_done(src, 12)
+
+
+def test_task_snooze_moves_the_due_date_and_validates_it(src, store):
+    state, calls = store
+    assert "2026-10-20 to 2026-11-03" in unfence(desk.task_snooze(src, 12, "2026-11-03", TODAY))[1] and calls == [("due", "2026-11-03")]
+    for bad in ("tomorrow", "2026-10-24", "2026-10-01", "2028-01-01"):
+        with pytest.raises(desk.DeskError):
+            desk.task_snooze(src, 12, bad, TODAY)
+    for bad_id in (0, -3, "x", None):
+        with pytest.raises(desk.DeskError):
+            desk.task_done(src, bad_id)
+    assert calls == [("due", "2026-11-03")]
+
+
+def test_write_tools_force_a_card_in_every_mode(src):
+    for name, inp in (("mcp__orb__task_done", {"id": 12}), ("mcp__orb__task_snooze", {"id": 12, "until": "2026-11-03"})):
+        out = desk.ask(name, inp, "Ship it")["hookSpecificOutput"]
+        assert out["permissionDecision"] == "ask" and '#12 "Ship it"' in out["permissionDecisionReason"]
+    assert desk.card_title(src, 12) == "Ship it" and desk.card_title(src, "x") == ""
+
+
+def test_set_done_and_set_due_send_the_whole_task(monkeypatch):
+    sent = []
+    monkeypatch.setattr(vikunja, "configured", lambda url: ("http://v", "t"))
+    monkeypatch.setattr(vikunja, "_fetch", lambda b, t, path, q: {"id": 9, "title": "x", "done": False, "due_date": "2026-10-20T00:00:00Z"})
+    monkeypatch.setattr(vikunja, "_post", lambda b, t, path, body: sent.append((path, body)))
+    vikunja.set_due("http://v", 9, "2026-11-03")
+    assert sent == [("/tasks/9", {"id": 9, "title": "x", "done": False, "due_date": "2026-11-03T12:00:00Z"})]

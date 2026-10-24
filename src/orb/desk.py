@@ -22,6 +22,9 @@ from .handoff import SERVER
 PREFIX = f"mcp__{SERVER}__"
 READ_NAMES = ("home_brief", "tasks", "task", "sessions", "routines", "notes_recent", "unsaved")
 READ_TOOLS = [PREFIX + n for n in READ_NAMES]
+WRITE_NAMES = ("task_done", "task_snooze")
+WRITE_TOOLS = [PREFIX + n for n in WRITE_NAMES]  # never in allowed_tools: each call is a card
+SNOOZE_MAX_DAYS = 366
 
 TASKS_SHOWN = 25
 LINE_MAX = 200
@@ -175,6 +178,76 @@ def unsaved(src: Sources) -> str:
     return fenced("unsaved", "\n".join(_repos_section(src)))
 
 
+def _id(raw: object) -> int:
+    try:
+        n = int(raw)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        n = 0
+    if n <= 0:
+        raise DeskError("Give the task's number (the id after # in the task list).")
+    return n
+
+
+def _read(src: Sources, n: int) -> dict:
+    try:
+        return vikunja.task(_url(src), n)
+    except vikunja.VikunjaError as e:
+        raise DeskError(str(e)) from e
+
+
+def task_done(src: Sources, raw_id: object) -> str:
+    """Mark a task done, then read it back: only what Vikunja says afterwards is reported."""
+    n = _id(raw_id)
+    before = _read(src, n)
+    if before["done"]:
+        return fenced("task_done", f"Nothing changed: task #{n} was already done.\n" + task_text(before))
+    try:
+        vikunja.set_done(_url(src), n, True)
+    except vikunja.VikunjaError as e:
+        raise DeskError(str(e)) from e
+    after = _read(src, n)
+    if not after["done"]:
+        raise DeskError(f"Vikunja still shows task #{n} as open after the change. Tell the user it did not work.")
+    return fenced("task_done", f"Marked done. State now, read back from Vikunja:\n" + task_text(after))
+
+
+def task_snooze(src: Sources, raw_id: object, until: object, today: dt.date | None = None) -> str:
+    """Move a task's due date to `until` (Vikunja has no snooze), then read it back."""
+    n = _id(raw_id)
+    today = today or dt.date.today()
+    try:
+        day = dt.date.fromisoformat(str(until))
+    except ValueError:
+        raise DeskError("`until` must be a date like 2026-11-03.") from None
+    if not today < day <= today + dt.timedelta(days=SNOOZE_MAX_DAYS):
+        raise DeskError(f"`until` must be after today and within {SNOOZE_MAX_DAYS} days.")
+    before = _read(src, n)
+    try:
+        vikunja.set_due(_url(src), n, day.isoformat())
+    except vikunja.VikunjaError as e:
+        raise DeskError(str(e)) from e
+    after = _read(src, n)
+    if after["due"] != day.isoformat():
+        raise DeskError(f"Vikunja shows task #{n} due {after['due'] or 'never'}, not {day}. Tell the user it did not work.")
+    return fenced("task_snooze", f"Due date moved from {before['due'] or 'none'} to {day}. State now, read back from Vikunja:\n" + task_text(after))
+
+
+def card_title(src: Sources, raw_id: object) -> str:
+    """The task's title for the approval card (best effort: the card still opens without it)."""
+    try:
+        return one(vikunja.task(_url(src), _id(raw_id))["title"])[:80]
+    except (DeskError, vikunja.VikunjaError):
+        return ""
+
+
+def ask(name: str, inp: dict, title: str = "") -> dict:
+    """The PreToolUse decision for a write tool: always a card, whatever the session's permission mode."""
+    what = "mark done" if name.endswith("task_done") else f"move to {one(inp.get('until'))}"
+    label = f"#{one(inp.get('id'))}" + (f" \"{title}\"" if title else "")
+    return {"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "ask",
+                                   "permissionDecisionReason": f"Claude wants to change a Vikunja task: {what} - {label}."}}
+
+
 DESCRIPTIONS = {
     "home_brief": "The whole dashboard in one read: open Vikunja tasks, sessions, routines, repos with unsaved work, pull "
                   "requests, reminders and notes. Call it when the user asks what's first, about today, the dashboard, "
@@ -188,6 +261,10 @@ DESCRIPTIONS = {
                 "when the user asks about routines or automations.",
     "notes_recent": "Recently changed notes and the ones waiting for the owner's verdict. Call it when the user asks "
                     "what changed in the notes.",
+    "task_done": "Mark a Vikunja task done. The user is asked first. Only after the user asked for it, never to tidy up. "
+                 "The result is the task read back from Vikunja: report that state, not what you meant to do.",
+    "task_snooze": "Move a Vikunja task's due date to `until` (YYYY-MM-DD, after today): Vikunja has no snooze. The "
+                   "user is asked first. The result is the task read back: report that state.",
     "unsaved": "Repos with uncommitted or unpushed work and the open pull requests. Call it when the user asks about "
                "a repo's state, what is unsaved or what PRs are open.",
 }
