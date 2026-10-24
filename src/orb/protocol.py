@@ -46,6 +46,7 @@ class SessionItem(_Msg):
     live: bool
     mcp_failed: int = 0
     opus: int = 0
+    ask: str | None = None  # one-line summary of the open approval card, e.g. Bash(psql ...)
 
 
 class FolderItem(_Msg):
@@ -367,6 +368,15 @@ class HomeNote(_Msg):
     mtime: float
 
 
+class HomeAwait(_Msg):
+    """A note waiting for the owner's verdict (fact-checked with no human_verdict, or AI-curated and unreviewed)."""
+    title: str
+    file: str
+    mtime: float
+    tag: str  # "AI" | "unverified view" | "your note" | "capture"
+    verified: int | None = None  # percent of claims verified, when the note says
+
+
 class HomeEvent(_Event):
     """The home screen's notes part (home.summary): open tasks and recent notes in the vault."""
     type: Literal["home"]
@@ -376,6 +386,8 @@ class HomeEvent(_Event):
     snoozed: int
     notes: list[HomeNote]
     notes_week: int
+    awaiting: list[HomeAwait] = []
+    awaiting_count: int = 0
 
 
 class Reminder(_Msg):
@@ -426,23 +438,35 @@ class Tracker(_Msg):
     url: str
 
 
-class VikunjaRow(_Msg):
-    id: int
+ItemSource = Literal["vikunja", "prs", "repos"]
+
+
+class ItemColumn(_Msg):
+    key: str
+    label: str
+    kind: Literal["title", "repo", "text", "chip", "due", "priority", "num", "age"] = "text"
+
+
+class ItemRow(_Msg):
+    id: str
     title: str
-    project: str
-    repo: str | None = None
-    due: str | None = None
-    priority: int
-    updated: float
-    url: str
+    repo: str | None = None  # label of the repo "Start in Orb" would use; None = no repo here
+    hot: bool = False
+    cells: dict[str, str]  # one value per column key
 
 
-class VikunjaListEvent(_Event):
-    """Every open Vikunja task with the repo its project maps to (None = no repo here)."""
-    type: Literal["vikunja_list"]
-    tasks: list[VikunjaRow]
-    total: int
-    url: str
+class ItemListEvent(_Event):
+    """One table (items.list_): its columns and rows. `group_key` is the column to group by ("repo" = the Repo column)."""
+    type: Literal["item_list"]
+    source: ItemSource
+    kicker: str
+    heading: str
+    columns: list[ItemColumn]
+    rows: list[ItemRow]
+    group_key: str | None = None
+    can_archive: bool = False
+    url: str | None = None
+    url_label: str | None = None
 
 
 class HomeWatchEvent(_Event):
@@ -473,19 +497,21 @@ class TaskDetailEvent(_Event):
     context: list[TaskLine]
 
 
-class VikunjaTaskEvent(_Event):
-    """One Vikunja task in full (vikunja.task): plain-text description, the repo it maps to (label, None = no repo), the prompt to copy."""
-    type: Literal["vikunja_task"]
-    id: int
+class ItemEvent(_Event):
+    """One item in full (items.get): chips, plain-text body, the repo it maps to (label, None = no repo), the prompt to copy."""
+    type: Literal["item"]
+    source: ItemSource
+    id: str
     title: str
-    description: str
-    project: str
-    due: str | None = None
-    priority: int
-    done: bool
-    url: str
+    kicker: str
+    chips: list[str]
+    body: str
+    url: str | None = None
+    url_label: str | None = None
     repo: str | None = None
     brief: str
+    done: bool = False
+    can_archive: bool = False
 
 
 class TaskChangedEvent(_Event):
@@ -646,7 +672,7 @@ ServerEvent = Annotated[Union[
     HelloEvent, FeaturesEvent, FoldersEvent, SetupStatusEvent, BrowseEvent, PickedEvent, VoiceSampleEvent,
     SettingsEvent, ErrorEvent, NoticeEvent, OpenedEvent, HistoryEvent, StateEvent, SessionInfoEvent,
     ContextEvent, TaskEvent, CommandsEvent, McpEvent, RateLimitEvent, RoutinesEvent, BgNoticeEvent,
-    HomeEvent, HomeWatchEvent, TaskDetailEvent, VikunjaTaskEvent, VikunjaListEvent, TaskChangedEvent, UserEvent, TextStartEvent, TextEvent, SaidEvent, ToolStartEvent, ToolInputEvent, ToolResultEvent,
+    HomeEvent, HomeWatchEvent, TaskDetailEvent, ItemEvent, ItemListEvent, TaskChangedEvent, UserEvent, TextStartEvent, TextEvent, SaidEvent, ToolStartEvent, ToolInputEvent, ToolResultEvent,
     ResultEvent, TimingEvent, PartialEvent, HeardNothingEvent, HeldEvent, PermissionEvent,
     PermissionDoneEvent, UndoAvailableEvent, UndoConfirmEvent, UndoDoneEvent, AudioEvent, SpeechResetEvent,
 ], Field(discriminator="type")]
@@ -795,26 +821,30 @@ class TaskDetailMsg(_Msg):
     line: int
 
 
-class VikunjaTaskMsg(_Msg):
-    type: Literal["vikunja_task"]
-    id: int
+class ItemListMsg(_Msg):
+    type: Literal["item_list"]
+    source: ItemSource
 
 
-class VikunjaListMsg(_Msg):
-    type: Literal["vikunja_list"]
+class ItemGetMsg(_Msg):
+    type: Literal["item_get"]
+    source: ItemSource
+    id: str
 
 
-class VikunjaDoneMsg(_Msg):
-    """Archive: mark a Vikunja task done (done=False brings it back). The server answers with the new vikunja_list."""
-    type: Literal["vikunja_done"]
-    id: int
+class ItemDoneMsg(_Msg):
+    """Archive: mark a Vikunja task done (done=False brings it back). The server answers with the new item_list."""
+    type: Literal["item_done"]
+    source: ItemSource
+    id: str
     done: bool = True
 
 
-class VikunjaStartMsg(_Msg):
-    """Start in Orb: a new session in the repo mapped to this task's project, first request = the brief."""
-    type: Literal["vikunja_start"]
-    id: int
+class ItemStartMsg(_Msg):
+    """Start in Orb: a new session in the item's repo (found by the server), first request = the brief."""
+    type: Literal["item_start"]
+    source: ItemSource
+    id: str
 
 
 class TaskActionMsg(_Msg):
@@ -888,7 +918,7 @@ ClientMessage = Annotated[Union[
     SetupStatusMsg, BrowseMsg, PickFolderMsg, OpenFolderMsg, AddFolderMsg, StartSessionMsg, PinFolderMsg,
     GetSettingsMsg, SetSettingsMsg, VoiceSampleMsg, RescanMsg, RoutinesMsg, RoutinesSeenMsg, MuteMsg,
     NewSessionMsg, ArchiveSessionMsg, RemoveSessionMsg, UserTextMsg, SpeechStartMsg, BargeInMsg, SpeechCancelledMsg, UtteranceMsg, VoiceTextMsg,
-    HomeMsg, ScreenMsg, RoutineTaskMsg, TaskDetailMsg, VikunjaTaskMsg, VikunjaListMsg, VikunjaDoneMsg, VikunjaStartMsg, TaskActionMsg, InterruptMsg, PlaybackMsg, PermissionMsg, ReadAllMsg, DictateNoteMsg, UndoRequestMsg, UndoConfirmMsg,
+    HomeMsg, ScreenMsg, RoutineTaskMsg, TaskDetailMsg, ItemListMsg, ItemGetMsg, ItemDoneMsg, ItemStartMsg, TaskActionMsg, InterruptMsg, PlaybackMsg, PermissionMsg, ReadAllMsg, DictateNoteMsg, UndoRequestMsg, UndoConfirmMsg,
     McpStatusMsg, McpReconnectMsg, SetModeMsg, SetModelMsg,
 ], Field(discriminator="type")]
 

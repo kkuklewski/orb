@@ -3,13 +3,12 @@ import type { DirtyRepo, Reminder } from "../protocol.gen";
 import { askIn } from "../stores/session";
 import { dueSoon, LEFT_BEHIND, quietPrs, SOON, useHome } from "../stores/home";
 import { Card } from "./HomeCard";
-import { openVikunjaList, openVikunjaTask } from "../stores/vikunja";
+import { openItem, openItems } from "../stores/items";
 
 // Home's "don't forget" cards (server: watch.summary): dated reminders and stale pull requests, repos with
 // unsaved work, the open tasks in Vikunja and pinned links. Each hides itself when it has nothing to show.
 
 const PRS_SHOWN = 4;
-const ALL_PRS = "https://github.com/pulls";
 
 export const ASK_UNSAVED = "Show me what's uncommitted or not pushed in this repo, and propose how to commit it (grouped into sensible commits). Don't commit or push until I say so.";
 
@@ -53,15 +52,15 @@ export function DontForget() {
       {shown.map((p) => (
         <div key={p.url} className="hc-row">
           <span className="hc-dot" />
-          <Ext href={p.url}>PR #{p.number} · {p.title}</Ext>
+          <button type="button" className="hc-text" onClick={() => openItem("prs", `${p.repo}#${p.number}`)}>PR #{p.number} · {p.title}</button>
           <span className="hc-side mono" title={`${p.repo}, no activity for ${p.idle_days} days${p.draft ? " (draft)" : ""}`}>{p.repo.split("/").pop()} · {p.idle_days}d</span>
         </div>
       ))}
       {more > 0 && (
         <div className="hc-row">
           <span className="hc-dot" />
-          <Ext href={ALL_PRS}>{more} more pull request{more === 1 ? "" : "s"} {old.length === more ? `quiet over ${LEFT_BEHIND} days` : "gone quiet"}</Ext>
-          <span className="hc-side mono">GitHub →</span>
+          <button type="button" className="hc-text" onClick={() => openItems("prs")}>{more} more pull request{more === 1 ? "" : "s"} {old.length === more ? `quiet over ${LEFT_BEHIND} days` : "gone quiet"}</button>
+          <span className="hc-side mono">All →</span>
         </div>
       )}
     </Card>
@@ -74,7 +73,7 @@ export function Unsaved() {
   const unpushed = repos.filter((r) => r.ahead).length;
   return (
     <Card id="unsaved" label="NOT SAVED YET" title={`${plural(repos.length, "repo")} with unsaved work`}
-      foot={<span>{unpushed ? `${plural(unpushed, "repo")} with commits not pushed` : "everything committed is pushed"}</span>}>
+      foot={<><span>{unpushed ? `${plural(unpushed, "repo")} with commits not pushed` : "everything committed is pushed"}</span><button type="button" onClick={() => openItems("repos")}>All repos →</button></>}>
       {repos.slice(0, 8).map((r) => (
         <button key={r.path} type="button" className="hc-row" title={r.path} onClick={() => askIn(r.path, ASK_UNSAVED)}>
           <span className="hc-dot" />
@@ -91,11 +90,11 @@ export function TrackerTasks() {
   if (!tr) return null;
   return (
     <Card id="todo" label="TO DO · VIKUNJA" title={`${plural(tr.total, "open task")}, most urgent first`}
-      foot={<><span>{tr.total > tr.tasks.length ? `+ ${tr.total - tr.tasks.length} more` : "that's all of them"}</span><button type="button" onClick={openVikunjaList}>All tasks →</button></>}>
+      foot={<><span>{tr.total > tr.tasks.length ? `+ ${tr.total - tr.tasks.length} more` : "that's all of them"}</span><button type="button" onClick={() => openItems("vikunja")}>All tasks →</button></>}>
       {tr.tasks.map((t) => (
         <div key={t.id} className={"hc-row" + (t.priority >= 4 ? " needs" : "")}>
           <span className={"hc-dot" + (t.priority >= 4 ? " sq" : "")} />
-          <button type="button" className="hc-text" onClick={() => openVikunjaTask(t.id)}>{t.title}</button>
+          <button type="button" className="hc-text" onClick={() => openItem("vikunja", String(t.id))}>{t.title}</button>
           <span className="hc-side mono" title={t.project}>{[t.project, t.due ? `due ${t.due.slice(5)}` : null].filter(Boolean).join(" · ")}</span>
         </div>
       ))}

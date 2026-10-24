@@ -4,7 +4,7 @@ import { taskText } from "../stores/screen";
 import { ItemView } from "./chat/Chat";
 import { useFeatures } from "../stores/features";
 import { useViews } from "../stores/views";
-import { askIn, folderName, openPicker, suggestRepos, useSession } from "../stores/session";
+import { askIn, openPicker, suggestRepos, useSession } from "../stores/session";
 import { refreshHome, useHome } from "../stores/home";
 import type { HomeTask } from "../protocol.gen";
 import { changeTask, openTask, sameTask, snoozeDays, undo, useTasks } from "../stores/tasks";
@@ -23,8 +23,8 @@ export function TaskScreen() {
   const loaded = useHome((s) => !!s.notes);
   const vault = useFeatures((s) => s.features?.vault ?? "");
   const [snooze, setSnooze] = useState(false);
-  const [choosing, setChoosing] = useState(false); // "Do it with Claude": pick where, confirm, then go
-  useEffect(() => { setSnooze(false); setChoosing(false); }, [task]);
+  const [copied, setCopied] = useState(false); // "Copy prompt": a ready brief to paste into a CLI Claude Code
+  useEffect(() => { setSnooze(false); setCopied(false); }, [task]);
   const folders = useFeatures((s) => s.folders);
   useEffect(() => { if (!loaded) refreshHome(); }, [loaded]); // opened from a link: the list for ↑ ↓ and "next"
 
@@ -68,6 +68,22 @@ export function TaskScreen() {
   const inRepo = () => { useSession.setState({ pendingAsk: repoAsk }); openPicker("new"); };
   const hint = detail ? `${text} ${detail.heading} ${detail.title}` : text;
   const suggested = suggestRepos(folders, hint, vault);
+  const repo = suggested[0];
+  const copyPrompt = () => {
+    const note = `${vault ? vault + "/" : ""}${task.file}`;
+    const excerpt = detail?.context.map((l) => `${l.n === task.line ? ">" : " "} ${l.n}  ${l.text}`).join("\n");
+    const prompt = [
+      "Help me with a task from my notes (Obsidian vault).",
+      "",
+      `Task: ${text}`,
+      `Note: ${note}, line ${task.line}${detail?.heading ? ` (section "${detail.heading}")` : ""}`,
+      repo ? `Repo: ${repo.path}` : "Repo: not known; find the right one first",
+      excerpt ? `\nThe note around it ("> " marks the task):\n${excerpt}` : "",
+      "",
+      "What I want: read the note, look at the repo, then say how you'd do it and what you need from me. Don't change anything until I agree.",
+    ].filter((l, n, all) => l !== "" || all[n - 1] !== "").join("\n");
+    navigator.clipboard?.writeText(prompt).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); }, () => {});
+  };
 
   return (
     <section className="task" aria-label="Task">
@@ -99,7 +115,7 @@ export function TaskScreen() {
               <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
               Mark done <span className="kbd mono">D</span>
             </button>
-            <button type="button" className="hbtn big outline" aria-expanded={choosing} onClick={() => setChoosing(!choosing)}>Do it with Claude →</button>
+            <button type="button" className="hbtn big outline" onClick={copyPrompt}>{copied ? "Copied ✓" : "Copy prompt"}</button>
             <div className="task-snooze">
               <button type="button" className="hbtn big outline" aria-expanded={snooze} disabled={!open} onClick={() => setSnooze(!snooze)}>Snooze ▾</button>
               {snooze && (
@@ -114,23 +130,6 @@ export function TaskScreen() {
             </div>
             <button type="button" className="hbtn big" disabled={!open} onClick={() => detail && changeTask(detail, "drop")}>Not doing it</button>
           </div>
-          {choosing && (
-            <div className="task-where" role="group" aria-label="Where to do it">
-              <div className="task-where-head mono">WHERE SHOULD CLAUDE WORK ON IT?</div>
-              {suggested.map((f, i) => (
-                <button key={f.path} type="button" className={"hand" + (i === 0 ? " first" : "")} onClick={() => askIn(f.path, repoAsk)}>
-                  <span><b>{folderName(f)}{i === 0 && <span className="tag mono">LOOKS RIGHT</span>}</b><span>{f.rel}{f.branch ? ` · ${f.branch}` : ""} · a new session there starts with this task; the repo fence and its approvals apply.</span></span>
-                  <span aria-hidden="true">→</span>
-                </button>
-              ))}
-              <button type="button" className="hand" onClick={inRepo}>
-                <span><b>Another repo…</b><span>Pick one from the list.</span></span><span aria-hidden="true">→</span>
-              </button>
-              <button type="button" className="hand" onClick={() => ask(`Help me with this task from my notes (${where}): ${text}. Read the note first, then tell me how you'd do it and what you need from me.`)}>
-                <span><b>In my notes</b><span>No repo: Claude works in the notes folder, where it can read code repos but not change them.</span></span><span aria-hidden="true">→</span>
-              </button>
-            </div>
-          )}
           <p className="mono task-say">Done, snoozed and dropped tasks stay in the note, marked the Obsidian Tasks way. Every change has an Undo.</p>
         </section>
 

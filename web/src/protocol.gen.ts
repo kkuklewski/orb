@@ -32,10 +32,10 @@ export type ClientMessage =
   | ScreenMsg
   | RoutineTaskMsg
   | TaskDetailMsg
-  | VikunjaTaskMsg
-  | VikunjaListMsg
-  | VikunjaDoneMsg
-  | VikunjaStartMsg
+  | ItemListMsg
+  | ItemGetMsg
+  | ItemDoneMsg
+  | ItemStartMsg
   | TaskActionMsg
   | InterruptMsg
   | PlaybackMsg
@@ -77,8 +77,8 @@ export type ServerEvent =
   | HomeEvent
   | HomeWatchEvent
   | TaskDetailEvent
-  | VikunjaTaskEvent
-  | VikunjaListEvent
+  | ItemEvent
+  | ItemListEvent
   | TaskChangedEvent
   | UserEvent
   | TextStartEvent
@@ -334,39 +334,43 @@ export interface TaskDetailMsg {
 }
 /**
  * This interface was referenced by `OrbProtocol`'s JSON-Schema
- * via the `definition` "VikunjaTaskMsg".
+ * via the `definition` "ItemListMsg".
  */
-export interface VikunjaTaskMsg {
-  id: number;
-  type: "vikunja_task";
+export interface ItemListMsg {
+  source: "vikunja" | "prs" | "repos";
+  type: "item_list";
 }
 /**
  * This interface was referenced by `OrbProtocol`'s JSON-Schema
- * via the `definition` "VikunjaListMsg".
+ * via the `definition` "ItemGetMsg".
  */
-export interface VikunjaListMsg {
-  type: "vikunja_list";
+export interface ItemGetMsg {
+  id: string;
+  source: "vikunja" | "prs" | "repos";
+  type: "item_get";
 }
 /**
- * Archive: mark a Vikunja task done (done=False brings it back). The server answers with the new vikunja_list.
+ * Archive: mark a Vikunja task done (done=False brings it back). The server answers with the new item_list.
  *
  * This interface was referenced by `OrbProtocol`'s JSON-Schema
- * via the `definition` "VikunjaDoneMsg".
+ * via the `definition` "ItemDoneMsg".
  */
-export interface VikunjaDoneMsg {
+export interface ItemDoneMsg {
   done?: boolean;
-  id: number;
-  type: "vikunja_done";
+  id: string;
+  source: "vikunja" | "prs" | "repos";
+  type: "item_done";
 }
 /**
- * Start in Orb: a new session in the repo mapped to this task's project, first request = the brief.
+ * Start in Orb: a new session in the item's repo (found by the server), first request = the brief.
  *
  * This interface was referenced by `OrbProtocol`'s JSON-Schema
- * via the `definition` "VikunjaStartMsg".
+ * via the `definition` "ItemStartMsg".
  */
-export interface VikunjaStartMsg {
-  id: number;
-  type: "vikunja_start";
+export interface ItemStartMsg {
+  id: string;
+  source: "vikunja" | "prs" | "repos";
+  type: "item_start";
 }
 /**
  * This interface was referenced by `OrbProtocol`'s JSON-Schema
@@ -523,6 +527,7 @@ export interface FolderItem {
  */
 export interface SessionItem {
   archived?: boolean;
+  ask?: string | null;
   created?: number | null;
   empty: boolean;
   key: string;
@@ -1013,6 +1018,8 @@ export interface BgNoticeEvent {
  * via the `definition` "HomeEvent".
  */
 export interface HomeEvent {
+  awaiting?: HomeAwait[];
+  awaiting_count?: number;
   folder?: string | null;
   notes: HomeNote[];
   notes_week: number;
@@ -1023,6 +1030,19 @@ export interface HomeEvent {
   tasks: HomeTask[];
   type: "home";
   vault: string;
+}
+/**
+ * A note waiting for the owner's verdict (fact-checked with no human_verdict, or AI-curated and unreviewed).
+ *
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "HomeAwait".
+ */
+export interface HomeAwait {
+  file: string;
+  mtime: number;
+  tag: string;
+  title: string;
+  verified?: number | null;
 }
 /**
  * This interface was referenced by `OrbProtocol`'s JSON-Schema
@@ -1156,55 +1176,71 @@ export interface TaskLine {
   text: string;
 }
 /**
- * One Vikunja task in full (vikunja.task): plain-text description, the repo it maps to (label, None = no repo), the prompt to copy.
+ * One item in full (items.get): chips, plain-text body, the repo it maps to (label, None = no repo), the prompt to copy.
  *
  * This interface was referenced by `OrbProtocol`'s JSON-Schema
- * via the `definition` "VikunjaTaskEvent".
+ * via the `definition` "ItemEvent".
  */
-export interface VikunjaTaskEvent {
+export interface ItemEvent {
+  body: string;
   brief: string;
-  description: string;
-  done: boolean;
-  due?: string | null;
+  can_archive?: boolean;
+  chips: string[];
+  done?: boolean;
   folder?: string | null;
-  id: number;
-  priority: number;
-  project: string;
+  id: string;
+  kicker: string;
   replay?: boolean | null;
   repo?: string | null;
   session?: string | null;
+  source: "vikunja" | "prs" | "repos";
   title: string;
-  type: "vikunja_task";
-  url: string;
+  type: "item";
+  url?: string | null;
+  url_label?: string | null;
 }
 /**
- * Every open Vikunja task with the repo its project maps to (None = no repo here).
+ * One table (items.list_): its columns and rows. `group_key` is the column to group by ("repo" = the Repo column).
  *
  * This interface was referenced by `OrbProtocol`'s JSON-Schema
- * via the `definition` "VikunjaListEvent".
+ * via the `definition` "ItemListEvent".
  */
-export interface VikunjaListEvent {
+export interface ItemListEvent {
+  can_archive?: boolean;
+  columns: ItemColumn[];
   folder?: string | null;
+  group_key?: string | null;
+  heading: string;
+  kicker: string;
   replay?: boolean | null;
+  rows: ItemRow[];
   session?: string | null;
-  tasks: VikunjaRow[];
-  total: number;
-  type: "vikunja_list";
-  url: string;
+  source: "vikunja" | "prs" | "repos";
+  type: "item_list";
+  url?: string | null;
+  url_label?: string | null;
 }
 /**
  * This interface was referenced by `OrbProtocol`'s JSON-Schema
- * via the `definition` "VikunjaRow".
+ * via the `definition` "ItemColumn".
  */
-export interface VikunjaRow {
-  due?: string | null;
-  id: number;
-  priority: number;
-  project: string;
+export interface ItemColumn {
+  key: string;
+  kind?: "title" | "repo" | "text" | "chip" | "due" | "priority" | "num" | "age";
+  label: string;
+}
+/**
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "ItemRow".
+ */
+export interface ItemRow {
+  cells: {
+    [k: string]: string;
+  };
+  hot?: boolean;
+  id: string;
   repo?: string | null;
   title: string;
-  updated: number;
-  url: string;
 }
 /**
  * A task line was rewritten (tasks.act); `previous` is what Undo puts back.

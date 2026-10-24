@@ -18,7 +18,7 @@ import hashlib
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import billing, chain, config, folders, handoff, home, routines, settings, setup, slash, speech, tasks, vendor, vikunja, vocab, watch
+from . import billing, chain, config, folders, handoff, home, items, routines, settings, setup, slash, speech, tasks, vendor, vikunja, vocab, watch
 from .agent import SCREEN_MAX, FolderSession, dumps, first_request
 from .brain import CaptureGuard
 from .sessions import SessionStore
@@ -128,6 +128,7 @@ class Hub:
                         "archived": bool(e.get("archived")),
                         "empty": not e.get("resume") and not (live and (live.busy or live.history)),
                         "status": live.status if live else "idle", "live": bool(live and live.live),
+                        "ask": next((ev["summary"] for _, ev in live.pending.values()), None) if live else None,
                         "mcp_failed": live.info.get("mcp_failed", 0) if live else 0,
                         "opus": sum(1 for t in live.running_tasks() if t["coder"]) if live else 0})
         return out
@@ -328,6 +329,7 @@ def page(request: Request, html: str, cdn: bool) -> HTMLResponse:
 @app.get("/routines")
 @app.get("/settings")
 @app.get("/vikunjas")
+@app.get("/items/{route:path}")
 @app.get("/s/{route:path}")
 @app.get("/t/{route:path}")
 @app.get("/r/{route:path}")
@@ -423,43 +425,48 @@ async def settings_event() -> dict:
             "vault": str(settings.settings.vault() or ""), "port": config.PORT, "host": config.HOST}
 
 
-async def vikunja_task(conn: "Conn", task_id: int, start: bool) -> None:
-    """A Vikunja task for the detail page, or (start) a new session on it in the repo its project maps to.
-    The repo is looked up here from the vault, never taken from the page, and must be an allowed folder."""
-    url = settings.settings.data.get("vikunja_url") or ""
+def repo_of(path: str | None) -> tuple[str, str] | None:
+    """(path, label) of a repo that is an allowed folder, else None. The page never names a path."""
+    p = hub.allowed_folder(path) if path else None
+    return (str(p), hub.label(str(p))) if p else None
+
+
+def item_args() -> tuple[dict, object, list[dict]]:
+    return settings.settings.data, settings.settings.vault(), hub.folders or hub.scan()
+
+
+async def item_list(conn: "Conn", source: str) -> None:
+    """A table for the page: each row with the label of the repo it maps to (None = no repo here)."""
     try:
-        t = await asyncio.to_thread(vikunja.task, url, task_id)
-    except vikunja.VikunjaError as e:
+        got = await asyncio.to_thread(items.list_, source, *item_args())
+    except items.ItemError as e:
         await conn.send({"type": "error", "text": str(e)})
         return
-    local = await asyncio.to_thread(vikunja.repo_path, settings.settings.vault(), t["project_id"])
-    repo = hub.allowed_folder(local) if local else None
-    brief = vikunja.brief(t)
+    memo: dict[str | None, tuple[str, str] | None] = {}
+    for r in got["rows"]:
+        path = r.pop("repo_path")
+        if path not in memo:
+            memo[path] = repo_of(path)
+        r["repo"] = memo[path][1] if memo[path] else None
+    await conn.send({"type": "item_list", **got})
+
+
+async def item_get(conn: "Conn", source: str, item_id: str, start: bool) -> None:
+    """One item for its page, or (start) a new session on it in the repo it maps to. The repo is worked out
+    here, never taken from the page, and must be an allowed folder."""
+    try:
+        got = await asyncio.to_thread(items.get, source, item_id, *item_args())
+    except items.ItemError as e:
+        await conn.send({"type": "error", "text": str(e)})
+        return
+    repo = repo_of(got.pop("repo_path"))
     if start:
         if repo is None:
-            await conn.send({"type": "error", "text": "This task's project has no repo here: copy the prompt instead."})
+            await conn.send({"type": "error", "text": "This item has no repo here: copy the prompt instead."})
             return
-        await hub.start_task(conn, str(repo), brief)
+        await hub.start_task(conn, repo[0], got["brief"])
         return
-    t.pop("project_id")
-    await conn.send({"type": "vikunja_task", **t, "repo": hub.label(str(repo)) if repo else None, "brief": brief})
-
-
-async def vikunja_list(conn: "Conn") -> None:
-    """All open Vikunja tasks for the table, each with the label of the repo its project maps to."""
-    try:
-        got = await asyncio.to_thread(vikunja.open_tasks, settings.settings.data.get("vikunja_url") or "")
-    except vikunja.VikunjaError as e:
-        await conn.send({"type": "error", "text": str(e)})
-        return
-    repos = await asyncio.to_thread(vikunja.repo_map, settings.settings.vault())
-    labels = {}
-    for pid, local in repos.items():
-        p = hub.allowed_folder(local)
-        if p is not None:
-            labels[pid] = hub.label(str(p))
-    rows = [{**{k: v for k, v in t.items() if k != "project_id"}, "repo": labels.get(t["project_id"])} for t in got["tasks"]]
-    await conn.send({"type": "vikunja_list", "tasks": rows, "total": got["total"], "url": got["url"]})
+    await conn.send({"type": "item", "source": source, "id": item_id, **got, "repo": repo[1] if repo else None})
 
 
 async def open_session(conn: Conn, path: str, key: str) -> None:
@@ -657,22 +664,25 @@ async def handle(conn: Conn, msg: dict) -> None:
         except (tasks.TaskError, OSError) as e:
             await conn.send({"type": "error", "text": str(e) if isinstance(e, tasks.TaskError) else f"Couldn't read the note: {e}"})
         return
-    if t == "vikunja_task":
-        await vikunja_task(conn, int(msg["id"]), start=False)
+    if t == "item_list":
+        await item_list(conn, msg["source"])
         return
-    if t == "vikunja_list":
-        await vikunja_list(conn)
+    if t == "item_get":
+        await item_get(conn, msg["source"], str(msg["id"]), start=False)
         return
-    if t == "vikunja_done":
+    if t == "item_done":
+        if msg["source"] != "vikunja":
+            await conn.send({"type": "error", "text": "Only Vikunja tasks can be archived."})
+            return
         try:
             await asyncio.to_thread(vikunja.set_done, settings.settings.data.get("vikunja_url") or "", int(msg["id"]), bool(msg.get("done", True)))
-        except vikunja.VikunjaError as e:
+        except (vikunja.VikunjaError, ValueError) as e:
             await conn.send({"type": "error", "text": str(e)})
             return
-        await vikunja_list(conn)
+        await item_list(conn, "vikunja")
         return
-    if t == "vikunja_start":
-        await vikunja_task(conn, int(msg["id"]), start=True)
+    if t == "item_start":
+        await item_get(conn, msg["source"], str(msg["id"]), start=True)
         return
     if t == "task_action":
         vault = settings.settings.vault()

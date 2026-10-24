@@ -74,15 +74,11 @@ describe("home watch cards", () => {
   it("shows nothing extra before the server answers", () => {
     render(<Home />);
     expect(screen.queryByRole("article", { name: /due|unsaved|Vikunja/i })).toBeNull();
-    expect(screen.getByRole("link", { name: /DUE SOON/ }).textContent).toContain("–");
   });
 
   it("fills the stats and cards from home_watch", () => {
     render(<Home />);
     act(() => dispatch(watch()));
-    expect(screen.getByRole("link", { name: /OPEN TASKS/ }).textContent).toContain("23in Vikunja");
-    expect(screen.getByRole("link", { name: /DUE SOON/ }).textContent).toContain("2");
-    expect(screen.getByRole("link", { name: /UNSAVED/ }).textContent).toContain("1repo not committed");
 
     const forget = screen.getByRole("article", { name: "2 things need you this week" });
     expect(within(forget).getByRole("link", { name: "Renew acme.example" }).getAttribute("href")).toBe("https://registrar.example/acme");
@@ -90,10 +86,11 @@ describe("home watch cards", () => {
     expect(forget.textContent).toContain("in 2 days");
     expect(forget.textContent).toContain("in 22 days");
     expect(forget.textContent).toContain("no date");
-    expect(within(forget).getByRole("link", { name: /PR #7/ })).toBeTruthy();
-    expect(within(forget).queryByRole("link", { name: /PR #9/ })).toBeNull();
-    expect(within(forget).queryByRole("link", { name: /PR #2/ })).toBeNull();
-    expect(within(forget).getByRole("link", { name: "1 more pull request quiet over 30 days" }).getAttribute("href")).toBe("https://github.com/pulls");
+    expect(within(forget).getByRole("button", { name: /PR #7/ })).toBeTruthy();
+    expect(within(forget).queryByRole("button", { name: /PR #9/ })).toBeNull();
+    expect(within(forget).queryByRole("button", { name: /PR #2/ })).toBeNull();
+    fireEvent.click(within(forget).getByRole("button", { name: /1 more pull request quiet over 30 days/ }));
+    expect(sent.at(-1)).toEqual({ type: "item_list", source: "prs" });
 
     const todo = screen.getByRole("article", { name: "23 open tasks, most urgent first" });
     expect(todo.textContent).toContain("Globex · due 03-15");
@@ -122,7 +119,7 @@ describe("home watch cards", () => {
   it("the needs-you card only shows when something waits", () => {
     useFeatures.setState({ folders: [folder("web", [session("w1", "approval", { label: "fix login" })])] });
     render(<Home />);
-    expect(screen.getByRole("article", { name: "fix login" })).toBeTruthy();
+    expect(screen.getByRole("article", { name: "1 thing needs you now" })).toBeTruthy();
     cleanup();
     useFeatures.setState({ folders: [folder("web")] });
     render(<Home />);
