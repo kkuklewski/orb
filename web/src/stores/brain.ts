@@ -1,0 +1,158 @@
+// Brain (GLOSSARY.md Brain, Verdict, owner_read): the vault's newest notes, one note's page, and the Verdict. The list's
+// order is snapshotted when Brain opens and kept while the owner stays in Brain, so a note that gets a verdict (and a
+// newer mtime) keeps its place. Opening a note writes nothing; leaving it without a verdict sends brain_read once,
+// and the server sets owner_read only if it is still unset (ADR 0007). Notes waiting for a verdict are grouped by their
+// suggestion (ADR 0006: approve or reject by the vault's rubric, never drop): accept one, or select several and Apply
+// suggestions; each verdict is written on its own, a refused one keeps its reason, and every applied one keeps Restore
+// (and its place in the group) for the rest of the page's life.
+import { create } from "zustand";
+import type { BrainListEvent, BrainNote, BrainNoteEvent, VerdictNote } from "../protocol.gen";
+import { on } from "../events";
+import { send } from "../ws";
+import { useViews, type View } from "./views";
+
+export interface BrainFilter { waiting: boolean; kinds: string[]; lanes: string[]; q: string }
+export const KINDS = ["AI", "your note", "capture", "unverified view"];
+export const LANES = ["news", "learning"];
+const NO_FILTER: BrainFilter = { waiting: false, kinds: [], lanes: [], q: "" };
+
+export const useBrain = create<{
+  list: BrainListEvent | null;
+  file: string | null; // the note on its page
+  note: BrainNoteEvent | null;
+  filter: BrainFilter;
+  snap: string[] | null; // the files in the order they had when Brain opened
+  applied: Record<string, Suggested>; // notes given their suggested verdict on this page: they keep their group and Restore
+  refused: Record<string, string>; // the vault write module's reason, per note
+  picked: string[]; // notes selected for Apply suggestions
+}>(() => ({ list: null, file: null, note: null, filter: NO_FILTER, snap: null, applied: {}, refused: {}, picked: [] }));
+
+export type Suggested = "approve" | "reject";
+export const SUGGESTED: Suggested[] = ["approve", "reject"];
+
+const IN_BRAIN: View[] = ["brain", "note"];
+
+export function openBrain() {
+  useViews.setState({ view: "brain" });
+  send({ type: "brain_list" });
+}
+
+export function openNote(file: string) {
+  const s = useBrain.getState();
+  if (s.file === file && useViews.getState().view === "note") return;
+  if (onNote()) leave(s.note); // another note from the panel
+  useBrain.setState({ file, note: s.note?.file === file ? s.note : null });
+  useViews.setState({ view: "note" });
+  send({ type: "brain_get", file });
+  send({ type: "brain_list" }); // the panel's siblings
+}
+
+export function setVerdict(verdict: "approve" | "reject" | "restore") {
+  const n = useBrain.getState().note;
+  if (n) send({ type: "brain_verdict", file: n.file, verdict, seen: n.verdict });
+}
+
+/** The notes that carry a suggestion (or got theirs on this page), by suggested verdict, in the list's order. */
+export function suggestionGroups(rows: BrainNote[], applied: Record<string, Suggested>): Record<Suggested, BrainNote[]> {
+  const g: Record<Suggested, BrainNote[]> = { approve: [], reject: [] };
+  for (const n of rows) {
+    const s = applied[n.file] ?? (n.waiting ? n.suggest : "");
+    if (s === "approve" || s === "reject") g[s].push(n);
+  }
+  return g;
+}
+
+/** A row still waits for its suggested verdict (it can be accepted or selected). */
+export const suggestable = (n: BrainNote) => n.waiting && !n.verdict && (n.suggest === "approve" || n.suggest === "reject");
+
+const verdicts = (notes: VerdictNote[]) => { if (notes.length) send({ type: "brain_apply", notes }); };
+
+/** Accept one note's suggestion. */
+export const accept = (n: BrainNote) => { if (suggestable(n)) verdicts([{ file: n.file, seen: n.verdict, verdict: n.suggest as Suggested }]); };
+
+/** Undo the verdict a suggestion applied. */
+export const restore = (n: BrainNote) => verdicts([{ file: n.file, seen: n.verdict, verdict: "restore" }]);
+
+export const togglePick = (file: string) => useBrain.setState((s) => ({ picked: toggleIn(s.picked, file) }));
+
+/** Select (or, when all are selected, clear) a group's open notes. */
+export function pickAll(notes: BrainNote[]) {
+  const files = notes.filter(suggestable).map((n) => n.file);
+  useBrain.setState((s) => {
+    const all = files.every((f) => s.picked.includes(f));
+    return { picked: all ? s.picked.filter((f) => !files.includes(f)) : [...new Set([...s.picked, ...files])] };
+  });
+}
+
+/** Apply suggestions: each selected note gets its own suggested verdict. */
+export function applyPicked() {
+  const { list, picked } = useBrain.getState();
+  const rows = (list?.notes ?? []).filter((n) => picked.includes(n.file) && suggestable(n));
+  verdicts(rows.map((n) => ({ file: n.file, seen: n.verdict, verdict: n.suggest as Suggested })));
+}
+
+export const setFilter = (f: Partial<BrainFilter>) => useBrain.setState((s) => ({ filter: { ...s.filter, ...f } }));
+export const toggleIn = (xs: string[], x: string) => (xs.includes(x) ? xs.filter((y) => y !== x) : [...xs, x]);
+
+/** The list as shown: filtered, in the snapshot's order; a note the snapshot hasn't seen goes after the others. */
+export function brainRows(notes: BrainNote[], f: BrainFilter, snap: string[] | null): BrainNote[] {
+  const q = f.q.trim().toLowerCase();
+  const at = new Map((snap ?? []).map((file, i) => [file, i]));
+  return notes
+    .map((n, i) => ({ n, i: at.get(n.file) ?? at.size + i }))
+    .filter(({ n }) => (!f.waiting || n.waiting) && (!f.kinds.length || f.kinds.includes(n.kind)) && (!f.lanes.length || f.lanes.includes(n.lane))
+      && (!q || n.title.toLowerCase().includes(q) || n.file.toLowerCase().includes(q)))
+    .sort((a, b) => a.i - b.i)
+    .map(({ n }) => n);
+}
+
+/** The value-score dot: high (8+), middle (5-7), low (4 or less), none. */
+export const scoreDot = (score: number | null | undefined) =>
+  score == null ? "dot" : score >= 8 ? "dot v-hi" : score >= 5 ? "dot v-mid" : "dot v-lo";
+
+/** "rejected 2026-10-24" from the verdict as the server reads it. */
+export function verdictText(v: string): string {
+  const [word, day] = v.split(" ");
+  const said = word === "approve" ? "approved" : word === "reject" ? "rejected" : word;
+  return day ? `${said} ${day}` : said;
+}
+
+/** The note page's header line: score, lane and why. */
+export function headerLine(n: BrainNote): string {
+  return [n.score != null ? `score ${n.score}` : null, n.lane || null, n.why || null].filter(Boolean).join(" · ");
+}
+
+let onPage = false; // a note's page is showing
+const onNote = () => onPage;
+
+/** The owner leaves an open note: brain_read, only while it has no verdict and isn't read yet. */
+function leave(n: BrainNoteEvent | null) {
+  if (n && !n.verdict && !n.owner_read) send({ type: "brain_read", file: n.file, seen: "" });
+}
+
+export function wireBrain(): () => void {
+  let inBrain = false;
+  onPage = false;
+  const offs = [
+    on("brain_list", (ev) => useBrain.setState((s) => ({ list: ev, snap: s.snap ?? ev.notes.map((n) => n.file) }))),
+    on("brain_applied", (ev) => useBrain.setState((s) => {
+      const applied = { ...s.applied }, refused = { ...s.refused };
+      for (const a of ev.applied) {
+        delete refused[a.file];
+        if (a.verdict === "restore") delete applied[a.file]; else applied[a.file] = a.verdict;
+      }
+      for (const r of ev.refused) refused[r.file] = r.reason;
+      const done = new Set(ev.applied.map((a) => a.file));
+      return { applied, refused, picked: s.picked.filter((f) => !done.has(f)) };
+    })),
+    on("brain_note", (ev) => { if (ev.file === useBrain.getState().file) useBrain.setState({ note: ev }); }),
+    useViews.subscribe((s) => {
+      const v = s.view;
+      if (IN_BRAIN.includes(v) && !inBrain) { inBrain = true; useBrain.setState({ snap: null }); } // a new visit: a new order
+      else if (!IN_BRAIN.includes(v)) inBrain = false;
+      if (v === "note") onPage = true;
+      else if (onPage) { onPage = false; leave(useBrain.getState().note); }
+    }),
+  ];
+  return () => offs.forEach((off) => off());
+}

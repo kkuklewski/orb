@@ -1,0 +1,8513 @@
+{
+  "$defs": {
+    "AddFolderMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "type": {
+          "const": "add_folder",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "path"
+      ],
+      "title": "AddFolderMsg",
+      "type": "object"
+    },
+    "ArchiveSessionMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "archived": {
+          "default": true,
+          "type": "boolean"
+        },
+        "folder": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string"
+        },
+        "type": {
+          "const": "archive_session",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "folder",
+        "key"
+      ],
+      "title": "ArchiveSessionMsg",
+      "type": "object"
+    },
+    "AudioEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "data": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "gen": {
+          "type": "integer"
+        },
+        "mime": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "seq": {
+          "type": "integer"
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "speak": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "text": {
+          "type": "string"
+        },
+        "type": {
+          "const": "audio",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "gen",
+        "seq",
+        "text"
+      ],
+      "title": "AudioEvent",
+      "type": "object"
+    },
+    "AuthStatus": {
+      "additionalProperties": false,
+      "properties": {
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "installed": {
+          "type": "boolean"
+        },
+        "loggedIn": {
+          "type": "boolean"
+        },
+        "method": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "subscription": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "subscriptionLogin": {
+          "default": false,
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "installed",
+        "loggedIn"
+      ],
+      "title": "AuthStatus",
+      "type": "object"
+    },
+    "BargeInMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "barge_in",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "BargeInMsg",
+      "type": "object"
+    },
+    "BgNoticeEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "data": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "kind": {
+          "type": "string"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "mime": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "text": {
+          "type": "string"
+        },
+        "type": {
+          "const": "bg_notice",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "kind",
+        "text"
+      ],
+      "title": "BgNoticeEvent",
+      "type": "object"
+    },
+    "BrainApplied": {
+      "additionalProperties": false,
+      "properties": {
+        "file": {
+          "type": "string"
+        },
+        "verdict": {
+          "enum": [
+            "approve",
+            "reject",
+            "restore"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "file",
+        "verdict"
+      ],
+      "title": "BrainApplied",
+      "type": "object"
+    },
+    "BrainAppliedEvent": {
+      "additionalProperties": false,
+      "description": "The answer to brain_apply, before the new list: what was written (each with the verdict asked for) and what the\nvault write module refused, with its reason.",
+      "properties": {
+        "applied": {
+          "items": {
+            "$ref": "#/$defs/BrainApplied"
+          },
+          "type": "array"
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "refused": {
+          "items": {
+            "$ref": "#/$defs/BrainRefused"
+          },
+          "type": "array"
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "brain_applied",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "applied",
+        "refused"
+      ],
+      "title": "BrainAppliedEvent",
+      "type": "object"
+    },
+    "BrainApplyMsg": {
+      "additionalProperties": false,
+      "description": "Verdicts on Brain's list, one per note (accepting a suggestion, Apply suggestions, Restore). Each goes through the\nvault write module on its own: a refused note doesn't stop the others. The server answers with brain_applied, then\nthe list.",
+      "properties": {
+        "notes": {
+          "items": {
+            "$ref": "#/$defs/VerdictNote"
+          },
+          "type": "array"
+        },
+        "type": {
+          "const": "brain_apply",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "notes"
+      ],
+      "title": "BrainApplyMsg",
+      "type": "object"
+    },
+    "BrainGetMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "file": {
+          "type": "string"
+        },
+        "type": {
+          "const": "brain_get",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "file"
+      ],
+      "title": "BrainGetMsg",
+      "type": "object"
+    },
+    "BrainListEvent": {
+      "additionalProperties": false,
+      "description": "Brain's list: the newest notes, newest first. `error` when there is no notes folder.",
+      "properties": {
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "notes": {
+          "items": {
+            "$ref": "#/$defs/BrainNote"
+          },
+          "type": "array"
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "brain_list",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "notes"
+      ],
+      "title": "BrainListEvent",
+      "type": "object"
+    },
+    "BrainListMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "brain_list",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "BrainListMsg",
+      "type": "object"
+    },
+    "BrainNote": {
+      "additionalProperties": false,
+      "description": "One note on Brain's list (home.brain_notes).",
+      "properties": {
+        "file": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "lane": {
+          "type": "string"
+        },
+        "mtime": {
+          "type": "number"
+        },
+        "owner_read": {
+          "type": "string"
+        },
+        "score": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "suggest": {
+          "default": "",
+          "enum": [
+            "approve",
+            "reject",
+            ""
+          ],
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "verdict": {
+          "type": "string"
+        },
+        "waiting": {
+          "type": "boolean"
+        },
+        "why": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "file",
+        "title",
+        "kind",
+        "mtime",
+        "score",
+        "lane",
+        "why",
+        "waiting",
+        "verdict",
+        "owner_read"
+      ],
+      "title": "BrainNote",
+      "type": "object"
+    },
+    "BrainNoteEvent": {
+      "additionalProperties": false,
+      "description": "One note's page: the list fields and the body under the frontmatter, as plain text.",
+      "properties": {
+        "body": {
+          "type": "string"
+        },
+        "file": {
+          "type": "string"
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "kind": {
+          "type": "string"
+        },
+        "lane": {
+          "type": "string"
+        },
+        "mtime": {
+          "type": "number"
+        },
+        "owner_read": {
+          "type": "string"
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "score": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "suggest": {
+          "default": "",
+          "enum": [
+            "approve",
+            "reject",
+            ""
+          ],
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "type": {
+          "const": "brain_note",
+          "type": "string"
+        },
+        "verdict": {
+          "type": "string"
+        },
+        "waiting": {
+          "type": "boolean"
+        },
+        "why": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "file",
+        "title",
+        "kind",
+        "mtime",
+        "score",
+        "lane",
+        "why",
+        "waiting",
+        "verdict",
+        "owner_read",
+        "type",
+        "body"
+      ],
+      "title": "BrainNoteEvent",
+      "type": "object"
+    },
+    "BrainReadMsg": {
+      "additionalProperties": false,
+      "description": "The owner left an open note without a verdict: owner_read is set once, if it still reads `seen` (\"\").",
+      "properties": {
+        "file": {
+          "type": "string"
+        },
+        "seen": {
+          "default": "",
+          "type": "string"
+        },
+        "type": {
+          "const": "brain_read",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "file"
+      ],
+      "title": "BrainReadMsg",
+      "type": "object"
+    },
+    "BrainRefused": {
+      "additionalProperties": false,
+      "properties": {
+        "file": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "file",
+        "reason"
+      ],
+      "title": "BrainRefused",
+      "type": "object"
+    },
+    "BrainVerdictMsg": {
+      "additionalProperties": false,
+      "description": "A verdict on the open note: approve, reject, or restore (waits again). Written only if the note's verdict still\nreads `seen`; the server answers with the note and the list.",
+      "properties": {
+        "file": {
+          "type": "string"
+        },
+        "seen": {
+          "default": "",
+          "type": "string"
+        },
+        "type": {
+          "const": "brain_verdict",
+          "type": "string"
+        },
+        "verdict": {
+          "enum": [
+            "approve",
+            "reject",
+            "restore"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "file",
+        "verdict"
+      ],
+      "title": "BrainVerdictMsg",
+      "type": "object"
+    },
+    "BrowseEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "repo": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "name",
+        "path",
+        "repo"
+      ],
+      "title": "BrowseEntry",
+      "type": "object"
+    },
+    "BrowseEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "entries": {
+          "items": {
+            "$ref": "#/$defs/BrowseEntry"
+          },
+          "type": "array"
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "home": {
+          "type": "string"
+        },
+        "parent": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "path": {
+          "type": "string"
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "repo": {
+          "type": "boolean"
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "type": {
+          "const": "browse",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "path",
+        "home",
+        "parent",
+        "repo",
+        "entries",
+        "truncated"
+      ],
+      "title": "BrowseEvent",
+      "type": "object"
+    },
+    "BrowseMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "browse",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "BrowseMsg",
+      "type": "object"
+    },
+    "ClientMessage": {
+      "discriminator": {
+        "mapping": {
+          "add_folder": "#/$defs/AddFolderMsg",
+          "archive_session": "#/$defs/ArchiveSessionMsg",
+          "barge_in": "#/$defs/BargeInMsg",
+          "brain_apply": "#/$defs/BrainApplyMsg",
+          "brain_get": "#/$defs/BrainGetMsg",
+          "brain_list": "#/$defs/BrainListMsg",
+          "brain_read": "#/$defs/BrainReadMsg",
+          "brain_verdict": "#/$defs/BrainVerdictMsg",
+          "browse": "#/$defs/BrowseMsg",
+          "delegate": "#/$defs/DelegateMsg",
+          "delegate_bulk": "#/$defs/DelegateBulkMsg",
+          "delegate_confirm": "#/$defs/DelegateConfirmMsg",
+          "delegation_apply": "#/$defs/DelegationApplyMsg",
+          "delegation_discard": "#/$defs/DelegationDiscardMsg",
+          "delegation_outward": "#/$defs/DelegationOutwardMsg",
+          "delegation_resume": "#/$defs/DelegationResumeMsg",
+          "delegation_retry": "#/$defs/DelegationRetryMsg",
+          "delegation_revert": "#/$defs/DelegationRevertMsg",
+          "delegation_review": "#/$defs/DelegationReviewMsg",
+          "dictate_note": "#/$defs/DictateNoteMsg",
+          "get_settings": "#/$defs/GetSettingsMsg",
+          "home": "#/$defs/HomeMsg",
+          "interrupt": "#/$defs/InterruptMsg",
+          "item_done": "#/$defs/ItemDoneMsg",
+          "item_get": "#/$defs/ItemGetMsg",
+          "item_list": "#/$defs/ItemListMsg",
+          "item_start": "#/$defs/ItemStartMsg",
+          "make_task": "#/$defs/MakeTaskMsg",
+          "make_task_confirm": "#/$defs/MakeTaskConfirmMsg",
+          "make_task_undo": "#/$defs/MakeTaskUndoMsg",
+          "mcp_reconnect": "#/$defs/McpReconnectMsg",
+          "mcp_status": "#/$defs/McpStatusMsg",
+          "mute": "#/$defs/MuteMsg",
+          "new_session": "#/$defs/NewSessionMsg",
+          "notes_verdict": "#/$defs/NotesVerdictMsg",
+          "open_folder": "#/$defs/OpenFolderMsg",
+          "permission": "#/$defs/PermissionMsg",
+          "pick_folder": "#/$defs/PickFolderMsg",
+          "pin_folder": "#/$defs/PinFolderMsg",
+          "plan_done": "#/$defs/PlanDoneMsg",
+          "plan_later": "#/$defs/PlanLaterMsg",
+          "plan_start": "#/$defs/PlanStartMsg",
+          "playback": "#/$defs/PlaybackMsg",
+          "read_all": "#/$defs/ReadAllMsg",
+          "remove_session": "#/$defs/RemoveSessionMsg",
+          "rescan": "#/$defs/RescanMsg",
+          "revoke_grant": "#/$defs/RevokeGrantMsg",
+          "routines": "#/$defs/RoutinesMsg",
+          "routines_resolve": "#/$defs/RoutinesResolveMsg",
+          "routines_seen": "#/$defs/RoutinesSeenMsg",
+          "screen": "#/$defs/ScreenMsg",
+          "set_mode": "#/$defs/SetModeMsg",
+          "set_model": "#/$defs/SetModelMsg",
+          "set_settings": "#/$defs/SetSettingsMsg",
+          "setup_status": "#/$defs/SetupStatusMsg",
+          "speech_cancelled": "#/$defs/SpeechCancelledMsg",
+          "speech_start": "#/$defs/SpeechStartMsg",
+          "start_session": "#/$defs/StartSessionMsg",
+          "task_action": "#/$defs/TaskActionMsg",
+          "task_detail": "#/$defs/TaskDetailMsg",
+          "tasks_bulk": "#/$defs/TasksBulkMsg",
+          "tasks_suggest": "#/$defs/TasksSuggestMsg",
+          "undo_confirm": "#/$defs/UndoConfirmMsg",
+          "undo_request": "#/$defs/UndoRequestMsg",
+          "user_text": "#/$defs/UserTextMsg",
+          "utterance": "#/$defs/UtteranceMsg",
+          "voice_sample": "#/$defs/VoiceSampleMsg",
+          "voice_text": "#/$defs/VoiceTextMsg"
+        },
+        "propertyName": "type"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/SetupStatusMsg"
+        },
+        {
+          "$ref": "#/$defs/BrowseMsg"
+        },
+        {
+          "$ref": "#/$defs/PickFolderMsg"
+        },
+        {
+          "$ref": "#/$defs/OpenFolderMsg"
+        },
+        {
+          "$ref": "#/$defs/AddFolderMsg"
+        },
+        {
+          "$ref": "#/$defs/StartSessionMsg"
+        },
+        {
+          "$ref": "#/$defs/PinFolderMsg"
+        },
+        {
+          "$ref": "#/$defs/GetSettingsMsg"
+        },
+        {
+          "$ref": "#/$defs/SetSettingsMsg"
+        },
+        {
+          "$ref": "#/$defs/VoiceSampleMsg"
+        },
+        {
+          "$ref": "#/$defs/RescanMsg"
+        },
+        {
+          "$ref": "#/$defs/RoutinesMsg"
+        },
+        {
+          "$ref": "#/$defs/RoutinesSeenMsg"
+        },
+        {
+          "$ref": "#/$defs/RoutinesResolveMsg"
+        },
+        {
+          "$ref": "#/$defs/MuteMsg"
+        },
+        {
+          "$ref": "#/$defs/NewSessionMsg"
+        },
+        {
+          "$ref": "#/$defs/ArchiveSessionMsg"
+        },
+        {
+          "$ref": "#/$defs/RemoveSessionMsg"
+        },
+        {
+          "$ref": "#/$defs/UserTextMsg"
+        },
+        {
+          "$ref": "#/$defs/SpeechStartMsg"
+        },
+        {
+          "$ref": "#/$defs/BargeInMsg"
+        },
+        {
+          "$ref": "#/$defs/SpeechCancelledMsg"
+        },
+        {
+          "$ref": "#/$defs/UtteranceMsg"
+        },
+        {
+          "$ref": "#/$defs/VoiceTextMsg"
+        },
+        {
+          "$ref": "#/$defs/HomeMsg"
+        },
+        {
+          "$ref": "#/$defs/PlanStartMsg"
+        },
+        {
+          "$ref": "#/$defs/PlanLaterMsg"
+        },
+        {
+          "$ref": "#/$defs/PlanDoneMsg"
+        },
+        {
+          "$ref": "#/$defs/ScreenMsg"
+        },
+        {
+          "$ref": "#/$defs/TaskDetailMsg"
+        },
+        {
+          "$ref": "#/$defs/ItemListMsg"
+        },
+        {
+          "$ref": "#/$defs/ItemGetMsg"
+        },
+        {
+          "$ref": "#/$defs/ItemDoneMsg"
+        },
+        {
+          "$ref": "#/$defs/TasksBulkMsg"
+        },
+        {
+          "$ref": "#/$defs/TasksSuggestMsg"
+        },
+        {
+          "$ref": "#/$defs/NotesVerdictMsg"
+        },
+        {
+          "$ref": "#/$defs/BrainListMsg"
+        },
+        {
+          "$ref": "#/$defs/BrainGetMsg"
+        },
+        {
+          "$ref": "#/$defs/BrainApplyMsg"
+        },
+        {
+          "$ref": "#/$defs/BrainVerdictMsg"
+        },
+        {
+          "$ref": "#/$defs/BrainReadMsg"
+        },
+        {
+          "$ref": "#/$defs/ItemStartMsg"
+        },
+        {
+          "$ref": "#/$defs/TaskActionMsg"
+        },
+        {
+          "$ref": "#/$defs/InterruptMsg"
+        },
+        {
+          "$ref": "#/$defs/PlaybackMsg"
+        },
+        {
+          "$ref": "#/$defs/PermissionMsg"
+        },
+        {
+          "$ref": "#/$defs/ReadAllMsg"
+        },
+        {
+          "$ref": "#/$defs/DictateNoteMsg"
+        },
+        {
+          "$ref": "#/$defs/UndoRequestMsg"
+        },
+        {
+          "$ref": "#/$defs/UndoConfirmMsg"
+        },
+        {
+          "$ref": "#/$defs/McpStatusMsg"
+        },
+        {
+          "$ref": "#/$defs/McpReconnectMsg"
+        },
+        {
+          "$ref": "#/$defs/SetModeMsg"
+        },
+        {
+          "$ref": "#/$defs/SetModelMsg"
+        },
+        {
+          "$ref": "#/$defs/RevokeGrantMsg"
+        },
+        {
+          "$ref": "#/$defs/DelegateMsg"
+        },
+        {
+          "$ref": "#/$defs/DelegateBulkMsg"
+        },
+        {
+          "$ref": "#/$defs/DelegateConfirmMsg"
+        },
+        {
+          "$ref": "#/$defs/MakeTaskMsg"
+        },
+        {
+          "$ref": "#/$defs/MakeTaskConfirmMsg"
+        },
+        {
+          "$ref": "#/$defs/MakeTaskUndoMsg"
+        },
+        {
+          "$ref": "#/$defs/DelegationReviewMsg"
+        },
+        {
+          "$ref": "#/$defs/DelegationApplyMsg"
+        },
+        {
+          "$ref": "#/$defs/DelegationRevertMsg"
+        },
+        {
+          "$ref": "#/$defs/DelegationDiscardMsg"
+        },
+        {
+          "$ref": "#/$defs/DelegationRetryMsg"
+        },
+        {
+          "$ref": "#/$defs/DelegationResumeMsg"
+        },
+        {
+          "$ref": "#/$defs/DelegationOutwardMsg"
+        }
+      ]
+    },
+    "CommandItem": {
+      "additionalProperties": false,
+      "description": "One entry of the slash menu (slash.merge): the dashboard's own first, then Claude Code's.",
+      "properties": {
+        "argumentHint": {
+          "default": "",
+          "type": "string"
+        },
+        "description": {
+          "default": "",
+          "type": "string"
+        },
+        "local": {
+          "default": false,
+          "type": "boolean"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "CommandItem",
+      "type": "object"
+    },
+    "CommandsEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "items": {
+          "items": {
+            "$ref": "#/$defs/CommandItem"
+          },
+          "type": "array"
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "commands",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "items"
+      ],
+      "title": "CommandsEvent",
+      "type": "object"
+    },
+    "ContextEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "context",
+          "type": "string"
+        },
+        "used": {
+          "type": "integer"
+        },
+        "window": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "used",
+        "window",
+        "type"
+      ],
+      "title": "ContextEvent",
+      "type": "object"
+    },
+    "ContextUsage": {
+      "additionalProperties": false,
+      "description": "Tokens of the last main-thread call and the model's window.",
+      "properties": {
+        "used": {
+          "type": "integer"
+        },
+        "window": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "used",
+        "window"
+      ],
+      "title": "ContextUsage",
+      "type": "object"
+    },
+    "DelegateBulkMsg": {
+      "additionalProperties": false,
+      "description": "Bulk Delegate from Up next: Vikunja tasks with a known repo. The server answers with the first repo's card; the\nothers follow, one per repo, whatever the answer.",
+      "properties": {
+        "tasks": {
+          "items": {
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "type": {
+          "const": "delegate_bulk",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "tasks"
+      ],
+      "title": "DelegateBulkMsg",
+      "type": "object"
+    },
+    "DelegateCardEvent": {
+      "additionalProperties": false,
+      "description": "Delegate's grant card (ADR 0005): the repo, the branch and what the session may do without asking. A bulk\nDelegate has one card per repo: `rows` are its tasks (task/title/branch are the first), `more` the repos still to\nask about after this one.",
+      "properties": {
+        "branch": {
+          "type": "string"
+        },
+        "covers": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "id": {
+          "type": "string"
+        },
+        "more": {
+          "default": 0,
+          "type": "integer"
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "repo": {
+          "type": "string"
+        },
+        "rows": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/DelegateCardRow"
+          },
+          "type": "array"
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "task": {
+          "type": "integer"
+        },
+        "title": {
+          "type": "string"
+        },
+        "type": {
+          "const": "delegate_card",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "task",
+        "title",
+        "repo",
+        "branch",
+        "covers"
+      ],
+      "title": "DelegateCardEvent",
+      "type": "object"
+    },
+    "DelegateCardRow": {
+      "additionalProperties": false,
+      "properties": {
+        "branch": {
+          "type": "string"
+        },
+        "task": {
+          "type": "integer"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "task",
+        "title",
+        "branch"
+      ],
+      "title": "DelegateCardRow",
+      "type": "object"
+    },
+    "DelegateConfirmMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "ok": {
+          "type": "boolean"
+        },
+        "type": {
+          "const": "delegate_confirm",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "ok"
+      ],
+      "title": "DelegateConfirmMsg",
+      "type": "object"
+    },
+    "DelegateMsg": {
+      "additionalProperties": false,
+      "description": "Delegate on a Vikunja task: the server answers with the grant card. `path`: the picker's repo, for a task whose\nproject has no mapped repo (this delegation only).",
+      "properties": {
+        "path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "task": {
+          "type": "integer"
+        },
+        "type": {
+          "const": "delegate",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "task"
+      ],
+      "title": "DelegateMsg",
+      "type": "object"
+    },
+    "DelegationApplyMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "type": {
+          "const": "delegation_apply",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "id"
+      ],
+      "title": "DelegationApplyMsg",
+      "type": "object"
+    },
+    "DelegationDiffEvent": {
+      "additionalProperties": false,
+      "description": "Review: the delegation's own work (snapshot..branch), stat then patch, capped.",
+      "properties": {
+        "branch": {
+          "type": "string"
+        },
+        "diff": {
+          "type": "string"
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "id": {
+          "type": "string"
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "delegation_diff",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "branch",
+        "diff"
+      ],
+      "title": "DelegationDiffEvent",
+      "type": "object"
+    },
+    "DelegationDiscardMsg": {
+      "additionalProperties": false,
+      "description": "Discard: stop the session, drop the branch and worktree. On an applied or reverted one: dismiss the row.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "type": {
+          "const": "delegation_discard",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "id"
+      ],
+      "title": "DelegationDiscardMsg",
+      "type": "object"
+    },
+    "DelegationItem": {
+      "additionalProperties": false,
+      "description": "One row of the Delegated strip, in the order they were delegated. `line` is the stage in plain words.",
+      "properties": {
+        "apply_text": {
+          "type": "string"
+        },
+        "ask": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "branch": {
+          "type": "string"
+        },
+        "conflict": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "folder": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "line": {
+          "type": "string"
+        },
+        "needs": {
+          "anyOf": [
+            {
+              "enum": [
+                "card",
+                "failed",
+                "stuck",
+                "stopped",
+                "outward"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "pr": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "pr_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "repo": {
+          "type": "string"
+        },
+        "session": {
+          "type": "string"
+        },
+        "stage": {
+          "enum": [
+            "queued",
+            "working",
+            "testing",
+            "pushing",
+            "ready",
+            "failed",
+            "applied",
+            "reverted",
+            "stopped"
+          ],
+          "type": "string"
+        },
+        "task": {
+          "type": "integer"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "task",
+        "title",
+        "repo",
+        "branch",
+        "stage",
+        "line",
+        "session",
+        "folder",
+        "apply_text"
+      ],
+      "title": "DelegationItem",
+      "type": "object"
+    },
+    "DelegationOutwardMsg": {
+      "additionalProperties": false,
+      "description": "The outward card (Needs you): Allow pushes the branch and opens its PR; Skip (allow false) keeps it local.",
+      "properties": {
+        "allow": {
+          "type": "boolean"
+        },
+        "id": {
+          "type": "string"
+        },
+        "type": {
+          "const": "delegation_outward",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "allow"
+      ],
+      "title": "DelegationOutwardMsg",
+      "type": "object"
+    },
+    "DelegationResumeMsg": {
+      "additionalProperties": false,
+      "description": "Stopped by restart: continue the same session in the same worktree under the same grant.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "type": {
+          "const": "delegation_resume",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "id"
+      ],
+      "title": "DelegationResumeMsg",
+      "type": "object"
+    },
+    "DelegationRetryMsg": {
+      "additionalProperties": false,
+      "description": "Failed or stuck: the same session gets what went wrong as its next request (a stuck turn is stopped first).",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "type": {
+          "const": "delegation_retry",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "id"
+      ],
+      "title": "DelegationRetryMsg",
+      "type": "object"
+    },
+    "DelegationRevertMsg": {
+      "additionalProperties": false,
+      "description": "Undo after Apply: revert the commit and reopen the task.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "type": {
+          "const": "delegation_revert",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "id"
+      ],
+      "title": "DelegationRevertMsg",
+      "type": "object"
+    },
+    "DelegationReviewMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "type": {
+          "const": "delegation_review",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "id"
+      ],
+      "title": "DelegationReviewMsg",
+      "type": "object"
+    },
+    "DelegationsEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "items": {
+          "items": {
+            "$ref": "#/$defs/DelegationItem"
+          },
+          "type": "array"
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "delegations",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "items"
+      ],
+      "title": "DelegationsEvent",
+      "type": "object"
+    },
+    "DictateNoteMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "dictate_note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "DictateNoteMsg",
+      "type": "object"
+    },
+    "DirtyRepo": {
+      "additionalProperties": false,
+      "properties": {
+        "ahead": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "branch": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "changed": {
+          "type": "integer"
+        },
+        "label": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "label",
+        "changed"
+      ],
+      "title": "DirtyRepo",
+      "type": "object"
+    },
+    "ErrorEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "text": {
+          "type": "string"
+        },
+        "type": {
+          "const": "error",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "text"
+      ],
+      "title": "ErrorEvent",
+      "type": "object"
+    },
+    "Features": {
+      "additionalProperties": false,
+      "description": "What this install has turned on, and how Claude Code is signed in (plan only).",
+      "properties": {
+        "brain": {
+          "type": "boolean"
+        },
+        "onboarded": {
+          "type": "boolean"
+        },
+        "plan": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "roots": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "routines": {
+          "type": "boolean"
+        },
+        "stt": {
+          "enum": [
+            "browser",
+            "parakeet",
+            "whisper"
+          ],
+          "type": "string"
+        },
+        "tts": {
+          "enum": [
+            "browser",
+            "kokoro"
+          ],
+          "type": "string"
+        },
+        "vault": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "roots",
+        "vault",
+        "brain",
+        "routines",
+        "onboarded",
+        "stt",
+        "tts"
+      ],
+      "title": "Features",
+      "type": "object"
+    },
+    "FeaturesEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "brain": {
+          "type": "boolean"
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "onboarded": {
+          "type": "boolean"
+        },
+        "plan": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "roots": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "routines": {
+          "type": "boolean"
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "stt": {
+          "enum": [
+            "browser",
+            "parakeet",
+            "whisper"
+          ],
+          "type": "string"
+        },
+        "tts": {
+          "enum": [
+            "browser",
+            "kokoro"
+          ],
+          "type": "string"
+        },
+        "type": {
+          "const": "features",
+          "type": "string"
+        },
+        "vault": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "roots",
+        "vault",
+        "brain",
+        "routines",
+        "onboarded",
+        "stt",
+        "tts",
+        "type"
+      ],
+      "title": "FeaturesEvent",
+      "type": "object"
+    },
+    "FolderItem": {
+      "additionalProperties": false,
+      "properties": {
+        "branch": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "has_session": {
+          "default": false,
+          "type": "boolean"
+        },
+        "label": {
+          "type": "string"
+        },
+        "last_used": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "live": {
+          "default": false,
+          "type": "boolean"
+        },
+        "mcp_failed": {
+          "default": 0,
+          "type": "integer"
+        },
+        "path": {
+          "type": "string"
+        },
+        "pinned": {
+          "default": false,
+          "type": "boolean"
+        },
+        "rel": {
+          "type": "string"
+        },
+        "remote": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "sessions": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/SessionItem"
+          },
+          "type": "array"
+        },
+        "status": {
+          "default": "idle",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "label",
+        "rel"
+      ],
+      "title": "FolderItem",
+      "type": "object"
+    },
+    "FoldersEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "items": {
+          "items": {
+            "$ref": "#/$defs/FolderItem"
+          },
+          "type": "array"
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "folders",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "items"
+      ],
+      "title": "FoldersEvent",
+      "type": "object"
+    },
+    "GetSettingsMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "get_settings",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "GetSettingsMsg",
+      "type": "object"
+    },
+    "HeardNothingEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "heard_nothing",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "HeardNothingEvent",
+      "type": "object"
+    },
+    "HeldEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "text": {
+          "type": "string"
+        },
+        "type": {
+          "const": "held",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "text"
+      ],
+      "title": "HeldEvent",
+      "type": "object"
+    },
+    "HelloEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "brain": {
+          "type": "boolean"
+        },
+        "build": {
+          "type": "string"
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "folders": {
+          "items": {
+            "$ref": "#/$defs/FolderItem"
+          },
+          "type": "array"
+        },
+        "onboarded": {
+          "type": "boolean"
+        },
+        "plan": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "rate_limit": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "roots": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "routines": {
+          "type": "boolean"
+        },
+        "services": {
+          "additionalProperties": {
+            "type": "boolean"
+          },
+          "type": "object"
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "stt": {
+          "enum": [
+            "browser",
+            "parakeet",
+            "whisper"
+          ],
+          "type": "string"
+        },
+        "tts": {
+          "enum": [
+            "browser",
+            "kokoro"
+          ],
+          "type": "string"
+        },
+        "type": {
+          "const": "hello",
+          "type": "string"
+        },
+        "vault": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "roots",
+        "vault",
+        "brain",
+        "routines",
+        "onboarded",
+        "stt",
+        "tts",
+        "type",
+        "build",
+        "folders",
+        "services"
+      ],
+      "title": "HelloEvent",
+      "type": "object"
+    },
+    "HistoryEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "events": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "history",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "events"
+      ],
+      "title": "HistoryEvent",
+      "type": "object"
+    },
+    "HomeAwait": {
+      "additionalProperties": false,
+      "description": "A note waiting for the owner's verdict (fact-checked with no human_verdict, or AI-curated and unreviewed).",
+      "properties": {
+        "file": {
+          "type": "string"
+        },
+        "lane": {
+          "default": "",
+          "type": "string"
+        },
+        "mtime": {
+          "type": "number"
+        },
+        "published": {
+          "default": "",
+          "type": "string"
+        },
+        "score": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "tag": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "topic": {
+          "default": "",
+          "type": "string"
+        },
+        "verified": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "why": {
+          "default": "",
+          "type": "string"
+        }
+      },
+      "required": [
+        "title",
+        "file",
+        "mtime",
+        "tag"
+      ],
+      "title": "HomeAwait",
+      "type": "object"
+    },
+    "HomeEvent": {
+      "additionalProperties": false,
+      "description": "The home screen's notes part (home.summary): open tasks and recent notes in the vault.",
+      "properties": {
+        "awaiting": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/HomeAwait"
+          },
+          "type": "array"
+        },
+        "awaiting_count": {
+          "default": 0,
+          "type": "integer"
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "notes": {
+          "items": {
+            "$ref": "#/$defs/HomeNote"
+          },
+          "type": "array"
+        },
+        "notes_week": {
+          "type": "integer"
+        },
+        "open_tasks": {
+          "type": "integer"
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "snoozed": {
+          "type": "integer"
+        },
+        "tasks": {
+          "items": {
+            "$ref": "#/$defs/HomeTask"
+          },
+          "type": "array"
+        },
+        "type": {
+          "const": "home",
+          "type": "string"
+        },
+        "vault": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "vault",
+        "tasks",
+        "open_tasks",
+        "snoozed",
+        "notes",
+        "notes_week"
+      ],
+      "title": "HomeEvent",
+      "type": "object"
+    },
+    "HomeForgetEvent": {
+      "additionalProperties": false,
+      "description": "Home's Don't forget pane (forget.summary): reminders, unsaved repos, open PRs; and the pinned links.",
+      "properties": {
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "links": {
+          "items": {
+            "$ref": "#/$defs/PinnedLink"
+          },
+          "type": "array"
+        },
+        "prs": {
+          "items": {
+            "$ref": "#/$defs/OpenPr"
+          },
+          "type": "array"
+        },
+        "reminders": {
+          "items": {
+            "$ref": "#/$defs/Reminder"
+          },
+          "type": "array"
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "repos": {
+          "items": {
+            "$ref": "#/$defs/DirtyRepo"
+          },
+          "type": "array"
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "home_forget",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "reminders",
+        "links",
+        "repos",
+        "prs"
+      ],
+      "title": "HomeForgetEvent",
+      "type": "object"
+    },
+    "HomeMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "rerank": {
+          "default": false,
+          "type": "boolean"
+        },
+        "type": {
+          "const": "home",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "HomeMsg",
+      "type": "object"
+    },
+    "HomeNote": {
+      "additionalProperties": false,
+      "properties": {
+        "file": {
+          "type": "string"
+        },
+        "mtime": {
+          "type": "number"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "title",
+        "file",
+        "mtime"
+      ],
+      "title": "HomeNote",
+      "type": "object"
+    },
+    "HomeTask": {
+      "additionalProperties": false,
+      "properties": {
+        "file": {
+          "type": "string"
+        },
+        "line": {
+          "type": "integer"
+        },
+        "mtime": {
+          "type": "number"
+        },
+        "raw": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "text",
+        "file",
+        "line",
+        "mtime",
+        "raw"
+      ],
+      "title": "HomeTask",
+      "type": "object"
+    },
+    "HomeTasksEvent": {
+      "additionalProperties": false,
+      "description": "Home's view of the Tasks source (vikunja.home_event): the first open tasks and the count, or why Vikunja can't\nbe read. `tasks` is None when Vikunja isn't set up (Home counts the notes' tasks instead).",
+      "properties": {
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "tasks": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/TrackerTask"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "total": {
+          "type": "integer"
+        },
+        "type": {
+          "const": "home_tasks",
+          "type": "string"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "type",
+        "tasks",
+        "total"
+      ],
+      "title": "HomeTasksEvent",
+      "type": "object"
+    },
+    "InterruptMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "interrupt",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "InterruptMsg",
+      "type": "object"
+    },
+    "ItemColumn": {
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "kind": {
+          "default": "text",
+          "enum": [
+            "title",
+            "repo",
+            "text",
+            "chip",
+            "due",
+            "priority",
+            "num",
+            "age"
+          ],
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "label"
+      ],
+      "title": "ItemColumn",
+      "type": "object"
+    },
+    "ItemDoneMsg": {
+      "additionalProperties": false,
+      "description": "Archive: mark a Vikunja task done (done=False brings it back). The server answers with the new item_list.",
+      "properties": {
+        "done": {
+          "default": true,
+          "type": "boolean"
+        },
+        "id": {
+          "type": "string"
+        },
+        "source": {
+          "enum": [
+            "vikunja",
+            "prs",
+            "repos",
+            "notes",
+            "tasks"
+          ],
+          "type": "string"
+        },
+        "type": {
+          "const": "item_done",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "source",
+        "id"
+      ],
+      "title": "ItemDoneMsg",
+      "type": "object"
+    },
+    "ItemEvent": {
+      "additionalProperties": false,
+      "description": "One item in full (items.get): chips, plain-text body, the repo it maps to (label, None = no repo), the prompt to copy.",
+      "properties": {
+        "body": {
+          "type": "string"
+        },
+        "brief": {
+          "type": "string"
+        },
+        "can_archive": {
+          "default": false,
+          "type": "boolean"
+        },
+        "chips": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "done": {
+          "default": false,
+          "type": "boolean"
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "id": {
+          "type": "string"
+        },
+        "kicker": {
+          "type": "string"
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "repo": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "source": {
+          "enum": [
+            "vikunja",
+            "prs",
+            "repos",
+            "notes",
+            "tasks"
+          ],
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "type": {
+          "const": "item",
+          "type": "string"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "url_label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "type",
+        "source",
+        "id",
+        "title",
+        "kicker",
+        "chips",
+        "body",
+        "brief"
+      ],
+      "title": "ItemEvent",
+      "type": "object"
+    },
+    "ItemGetMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "source": {
+          "enum": [
+            "vikunja",
+            "prs",
+            "repos",
+            "notes",
+            "tasks"
+          ],
+          "type": "string"
+        },
+        "type": {
+          "const": "item_get",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "source",
+        "id"
+      ],
+      "title": "ItemGetMsg",
+      "type": "object"
+    },
+    "ItemListEvent": {
+      "additionalProperties": false,
+      "description": "One table (items.list_): its columns and rows. `group_key` is the column to group by (\"repo\" = the Repo column).",
+      "properties": {
+        "busy": {
+          "default": false,
+          "type": "boolean"
+        },
+        "can_archive": {
+          "default": false,
+          "type": "boolean"
+        },
+        "can_judge": {
+          "default": false,
+          "type": "boolean"
+        },
+        "can_suggest": {
+          "default": false,
+          "type": "boolean"
+        },
+        "columns": {
+          "items": {
+            "$ref": "#/$defs/ItemColumn"
+          },
+          "type": "array"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "group_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "heading": {
+          "type": "string"
+        },
+        "kicker": {
+          "type": "string"
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "rows": {
+          "items": {
+            "$ref": "#/$defs/ItemRow"
+          },
+          "type": "array"
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "source": {
+          "enum": [
+            "vikunja",
+            "prs",
+            "repos",
+            "notes",
+            "tasks"
+          ],
+          "type": "string"
+        },
+        "status_default": {
+          "default": "",
+          "type": "string"
+        },
+        "statuses": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "type": {
+          "const": "item_list",
+          "type": "string"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "url_label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "type",
+        "source",
+        "kicker",
+        "heading",
+        "columns",
+        "rows"
+      ],
+      "title": "ItemListEvent",
+      "type": "object"
+    },
+    "ItemListMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "enum": [
+            "vikunja",
+            "prs",
+            "repos",
+            "notes",
+            "tasks"
+          ],
+          "type": "string"
+        },
+        "type": {
+          "const": "item_list",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "source"
+      ],
+      "title": "ItemListMsg",
+      "type": "object"
+    },
+    "ItemRow": {
+      "additionalProperties": false,
+      "properties": {
+        "cells": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "hot": {
+          "default": false,
+          "type": "boolean"
+        },
+        "id": {
+          "type": "string"
+        },
+        "repo": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "status": {
+          "default": "",
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "cells"
+      ],
+      "title": "ItemRow",
+      "type": "object"
+    },
+    "ItemStartMsg": {
+      "additionalProperties": false,
+      "description": "Start in Orb: a new session in the item's repo (found by the server), first request = the brief.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "source": {
+          "enum": [
+            "vikunja",
+            "prs",
+            "repos",
+            "notes",
+            "tasks"
+          ],
+          "type": "string"
+        },
+        "type": {
+          "const": "item_start",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "source",
+        "id"
+      ],
+      "title": "ItemStartMsg",
+      "type": "object"
+    },
+    "MakeTaskCardEvent": {
+      "additionalProperties": false,
+      "description": "\"Make it a task\": the card to allow or deny before Orb creates a Vikunja task (ADR 0008).",
+      "properties": {
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "id": {
+          "type": "string"
+        },
+        "project": {
+          "type": "string"
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "routine": {
+          "type": "string"
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "title": {
+          "type": "string"
+        },
+        "type": {
+          "const": "make_task_card",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "routine",
+        "title",
+        "project"
+      ],
+      "title": "MakeTaskCardEvent",
+      "type": "object"
+    },
+    "MakeTaskConfirmMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "ok": {
+          "type": "boolean"
+        },
+        "type": {
+          "const": "make_task_confirm",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "ok"
+      ],
+      "title": "MakeTaskConfirmMsg",
+      "type": "object"
+    },
+    "MakeTaskDoneEvent": {
+      "additionalProperties": false,
+      "description": "The card's outcome: created (`task`, `url`), denied (ok false, no error) or failed (`error`).",
+      "properties": {
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "id": {
+          "type": "string"
+        },
+        "ok": {
+          "type": "boolean"
+        },
+        "project": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "task": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "make_task_done",
+          "type": "string"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "ok"
+      ],
+      "title": "MakeTaskDoneEvent",
+      "type": "object"
+    },
+    "MakeTaskMsg": {
+      "additionalProperties": false,
+      "description": "\"Make it a task\" on a routine's last run: the server answers with a card first.",
+      "properties": {
+        "routine": {
+          "type": "string"
+        },
+        "type": {
+          "const": "make_task",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "routine"
+      ],
+      "title": "MakeTaskMsg",
+      "type": "object"
+    },
+    "MakeTaskUndoMsg": {
+      "additionalProperties": false,
+      "description": "Delete a task this server created with \"Make it a task\"; any other id is refused.",
+      "properties": {
+        "task": {
+          "type": "integer"
+        },
+        "type": {
+          "const": "make_task_undo",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "task"
+      ],
+      "title": "MakeTaskUndoMsg",
+      "type": "object"
+    },
+    "MakeTaskUndoneEvent": {
+      "additionalProperties": false,
+      "description": "Undo of a created task: deleted, or why not.",
+      "properties": {
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "ok": {
+          "type": "boolean"
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "task": {
+          "type": "integer"
+        },
+        "type": {
+          "const": "make_task_undone",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "task",
+        "ok"
+      ],
+      "title": "MakeTaskUndoneEvent",
+      "type": "object"
+    },
+    "McpEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "open": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "servers": {
+          "items": {
+            "$ref": "#/$defs/McpServer"
+          },
+          "type": "array"
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "mcp",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "servers"
+      ],
+      "title": "McpEvent",
+      "type": "object"
+    },
+    "McpReconnectMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "type": {
+          "const": "mcp_reconnect",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "name"
+      ],
+      "title": "McpReconnectMsg",
+      "type": "object"
+    },
+    "McpServer": {
+      "additionalProperties": false,
+      "properties": {
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "status": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "tools": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "name",
+        "status"
+      ],
+      "title": "McpServer",
+      "type": "object"
+    },
+    "McpStatusMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "mcp_status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "McpStatusMsg",
+      "type": "object"
+    },
+    "MuteMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "mute",
+          "type": "string"
+        },
+        "value": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "type",
+        "value"
+      ],
+      "title": "MuteMsg",
+      "type": "object"
+    },
+    "NavigateEvent": {
+      "additionalProperties": false,
+      "description": "open_screen: the pages showing the asking session go to a destination, or one item there (set fields only).",
+      "properties": {
+        "destination": {
+          "enum": [
+            "home",
+            "sessions",
+            "brain",
+            "tasks",
+            "routines",
+            "settings"
+          ],
+          "type": "string"
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "routine": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "running": {
+          "type": "boolean"
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "task": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "type": {
+          "const": "navigate",
+          "type": "string"
+        }
+      },
+      "required": [
+        "folder",
+        "session",
+        "type",
+        "destination",
+        "running",
+        "note",
+        "task",
+        "routine"
+      ],
+      "title": "NavigateEvent",
+      "type": "object"
+    },
+    "NewSessionMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "new_session",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "NewSessionMsg",
+      "type": "object"
+    },
+    "NotesVerdictMsg": {
+      "additionalProperties": false,
+      "description": "Bulk verdict on notes: approve, reject, or restore (waits again). The page confirms with a count first; the\nvault write module writes only if every note's verdict still reads as `seen`, then the server answers with the new list.",
+      "properties": {
+        "notes": {
+          "items": {
+            "$ref": "#/$defs/SeenNote"
+          },
+          "type": "array"
+        },
+        "type": {
+          "const": "notes_verdict",
+          "type": "string"
+        },
+        "verdict": {
+          "enum": [
+            "approve",
+            "reject",
+            "restore"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "notes",
+        "verdict"
+      ],
+      "title": "NotesVerdictMsg",
+      "type": "object"
+    },
+    "NoticeEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "level": {
+          "anyOf": [
+            {
+              "enum": [
+                "ok",
+                "warn",
+                "error"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "text": {
+          "type": "string"
+        },
+        "type": {
+          "const": "notice",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "text"
+      ],
+      "title": "NoticeEvent",
+      "type": "object"
+    },
+    "OpenFolderMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "open_folder",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "path"
+      ],
+      "title": "OpenFolderMsg",
+      "type": "object"
+    },
+    "OpenPr": {
+      "additionalProperties": false,
+      "properties": {
+        "draft": {
+          "type": "boolean"
+        },
+        "idle_days": {
+          "type": "integer"
+        },
+        "number": {
+          "type": "integer"
+        },
+        "repo": {
+          "type": "string"
+        },
+        "stale": {
+          "type": "boolean"
+        },
+        "title": {
+          "type": "string"
+        },
+        "updated": {
+          "type": "number"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "repo",
+        "number",
+        "title",
+        "url",
+        "updated",
+        "idle_days",
+        "stale",
+        "draft"
+      ],
+      "title": "OpenPr",
+      "type": "object"
+    },
+    "OpenedEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "branch": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "busy": {
+          "type": "boolean"
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "info": {
+          "$ref": "#/$defs/SessionInfo"
+        },
+        "label": {
+          "type": "string"
+        },
+        "live": {
+          "type": "boolean"
+        },
+        "mode": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "rel": {
+          "type": "string"
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "speech_gen": {
+          "type": "integer"
+        },
+        "tasks": {
+          "items": {
+            "$ref": "#/$defs/TaskInfo"
+          },
+          "type": "array"
+        },
+        "type": {
+          "const": "opened",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "label",
+        "branch",
+        "rel",
+        "session_id",
+        "live",
+        "busy",
+        "speech_gen",
+        "mode",
+        "model",
+        "info",
+        "tasks"
+      ],
+      "title": "OpenedEvent",
+      "type": "object"
+    },
+    "PartialEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "text": {
+          "type": "string"
+        },
+        "type": {
+          "const": "partial",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "text"
+      ],
+      "title": "PartialEvent",
+      "type": "object"
+    },
+    "PermissionDoneEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "allow": {
+          "type": "boolean"
+        },
+        "answers": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "heard": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "id": {
+          "type": "string"
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "permission_done",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "allow"
+      ],
+      "title": "PermissionDoneEvent",
+      "type": "object"
+    },
+    "PermissionEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "blocked_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "id": {
+          "type": "string"
+        },
+        "input": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "summary": {
+          "type": "string"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "tool": {
+          "type": "string"
+        },
+        "tool_use_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "permission",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "tool",
+        "input",
+        "summary"
+      ],
+      "title": "PermissionEvent",
+      "type": "object"
+    },
+    "PermissionMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "allow": {
+          "type": "boolean"
+        },
+        "answers": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "id": {
+          "type": "string"
+        },
+        "type": {
+          "const": "permission",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "allow"
+      ],
+      "title": "PermissionMsg",
+      "type": "object"
+    },
+    "PickFolderMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "pick_folder",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "PickFolderMsg",
+      "type": "object"
+    },
+    "PickedEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "cancelled": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "picked",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "PickedEvent",
+      "type": "object"
+    },
+    "PinFocusedEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "pin_focused",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "PinFocusedEvent",
+      "type": "object"
+    },
+    "PinFolderMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "pinned": {
+          "default": true,
+          "type": "boolean"
+        },
+        "type": {
+          "const": "pin_folder",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "path"
+      ],
+      "title": "PinFolderMsg",
+      "type": "object"
+    },
+    "PinnedLink": {
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "label",
+        "url"
+      ],
+      "title": "PinnedLink",
+      "type": "object"
+    },
+    "PlanDoneMsg": {
+      "additionalProperties": false,
+      "description": "Done on a queue task (\"vikunja:<id>\" or \"note:<file>:<line>\"): written at once; undo=True reopens the Vikunja task.",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "type": {
+          "const": "plan_done",
+          "type": "string"
+        },
+        "undo": {
+          "default": false,
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "type",
+        "key"
+      ],
+      "title": "PlanDoneMsg",
+      "type": "object"
+    },
+    "PlanEvent": {
+      "additionalProperties": false,
+      "description": "Home's plan. needs_you is decided by rules (docs/adr/0001): a broken setup, routines with a problem, reminders\ndue today or earlier, then tasks due before today; approvals sit above it on the page. The queue (next, then up_next) is the rest worth doing. A model may\nonly reorder both and give reasons.",
+      "properties": {
+        "busy": {
+          "default": false,
+          "type": "boolean"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "needs_you": {
+          "items": {
+            "$ref": "#/$defs/PlanItem"
+          },
+          "type": "array"
+        },
+        "next": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlanItem"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "ranked_at": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "stale": {
+          "default": false,
+          "type": "boolean"
+        },
+        "type": {
+          "const": "plan",
+          "type": "string"
+        },
+        "up_next": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/PlanItem"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "type",
+        "needs_you"
+      ],
+      "title": "PlanEvent",
+      "type": "object"
+    },
+    "PlanItem": {
+      "additionalProperties": false,
+      "description": "One row of Home's plan (needs.py). title is ours; reason is the rule's, or the model's while that item's facts are\nunchanged (plain text, from untrusted data).",
+      "properties": {
+        "actions": {
+          "default": [],
+          "items": {
+            "enum": [
+              "open",
+              "start",
+              "done",
+              "later",
+              "delegate"
+            ],
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "due": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "id": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "approval",
+            "setup",
+            "routine",
+            "reminder",
+            "task",
+            "note_task",
+            "result",
+            "pr",
+            "notes_batch"
+          ],
+          "type": "string"
+        },
+        "priority": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "reason": {
+          "type": "string"
+        },
+        "repo": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "suggest": {
+          "anyOf": [
+            {
+              "enum": [
+                "take now",
+                "delegate",
+                "later"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "title": {
+          "type": "string"
+        },
+        "urgent": {
+          "default": false,
+          "type": "boolean"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "key",
+        "kind",
+        "id",
+        "title",
+        "reason"
+      ],
+      "title": "PlanItem",
+      "type": "object"
+    },
+    "PlanLaterMsg": {
+      "additionalProperties": false,
+      "description": "Later on a queue item: hidden until the next day on every page (never written to a tracker).",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "type": {
+          "const": "plan_later",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "key"
+      ],
+      "title": "PlanLaterMsg",
+      "type": "object"
+    },
+    "PlanStartMsg": {
+      "additionalProperties": false,
+      "description": "Home started a queue item (by its plan key): it leaves the queue for today, the next one moves up.",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "type": {
+          "const": "plan_start",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "key"
+      ],
+      "title": "PlanStartMsg",
+      "type": "object"
+    },
+    "PlaybackMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "play_ms": {
+          "type": "integer"
+        },
+        "turn": {
+          "type": "string"
+        },
+        "type": {
+          "const": "playback",
+          "type": "string"
+        },
+        "vad_ms": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "type",
+        "turn",
+        "vad_ms",
+        "play_ms"
+      ],
+      "title": "PlaybackMsg",
+      "type": "object"
+    },
+    "RateLimitEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "overage": {
+          "default": null
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "status": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "rate_limit",
+          "type": "string"
+        },
+        "windows": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/UsageWindow"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "RateLimitEvent",
+      "type": "object"
+    },
+    "ReadAllMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "type": "string"
+        },
+        "type": {
+          "const": "read_all",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "text"
+      ],
+      "title": "ReadAllMsg",
+      "type": "object"
+    },
+    "Reminder": {
+      "additionalProperties": false,
+      "properties": {
+        "days": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "due": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "text": {
+          "type": "string"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "title": "Reminder",
+      "type": "object"
+    },
+    "RemoveSessionMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "folder": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string"
+        },
+        "type": {
+          "const": "remove_session",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "folder",
+        "key"
+      ],
+      "title": "RemoveSessionMsg",
+      "type": "object"
+    },
+    "RescanMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "rescan",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "RescanMsg",
+      "type": "object"
+    },
+    "ResultEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "duration_ms": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "is_error": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "num_turns": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "stop_reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "subtype": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "ResultEvent",
+      "type": "object"
+    },
+    "RevokeGrantMsg": {
+      "additionalProperties": false,
+      "description": "Drop a delegation's grant (ADR 0005): every later tool call of that session raises a card again.",
+      "properties": {
+        "session": {
+          "type": "string"
+        },
+        "type": {
+          "const": "revoke_grant",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "session"
+      ],
+      "title": "RevokeGrantMsg",
+      "type": "object"
+    },
+    "RootInfo": {
+      "additionalProperties": false,
+      "properties": {
+        "exists": {
+          "type": "boolean"
+        },
+        "path": {
+          "type": "string"
+        },
+        "repos": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "path",
+        "exists",
+        "repos"
+      ],
+      "title": "RootInfo",
+      "type": "object"
+    },
+    "RoutineItem": {
+      "additionalProperties": false,
+      "description": "One row of the Routines panel (routines.item).",
+      "properties": {
+        "cron": {
+          "default": "",
+          "type": "string"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "id": {
+          "type": "string"
+        },
+        "last": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RoutineRun"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "loud": {
+          "default": false,
+          "type": "boolean"
+        },
+        "missed_at": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "name": {
+          "type": "string"
+        },
+        "needs": {
+          "anyOf": [
+            {
+              "enum": [
+                "failed",
+                "waiting",
+                "stuck",
+                "missed",
+                "broken",
+                "action"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "new": {
+          "default": false,
+          "type": "boolean"
+        },
+        "next_run_at": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "notify": {
+          "anyOf": [
+            {
+              "enum": [
+                "always",
+                "never"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "quiet": {
+          "default": false,
+          "type": "boolean"
+        },
+        "repo": {
+          "default": "",
+          "type": "string"
+        },
+        "resolved": {
+          "default": false,
+          "type": "boolean"
+        },
+        "state": {
+          "enum": [
+            "failed",
+            "stuck",
+            "missed",
+            "needs you",
+            "worth reading",
+            "nothing to report",
+            "off"
+          ],
+          "type": "string"
+        },
+        "urgent": {
+          "default": false,
+          "type": "boolean"
+        },
+        "why": {
+          "default": "",
+          "type": "string"
+        },
+        "worth": {
+          "anyOf": [
+            {
+              "enum": [
+                "read",
+                "skip"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "enabled",
+        "state"
+      ],
+      "title": "RoutineItem",
+      "type": "object"
+    },
+    "RoutineRun": {
+      "additionalProperties": false,
+      "properties": {
+        "at": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "detail": {
+          "default": "",
+          "type": "string"
+        },
+        "ended": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "id": {
+          "type": "string"
+        },
+        "outcome": {
+          "anyOf": [
+            {
+              "enum": [
+                "ok",
+                "failed",
+                "waiting",
+                "running",
+                "stuck"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "summary": {
+          "default": "",
+          "type": "string"
+        },
+        "url": {
+          "default": "",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "RoutineRun",
+      "type": "object"
+    },
+    "RoutinesEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "checked_at": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "checking": {
+          "type": "boolean"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "items": {
+          "items": {
+            "$ref": "#/$defs/RoutineItem"
+          },
+          "type": "array"
+        },
+        "needs": {
+          "type": "integer"
+        },
+        "new": {
+          "type": "integer"
+        },
+        "read": {
+          "type": "integer"
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "routines",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "items",
+        "checked_at",
+        "checking",
+        "error",
+        "needs",
+        "new",
+        "read"
+      ],
+      "title": "RoutinesEvent",
+      "type": "object"
+    },
+    "RoutinesMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "refresh": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "routines",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "RoutinesMsg",
+      "type": "object"
+    },
+    "RoutinesResolveMsg": {
+      "additionalProperties": false,
+      "description": "Mark a routine's last run resolved (its judged problem is dealt with), or `undo` that.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "type": {
+          "const": "routines_resolve",
+          "type": "string"
+        },
+        "undo": {
+          "default": false,
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "type",
+        "id"
+      ],
+      "title": "RoutinesResolveMsg",
+      "type": "object"
+    },
+    "RoutinesSeenMsg": {
+      "additionalProperties": false,
+      "description": "Read a run: one routine (`id`), every run worth reading (`all`), or, with neither, whatever doesn't notify.",
+      "properties": {
+        "all": {
+          "default": false,
+          "type": "boolean"
+        },
+        "id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "routines_seen",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "RoutinesSeenMsg",
+      "type": "object"
+    },
+    "SaidEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "block": {
+          "type": "string"
+        },
+        "delta": {
+          "type": "string"
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "said",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "block",
+        "delta"
+      ],
+      "title": "SaidEvent",
+      "type": "object"
+    },
+    "ScreenMsg": {
+      "additionalProperties": false,
+      "description": "What the page shows now, as plain text; name None = the chat itself (nothing rides along).",
+      "properties": {
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "text": {
+          "default": "",
+          "type": "string"
+        },
+        "type": {
+          "const": "screen",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "ScreenMsg",
+      "type": "object"
+    },
+    "SeenNote": {
+      "additionalProperties": false,
+      "properties": {
+        "file": {
+          "type": "string"
+        },
+        "seen": {
+          "default": "",
+          "type": "string"
+        }
+      },
+      "required": [
+        "file"
+      ],
+      "title": "SeenNote",
+      "type": "object"
+    },
+    "ServerEvent": {
+      "discriminator": {
+        "mapping": {
+          "audio": "#/$defs/AudioEvent",
+          "bg_notice": "#/$defs/BgNoticeEvent",
+          "brain_applied": "#/$defs/BrainAppliedEvent",
+          "brain_list": "#/$defs/BrainListEvent",
+          "brain_note": "#/$defs/BrainNoteEvent",
+          "browse": "#/$defs/BrowseEvent",
+          "commands": "#/$defs/CommandsEvent",
+          "context": "#/$defs/ContextEvent",
+          "delegate_card": "#/$defs/DelegateCardEvent",
+          "delegation_diff": "#/$defs/DelegationDiffEvent",
+          "delegations": "#/$defs/DelegationsEvent",
+          "error": "#/$defs/ErrorEvent",
+          "features": "#/$defs/FeaturesEvent",
+          "folders": "#/$defs/FoldersEvent",
+          "heard_nothing": "#/$defs/HeardNothingEvent",
+          "held": "#/$defs/HeldEvent",
+          "hello": "#/$defs/HelloEvent",
+          "history": "#/$defs/HistoryEvent",
+          "home": "#/$defs/HomeEvent",
+          "home_forget": "#/$defs/HomeForgetEvent",
+          "home_tasks": "#/$defs/HomeTasksEvent",
+          "item": "#/$defs/ItemEvent",
+          "item_list": "#/$defs/ItemListEvent",
+          "make_task_card": "#/$defs/MakeTaskCardEvent",
+          "make_task_done": "#/$defs/MakeTaskDoneEvent",
+          "make_task_undone": "#/$defs/MakeTaskUndoneEvent",
+          "mcp": "#/$defs/McpEvent",
+          "navigate": "#/$defs/NavigateEvent",
+          "notice": "#/$defs/NoticeEvent",
+          "opened": "#/$defs/OpenedEvent",
+          "partial": "#/$defs/PartialEvent",
+          "permission": "#/$defs/PermissionEvent",
+          "permission_done": "#/$defs/PermissionDoneEvent",
+          "picked": "#/$defs/PickedEvent",
+          "pin_focused": "#/$defs/PinFocusedEvent",
+          "plan": "#/$defs/PlanEvent",
+          "rate_limit": "#/$defs/RateLimitEvent",
+          "result": "#/$defs/ResultEvent",
+          "routines": "#/$defs/RoutinesEvent",
+          "said": "#/$defs/SaidEvent",
+          "session_info": "#/$defs/SessionInfoEvent",
+          "settings": "#/$defs/SettingsEvent",
+          "setup_status": "#/$defs/SetupStatusEvent",
+          "speech_reset": "#/$defs/SpeechResetEvent",
+          "state": "#/$defs/StateEvent",
+          "task": "#/$defs/TaskEvent",
+          "task_changed": "#/$defs/TaskChangedEvent",
+          "task_detail": "#/$defs/TaskDetailEvent",
+          "text": "#/$defs/TextEvent",
+          "text_start": "#/$defs/TextStartEvent",
+          "timing": "#/$defs/TimingEvent",
+          "tool_input": "#/$defs/ToolInputEvent",
+          "tool_result": "#/$defs/ToolResultEvent",
+          "tool_start": "#/$defs/ToolStartEvent",
+          "undo_available": "#/$defs/UndoAvailableEvent",
+          "undo_confirm": "#/$defs/UndoConfirmEvent",
+          "undo_done": "#/$defs/UndoDoneEvent",
+          "user": "#/$defs/UserEvent",
+          "voice_sample": "#/$defs/VoiceSampleEvent"
+        },
+        "propertyName": "type"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/HelloEvent"
+        },
+        {
+          "$ref": "#/$defs/FeaturesEvent"
+        },
+        {
+          "$ref": "#/$defs/FoldersEvent"
+        },
+        {
+          "$ref": "#/$defs/SetupStatusEvent"
+        },
+        {
+          "$ref": "#/$defs/BrowseEvent"
+        },
+        {
+          "$ref": "#/$defs/PickedEvent"
+        },
+        {
+          "$ref": "#/$defs/VoiceSampleEvent"
+        },
+        {
+          "$ref": "#/$defs/SettingsEvent"
+        },
+        {
+          "$ref": "#/$defs/ErrorEvent"
+        },
+        {
+          "$ref": "#/$defs/NoticeEvent"
+        },
+        {
+          "$ref": "#/$defs/OpenedEvent"
+        },
+        {
+          "$ref": "#/$defs/HistoryEvent"
+        },
+        {
+          "$ref": "#/$defs/StateEvent"
+        },
+        {
+          "$ref": "#/$defs/SessionInfoEvent"
+        },
+        {
+          "$ref": "#/$defs/ContextEvent"
+        },
+        {
+          "$ref": "#/$defs/TaskEvent"
+        },
+        {
+          "$ref": "#/$defs/CommandsEvent"
+        },
+        {
+          "$ref": "#/$defs/McpEvent"
+        },
+        {
+          "$ref": "#/$defs/RateLimitEvent"
+        },
+        {
+          "$ref": "#/$defs/RoutinesEvent"
+        },
+        {
+          "$ref": "#/$defs/BgNoticeEvent"
+        },
+        {
+          "$ref": "#/$defs/NavigateEvent"
+        },
+        {
+          "$ref": "#/$defs/HomeEvent"
+        },
+        {
+          "$ref": "#/$defs/HomeForgetEvent"
+        },
+        {
+          "$ref": "#/$defs/HomeTasksEvent"
+        },
+        {
+          "$ref": "#/$defs/PlanEvent"
+        },
+        {
+          "$ref": "#/$defs/TaskDetailEvent"
+        },
+        {
+          "$ref": "#/$defs/ItemEvent"
+        },
+        {
+          "$ref": "#/$defs/ItemListEvent"
+        },
+        {
+          "$ref": "#/$defs/BrainListEvent"
+        },
+        {
+          "$ref": "#/$defs/BrainNoteEvent"
+        },
+        {
+          "$ref": "#/$defs/BrainAppliedEvent"
+        },
+        {
+          "$ref": "#/$defs/TaskChangedEvent"
+        },
+        {
+          "$ref": "#/$defs/UserEvent"
+        },
+        {
+          "$ref": "#/$defs/TextStartEvent"
+        },
+        {
+          "$ref": "#/$defs/TextEvent"
+        },
+        {
+          "$ref": "#/$defs/SaidEvent"
+        },
+        {
+          "$ref": "#/$defs/ToolStartEvent"
+        },
+        {
+          "$ref": "#/$defs/ToolInputEvent"
+        },
+        {
+          "$ref": "#/$defs/ToolResultEvent"
+        },
+        {
+          "$ref": "#/$defs/ResultEvent"
+        },
+        {
+          "$ref": "#/$defs/TimingEvent"
+        },
+        {
+          "$ref": "#/$defs/PartialEvent"
+        },
+        {
+          "$ref": "#/$defs/HeardNothingEvent"
+        },
+        {
+          "$ref": "#/$defs/PinFocusedEvent"
+        },
+        {
+          "$ref": "#/$defs/HeldEvent"
+        },
+        {
+          "$ref": "#/$defs/PermissionEvent"
+        },
+        {
+          "$ref": "#/$defs/PermissionDoneEvent"
+        },
+        {
+          "$ref": "#/$defs/UndoAvailableEvent"
+        },
+        {
+          "$ref": "#/$defs/UndoConfirmEvent"
+        },
+        {
+          "$ref": "#/$defs/UndoDoneEvent"
+        },
+        {
+          "$ref": "#/$defs/AudioEvent"
+        },
+        {
+          "$ref": "#/$defs/SpeechResetEvent"
+        },
+        {
+          "$ref": "#/$defs/DelegateCardEvent"
+        },
+        {
+          "$ref": "#/$defs/DelegationsEvent"
+        },
+        {
+          "$ref": "#/$defs/DelegationDiffEvent"
+        },
+        {
+          "$ref": "#/$defs/MakeTaskCardEvent"
+        },
+        {
+          "$ref": "#/$defs/MakeTaskDoneEvent"
+        },
+        {
+          "$ref": "#/$defs/MakeTaskUndoneEvent"
+        }
+      ]
+    },
+    "SessionInfo": {
+      "additionalProperties": true,
+      "description": "What agent.py keeps in FolderSession.info (from Claude Code's init message, then updated).",
+      "properties": {
+        "apiKeySource": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "context": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ContextUsage"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "front": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "mcp_failed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "mcp_total": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "permissionMode": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "SessionInfo",
+      "type": "object"
+    },
+    "SessionInfoEvent": {
+      "additionalProperties": true,
+      "properties": {
+        "apiKeySource": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "context": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ContextUsage"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "front": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "mcp_failed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "mcp_total": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "permissionMode": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "session_info",
+          "type": "string"
+        },
+        "version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "SessionInfoEvent",
+      "type": "object"
+    },
+    "SessionItem": {
+      "additionalProperties": false,
+      "properties": {
+        "archived": {
+          "default": false,
+          "type": "boolean"
+        },
+        "ask": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "created": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "empty": {
+          "type": "boolean"
+        },
+        "key": {
+          "type": "string"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "last_used": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "live": {
+          "type": "boolean"
+        },
+        "mcp_failed": {
+          "default": 0,
+          "type": "integer"
+        },
+        "opus": {
+          "default": 0,
+          "type": "integer"
+        },
+        "status": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "empty",
+        "status",
+        "live"
+      ],
+      "title": "SessionItem",
+      "type": "object"
+    },
+    "SetModeMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "enum": [
+            "default",
+            "auto",
+            "plan"
+          ],
+          "type": "string"
+        },
+        "type": {
+          "const": "set_mode",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "mode"
+      ],
+      "title": "SetModeMsg",
+      "type": "object"
+    },
+    "SetModelMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "model": {
+          "enum": [
+            "haiku",
+            "sonnet",
+            "opus"
+          ],
+          "type": "string"
+        },
+        "type": {
+          "const": "set_model",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "model"
+      ],
+      "title": "SetModelMsg",
+      "type": "object"
+    },
+    "SetSettingsMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "set_settings",
+          "type": "string"
+        },
+        "values": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "vocabulary": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "SetSettingsMsg",
+      "type": "object"
+    },
+    "SettingsEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "host": {
+          "type": "string"
+        },
+        "port": {
+          "type": "integer"
+        },
+        "recommended": {
+          "items": {
+            "$ref": "#/$defs/Voice"
+          },
+          "type": "array"
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "settings",
+          "type": "string"
+        },
+        "values": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "vault": {
+          "type": "string"
+        },
+        "vocab_seed": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "vocabulary": {
+          "type": "string"
+        },
+        "voices": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "whisper_prompt": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "values",
+        "voices",
+        "recommended",
+        "vocabulary",
+        "vocab_seed",
+        "whisper_prompt",
+        "vault",
+        "port",
+        "host"
+      ],
+      "title": "SettingsEvent",
+      "type": "object"
+    },
+    "SetupStatusEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "auth": {
+          "$ref": "#/$defs/AuthStatus"
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "home": {
+          "type": "string"
+        },
+        "login_cmd": {
+          "type": "string"
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "roots": {
+          "items": {
+            "$ref": "#/$defs/RootInfo"
+          },
+          "type": "array"
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "speech": {
+          "additionalProperties": {
+            "type": "boolean"
+          },
+          "type": "object"
+        },
+        "suggested": {
+          "items": {
+            "$ref": "#/$defs/Suggestion"
+          },
+          "type": "array"
+        },
+        "type": {
+          "const": "setup_status",
+          "type": "string"
+        },
+        "values": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "vault": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/VaultInfo"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "voices": {
+          "items": {
+            "$ref": "#/$defs/Voice"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "type",
+        "auth",
+        "login_cmd",
+        "roots",
+        "suggested",
+        "home",
+        "speech",
+        "voices",
+        "values"
+      ],
+      "title": "SetupStatusEvent",
+      "type": "object"
+    },
+    "SetupStatusMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "setup_status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "SetupStatusMsg",
+      "type": "object"
+    },
+    "SpeechCancelledMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "speech_cancelled",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "SpeechCancelledMsg",
+      "type": "object"
+    },
+    "SpeechResetEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "gen": {
+          "type": "integer"
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "speech_reset",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "gen"
+      ],
+      "title": "SpeechResetEvent",
+      "type": "object"
+    },
+    "SpeechStartMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "echo_risk": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "speech_start",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "SpeechStartMsg",
+      "type": "object"
+    },
+    "StartSessionMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "type": {
+          "const": "start_session",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "path"
+      ],
+      "title": "StartSessionMsg",
+      "type": "object"
+    },
+    "StateEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "busy": {
+          "type": "boolean"
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "state",
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "value",
+        "busy"
+      ],
+      "title": "StateEvent",
+      "type": "object"
+    },
+    "Suggestion": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "repos": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "path",
+        "repos"
+      ],
+      "title": "Suggestion",
+      "type": "object"
+    },
+    "TaskActionMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "enum": [
+            "done",
+            "drop",
+            "snooze",
+            "restore"
+          ],
+          "type": "string"
+        },
+        "expect": {
+          "type": "string"
+        },
+        "file": {
+          "type": "string"
+        },
+        "line": {
+          "type": "integer"
+        },
+        "type": {
+          "const": "task_action",
+          "type": "string"
+        },
+        "until": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "type",
+        "file",
+        "line",
+        "expect",
+        "action"
+      ],
+      "title": "TaskActionMsg",
+      "type": "object"
+    },
+    "TaskChangedEvent": {
+      "additionalProperties": false,
+      "description": "A task line was rewritten (tasks.act); `previous` is what Undo puts back.",
+      "properties": {
+        "action": {
+          "enum": [
+            "done",
+            "drop",
+            "snooze",
+            "restore"
+          ],
+          "type": "string"
+        },
+        "file": {
+          "type": "string"
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "line": {
+          "type": "integer"
+        },
+        "previous": {
+          "type": "string"
+        },
+        "raw": {
+          "type": "string"
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "task_changed",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "file",
+        "line",
+        "action",
+        "raw",
+        "previous"
+      ],
+      "title": "TaskChangedEvent",
+      "type": "object"
+    },
+    "TaskDetailEvent": {
+      "additionalProperties": false,
+      "description": "One task in its note (tasks.detail): the line, the note's title and heading, the lines around it.",
+      "properties": {
+        "context": {
+          "items": {
+            "$ref": "#/$defs/TaskLine"
+          },
+          "type": "array"
+        },
+        "file": {
+          "type": "string"
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "heading": {
+          "type": "string"
+        },
+        "line": {
+          "type": "integer"
+        },
+        "mtime": {
+          "type": "number"
+        },
+        "raw": {
+          "type": "string"
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "title": {
+          "type": "string"
+        },
+        "type": {
+          "const": "task_detail",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "file",
+        "line",
+        "raw",
+        "title",
+        "heading",
+        "mtime",
+        "context"
+      ],
+      "title": "TaskDetailEvent",
+      "type": "object"
+    },
+    "TaskDetailMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "file": {
+          "type": "string"
+        },
+        "line": {
+          "type": "integer"
+        },
+        "type": {
+          "const": "task_detail",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "file",
+        "line"
+      ],
+      "title": "TaskDetailMsg",
+      "type": "object"
+    },
+    "TaskEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "coder": {
+          "default": false,
+          "type": "boolean"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "status": {
+          "type": "string"
+        },
+        "summary": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "task_id": {
+          "type": "string"
+        },
+        "tool_use_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "task",
+          "type": "string"
+        }
+      },
+      "required": [
+        "task_id",
+        "status",
+        "type"
+      ],
+      "title": "TaskEvent",
+      "type": "object"
+    },
+    "TaskInfo": {
+      "additionalProperties": false,
+      "description": "One background task (an opus-coder run or a background shell), as agent.py keeps it.",
+      "properties": {
+        "coder": {
+          "default": false,
+          "type": "boolean"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "status": {
+          "type": "string"
+        },
+        "summary": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "task_id": {
+          "type": "string"
+        },
+        "tool_use_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "task_id",
+        "status"
+      ],
+      "title": "TaskInfo",
+      "type": "object"
+    },
+    "TaskLine": {
+      "additionalProperties": false,
+      "properties": {
+        "n": {
+          "type": "integer"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "n",
+        "text"
+      ],
+      "title": "TaskLine",
+      "type": "object"
+    },
+    "TasksBulkMsg": {
+      "additionalProperties": false,
+      "description": "Bulk change on Vikunja tasks (ids as the list shows them): `done` archives (or reopens) them, `priority` (0 to 5)\nsets their priority. Exactly one of the two. The page confirms with a count first.",
+      "properties": {
+        "done": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "priority": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "tasks_bulk",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "ids"
+      ],
+      "title": "TasksBulkMsg",
+      "type": "object"
+    },
+    "TasksSuggestMsg": {
+      "additionalProperties": false,
+      "description": "Ask for AI-suggested priorities for the open tasks (one Haiku call, subscription only). Nothing is written to Vikunja.",
+      "properties": {
+        "type": {
+          "const": "tasks_suggest",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "TasksSuggestMsg",
+      "type": "object"
+    },
+    "TextEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "block": {
+          "type": "string"
+        },
+        "delta": {
+          "type": "string"
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "block",
+        "delta"
+      ],
+      "title": "TextEvent",
+      "type": "object"
+    },
+    "TextStartEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "block": {
+          "type": "string"
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "text_start",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "block"
+      ],
+      "title": "TextStartEvent",
+      "type": "object"
+    },
+    "TimingEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "hops": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "source": {
+          "type": "string"
+        },
+        "turn": {
+          "type": "string"
+        },
+        "type": {
+          "const": "timing",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "turn",
+        "source",
+        "model",
+        "hops"
+      ],
+      "title": "TimingEvent",
+      "type": "object"
+    },
+    "ToolInputEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "input": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "parent": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "summary": {
+          "type": "string"
+        },
+        "type": {
+          "const": "tool_input",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "name",
+        "input",
+        "summary"
+      ],
+      "title": "ToolInputEvent",
+      "type": "object"
+    },
+    "ToolResultEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "content": {
+          "type": "string"
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "is_error": {
+          "type": "boolean"
+        },
+        "parent": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "tool_use_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "type": {
+          "const": "tool_result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "tool_use_id",
+        "is_error",
+        "content",
+        "truncated"
+      ],
+      "title": "ToolResultEvent",
+      "type": "object"
+    },
+    "ToolStartEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "block": {
+          "default": null
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "tool_start",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "name"
+      ],
+      "title": "ToolStartEvent",
+      "type": "object"
+    },
+    "TrackerTask": {
+      "additionalProperties": false,
+      "properties": {
+        "created": {
+          "default": "",
+          "type": "string"
+        },
+        "due": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "id": {
+          "type": "integer"
+        },
+        "priority": {
+          "type": "integer"
+        },
+        "project": {
+          "type": "string"
+        },
+        "project_id": {
+          "default": 0,
+          "type": "integer"
+        },
+        "title": {
+          "type": "string"
+        },
+        "updated": {
+          "type": "number"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "project",
+        "priority",
+        "updated",
+        "url"
+      ],
+      "title": "TrackerTask",
+      "type": "object"
+    },
+    "UndoAvailableEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "files": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "undo_available",
+          "type": "string"
+        },
+        "user_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "user_id",
+        "files"
+      ],
+      "title": "UndoAvailableEvent",
+      "type": "object"
+    },
+    "UndoConfirmEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "_created": {
+          "default": null
+        },
+        "_later": {
+          "default": null
+        },
+        "files": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "id": {
+          "type": "string"
+        },
+        "note": {
+          "type": "string"
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "undo_confirm",
+          "type": "string"
+        },
+        "user_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "user_id",
+        "files",
+        "note"
+      ],
+      "title": "UndoConfirmEvent",
+      "type": "object"
+    },
+    "UndoConfirmMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "ok": {
+          "type": "boolean"
+        },
+        "type": {
+          "const": "undo_confirm",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "ok"
+      ],
+      "title": "UndoConfirmMsg",
+      "type": "object"
+    },
+    "UndoDoneEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "files": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "heard": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "id": {
+          "type": "string"
+        },
+        "ok": {
+          "type": "boolean"
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "undo_done",
+          "type": "string"
+        },
+        "user_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "ok"
+      ],
+      "title": "UndoDoneEvent",
+      "type": "object"
+    },
+    "UndoRequestMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "undo_request",
+          "type": "string"
+        },
+        "user_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "UndoRequestMsg",
+      "type": "object"
+    },
+    "UsageWindow": {
+      "additionalProperties": true,
+      "description": "One plan window from the SDK's rate-limit info (unifiedWindows).",
+      "properties": {
+        "resetsAt": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "utilization": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "UsageWindow",
+      "type": "object"
+    },
+    "UserEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "screen": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "source": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "type": {
+          "const": "user",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "text",
+        "source"
+      ],
+      "title": "UserEvent",
+      "type": "object"
+    },
+    "UserTextMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "interrupt": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "text": {
+          "type": "string"
+        },
+        "type": {
+          "const": "user_text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "text"
+      ],
+      "title": "UserTextMsg",
+      "type": "object"
+    },
+    "UtteranceMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "utterance",
+          "type": "string"
+        },
+        "wav": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "wav"
+      ],
+      "title": "UtteranceMsg",
+      "type": "object"
+    },
+    "VaultInfo": {
+      "additionalProperties": false,
+      "description": "The notes folder as the setup shows it: where, and what Orb found in it.",
+      "properties": {
+        "exists": {
+          "type": "boolean"
+        },
+        "notes": {
+          "type": "integer"
+        },
+        "open_tasks": {
+          "type": "integer"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "exists",
+        "notes",
+        "open_tasks"
+      ],
+      "title": "VaultInfo",
+      "type": "object"
+    },
+    "VerdictNote": {
+      "additionalProperties": false,
+      "properties": {
+        "file": {
+          "type": "string"
+        },
+        "seen": {
+          "default": "",
+          "type": "string"
+        },
+        "verdict": {
+          "enum": [
+            "approve",
+            "reject",
+            "restore"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "file",
+        "verdict"
+      ],
+      "title": "VerdictNote",
+      "type": "object"
+    },
+    "Voice": {
+      "additionalProperties": false,
+      "properties": {
+        "desc": {
+          "type": "string"
+        },
+        "grade": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "desc"
+      ],
+      "title": "Voice",
+      "type": "object"
+    },
+    "VoiceSampleEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "data": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "mime": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "voice_sample",
+          "type": "string"
+        },
+        "voice": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "voice"
+      ],
+      "title": "VoiceSampleEvent",
+      "type": "object"
+    },
+    "VoiceSampleMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "voice_sample",
+          "type": "string"
+        },
+        "voice": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "VoiceSampleMsg",
+      "type": "object"
+    },
+    "VoiceTextMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "echo_risk": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "text": {
+          "type": "string"
+        },
+        "type": {
+          "const": "voice_text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "text"
+      ],
+      "title": "VoiceTextMsg",
+      "type": "object"
+    }
+  },
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "properties": {
+    "client": {
+      "$ref": "#/$defs/ClientMessage"
+    },
+    "server": {
+      "$ref": "#/$defs/ServerEvent"
+    }
+  },
+  "title": "OrbProtocol",
+  "type": "object"
+}

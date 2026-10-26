@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Echo spike</title>
+<script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.30.0/dist/ort.wasm.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@ricky0123/vad-web@0.0.31/dist/bundle.min.js"></script>
+</head>
+<body>
+<pre id="log"></pre>
+<script>
+// Milestone 2: play Kokoro clips on the MacBook speakers while the VAD listens on the
+// MacBook mic. Query: ?ec=1|0 (echo cancellation), ?sink=<label substring>, ?mic=<label substring>.
+const q = new URLSearchParams(location.search);
+const EC = q.get("ec") !== "0";
+const SINK = q.get("sink") || "MacBook Pro Speakers";
+const MIC = q.get("mic") || "MacBook Pro Microphone";
+const out = { ec: EC, events: [], frames: { play: [], quiet: [] }, rms: { play: [], quiet: [] } };
+const log = (...a) => { document.getElementById("log").textContent += a.join(" ") + "\n"; console.log(...a); };
+let playing = false;
+const t0 = performance.now();
+const now = () => Math.round(performance.now() - t0);
+
+async function main() {
+  // Labels are only visible after a permission grant.
+  (await navigator.mediaDevices.getUserMedia({ audio: true })).getTracks().forEach(t => t.stop());
+  const devs = await navigator.mediaDevices.enumerateDevices();
+  const sink = devs.find(d => d.kind === "audiooutput" && d.label.includes(SINK));
+  const mic = devs.find(d => d.kind === "audioinput" && d.label.includes(MIC));
+  out.sink = sink?.label; out.mic = mic?.label;
+  out.devices = devs.map(d => `${d.kind}: ${d.label}`);
+  log("sink", out.sink, "| mic", out.mic, "| ec", EC);
+  if (!sink || !mic) throw new Error("device not found");
+
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: {
+    deviceId: { exact: mic.deviceId }, channelCount: 1,
+    echoCancellation: EC, noiseSuppression: EC, autoGainControl: EC } });
+  out.trackSettings = stream.getAudioTracks()[0].getSettings();
+
+  // Raw level meter on the processed mic track.
+  const meterCtx = new AudioContext();
+  const an = meterCtx.createAnalyser(); an.fftSize = 2048;
+  meterCtx.createMediaStreamSource(stream).connect(an);
+  const buf = new Float32Array(an.fftSize);
+  setInterval(() => { an.getFloatTimeDomainData(buf);
+    const r = Math.sqrt(buf.reduce((s, x) => s + x * x, 0) / buf.length);
+    out.rms[playing ? "play" : "quiet"].push(r); }, 50);
+
+  const vadObj = await vad.MicVAD.new({
+    model: "v5",
+    baseAssetPath: "https://cdn.jsdelivr.net/npm/@ricky0123/vad-web@0.0.31/dist/",
+    onnxWASMBasePath: "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.30.0/dist/",
+    getStream: async () => stream,
+    positiveSpeechThreshold: 0.5, negativeSpeechThreshold: 0.35,
+    preSpeechPadMs: 400, redemptionMs: 600, minSpeechMs: 300,
+    onFrameProcessed: (p) => out.frames[playing ? "play" : "quiet"].push(p.isSpeech),
+    onSpeechStart: () => out.events.push({ t: now(), ev: "start", playing }),
+    onSpeechRealStart: () => { out.events.push({ t: now(), ev: "realStart", playing }); log(now(), "VAD realStart, playing =", playing); },
+    onSpeechEnd: (a) => out.events.push({ t: now(), ev: "end", playing, ms: Math.round(a.length / 16) }),
+    onVADMisfire: () => out.events.push({ t: now(), ev: "misfire", playing }),
+  });
+  await vadObj.start();
+
+  const ctx = new AudioContext();
+  await ctx.setSinkId(sink.deviceId);
+  await new Promise(r => setTimeout(r, 3000)); // quiet baseline
+  for (const f of ["clip1.wav", "clip2.wav", "clip3.wav"]) {
+    const ab = await ctx.decodeAudioData(await (await fetch(f)).arrayBuffer());
+    const src = ctx.createBufferSource(); src.buffer = ab; src.connect(ctx.destination);
+    playing = true; log(now(), "play", f);
+    await new Promise(r => { src.onended = r; src.start(); });
+    playing = false;
+    await new Promise(r => setTimeout(r, 1500));
+  }
+  await vadObj.destroy();
+  const stat = (a) => a.length ? { n: a.length, mean: +(a.reduce((s, x) => s + x, 0) / a.length).toFixed(4), max: +Math.max(...a).toFixed(4),
+    over05: a.filter(x => x >= 0.5).length } : null;
+  out.summary = {
+    vadPlay: stat(out.frames.play), vadQuiet: stat(out.frames.quiet),
+    rmsPlay: stat(out.rms.play), rmsQuiet: stat(out.rms.quiet),
+    realStartsDuringPlayback: out.events.filter(e => e.ev === "realStart" && e.playing).length,
+  };
+  delete out.frames; delete out.rms;
+  log(JSON.stringify(out.summary));
+  window.__result = out;
+}
+main().catch(e => { log("ERROR", e.message); window.__result = { error: e.message, ...out }; });
+</script>
+</body>
+</html>

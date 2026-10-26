@@ -1,0 +1,63 @@
+""""Make it a task": a routine's last run becomes a Vikunja task (ADR 0008), never a line in the notes.
+
+It is a write, so it goes card first: `card` works out the title and the project (the routine's repo's mapped
+project, else the inbox project, settings "tasks_inbox") and the page shows them; only `confirm` with ok creates the task. Orb remembers the
+ids it created, and `undo` deletes only one of those, so Undo can never remove a task the owner made.
+"""
+
+from __future__ import annotations
+
+import secrets
+from collections.abc import Callable
+from pathlib import Path
+
+from . import routines, vikunja
+
+MAX_CARDS = 20  # open cards kept; an older one is forgotten and its Allow says so
+
+
+class Maker:
+    def __init__(self, url: Callable[[], str], vault: Callable[[], Path | None], inbox: Callable[[], str]) -> None:
+        self.url, self.vault, self.inbox = url, vault, inbox
+        self.cards: dict[str, dict] = {}  # card id -> what Allow creates
+        self.made: dict[int, str] = {}  # task id -> title, created by this server
+
+    def card(self, x: dict | None) -> dict:
+        """The card event for routine `x` (a Routines row), or an error event."""
+        if not x or not x.get("last"):
+            return {"type": "error", "text": "That routine has no run yet."}
+        title, description = routines.task_draft(x)
+        try:
+            pid, project = vikunja.project_for(self.url(), self.vault(), x.get("repo") or None, self.inbox())
+        except vikunja.VikunjaError as e:
+            return {"type": "error", "text": str(e)}
+        cid = secrets.token_hex(8)
+        self.cards[cid] = {"project_id": pid, "project": project, "title": title, "description": description}
+        while len(self.cards) > MAX_CARDS:
+            self.cards.pop(next(iter(self.cards)))
+        return {"type": "make_task_card", "id": cid, "routine": x["id"], "title": title, "project": project}
+
+    def confirm(self, cid: str, ok: bool) -> dict:
+        c = self.cards.pop(cid, None)
+        if c is None:
+            return {"type": "make_task_done", "id": cid, "ok": False, "error": "That card has expired. Press Make it a task again."}
+        if not ok:
+            return {"type": "make_task_done", "id": cid, "ok": False}
+        try:
+            t = vikunja.create(self.url(), c["project_id"], c["title"], c["description"])
+        except vikunja.VikunjaError as e:
+            return {"type": "make_task_done", "id": cid, "ok": False, "error": str(e)}
+        self.made[t["id"]] = t["title"]
+        return {"type": "make_task_done", "id": cid, "ok": True, "task": t["id"], "title": t["title"], "url": t["url"],
+                "project": c["project"]}
+
+    def undo(self, task_id: int) -> dict:
+        if task_id not in self.made:
+            return {"type": "make_task_undone", "task": task_id, "ok": False,
+                    "error": "Orb only removes a task it just created, and not after a restart."}
+        try:
+            vikunja.delete(self.url(), task_id)
+        except vikunja.VikunjaError as e:
+            return {"type": "make_task_undone", "task": task_id, "ok": False, "error": str(e)}
+        del self.made[task_id]
+        return {"type": "make_task_undone", "task": task_id, "ok": True}

@@ -1,0 +1,34 @@
+[project]
+name = "orb"
+version = "0.1.0"
+description = "Talk to Claude by voice in the repos you choose, through your own Claude Code login"
+authors = [
+    { name = "Kamil Kuklewski" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    "claude-agent-sdk>=0.2.172",
+    "fastapi>=0.160.0",
+    "httpx>=0.28.1",
+    "pydantic>=2.14",
+    "uvicorn[standard]>=0.54.0",
+]
+
+[project.scripts]
+orb = "orb:main"
+orb-vendor = "orb.vendor:main"
+orb-protocol = "orb.protocol:main"
+
+[build-system]
+requires = ["uv_build>=0.13.5,<0.14.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"

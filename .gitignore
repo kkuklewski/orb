@@ -1,0 +1,19 @@
+.venv/
+__pycache__/
+.pytest_cache/
+spikes/echo/*.wav
+spikes/echo/result.json
+spikes/echo/console.log
+src/orb/static/vendor/
+spikes/voice/*.wav
+
+.private-markers
+
+web/node_modules/
+
+# local secrets: never committed
+.env
+.env.*
+!.env.example
+
+.DS_Store
