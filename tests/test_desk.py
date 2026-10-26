@@ -1,12 +1,13 @@
 """The desk session's tools: fenced results, who gets them, and that reading needs no card."""
 
 import asyncio
+import dataclasses
 import datetime as dt
 import re
 
 import pytest
 
-from orb import desk, forget, settings, vikunja
+from orb import desk, forget, jira, settings, vikunja
 from orb.agent import FolderSession
 
 TODAY = dt.date(2026, 10, 24)
@@ -188,13 +189,25 @@ def test_slash_messages_carry_the_data_and_never_look_like_a_command(src):
             desk.slash_message(src, "task", bad, TODAY)
 
 
-def test_slash_task_takes_a_jira_issue_key_from_the_open_tasks(src, monkeypatch):
-    jira_tasks = {"tasks": [{"id": 10001, "title": "ACME-12 Fix login", "project": "acme", "project_id": 3}], "total": 1, "url": "u"}
-    monkeypatch.setattr(vikunja, "open_tasks", lambda url, project=None: jira_tasks)
-    m = desk.slash_message(src, "task", "acme-12", TODAY)
+def test_slash_task_takes_a_number_as_the_task_list_shows_it(src):
+    for ref in ("12", "#12", " #12 "):
+        assert desk.slash_message(src, "task", ref, TODAY).screen == "task 12"
+    with pytest.raises(desk.DeskError, match="No open task"):
+        desk.slash_message(src, "task", "99", TODAY)
+
+
+def test_slash_task_takes_a_jira_issue_key_on_jira(src, monkeypatch):
+    rows = {"tasks": [{"id": 10001, "title": "ACME-12 Fix login", "project": "Acme", "project_id": 3},
+                      {"id": 10002, "title": "ACME-5", "project": "Acme", "project_id": 3}], "total": 2, "url": "u"}
+    monkeypatch.setattr(jira, "open_tasks", lambda url, project=None: rows)
+    monkeypatch.setattr(jira, "task", lambda url, i: {"id": i, "title": "ACME-12 Fix login", "description": "", "project": "Acme",
+                                                       "project_id": 3, "due": None, "priority": 1, "done": False, "url": "u"})
+    jira_src = dataclasses.replace(src, cfg=lambda: {"jira_url": "https://acme.atlassian.net"})
+    m = desk.slash_message(jira_src, "task", "acme-12", TODAY)
     assert m.screen == "task 10001" and "#10001" in m.ask
-    with pytest.raises(desk.DeskError, match="No open task ACME-99"):
-        desk.slash_message(src, "task", "ACME-99", TODAY)
+    assert desk.slash_message(jira_src, "task", "ACME-5", TODAY).screen == "task 10002"  # no summary
+    with pytest.raises(desk.DeskError, match="No open task 'ACME-1'\."):
+        desk.slash_message(jira_src, "task", "ACME-1", TODAY)  # not ACME-12
 
 
 async def test_a_slash_command_shows_the_short_ask_and_sends_the_data_as_the_screen(src, tmp_path, monkeypatch):

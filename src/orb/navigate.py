@@ -153,17 +153,7 @@ def _task(src: Sources, item: str) -> tuple[dict, str]:
         tasks = tracker.open_tasks(src.cfg())["tasks"]
     except tracker.ERRORS as e:
         raise NavigateError(f"{tracker.name(src.cfg())} not reachable: {e}") from e
-    num = re.fullmatch(r"#?\s*(\d+)", item.strip())
-    if num:
-        t = next((x for x in tasks if x["id"] == int(num.group(1))), None)
-        if t is None:
-            raise NavigateError(f"No open task #{num.group(1)}. Tell the owner in one short line; the page stays where it is.")
-    elif tracker.KEY.fullmatch(item.strip()):
-        t = tracker.by_key(tasks, item)
-        if t is None:
-            raise NavigateError(f"No open task {item.strip().upper()}. Tell the owner in one short line; the page stays where it is.")
-    else:
-        t = _pick("open task", item, [(x["title"], x) for x in tasks])
+    t = tracker.find(src.cfg(), tasks, item) or _pick("open task", item, [(x["title"], x) for x in tasks])
     return _event("tasks", f"Tasks › #{t['id']} {t['title']}", task=str(t["id"]))
 
 

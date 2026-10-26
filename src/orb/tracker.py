@@ -16,7 +16,7 @@ from . import jira, vikunja
 
 ERRORS = (vikunja.VikunjaError, jira.JiraError)  # `except tracker.ERRORS` catches either backend's refusal
 home_event = vikunja.home_event
-KEY = re.compile(r"[A-Za-z][A-Za-z0-9_]*-\d+")  # a Jira issue key (ACME-12); the task's title starts with it
+NUMBER = re.compile(r"#?\s*(\d+)")  # a task's number as the task list shows it: 12 or #12
 
 
 def _jira(cfg: dict) -> bool:
@@ -54,10 +54,12 @@ def open_tasks(cfg: dict, project: str | None = None) -> dict:
     return m.open_tasks(url, project)
 
 
-def by_key(tasks: list[dict], key: str) -> dict | None:
-    """The open task whose title starts with this issue key (ACME-12), else None."""
-    want = key.strip().upper() + " "
-    return next((t for t in tasks if str(t["title"]).upper().startswith(want)), None)
+def find(cfg: dict, tasks: list[dict], ref: str) -> dict | None:
+    """The task among `tasks` that `ref` names: its number (12 or #12) or, on Jira, its issue key (ACME-12); else None."""
+    ref = ref.strip()
+    if num := NUMBER.fullmatch(ref):
+        return next((t for t in tasks if t["id"] == int(num.group(1))), None)
+    return jira.by_key(tasks, ref) if _jira(cfg) else None
 
 
 def source(cfg: dict) -> dict:

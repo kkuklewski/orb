@@ -13,6 +13,8 @@ create, delete). Jira is used when a Jira address is set (`jira_url` or `ORB_JIR
   token, the credentials are read only from the environment: never stored in settings, never sent to the page.
 - Open tasks are `assignee = currentUser() AND statusCategory != Done` (override: `ORB_JIRA_JQL`). A task's id is the
   issue's numeric id, so ids stay ints everywhere; its title starts with the issue key ("ACME-12 Fix login").
+  `/task` and Tasks navigation find a task by that key through `tracker.find` (the key rule lives in `jira.py`); on
+  Vikunja a word shaped like a key ("covid-19") is only a title word.
 - Done and reopen are workflow transitions, picked by status category (done / new, else in progress). A workflow with no
   such step is an error the owner sees, not a silent no-op. Priorities map to Jira's five names
   by meaning (1 Low, 2 Medium, 3 High, 4-5 Highest; Lowest reads as 1), so 5 reads back as 4. 0 clears the priority,

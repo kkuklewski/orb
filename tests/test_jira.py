@@ -182,6 +182,23 @@ def test_the_tracker_is_jira_when_its_address_is_set_else_vikunja(fake, monkeypa
     assert got["kicker"] == "JIRA" and got["url_label"] == "Open in Jira →"
 
 
+def test_find_takes_a_number_or_an_issue_key_from_the_open_tasks(fake):
+    fake.issues["10004"] = issue("10004", "ACME-5", "")  # no summary: the title is the key alone
+    fake.issues["10005"] = issue("10005", "ACME-12", "Fix login again")
+    tasks = tracker.open_tasks(CFG)["tasks"]
+    found = lambda ref: (tracker.find(CFG, tasks, ref) or {}).get("id")  # noqa: E731
+    assert found("ACME-5") == found(" acme-5 ") == 10004
+    assert found("ACME-1") == 10001 and found("ACME-12") == 10005  # ACME-1 is not ACME-12
+    assert found("10002") == found("#10002") == found("# 10002") == 10002
+    assert [found(r) for r in ("ACME-99", "covid-19", "12", "Fix login", "", "-3")] == [None] * 6
+
+
+def test_issue_keys_are_jiras_alone(monkeypatch):
+    vik = [{"id": 12, "title": "ACME-7 Fix the login"}]
+    assert tracker.find({"vikunja_url": "http://v"}, vik, "ACME-7") is None
+    assert tracker.find({"vikunja_url": "http://v"}, vik, "#12")["id"] == 12
+
+
 def test_jira_down_is_said_by_name(monkeypatch):
     monkeypatch.setenv("ORB_JIRA_EMAIL", "dev@acme.test")
     monkeypatch.setenv("ORB_JIRA_TOKEN", "tk")
