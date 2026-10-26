@@ -10,6 +10,7 @@ export const status = (over: Partial<SetupStatusEvent> = {}): SetupStatusEvent =
   home: "/Users/a",
   speech: { kokoro: true, whisper: false, parakeet: false },
   voices: [],
+  kokoro_install: { voicemode: true, installed: true, autostart: true, exposed: false },
   values: { stt: "browser", tts: "kokoro", voice: "af_heart", onboarded: false },
   ...over,
 });

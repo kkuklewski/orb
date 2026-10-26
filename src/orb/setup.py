@@ -16,7 +16,7 @@ from pathlib import Path
 
 import claude_agent_sdk
 
-from . import billing, folders, home, parakeet, speech
+from . import billing, folders, home, kokoro_setup, parakeet, speech
 from .settings import settings
 
 # Folders people often keep their code in; the onboarding offers the ones that exist.
@@ -86,6 +86,7 @@ async def status() -> dict:
         "home": str(Path.home()),
         "speech": {**health, "parakeet": parakeet.MODEL.is_file() and parakeet.LIB.is_file()},
         "voices": speech.recommended(installed, settings["voice"]) if health.get("kokoro") else [],
+        "kokoro_install": kokoro_setup.status(),
         "values": {k: settings[k] for k in ("stt", "tts", "voice", "skip_names", "onboarded")},
         "vault": await asyncio.to_thread(home.vault_info, settings.vault()),
     }

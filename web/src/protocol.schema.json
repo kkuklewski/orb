@@ -899,6 +899,7 @@
           "item_get": "#/$defs/ItemGetMsg",
           "item_list": "#/$defs/ItemListMsg",
           "item_start": "#/$defs/ItemStartMsg",
+          "kokoro_setup": "#/$defs/KokoroSetupMsg",
           "make_task": "#/$defs/MakeTaskMsg",
           "make_task_confirm": "#/$defs/MakeTaskConfirmMsg",
           "make_task_undo": "#/$defs/MakeTaskUndoMsg",
@@ -973,6 +974,9 @@
         },
         {
           "$ref": "#/$defs/VoiceSampleMsg"
+        },
+        {
+          "$ref": "#/$defs/KokoroSetupMsg"
         },
         {
           "$ref": "#/$defs/RescanMsg"
@@ -3421,6 +3425,87 @@
         "id"
       ],
       "title": "ItemStartMsg",
+      "type": "object"
+    },
+    "KokoroInstall": {
+      "additionalProperties": false,
+      "description": "How far VoiceMode's Kokoro is set up on this Mac, for the setup's Kokoro card (running is `speech.kokoro`).",
+      "properties": {
+        "autostart": {
+          "type": "boolean"
+        },
+        "exposed": {
+          "type": "boolean"
+        },
+        "installed": {
+          "type": "boolean"
+        },
+        "job": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/KokoroJob"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "voicemode": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "voicemode",
+        "installed",
+        "autostart",
+        "exposed"
+      ],
+      "title": "KokoroInstall",
+      "type": "object"
+    },
+    "KokoroJob": {
+      "additionalProperties": false,
+      "description": "The one-click Kokoro setup's progress (kokoro_setup.py).",
+      "properties": {
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "running": {
+          "type": "boolean"
+        },
+        "step": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "step",
+        "running"
+      ],
+      "title": "KokoroJob",
+      "type": "object"
+    },
+    "KokoroSetupMsg": {
+      "additionalProperties": false,
+      "description": "One click: install what's missing of VoiceMode's Kokoro, keep it on 127.0.0.1, (re)start it.",
+      "properties": {
+        "type": {
+          "const": "kokoro_setup",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "KokoroSetupMsg",
       "type": "object"
     },
     "MakeTaskCardEvent": {
@@ -6631,6 +6716,17 @@
         },
         "home": {
           "type": "string"
+        },
+        "kokoro_install": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/KokoroInstall"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "login_cmd": {
           "type": "string"
