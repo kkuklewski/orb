@@ -415,12 +415,15 @@ def page(request: Request, html: str, cdn: bool) -> HTMLResponse:
 @app.get("/chats")
 @app.get("/activity")
 @app.get("/routines")
+@app.get("/tasks")
+@app.get("/brain")
 @app.get("/settings")
 @app.get("/vikunjas")
 @app.get("/items/{route:path}")
 @app.get("/s/{route:path}")
 @app.get("/t/{route:path}")
 @app.get("/r/{route:path}")
+@app.get("/n/{route:path}")
 async def index(request: Request, route: str = ""):
     """The React page (web/, built into static/app). Its own routes (/s/<session>, /settings, …) all get
     the same page; the page reads the path."""
