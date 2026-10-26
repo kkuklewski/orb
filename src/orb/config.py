@@ -32,11 +32,11 @@ STATE_DIR = Path(env("STATE", str(HOME / ".orb")))
 
 HOST = "127.0.0.1"  # never 0.0.0.0: the page can run tools on this Mac
 PORT = int(env("PORT", "8765"))
-# Host names the server answers to (a DNS-rebinding page sends its own): this machine, a Tailscale name
-# (`tailscale serve`, *.ts.net), and the comma-separated ORB_HOSTS.
+# Host names the server answers to (a DNS-rebinding page sends its own): this machine and the comma-separated
+# ORB_HOSTS; in the personal profile also a Tailscale name (`tailscale serve`, *.ts.net, server.host_ok).
 HOSTS = {"127.0.0.1", "localhost", "[::1]", *(h.strip().lower() for h in env("HOSTS", "").split(",") if h.strip())}
 
-STT = env("STT", "browser")  # "browser" (the page's own), "parakeet" (Whisper as fallback) or "whisper"
+STT = env("STT", "parakeet")  # "parakeet" (Whisper as fallback), "whisper" or "browser" (the page's own: Chrome sends the audio to Google)
 TTS = env("TTS", "browser")  # "browser" (the page's own voices) or "kokoro"
 WHISPER_URL = env("WHISPER", "http://127.0.0.1:2022/v1/audio/transcriptions")
 KOKORO_URL = env("KOKORO", "http://127.0.0.1:8880/v1/audio/speech")

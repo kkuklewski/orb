@@ -49,7 +49,13 @@ function CopyButton({ text }: { text: string }) {
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
+const PROFILE_TEXT: Record<string, string> = {
+  work: "Work: no claude.ai connectors, speech stays on this Mac, each repo stays in its own session, the page answers on this Mac only.",
+  personal: "Personal: Brain and your other connectors when you turn them on, browser speech, a card before a session reaches another repo, Tailscale serve.",
+};
+
 export function Welcome() {
+  const profile = (useSetup((s) => s.status)?.values as { profile?: string } | undefined)?.profile ?? "work";
   return (
     <>
       <Head kicker="ORB · POWERED BY CLAUDE" title="Talk to your code."
@@ -59,6 +65,9 @@ export function Welcome() {
         <li>Only the folders you choose</li>
         <li>Every change asks you first</li>
       </ul>
+      <Seg label="THIS MAC" value={profile} onPick={(v) => send({ type: "set_settings", values: { profile: v } })}
+        options={[["work", "Work machine", true], ["personal", "Personal", true]]} />
+      <p className="onb-text small">{PROFILE_TEXT[profile]} You can change it later in Settings.</p>
       <Foot label="Get started" />
     </>
   );
@@ -209,14 +218,14 @@ export function Notes() {
 }
 
 function Seg({ label, options, value, onPick }: {
-  label: string; options: [string, string, boolean][]; value: unknown; onPick: (v: string) => void;
+  label: string; options: [string, string, boolean, string?][]; value: unknown; onPick: (v: string) => void;
 }) {
   return (
     <div className="onb-field">
       <span className="mono onb-label">{label}</span>
       <div className="onb-seg" role="radiogroup" aria-label={label}>
-        {options.map(([v, text, ok]) => (
-          <button key={v} type="button" role="radio" aria-checked={v === value} disabled={!ok} title={ok ? undefined : "Not installed on this Mac"}
+        {options.map(([v, text, ok, why]) => (
+          <button key={v} type="button" role="radio" aria-checked={v === value} disabled={!ok} title={ok ? undefined : why ?? "Not installed on this Mac"}
             className={"onb-seg-btn" + (v === value ? " on" : "")} onClick={() => onPick(v)}>{text}</button>
         ))}
       </div>
@@ -277,7 +286,8 @@ function KokoroSetup({ running, onReady }: { running: boolean; onReady: () => vo
 export function Voice() {
   const status = useSetup((s) => s.status);
   const sp = status?.speech ?? {};
-  const values = (status?.values ?? {}) as { stt?: string; tts?: string; voice?: string };
+  const values = (status?.values ?? {}) as { profile?: string; stt?: string; tts?: string; voice?: string };
+  const work = values.profile !== "personal";
   const set = (key: "stt" | "tts", v: string) => send({ type: "set_settings", values: { [key]: v } });
   const [mic, setMic] = useState("Test microphone");
   const testMic = async () => {
@@ -296,9 +306,11 @@ export function Voice() {
   return (
     <>
       <Head kicker="STEP 04" title="Her voice, and yours"
-        text="Browser speech works right away (Chrome transcribes through Google; Safari can on this Mac). Local engines keep everything on this Mac." />
+        text={work ? "Parakeet and Whisper hear you on this Mac; without them, type. Browser speech recognition is off on a work machine: Chrome sends the audio to Google."
+          : "Parakeet and Whisper hear you on this Mac. Browser speech works right away, but Chrome sends the audio to Google."} />
       <Seg label="HEARING YOU" value={values.stt} onPick={(v) => set("stt", v)}
-        options={[["browser", "Browser", BROWSER_STT], ["parakeet", "Parakeet", !!sp.parakeet], ["whisper", "Whisper", !!sp.whisper]]} />
+        options={[["parakeet", "Parakeet", !!sp.parakeet], ["whisper", "Whisper", !!sp.whisper],
+          ["browser", "Browser (Google)", BROWSER_STT && !work, work ? "Off on a work machine: Chrome sends the audio to Google" : undefined]]} />
       <Seg label="HER VOICE" value={values.tts} onPick={(v) => set("tts", v)}
         options={[["browser", "Browser", BROWSER_TTS], ["kokoro", "Kokoro", !!sp.kokoro]]} />
       <KokoroSetup running={!!sp.kokoro} onReady={() => set("tts", "kokoro")} />

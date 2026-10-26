@@ -4,7 +4,8 @@ PreToolUse decision for file tools (Read, Glob, Grep, Edit, Write, ...) and Bash
 1. deny, always: secret files (.env, keys, credentials, ~/.ssh, ~/.aws) and any secrets/ folder at the
    top of a root (the folders the user gave Orb in the onboarding).
 2. deny: a client folder (settings["client_dirs"]) from a session that wasn't opened inside it.
-3. ask: any other repo inside the roots; the card and the spoken prompt say where it goes.
+3. ask: any other repo inside the roots; the card and the spoken prompt say where it goes. In the work profile
+   (settings.py) every other repo is fenced like a client folder: denied, and the vault session only reads.
 With a notes vault set up, the vault session is the hub: it may read client folders too (with a card),
 but never change them; only a Bash command made of plain read-only commands counts as reading.
 Paths outside the roots get no objection here (the normal approval flow decides).
@@ -185,13 +186,14 @@ def strictest(*decisions: dict) -> dict:
 class Fence:
     def __init__(self, session: str, root: Path | None = None, clients: tuple[str, ...] | None = None,
                  vault: Path | None = None, roots: list[Path] | None = None, never: set[str] | None = None,
-                 worktrees: dict[str, str] | None = None) -> None:
+                 worktrees: dict[str, str] | None = None, isolated: bool | None = None) -> None:
         if roots is None:
             roots = [root] if root is not None else settings.settings.roots()
         self.roots = [os.path.realpath(r) for r in roots]
         self.session = os.path.realpath(session)
         self._worktrees = worktrees  # worktree -> repo; None: the registry, read as it changes
         self.clients = tuple(settings.settings["client_dirs"]) if clients is None else clients
+        self.isolated = settings.settings.work if isolated is None else isolated  # every repo is a client folder
         # Folder names the user put on the never-open list (Settings): denied anywhere, like secrets.
         self.never = {n.casefold() for n in (settings.settings["skip_names"] if never is None else never)}
         vault = settings.settings.vault() if vault is None else vault
@@ -208,7 +210,9 @@ class Fence:
                           *map(str, SECRET_FILES)]
 
     def in_client(self) -> bool:
-        """True when the session works inside one of the client folders."""
+        """True when the session works inside one of the client folders (any repo, in the work profile)."""
+        if self.isolated:
+            return True
         rel = os.path.relpath(self.home, self.root)
         top = rel.split(os.sep)[0].casefold() if rel != "." else ""
         return bool(top) and any(top == c.casefold() for c in self.clients)
@@ -267,6 +271,9 @@ class Fence:
                                 f"{os.path.basename(self.home)}. Open {client} as its own session in Orb.")
         here = _repo_label(self.home, self.root).split("/")[-1]  # "api", not "acme/api"
         there = os.path.basename(root) if root == self.notes_root else _repo_label(target, root).split("/")[-1]
+        if self.isolated and not (self.hub and not write):
+            return "deny", (f"Other repo: {there}. In Orb's work profile a session stays in its own repo "
+                            f"({here}); open {there} as its own session in Orb.")
         return "ask", f"Other repo: {there}. This session is in {here}."
 
     def _paths(self, tool: str, inp: dict[str, Any], base: str) -> list[str]:

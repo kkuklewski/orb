@@ -91,8 +91,22 @@ describe("Settings", () => {
     expect(sent).toContainEqual({ type: "get_settings" });
     expect(screen.getByText("Loading…")).toBeTruthy();
     act(() => useViews.setState({ settings: settings() }));
-    expect(screen.getByRole("radio", { name: "Browser", checked: true })).toBeTruthy();
+    expect(screen.getByRole("radio", { name: "Browser (Google)", checked: true })).toBeTruthy();
     expect((screen.getByLabelText("Voice") as HTMLSelectElement).value).toBe("af_heart");
+  });
+
+  it("keeps browser speech recognition off on a work machine", () => {
+    const s = settings();
+    useViews.setState({ settings: { ...s, values: { ...s.values, stt: "parakeet", profile: "work" } } });
+    const { unmount } = render(<Settings />);
+    expect((screen.getByRole("radio", { name: "Browser (Google)" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByRole("radio", { name: "Work machine", checked: true })).toBeTruthy();
+    fireEvent.click(screen.getByRole("radio", { name: "Personal" }));
+    expect(sent).toContainEqual({ type: "set_settings", values: { profile: "personal" } });
+    unmount();
+    useViews.setState({ settings: settings() });
+    render(<Settings />);
+    expect((screen.getByRole("radio", { name: "Browser (Google)" }) as HTMLButtonElement).disabled).toBe(false);
   });
 
   it("saves server choices and shows them at once", () => {

@@ -21,11 +21,12 @@ function Section({ id, title, hint, children }: { id?: string; title: string; hi
   );
 }
 
-function Seg({ name, options, value, onPick }: { name: string; options: [string, string][]; value: unknown; onPick: (v: string) => void }) {
+function Seg({ name, options, value, onPick }: { name: string; options: [string, string, string?][]; value: unknown; onPick: (v: string) => void }) {
   return (
     <div className="seg" role="radiogroup" aria-label={name}>
-      {options.map(([v, label]) => (
-        <button key={v} type="button" role="radio" aria-checked={v === value} className={"seg-btn" + (v === value ? " on" : "")} onClick={() => onPick(v)}>{label}</button>
+      {options.map(([v, label, off]) => (
+        <button key={v} type="button" role="radio" aria-checked={v === value} disabled={!!off} title={off}
+          className={"seg-btn" + (v === value ? " on" : "")} onClick={() => onPick(v)}>{label}</button>
       ))}
     </div>
   );
@@ -65,7 +66,8 @@ export function Settings() {
   }, [ev, at]);
 
   if (!ev) return <div className="view-col"><div className="view-head"><h2>Settings</h2></div><p className="side-hint">Loading…</p></div>;
-  const v = ev.values as { voice?: string; default_mode?: string; default_model?: string; coder_effort?: string; routines_judge?: boolean; stt?: string; tts?: string; vikunja_url?: string; jira_url?: string };
+  const v = ev.values as { voice?: string; default_mode?: string; default_model?: string; coder_effort?: string; routines_judge?: boolean; stt?: string; tts?: string; vikunja_url?: string; jira_url?: string; profile?: string; connectors?: boolean; brain?: boolean };
+  const work = v.profile !== "personal";
   const voices: [string, string][] = ev.recommended.map((x) => [x.id, `${x.name} · ${x.desc}${x.grade ? ` · ${x.grade}` : ""}`]);
   if (ev.voices.includes("chatterbox")) voices.push(["chatterbox", "Chatterbox · Polish and English, slow"]);
   if (!voices.length && v.voice) voices.push([v.voice, v.voice]);
@@ -75,6 +77,14 @@ export function Settings() {
   return (
     <div className="view-col" id="settings-body">
       <div className="view-head"><h2>Settings</h2><span className="mono view-sub">saved on this Mac; browser choices stay in this browser</span></div>
+
+      <Section id="profile" title="This Mac" hint={work
+        ? "Work: no claude.ai connectors in sessions, speech recognition stays on this Mac, a session never reaches another repo (open it as its own session), and the page answers on this Mac only (no Tailscale serve)."
+        : "Personal: Brain and the other claude.ai connectors when turned on in settings.json (brain, connectors), browser speech, an approval card before a session reaches another repo, Tailscale serve."}>
+        <Seg name="This Mac" value={v.profile} onPick={(m) => setServer({ profile: m })}
+          options={[["work", "Work machine"], ["personal", "Personal"]]} />
+        {!work && <p className="side-hint">claude.ai connectors in sessions: {v.brain ? "Brain" : "none"}{v.connectors ? " and all the others" : ""}.</p>}
+      </Section>
 
       <Section id="voice" title="Her voice" hint="Browser uses this browser's own voices and works anywhere; Kokoro runs on this Mac and sounds more natural.">
         <Seg name="Her voice" value={v.tts} onPick={(m) => setServer({ tts: m })}
@@ -117,9 +127,9 @@ export function Settings() {
         </Section>
       )}
 
-      <Section id="speech" title="Speech recognition" hint="Browser works anywhere; Parakeet hears you in about 0.1 s on this Mac and asks Whisper when a word may be one of your names; Whisper alone takes about 0.5 s.">
+      <Section id="speech" title="Speech recognition" hint={"Parakeet hears you in about 0.1 s on this Mac and asks Whisper when a word may be one of your names; Whisper alone takes about 0.5 s. Browser works anywhere, but Chrome sends the audio to Google" + (work ? ", so it is off on a work machine." : ".")}>
         <Seg name="Speech recognition" value={v.stt} onPick={(m) => setServer({ stt: m })}
-          options={[["browser", "Browser"], ["parakeet", "Parakeet (fast)"], ["whisper", "Whisper"]]} />
+          options={[["parakeet", "Parakeet (fast)"], ["whisper", "Whisper"], ["browser", "Browser (Google)", work ? "Off on a work machine" : undefined]]} />
       </Section>
 
       <Section title="Whisper vocabulary" hint={`Names Whisper should hear correctly. Built in: ${ev.vocab_seed.join(", ")}, plus your repo names. Add your own, one per line.`}>

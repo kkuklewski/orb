@@ -2197,6 +2197,14 @@
           ],
           "default": null
         },
+        "profile": {
+          "default": "work",
+          "enum": [
+            "work",
+            "personal"
+          ],
+          "type": "string"
+        },
         "roots": {
           "items": {
             "type": "string"
@@ -2278,6 +2286,14 @@
             }
           ],
           "default": null
+        },
+        "profile": {
+          "default": "work",
+          "enum": [
+            "work",
+            "personal"
+          ],
+          "type": "string"
         },
         "replay": {
           "anyOf": [
@@ -2643,6 +2659,14 @@
             }
           ],
           "default": null
+        },
+        "profile": {
+          "default": "work",
+          "enum": [
+            "work",
+            "personal"
+          ],
+          "type": "string"
         },
         "rate_limit": {
           "anyOf": [

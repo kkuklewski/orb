@@ -418,9 +418,10 @@ async def lifespan(app: FastAPI):
 
 
 def host_ok(host: str) -> bool:
-    """A Host this server answers to: the port is ignored, the name must be one of config.HOSTS or *.ts.net."""
+    """A Host this server answers to: the port is ignored, the name must be one of config.HOSTS, or *.ts.net
+    (Tailscale serve) in the personal profile."""
     name = (host.split("]")[0] + "]" if host.startswith("[") else host.rsplit(":", 1)[0]).lower()
-    return name in config.HOSTS or name.endswith(".ts.net")
+    return name in config.HOSTS or (name.endswith(".ts.net") and not settings.settings.work)
 
 
 class Guard:
@@ -582,7 +583,7 @@ async def ws_endpoint(ws: WebSocket):
 def features() -> dict:
     """What the page shows: the user's folders, and the optional parts they turned on."""
     s = settings.settings
-    return {"roots": s["roots"], "vault": str(s.vault() or ""), "brain": s["brain"], "routines": s["routines"],
+    return {"roots": s["roots"], "vault": str(s.vault() or ""), "brain": s["brain"], "routines": s["routines"], "profile": s["profile"],
             "onboarded": s["onboarded"], "stt": s["stt"], "tts": s["tts"], "plan": hub.auth.get("subscription"),
             "tracker": tracker.name(s.data), "drops": intake.labels(drop_env())}
 
@@ -596,7 +597,7 @@ def drop_env() -> intake.Env:
 async def settings_event() -> dict:
     vocab_file = config.STATE_DIR / "vocabulary.txt"
     installed = await speech.voices()
-    return {"type": "settings", "values": settings.settings.data, "voices": installed,
+    return {"type": "settings", "values": settings.settings.view(), "voices": installed,
             "recommended": speech.recommended(installed, settings.settings["voice"]),
             "vocabulary": vocab_file.read_text() if vocab_file.exists() else "",
             "vocab_seed": vocab.SEED, "whisper_prompt": speech.PROMPT,
@@ -977,7 +978,11 @@ async def handle(conn: Conn, msg: dict) -> None:
         return
     if t == "set_settings":
         values = msg.get("values") or {}
+        before = {k: settings.settings[k] for k in ("profile", "brain", "connectors")}
         settings.settings.update(values)
+        if any(settings.settings[k] != v for k, v in before.items()):  # the fence and the connectors change
+            for x in list(hub.sessions.values()):
+                await x.refresh()
         if isinstance(msg.get("vocabulary"), str):
             path = config.STATE_DIR / "vocabulary.txt"
             config.write_private(path, msg["vocabulary"][:4000])
@@ -986,9 +991,9 @@ async def handle(conn: Conn, msg: dict) -> None:
             await hub.push_folders()
         if {"routines_judge", "routines_notify"} & set(values):
             await hub.push_routines()  # every page shows who notifies now
-        if {"roots", "vault", "brain", "routines", "onboarded", "stt", "tts", "vikunja_url", "jira_url"} & set(values):
+        if {"roots", "vault", "brain", "routines", "onboarded", "stt", "tts", "vikunja_url", "jira_url", "profile"} & set(values):
             await asyncio.gather(*(c.send({"type": "features", **features()}) for c in hub.conns))
-        if {"roots", "vault", "stt", "tts"} & set(values) and not values.get("onboarded"):
+        if {"roots", "vault", "stt", "tts", "profile"} & set(values) and not values.get("onboarded"):
             await conn.send(await setup.status())  # the setup page shows the result at once
         await conn.send(await settings_event())
         return

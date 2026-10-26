@@ -77,6 +77,22 @@ the roots, a malicious website in the owner's browser, another local user.
   `trustSettings` on would load it after Apply. The diff shows it today; a warning line on the Apply card would
   make it hard to miss.
 
+## Work machine (profile)
+
+For an install on an employer's machine. `settings["profile"]`: `work` for a new install, `personal` for an
+install from before profiles (it keeps working as it did). Settings → This Mac and the onboarding's first
+step switch it; a switch rebuilds every session's fence and reconnects it when idle.
+
+- [x] **No connectors by default.** Sessions get `ENABLE_CLAUDEAI_MCP_SERVERS=false` unless `brain` or the new
+  `connectors` setting is on; work keeps both off. With `brain` alone, a PreToolUse hook on `mcp__claude_ai_.*`
+  denies every other connector's tool (a hook, so the user's own allow rules can't let one past).
+- [x] **Voice stays on the Mac.** New installs hear through Parakeet (Whisper fallback). Browser speech
+  recognition (Chrome sends the audio to Google) is labelled so and refused in work (a saved "browser" reads
+  as Parakeet there).
+- [x] **Clean client repos.** Work fences every other repo like a client folder: denied, the vault session reads
+  with a card; `in_client()` is true, so a delegation never pushes without the Needs you card.
+- [x] **Localhost only.** Work answers no `*.ts.net` Host (Tailscale serve is a personal route).
+
 ## Not changing
 
 - `auto` permission mode stays: only the owner can set it, per repo, and the fence still applies.

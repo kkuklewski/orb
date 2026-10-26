@@ -87,7 +87,7 @@ async def status() -> dict:
         "speech": {**health, "parakeet": parakeet.MODEL.is_file() and parakeet.LIB.is_file()},
         "voices": speech.recommended(installed, settings["voice"]) if health.get("kokoro") else [],
         "kokoro_install": kokoro_setup.status(),
-        "values": {k: settings[k] for k in ("stt", "tts", "voice", "skip_names", "onboarded")},
+        "values": {k: settings[k] for k in ("profile", "stt", "tts", "voice", "skip_names", "onboarded")},
         "vault": await asyncio.to_thread(home.vault_info, settings.vault()),
     }
 

@@ -825,6 +825,7 @@ export interface HelloEvent {
   folders: FolderItem[];
   onboarded: boolean;
   plan?: string | null;
+  profile?: "work" | "personal";
   rate_limit?: {
     [k: string]: unknown;
   } | null;
@@ -886,6 +887,7 @@ export interface FeaturesEvent {
   folder?: string | null;
   onboarded: boolean;
   plan?: string | null;
+  profile?: "work" | "personal";
   replay?: boolean | null;
   roots: string[];
   routines: boolean;
@@ -2251,6 +2253,7 @@ export interface Features {
   drops?: string[];
   onboarded: boolean;
   plan?: string | null;
+  profile?: "work" | "personal";
   roots: string[];
   routines: boolean;
   stt: "browser" | "parakeet" | "whisper";

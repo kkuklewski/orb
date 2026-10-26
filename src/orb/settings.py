@@ -4,6 +4,11 @@ Per-browser choices (barge-in mode, theme, mute) stay in the page's localStorage
 the ones the server needs: which folders Orb may open, what it never opens, the optional notes
 vault, speech engines, the Kokoro voice, and the approvals mode and front model new folders start in.
 Nothing here is personal by default: a new install starts empty and runs the onboarding.
+
+The profile keeps a work machine clean. "work" (a new install's default): no claude.ai connectors, no browser
+speech recognition (Chrome sends the audio to Google), every other repo in the roots is fenced like a client
+folder, and the page answers on localhost only. "personal" turns on what the owner set up (Brain, connectors,
+browser speech, a card for other repos, Tailscale serve). An install from before profiles counts as personal.
 """
 
 from __future__ import annotations
@@ -18,13 +23,15 @@ from . import chain, config
 DEFAULTS = {
     "voice": config.KOKORO_VOICE, "default_mode": "default", "default_model": "sonnet",
     "coder_effort": chain.DEFAULT_CODER_EFFORT,  # how hard the Opus coder thinks: low / medium / high
-    "stt": config.STT, "tts": config.TTS,  # "browser" works out of the box; local engines are an upgrade
+    "stt": config.STT, "tts": config.TTS,  # speech in on this Mac by default; "browser" (Google) only in personal
     "roots": [config.env("ROOT", "")] if config.env("ROOT", "") else [],  # folders Orb may open (and their repos)
     "skip_names": [],  # folder names never listed or entered, on top of folders.SKIP_NAMES
     "client_dirs": [d.strip() for d in config.env("CLIENT_DIRS", "").split(",") if d.strip()],
     "vault": config.env("VAULT", ""),  # an Obsidian-style notes repo; "" = no second-brain features
     "vault_protected": [],  # top folders of the vault whose edits always need a card
-    "brain": False,  # claude.ai "Brain" / "Brain Capture" connectors in every session
+    "profile": "work",  # "work" or "personal": see the module docstring
+    "brain": False,  # claude.ai "Brain" / "Brain Capture" connectors in every session (personal profile)
+    "connectors": False,  # the other claude.ai connectors (mail, drive, …) in sessions (personal profile)
     "transcript_script": config.env("TRANSCRIPT_SCRIPT", ""),  # the vault's YouTube transcript fetch script (vault-relative); "" = no YouTube drops
     "transcripts_folder": "",  # where a dropped video's transcript goes (vault-relative); "" = vault_write.TRANSCRIPTS
     "routines": False,  # Routines panel (claude.ai scheduled agents)
@@ -42,7 +49,9 @@ DEFAULTS = {
 }
 MODES = ("default", "auto", "plan")
 MODELS = chain.MODELS
+PROFILES = ("work", "personal")
 STT = ("browser", "parakeet", "whisper")
+WORK_OFF = {"brain": False, "connectors": False}  # what the work profile never turns on, whatever is saved
 TTS = ("browser", "kokoro")
 NOTIFY_MODES = ("always", "never")
 NAME = re.compile(r"^[^/\\\0]{1,100}$")  # a single folder name, no path separators
@@ -76,10 +85,26 @@ class Settings:
             data = json.loads(path.read_text())
         except (OSError, ValueError):
             data = {}
+        if "profile" not in data and data.get("onboarded"):
+            data["profile"] = "personal"  # set up before profiles: keeps working as it did
         self.data = {**DEFAULTS, **{k: v for k, v in data.items() if k in DEFAULTS}}
 
+    @property
+    def work(self) -> bool:
+        return self.data["profile"] != "personal"
+
     def __getitem__(self, key: str):
+        """A setting as it applies now: the work profile keeps connectors off and speech on this Mac (the saved
+        values stay, for a switch back to personal)."""
+        if self.work and key in WORK_OFF:
+            return WORK_OFF[key]
+        if self.work and key == "stt" and self.data["stt"] == "browser":
+            return "parakeet"
         return self.data[key]
+
+    def view(self) -> dict:
+        """The settings as they apply now, for the page."""
+        return {k: self[k] for k in self.data}
 
     def update(self, changes: dict) -> dict:
         if "voice" in changes and isinstance(changes["voice"], str) and changes["voice"].strip():
@@ -90,7 +115,9 @@ class Settings:
             self.data["default_model"] = changes["default_model"]
         if changes.get("coder_effort") in chain.CODER_EFFORTS:
             self.data["coder_effort"] = changes["coder_effort"]
-        if changes.get("stt") in STT:
+        if changes.get("profile") in PROFILES:
+            self.data["profile"] = changes["profile"]
+        if changes.get("stt") in STT and not (self.work and changes["stt"] == "browser"):
             self.data["stt"] = changes["stt"]
         if changes.get("tts") in TTS:
             self.data["tts"] = changes["tts"]
@@ -123,11 +150,11 @@ class Settings:
                 self.data[key] = str(changes[key]).strip() if _web(changes[key]) else ""
         if isinstance(changes.get("tasks_inbox"), str) and NAME.match(changes["tasks_inbox"].strip()):
             self.data["tasks_inbox"] = changes["tasks_inbox"].strip()
-        for key in ("brain", "routines", "routines_judge", "onboarded"):
+        for key in ("brain", "connectors", "routines", "routines_judge", "onboarded"):
             if isinstance(changes.get(key), bool):
                 self.data[key] = changes[key]
         self.save()
-        return self.data
+        return self.view()
 
     def save(self) -> None:
         self.path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)

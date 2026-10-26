@@ -23,12 +23,17 @@ orb
 
 `orb` prints a link like `http://127.0.0.1:8765/#t=…`. Open it; the first time, a short setup runs:
 
+0. **Work machine or personal.** Work (the default) keeps the install clean: no claude.ai connectors in
+   sessions, speech recognition only on this Mac, a session never reaches another repo, the page answers on
+   this Mac only. Personal allows Brain and your other connectors (when you turn them on), browser speech, an
+   approval card before another repo, and Tailscale serve. Settings → This Mac switches it.
 1. **Sign in to Claude.** Orb shows the command to run in Terminal (`claude auth login`). You sign in
    in Anthropic's own browser window. Orb never sees, stores or forwards your login. It only checks
    that Claude Code is signed in with a subscription, and which plan.
 2. **Choose the folders Orb may open.** Orb lists the git repos inside them. A conversation stays in
-   its own repo; touching another repo needs your OK.
-3. **Voice.** Browser speech works right away. For fully local speech, see [Local speech](#local-speech).
+   its own repo; on a work machine another repo is off limits, on a personal one it needs your OK.
+3. **Voice.** Speech recognition runs on your Mac (see [Local speech](#local-speech)); until it is
+   installed, type.
 4. **How it keeps you in control.** Then you're in.
 
 The link carries a private access token. The page remembers it, so later `http://127.0.0.1:8765/`
@@ -70,10 +75,11 @@ decide for yourself.
 
 ## Local speech
 
-Browser speech is the default: Chrome sends your voice to Google to transcribe it; Safari can
-transcribe on your Mac. Her voice comes from your system voices.
+Speech recognition is local by default: Parakeet, with Whisper as its fallback. Browser speech
+recognition is a choice on a personal machine only, because Chrome sends your voice to Google to
+transcribe it. Her voice comes from your system voices until you install Kokoro.
 
-For better, fully local speech, install [VoiceMode](https://github.com/mbailey/voicemode)'s Whisper (speech
+For fully local speech, install [VoiceMode](https://github.com/mbailey/voicemode)'s Whisper (speech
 to text, port 2022) and Kokoro (voices, port 8880), then pick them in Settings → Open setup → Voice.
 Parakeet (faster speech to text) works when its library and model are present; see `src/orb/parakeet.py`.
 
@@ -84,7 +90,9 @@ the access token, timing logs. Environment overrides use `ORB_*` (for example `O
 
 Optional extras for power users, in `~/.orb/settings.json`: `client_dirs` (folders only their own sessions
 may touch), `skip_names` (folder names never opened), a notes `vault`, `brain` (claude.ai Brain
-connectors) and `routines` (a panel for claude.ai scheduled agents).
+connectors), `connectors` (the other claude.ai connectors; off by default, sessions load none) and
+`routines` (a panel for claude.ai scheduled agents). `brain` and `connectors` apply in the personal profile
+only.
 
 ## Tasks: Vikunja or Jira
 

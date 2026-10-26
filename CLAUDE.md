@@ -29,12 +29,18 @@ Python 3.14 via `uv` (`.python-version` pins the patch). Front end is plain HTML
   only runs `claude auth status` and keeps `loggedIn`, the method and the plan. Don't modify or patch the
   Claude Code binary.
 - **Bind 127.0.0.1 only.** Local speech engines (Whisper, Kokoro) are called only from the server.
+- **Profiles** (`settings["profile"]`, `settings.py`): `work` is a new install's default and is enforced in
+  `Settings.__getitem__`: no claude.ai connectors (`ENABLE_CLAUDEAI_MCP_SERVERS=false`), no browser speech
+  recognition (Chrome sends the audio to Google), every other repo fenced like a client folder, no `*.ts.net`
+  host. `personal` (an install from before profiles) allows them. In personal, sessions still load no
+  connectors unless `brain` (Brain's tools only, a PreToolUse hook denies the others) or `connectors` is on.
 - **Folders:** only the user's roots (`settings["roots"]`, set in onboarding). Never list or open
   `folders.SKIP_NAMES` (`secrets`, `node_modules`, …) or the user's `skip_names`.
 - **Repo fence** (`fence.py`, PreToolUse with the vault rules): a session stays in its repo. Always
   denied: secret files, any `secrets/` folder in a root, the user's never-open names. Client folders
   (`settings["client_dirs"]`) are denied unless the session was opened inside that folder. Other repos
-  in the roots get a card ("Other repo: <repo>. This session is in <repo>.").
+  in the roots get a card ("Other repo: <repo>. This session is in <repo>."); in the work profile they are
+  denied like client folders (the vault session may still read them with a card).
 - **Approvals stay on:** `permission_mode` is set explicitly (default `default`); every tool call goes
   through `can_use_tool` -> an Allow/Deny card. A delegation's **grant** is itself an approval (ADR 0005):
   the owner allows it on the Delegate card, it belongs to that one session and is never stored or carried
