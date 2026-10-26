@@ -121,7 +121,7 @@ def test_priority_and_due_date(fake):
     jira.set_priority(BASE, 10001, 0)
     jira.set_due(BASE, 10001, "2026-11-03")
     assert fake.writes == [("PUT", "/issue/10001", {"fields": {"priority": {"name": "Highest"}}}),
-                           ("PUT", "/issue/10001", {"fields": {"priority": {"name": "Medium"}}}),
+                           ("PUT", "/issue/10001", {"fields": {"priority": None}}),
                            ("PUT", "/issue/10001", {"fields": {"duedate": "2026-11-03"}})]
     with pytest.raises(jira.JiraError):
         jira.set_priority(BASE, 10001, 6)

@@ -15,7 +15,8 @@ create, delete). Jira is used when a Jira address is set (`jira_url` or `ORB_JIR
   issue's numeric id, so ids stay ints everywhere; its title starts with the issue key ("ACME-12 Fix login").
 - Done and reopen are workflow transitions, picked by status category (done / new, else in progress). A workflow with no
   such step is an error the owner sees, not a silent no-op. Priorities map to Jira's five names
-  (1 Low, 2 Medium, 3 High, 4-5 Highest).
+  by meaning (1 Low, 2 Medium, 3 High, 4-5 Highest; Lowest reads as 1), so 5 reads back as 4. 0 clears the priority,
+  as unset does in Vikunja; a project that requires one refuses that, and the owner sees why.
 - Repo -> project: the vault's `projects/*.md` frontmatter `jira_project` (key or id), as `vikunja_project` for Vikunja.
   "Make it a task" with no mapped repo goes to the project named by `tasks_inbox` (name or key).
 - Internal names stay as they were (`vikunja:<id>` keys, the item source `vikunja`): they name Orb's Tasks source, not

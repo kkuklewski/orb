@@ -60,7 +60,7 @@ DESCRIPTION = (
     + "; ".join(f"{d}: {_words(w)}" for d, w in DESTINATION_WORDS.items()) + ". "
     "`item` (optional) opens one thing there: sessions: a session by repo and its first request (\"orb fix login\"), "
     "or a state: \"running now\" (running or waiting), \"ready\"; brain: a note waiting for a verdict, by title; tasks: "
-    "a tracker task (Vikunja or Jira) by number or title; routines: a routine by name (its page shows the last run), or a routine state "
+    "a tracker task (Vikunja or Jira) by number, Jira issue key or title; routines: a routine by name (its page shows the last run), or a routine state "
     "(" + _words(ROUTINE_STATES) + ") for the list. Home and Settings take no item. "
     "\"Chat\" (" + _words(NOT_A_PLACE) + ") is not a screen: the owner is already talking to you, so never call this "
     "for it. If the call is refused, say why in one short line; the page stays where it is."
@@ -158,6 +158,10 @@ def _task(src: Sources, item: str) -> tuple[dict, str]:
         t = next((x for x in tasks if x["id"] == int(num.group(1))), None)
         if t is None:
             raise NavigateError(f"No open task #{num.group(1)}. Tell the owner in one short line; the page stays where it is.")
+    elif tracker.KEY.fullmatch(item.strip()):
+        t = tracker.by_key(tasks, item)
+        if t is None:
+            raise NavigateError(f"No open task {item.strip().upper()}. Tell the owner in one short line; the page stays where it is.")
     else:
         t = _pick("open task", item, [(x["title"], x) for x in tasks])
     return _event("tasks", f"Tasks › #{t['id']} {t['title']}", task=str(t["id"]))

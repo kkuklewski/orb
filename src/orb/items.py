@@ -51,7 +51,7 @@ def list_(source: str, cfg: dict, vault, found: list[dict]) -> dict:
                 "columns": [_col("title", "Task", "title"), _col("project", "Project", "chip"), _col("repo", "Repo", "repo"), _col("due", "Due", "due"),
                             _col("priority", "Priority", "priority"), _col("suggested", "Suggested", "priority"), _col("created", "Created")],
                 "group_key": "project", "can_archive": True, "can_suggest": True, "statuses": ["unranked", "ranked"],
-                "url": got["url"], "url_label": "OPEN VIKUNJA →" if got["url"] else None, "error": got["error"]}
+                "url": got["url"], "url_label": f"OPEN {tracker.name(cfg).upper()} →" if got["url"] else None, "error": got["error"]}
     if source == "prs":
         prs = forget.prs()
         rows = [{"id": f"{p['repo']}#{p['number']}", "title": f"#{p['number']} · {p['title']}", "repo_path": _local(found, p["repo"]),

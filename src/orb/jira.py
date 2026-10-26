@@ -31,7 +31,7 @@ FIELDS = "summary,project,duedate,created,updated,priority,status"
 PROJECTS_TTL = 600  # project keys -> ids for the repo map; they rarely change
 # Jira's default priority names on Orb's (Vikunja's) 0-5 scale: 0 unset, 1 low, 2 medium, 3 high, 4 urgent, 5 do now.
 PRIORITY = {"lowest": 1, "low": 1, "medium": 2, "high": 3, "highest": 4}
-PRIORITY_NAME = {1: "Low", 2: "Medium", 3: "High", 4: "Highest", 5: "Highest"}
+PRIORITY_NAME = {1: "Low", 2: "Medium", 3: "High", 4: "Highest", 5: "Highest"}  # 5 reads back as 4: Jira has no sixth name
 
 _projects_cache: dict[str, tuple[float, list[dict]]] = {}
 
@@ -233,11 +233,12 @@ def set_done(url: str, task_id: int, done: bool) -> None:
 
 
 def set_priority(url: str, task_id: int, priority: int) -> None:
-    """Orb's 0-5 scale onto Jira's default names (Low, Medium, High, Highest); 0 is Medium, Jira's default."""
+    """Orb's 0-5 scale onto Jira's default names (Low, Medium, High, Highest); 0 clears it, as unset is in Vikunja (a
+    project that requires a priority refuses that, and the owner sees Jira's reason)."""
     if not 0 <= priority <= 5:
         raise JiraError("Priority is 0 to 5.")
     base, auth = _cfg(url)
-    _call(base, auth, f"/issue/{int(task_id)}", body={"fields": {"priority": {"name": PRIORITY_NAME.get(priority, "Medium")}}},
+    _call(base, auth, f"/issue/{int(task_id)}", body={"fields": {"priority": {"name": PRIORITY_NAME[priority]} if priority else None}},
           method="PUT")
 
 

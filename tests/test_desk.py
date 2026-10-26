@@ -188,6 +188,15 @@ def test_slash_messages_carry_the_data_and_never_look_like_a_command(src):
             desk.slash_message(src, "task", bad, TODAY)
 
 
+def test_slash_task_takes_a_jira_issue_key_from_the_open_tasks(src, monkeypatch):
+    jira_tasks = {"tasks": [{"id": 10001, "title": "ACME-12 Fix login", "project": "acme", "project_id": 3}], "total": 1, "url": "u"}
+    monkeypatch.setattr(vikunja, "open_tasks", lambda url, project=None: jira_tasks)
+    m = desk.slash_message(src, "task", "acme-12", TODAY)
+    assert m.screen == "task 10001" and "#10001" in m.ask
+    with pytest.raises(desk.DeskError, match="No open task ACME-99"):
+        desk.slash_message(src, "task", "ACME-99", TODAY)
+
+
 async def test_a_slash_command_shows_the_short_ask_and_sends_the_data_as_the_screen(src, tmp_path, monkeypatch):
     from orb import agent, server
     from orb.sessions import SessionStore
