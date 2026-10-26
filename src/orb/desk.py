@@ -189,7 +189,7 @@ class SlashMessage(NamedTuple):
 
 
 def slash_message(src: Sources, name: str, args: str, today: dt.date | None = None) -> SlashMessage:
-    """/today, /standup and /task <id>: a short question plus the data it needs. The server sends the data as the
+    """/today, /standup and /task <id or key>: a short question plus the data it needs. The server sends the data as the
     screen note, so it never shows in the bubble. The ask never starts with "/" (a command to Claude Code)."""
     if name == "task":
         n = _ref(src, args.strip())
@@ -203,17 +203,13 @@ def slash_message(src: Sources, name: str, args: str, today: dt.date | None = No
 
 
 def _ref(src: Sources, ref: str) -> int:
-    """/task's argument: the number after # in the task list, or a Jira issue key (ACME-12) among the open tasks."""
-    if ref.isdigit():
-        return int(ref)
-    if not tracker.KEY.fullmatch(ref):
-        raise DeskError("Use /task <id> or /task <issue key>, as the task list shows it.")
+    """/task's argument: an open task's number as the task list shows it (12 or #12), or its Jira issue key (ACME-12)."""
     try:
-        t = tracker.by_key(tracker.open_tasks(src.cfg())["tasks"], ref)
+        t = tracker.find(src.cfg(), tracker.open_tasks(src.cfg())["tasks"], ref)
     except tracker.ERRORS as e:
         raise DeskError(str(e)) from e
     if t is None:
-        raise DeskError(f"No open task {ref.upper()}.")
+        raise DeskError(f"No open task {ref.strip()[:40]!r}. Use /task <id> or /task <issue key>, as the task list shows it.")
     return int(t["id"])
 
 

@@ -28,6 +28,7 @@ MAX_PAGES = 20
 TIMEOUT = 8
 JQL = "assignee = currentUser() AND statusCategory != Done ORDER BY updated DESC"
 FIELDS = "summary,project,duedate,created,updated,priority,status"
+KEY = re.compile(r"[A-Za-z][A-Za-z0-9_]*-\d+")  # an issue key (ACME-12); a task's title starts with it (`_title`)
 PROJECTS_TTL = 600  # project keys -> ids for the repo map; they rarely change
 # Jira's default priority names on Orb's (Vikunja's) 0-5 scale: 0 unset, 1 low, 2 medium, 3 high, 4 urgent, 5 do now.
 PRIORITY = {"lowest": 1, "low": 1, "medium": 2, "high": 3, "highest": 4}
@@ -110,6 +111,14 @@ def _updated(raw: object) -> float:
 
 def _title(issue: dict) -> str:
     return f"{issue.get('key', '')} {(issue.get('fields') or {}).get('summary', '')}".strip()[:200]
+
+
+def by_key(tasks: list[dict], key: str) -> dict | None:
+    """The task whose title `_title` made from this issue key (ACME-12): the key alone, or the key and its summary."""
+    if not KEY.fullmatch(key):
+        return None
+    key = key.upper()
+    return next((t for t in tasks if str(t["title"]) == key or str(t["title"]).startswith(key + " ")), None)
 
 
 def _browse(base: str, key: str) -> str:
@@ -299,12 +308,12 @@ def repo_map(url: str, vault: Path | None) -> dict[int, str]:
     if not pairs:
         return {}
     try:
-        by_key = {p["key"].casefold(): p["id"] for p in _projects(*_cfg(url))}
+        ids = {p["key"].casefold(): p["id"] for p in _projects(*_cfg(url))}
     except JiraError:
-        by_key = {}
+        ids = {}
     out: dict[int, str] = {}
     for ref, local in pairs:
-        pid = int(ref) if ref.isdigit() else by_key.get(ref.casefold())
+        pid = int(ref) if ref.isdigit() else ids.get(ref.casefold())
         if pid:
             out.setdefault(pid, local)
     return out
