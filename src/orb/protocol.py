@@ -136,6 +136,13 @@ class VaultInfo(_Msg):
     open_tasks: int
 
 
+class KokoroInstall(_Msg):
+    """How far VoiceMode's Kokoro is set up on this Mac, for the setup's install steps (running is `speech.kokoro`)."""
+    voicemode: bool  # the `voicemode` command
+    installed: bool  # the Kokoro service's files
+    autostart: bool  # starts at login
+
+
 class SetupStatusEvent(_Event):
     type: Literal["setup_status"]
     auth: AuthStatus
@@ -145,6 +152,7 @@ class SetupStatusEvent(_Event):
     home: str
     speech: dict[str, bool]
     voices: list[Voice]
+    kokoro_install: KokoroInstall
     values: Json
     vault: VaultInfo | None = None
 

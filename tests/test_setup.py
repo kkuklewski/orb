@@ -29,3 +29,16 @@ def test_auth_status_keeps_no_account_details(monkeypatch):
     out = asyncio.run(setup.auth_status())
     assert out["loggedIn"] and out["subscription"] == "max" and out["subscriptionLogin"]
     assert "someone@example.com" not in json.dumps(out) and "org-1" not in json.dumps(out)
+
+
+def test_kokoro_install_follows_each_step(tmp_path, monkeypatch):
+    monkeypatch.setattr(setup.Path, "home", lambda: tmp_path)
+    monkeypatch.setattr(setup.shutil, "which", lambda name: None)
+    assert setup.kokoro_install() == {"voicemode": False, "installed": False, "autostart": False}
+    (tmp_path / ".local/bin").mkdir(parents=True)
+    (tmp_path / ".local/bin/voicemode").write_text("")  # uv's tool folder, not always on Orb's PATH
+    (tmp_path / ".voicemode/services/kokoro").mkdir(parents=True)
+    assert setup.kokoro_install() == {"voicemode": True, "installed": True, "autostart": False}
+    (tmp_path / "Library/LaunchAgents").mkdir(parents=True)
+    (tmp_path / "Library/LaunchAgents/com.voicemode.kokoro.plist").write_text("")
+    assert setup.kokoro_install()["autostart"]

@@ -58,6 +58,34 @@ describe("setup assistant", () => {
     expect(screen.getByRole("radio", { name: /Bella/ }).getAttribute("aria-checked")).toBe("true");
   });
 
+  it("walks through setting up Kokoro, looks again on its own, and picks her voice once she answers", () => {
+    vi.useFakeTimers();
+    const off = { kokoro: false, whisper: false, parakeet: false };
+    useSetup.setState({ step: 4, status: status({ speech: off, kokoro_install: { voicemode: true, installed: false, autostart: false } }) });
+    render(<Setup />);
+    fireEvent.click(screen.getByRole("button", { name: "Set up Kokoro" }));
+    expect(screen.getByText("voicemode service install kokoro")).toBeTruthy();
+    const done = () => [...document.querySelectorAll(".onb-steps li.done code")].map((c) => c.textContent);
+    expect(done()).toEqual(["uv tool install voice-mode"]);
+    sent.length = 0;
+    act(() => { vi.advanceTimersByTime(5000); });
+    expect(sent).toEqual([{ type: "setup_status" }]);
+
+    act(() => useSetup.setState({ status: status({ speech: { ...off, kokoro: true }, kokoro_install: { voicemode: true, installed: true, autostart: false } }) }));
+    expect(done()).toEqual(["uv tool install voice-mode", "voicemode service install kokoro", "voicemode service start kokoro"]);
+    expect(sent).toContainEqual({ type: "set_settings", values: { tts: "kokoro" } });
+    sent.length = 0;
+    act(() => { vi.advanceTimersByTime(10000); });
+    expect(sent).toEqual([]); // she answers: no more looking
+    vi.useRealTimers();
+  });
+
+  it("offers no Kokoro steps when she already runs", () => {
+    useSetup.setState({ step: 4, status: status() });
+    render(<Setup />);
+    expect(screen.queryByRole("button", { name: "Set up Kokoro" })).toBeNull();
+  });
+
   it("finishes with set_settings onboarded, and Escape closes only once set up", () => {
     useSetup.setState({ step: 5, status: status() });
     render(<Setup />);

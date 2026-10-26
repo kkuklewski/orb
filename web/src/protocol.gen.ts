@@ -886,6 +886,7 @@ export interface SetupStatusEvent {
   auth: AuthStatus;
   folder?: string | null;
   home: string;
+  kokoro_install: KokoroInstall;
   login_cmd: string;
   replay?: boolean | null;
   roots: RootInfo[];
@@ -912,6 +913,17 @@ export interface AuthStatus {
   method?: string | null;
   subscription?: string | null;
   subscriptionLogin?: boolean;
+}
+/**
+ * How far VoiceMode's Kokoro is set up on this Mac, for the setup's install steps (running is `speech.kokoro`).
+ *
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "KokoroInstall".
+ */
+export interface KokoroInstall {
+  autostart: boolean;
+  installed: boolean;
+  voicemode: boolean;
 }
 /**
  * This interface was referenced by `OrbProtocol`'s JSON-Schema

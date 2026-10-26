@@ -3423,6 +3423,28 @@
       "title": "ItemStartMsg",
       "type": "object"
     },
+    "KokoroInstall": {
+      "additionalProperties": false,
+      "description": "How far VoiceMode's Kokoro is set up on this Mac, for the setup's install steps (running is `speech.kokoro`).",
+      "properties": {
+        "autostart": {
+          "type": "boolean"
+        },
+        "installed": {
+          "type": "boolean"
+        },
+        "voicemode": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "voicemode",
+        "installed",
+        "autostart"
+      ],
+      "title": "KokoroInstall",
+      "type": "object"
+    },
     "MakeTaskCardEvent": {
       "additionalProperties": false,
       "description": "\"Make it a task\": the card to allow or deny before Orb creates a Vikunja task (ADR 0008).",
@@ -6632,6 +6654,9 @@
         "home": {
           "type": "string"
         },
+        "kokoro_install": {
+          "$ref": "#/$defs/KokoroInstall"
+        },
         "login_cmd": {
           "type": "string"
         },
@@ -6710,6 +6735,7 @@
         "home",
         "speech",
         "voices",
+        "kokoro_install",
         "values"
       ],
       "title": "SetupStatusEvent",

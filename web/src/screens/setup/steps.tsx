@@ -1,5 +1,5 @@
 // The five setup screens. Copy and behaviour match the old page (src/orb/static/app.js, Onb).
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { send } from "../../ws";
 import { useFeatures } from "../../stores/features";
 import { canContinue, hasRepos, signedIn, useSetup } from "../../stores/setup";
@@ -224,6 +224,46 @@ function Seg({ label, options, value, onPick }: {
   );
 }
 
+// VoiceMode's Kokoro, step by step: Orb only looks at what's there (setup.kokoro_install); the owner runs each command.
+const KOKORO_STEPS: [string, string, (k: { voicemode: boolean; installed: boolean; autostart: boolean }, running: boolean) => boolean][] = [
+  ["uv tool install voice-mode", "VoiceMode, which installs and runs Kokoro", (k) => k.voicemode],
+  ["voicemode service install kokoro", "Kokoro and its voices (a few minutes)", (k) => k.installed],
+  ["voicemode service start kokoro", "Start it", (_, running) => running],
+  ["voicemode service enable kokoro", "Start it at login", (k) => k.autostart],
+];
+const KOKORO_POLL_MS = 5000;
+
+function KokoroSetup({ running, onReady }: { running: boolean; onReady: () => void }) {
+  const k = useSetup((s) => s.status?.kokoro_install);
+  const [open, setOpen] = useState(false);
+  useEffect(() => { // while the steps are open, look again every few seconds until she answers
+    if (!open || running) return;
+    const t = setInterval(() => send({ type: "setup_status" }), KOKORO_POLL_MS);
+    return () => clearInterval(t);
+  }, [open, running]);
+  useEffect(() => { if (open && running) onReady(); }, [open, running]);
+  if (!k || (running && !open)) return null;
+  if (!open) return <Row><button type="button" className="onb-btn" onClick={() => setOpen(true)}>Set up Kokoro</button></Row>;
+  return (
+    <div className="onb-kokoro">
+      <p className="onb-text small">Kokoro is a local voice: it runs on this Mac, nothing leaves it. English voices only. Run these in Terminal, one at a time; each turns done here on its own.</p>
+      <ol className="onb-steps">
+        {KOKORO_STEPS.map(([cmd, what, done]) => {
+          const ok = done(k, running);
+          return (
+            <li key={cmd} className={ok ? "done" : undefined}>
+              <span className="onb-step-what"><span className="onb-dot" aria-hidden="true" />{what}{ok && <span className="sr-only"> (done)</span>}</span>
+              <Row><code className="onb-code">{cmd}</code><CopyButton text={cmd} /></Row>
+            </li>
+          );
+        })}
+      </ol>
+      {running ? <Status good>Kokoro is running. Her voice is set to Kokoro.</Status>
+        : <Row><button type="button" className="onb-btn" onClick={() => send({ type: "setup_status" })}>Check again</button></Row>}
+    </div>
+  );
+}
+
 export function Voice() {
   const status = useSetup((s) => s.status);
   const sp = status?.speech ?? {};
@@ -251,6 +291,7 @@ export function Voice() {
         options={[["browser", "Browser", BROWSER_STT], ["parakeet", "Parakeet", !!sp.parakeet], ["whisper", "Whisper", !!sp.whisper]]} />
       <Seg label="HER VOICE" value={values.tts} onPick={(v) => set("tts", v)}
         options={[["browser", "Browser", BROWSER_TTS], ["kokoro", "Kokoro", !!sp.kokoro]]} />
+      <KokoroSetup running={!!sp.kokoro} onReady={() => set("tts", "kokoro")} />
       {values.tts === "kokoro" && (status?.voices.length ?? 0) > 0 && <VoiceList voices={status!.voices} current={values.voice} />}
       <Row>
         <button type="button" className="onb-btn" onClick={testMic}>{mic}</button>
