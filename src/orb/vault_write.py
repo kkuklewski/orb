@@ -1,21 +1,28 @@
-"""The only place Orb's own code writes to the notes vault (ADR 0007). Three operations, nothing else:
+"""The only place Orb's own code writes to the notes vault (ADR 0007, 0009). Four operations, nothing else:
 
 1. a note's verdict fields: `human_verdict` (approve | reject) and `verdict_at`; "restore" removes them and
    `owner_read`, so the note waits again;
 2. a note's `owner_read` (the owner opened the note itself and left it without a verdict);
-3. one note-task line's marker and date: done "- [x] … ✅ <day>", not doing "- [-] … ❌ <day>", snooze "⏳ <day>".
+3. one note-task line's marker and date: done "- [x] … ✅ <day>", not doing "- [-] … ❌ <day>", snooze "⏳ <day>";
+4. a dropped YouTube link's transcript (ADR 0009): a new file in the transcripts folder, never over an existing one,
+   committed alone (`commit_new`: that path only, hooks off, refused when the vault's git config runs commands) and
+   pushed without force.
 
-Every write is compare-and-apply: it happens only if the field or line still reads as the page saw it, otherwise
+Every edit is compare-and-apply: it happens only if the field or line still reads as the page saw it, otherwise
 nothing is written ("The note changed since Orb read it"). Writes are atomic and keep the note's line endings.
-Orb commits nothing: the vault's git stays the owner's.
+Apart from (4), Orb commits nothing: the vault's git stays the owner's.
 """
 
 from __future__ import annotations
 
 import datetime as dt
+import fnmatch
+import json
 import os
 import re
+import subprocess
 import tempfile
+from dataclasses import dataclass
 from pathlib import Path
 
 from . import folders
@@ -28,6 +35,13 @@ MAX_NOTES = 200
 CHANGED = "The note changed since Orb read it, so nothing was written. Open it again."
 _FIELD = re.compile(r"^([A-Za-z_][\w-]*):\s*(.*?)\s*$")
 _DAY = re.compile(r"\d{4}-\d{2}-\d{2}")
+TRANSCRIPTS = "scrapers/Transcripts"  # the default; settings "transcripts_folder"
+VIDEO_ID = re.compile(r"^[A-Za-z0-9_-]{11}$")
+# Vault-local git config that makes git run a program (or send the push elsewhere): a session could have written it, so
+# Orb's own git calls refuse to run while it is set (`unsafe_config`). Matched on lower-case names with fnmatch.
+UNSAFE_GIT = ("core.fsmonitor", "core.sshcommand", "core.gitproxy", "core.askpass", "core.alternaterefscommand",
+              "filter.*", "include.*", "includeif.*", "credential.*", "gpg.*", "protocol.*", "url.*",
+              "remote.*.receivepack", "remote.*.uploadpack", "remote.*.proxy")
 
 
 class TaskError(Exception):
@@ -181,3 +195,86 @@ def set_task_line(vault: Path | None, file: str, line: int, expect: str, new: st
         raise TaskError("Orb only changes a task's marker and date.")
     lines[line - 1] = new
     _write(p, lines, eol)
+
+
+# -- 4. a dropped video's transcript (ADR 0009) ------------------------------------------------------------------
+
+def new_transcript(vault: Path, video_id: str, title: str, lang: str, text: str, now: dt.datetime | None = None,
+                   folder: str = TRANSCRIPTS) -> str:
+    """Write <folder>/<day>-<id>.md in the vault's transcript note format; never over an existing file, never outside
+    the vault. Returns the vault-relative path."""
+    if not VIDEO_ID.match(video_id):
+        raise TaskError("That isn't a YouTube video id.")
+    f = Path(folder)
+    if not folder or f.is_absolute() or ".." in f.parts or f.parts[0].startswith("."):
+        raise TaskError("The transcripts folder must be a folder inside the vault.")
+    now = now or dt.datetime.now().astimezone()
+    rel = f"{f.as_posix()}/{now.date().isoformat()}-{video_id}.md"
+    p = vault / rel
+    p.parent.mkdir(parents=True, exist_ok=True)
+    if not p.parent.resolve().is_relative_to(vault.resolve()):
+        raise TaskError("The transcripts folder must be a folder inside the vault.")
+    head = ["---", f"title: {json.dumps(title, ensure_ascii=False)}", f'url: "https://youtu.be/{video_id}"',
+            f'video_id: "{video_id}"', f'fetched_at: "{now.isoformat(timespec="seconds")}"', "source: youtube",
+            "fetch_method: n8n-webhook"] + ([f"lang: {json.dumps(lang)}"] if lang else []) + ["---", ""]
+    body = "\n".join(head + [f"# {' '.join(title.split())}", "", text.strip(), ""])
+    try:
+        fd = os.open(p, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
+    except FileExistsError:
+        raise TaskError("Already saved today: " + rel) from None
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        fh.write(body)
+    return rel
+
+
+@dataclass(frozen=True)
+class Pushed:
+    ok: bool
+    why: str = ""
+
+    def __bool__(self) -> bool:
+        return self.ok
+
+
+def unsafe_config(vault: Path) -> str | None:
+    """Why Orb's git calls in the vault won't run, or None: the vault's own (local or worktree) git config sets a key
+    from UNSAFE_GIT. Reading the config runs nothing."""
+    try:
+        r = subprocess.run(["git", "-C", str(vault), "config", "--list", "--name-only", "--show-scope"],
+                           capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.SubprocessError):
+        return "git didn't answer"
+    if r.returncode:
+        return "the vault isn't a git repository"
+    for line in r.stdout.splitlines():
+        scope, _, key = line.partition("\t")
+        if scope in ("local", "worktree") and any(fnmatch.fnmatchcase(key.lower(), pat) for pat in UNSAFE_GIT):
+            return f"the vault's git config sets {key}; Orb doesn't run git there while it does"
+    return None
+
+
+def commit_new(vault: Path, rel: str, message: str) -> Pushed:
+    """Commit only `rel` (other staged or unstaged work stays as it is), then push without force. Hooks, fsmonitor and
+    signing are off and a vault config that runs commands is refused: those are files a session could have edited. A
+    failed commit unstages `rel`; a failed push leaves the commit for the owner's next push."""
+    if why := unsafe_config(vault):
+        return Pushed(False, why)
+    git = ["git", "-C", str(vault), "-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false"]
+    env = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
+
+    def run(*args: str, timeout: int = 30) -> subprocess.CompletedProcess:
+        return subprocess.run([*git, *args], capture_output=True, text=True, timeout=timeout, env=env)
+
+    try:
+        if run("add", "--", rel).returncode:
+            return Pushed(False, "the commit failed, commit it yourself")
+        if run("commit", "-q", "--no-verify", "--no-gpg-sign", "--only", "-m", message, "--", rel).returncode:
+            run("reset", "-q", "--", rel)
+            return Pushed(False, "the commit failed, commit it yourself")
+        r = run("push", "-q", "--no-verify", timeout=90)
+    except (OSError, subprocess.SubprocessError):
+        return Pushed(False, "git didn't answer")
+    if r.returncode:
+        behind = "rejected" in r.stderr or "fetch first" in r.stderr
+        return Pushed(False, "your vault is behind GitHub; pull and push" if behind else "the push failed")
+    return Pushed(True)

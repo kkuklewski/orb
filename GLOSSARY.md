@@ -37,8 +37,8 @@ The second level of navigation, left of the main area: a list's adjustments or a
 _Avoid_: Sidebar, drawer; never for the Home chat, which docks
 
 **Brain**:
-The destination for the owner's second brain: the notes waiting for a verdict, note tasks, recently changed notes,
-and later Drop. Talking about it happens in the Home chat.
+The destination for the owner's second brain: the notes waiting for a verdict, note tasks, recently changed notes.
+Talking about it happens in the Home chat; new things reach it through a Drop on Home.
 _Avoid_: Notes (as the destination), vault, knowledge base
 
 **Note**:
@@ -46,8 +46,10 @@ One Markdown file in the second brain; the unit Brain lists and a verdict judges
 _Avoid_: Page, document, capture (unless it is one)
 
 **Drop**:
-Brain's intake: the owner drops a file, link, audio or transcript, Orb detects its kind, analyzes it and adds it to
-the second brain as a new file in the vault inbox, never by editing an existing note. Planned, not built.
+A link or a file the owner drops (or pastes) on Home's drop zone. Orb picks its route by rules and runs it in the
+background while the page stays on Home: a **job** Orb's own code runs (a YouTube link: its transcript saved as a new
+note) or a **request** that starts a notes session with the drop's grant (a link saved to Brain or summarised, a file
+read and sorted). The drop is the owner's approval for its own link or file only.
 _Avoid_: Upload, import, capture
 
 **Task**:
@@ -112,8 +114,9 @@ finish.
 _Avoid_: Pending, waiting, backlog
 
 **Grant**:
-The owner's one approval, given when they delegate, for what that delegation may do inside its own worktree
-without asking again; it ends with the delegation.
+The owner's one approval for what a session may do without asking again, given by the act that started it: a
+delegation's grant (its own worktree, declared commands, its branch), a drop's grant (fetching its own link, reading its
+own file). It belongs to that one session, is never stored and ends with it; the fence runs first.
 _Avoid_: Auto-approve, bypass, trust
 
 **Apply**:

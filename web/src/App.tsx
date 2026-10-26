@@ -28,6 +28,7 @@ import { wireItems } from "./stores/items";
 import { ItemPage } from "./screens/ItemPage";
 import { ItemList } from "./screens/ItemList";
 import { wireHome } from "./stores/home";
+import { wireDrop } from "./stores/drop";
 import { wireDelegations } from "./stores/delegation";
 import { wireRoute } from "./stores/route";
 import { wireScreen } from "./stores/screen";
@@ -52,7 +53,7 @@ export { openSetup };
 
 export function App() {
   useEffect(() => {
-    const offs = [wireFeatures(), wireSetup(), wireViews(), wireSession(), wireChat(), wireMeta(), wireVoice(), wireHome(), wireDelegations(), wireTasks(), wireItems(), wireBrain(), wireRoute(), wireScreen(), wireMakeTask()];
+    const offs = [wireFeatures(), wireSetup(), wireViews(), wireSession(), wireChat(), wireMeta(), wireVoice(), wireHome(), wireDrop(), wireDelegations(), wireTasks(), wireItems(), wireBrain(), wireRoute(), wireScreen(), wireMakeTask()];
     const stop = start();
     return () => { stop(); offs.forEach((off) => off()); };
   }, []);

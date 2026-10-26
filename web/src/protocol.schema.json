@@ -892,6 +892,7 @@
           "delegation_revert": "#/$defs/DelegationRevertMsg",
           "delegation_review": "#/$defs/DelegationReviewMsg",
           "dictate_note": "#/$defs/DictateNoteMsg",
+          "drop": "#/$defs/DropMsg",
           "get_settings": "#/$defs/GetSettingsMsg",
           "home": "#/$defs/HomeMsg",
           "interrupt": "#/$defs/InterruptMsg",
@@ -1151,6 +1152,9 @@
         },
         {
           "$ref": "#/$defs/DelegationOutwardMsg"
+        },
+        {
+          "$ref": "#/$defs/DropMsg"
         }
       ]
     },
@@ -1917,6 +1921,203 @@
       "title": "DirtyRepo",
       "type": "object"
     },
+    "DropDoneEvent": {
+      "additionalProperties": false,
+      "description": "A drop ended (every page): a job's \"Saved: <title>\" and the note it wrote, a session's first turn (\"Saved\",\n\"Answered\"), or why it failed.",
+      "properties": {
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "id": {
+          "type": "string"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "ok": {
+          "type": "boolean"
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "text": {
+          "type": "string"
+        },
+        "type": {
+          "const": "drop_done",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "ok",
+        "text"
+      ],
+      "title": "DropDoneEvent",
+      "type": "object"
+    },
+    "DropMsg": {
+      "additionalProperties": false,
+      "description": "Home's drop zone: one pasted link, or one file (name + base64 bytes).",
+      "properties": {
+        "data": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "drop",
+          "type": "string"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "DropMsg",
+      "type": "object"
+    },
+    "DropRoutedEvent": {
+      "additionalProperties": false,
+      "description": "A drop on Home, routed and running in the background (intake.py, ADR 0009); refused: why.",
+      "properties": {
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "ok": {
+          "type": "boolean"
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "route": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "text": {
+          "type": "string"
+        },
+        "type": {
+          "const": "drop_routed",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "ok",
+        "text"
+      ],
+      "title": "DropRoutedEvent",
+      "type": "object"
+    },
     "ErrorEvent": {
       "additionalProperties": false,
       "properties": {
@@ -1974,6 +2175,13 @@
       "properties": {
         "brain": {
           "type": "boolean"
+        },
+        "drops": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
         },
         "onboarded": {
           "type": "boolean"
@@ -2038,6 +2246,13 @@
       "properties": {
         "brain": {
           "type": "boolean"
+        },
+        "drops": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
         },
         "folder": {
           "anyOf": [
@@ -2390,6 +2605,13 @@
         },
         "build": {
           "type": "string"
+        },
+        "drops": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
         },
         "folder": {
           "anyOf": [
@@ -5979,6 +6201,8 @@
           "delegate_card": "#/$defs/DelegateCardEvent",
           "delegation_diff": "#/$defs/DelegationDiffEvent",
           "delegations": "#/$defs/DelegationsEvent",
+          "drop_done": "#/$defs/DropDoneEvent",
+          "drop_routed": "#/$defs/DropRoutedEvent",
           "error": "#/$defs/ErrorEvent",
           "features": "#/$defs/FeaturesEvent",
           "folders": "#/$defs/FoldersEvent",
@@ -6207,6 +6431,12 @@
         },
         {
           "$ref": "#/$defs/MakeTaskUndoneEvent"
+        },
+        {
+          "$ref": "#/$defs/DropRoutedEvent"
+        },
+        {
+          "$ref": "#/$defs/DropDoneEvent"
         }
       ]
     },

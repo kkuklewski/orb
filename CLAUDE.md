@@ -41,7 +41,9 @@ Python 3.14 via `uv` (`.python-version` pins the patch). Front end is plain HTML
   over, and it lets only its covered calls pass without a card (edits in its worktree, the repo's declared
   test/build commands, `git add`/`commit` on its branch; push and its PR only with the repo's `outwardSteps`
   on, never in a client folder; merge only through Apply). The fence runs first and its denials are final;
-  revoking the grant brings the cards back. Voice answers a card only when it can't be her own voice.
+  revoking the grant brings the cards back. A Home **drop** is the approval for its own link or file only (ADR 0009):
+  fetch that URL, one Brain Capture link of it, read that file; a YouTube drop is Orb's own job (new transcript note,
+  that one file committed and pushed). Voice answers a card only when it can't be her own voice.
 - No personal data in code, tests or docs: use made-up names (acme, globex). Personal setup lives in
   `~/.orb/settings.json`.
 
@@ -63,8 +65,9 @@ Python 3.14 via `uv` (`.python-version` pins the patch). Front end is plain HTML
 | `routines.py` | optional Routines panel: claude.ai scheduled agents via a locked-down Haiku session (read actions only) |
 | `tracker.py` / `jira.py` | the task tracker (ADR 0010): `tracker.py` picks Vikunja (`vikunja.py`) or Jira Cloud (`jira.py`, REST v3; Jira when `jira_url` is set) and every caller goes through it with the settings dict; tokens only from env (`ORB_VIKUNJA_TOKEN`, `ORB_JIRA_EMAIL` + `ORB_JIRA_TOKEN`); repo map from the vault's `vikunja_project` / `jira_project` |
 | `make_task.py` | "Make it a task" on a routine's run (ADR 0008): a page card names the title and the Vikunja project (the repo's mapped project, else `tasks_inbox`, default "Inbox"); Allow creates the task (in Vikunja or Jira), Undo deletes only a task this server created |
+| `intake.py` | Home's drop zone (ADR 0009), in the background: a link or file -> a route (first match wins). YouTube = Orb's job (the vault's fetch script from settings `transcript_script`, run only while git tracks it unchanged; new note in `transcripts_folder` via `vault_write`, that file committed + pushed, refused while the vault's git config runs commands); https -> a notes session saving a Brain Capture link; else a summary; text / PDF / image files saved 0600 under `~/.cache/orb/drops` (30 days). Sessions get a `DropGrant` for just that URL / file (Capture only on the link route) and end the drop with their first turn (`drop_done`); a new kind is one more `Route` |
 | `brain.py` | optional second brain: notes vault rules, claude.ai Brain connectors, dictated notes |
-| `vault_write.py` | the only writer of Orb's code to the notes vault (ADR 0007): verdict fields, `owner_read`, one task line's marker and date; compare-and-apply, atomic, no git |
+| `vault_write.py` | the only writer of Orb's code to the notes vault (ADR 0007): verdict fields, `owner_read`, one task line's marker and date (compare-and-apply, atomic); a drop's new transcript, committed alone (ADR 0009) |
 | `timing.py` | per-turn hop timings: logged, shown under each answer, appended to `~/.orb/timing.jsonl` |
 | `spoken.py` | `<spoken>` routing while streaming, fallback filter, Read all, `VOICE_PROMPT` appended to the `claude_code` preset |
 | `folders.py` / `sessions.py` | repo discovery across roots, labelled by remote; folder -> sessions in `~/.orb/sessions.json` |
