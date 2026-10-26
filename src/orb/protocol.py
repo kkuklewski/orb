@@ -136,11 +136,20 @@ class VaultInfo(_Msg):
     open_tasks: int
 
 
+class KokoroJob(_Msg):
+    """The one-click Kokoro setup's progress (kokoro_setup.py)."""
+    step: str
+    running: bool
+    error: str | None = None
+
+
 class KokoroInstall(_Msg):
-    """How far VoiceMode's Kokoro is set up on this Mac, for the setup's install steps (running is `speech.kokoro`)."""
+    """How far VoiceMode's Kokoro is set up on this Mac, for the setup's Kokoro card (running is `speech.kokoro`)."""
     voicemode: bool  # the `voicemode` command
     installed: bool  # the Kokoro service's files
     autostart: bool  # starts at login
+    exposed: bool  # a start script listens on every interface, not only this Mac
+    job: KokoroJob | None = None
 
 
 class SetupStatusEvent(_Event):
@@ -152,7 +161,7 @@ class SetupStatusEvent(_Event):
     home: str
     speech: dict[str, bool]
     voices: list[Voice]
-    kokoro_install: KokoroInstall
+    kokoro_install: KokoroInstall | None = None  # None: not a Mac
     values: Json
     vault: VaultInfo | None = None
 
@@ -939,6 +948,11 @@ class VoiceSampleMsg(_Msg):
     voice: str | None = None
 
 
+class KokoroSetupMsg(_Msg):
+    """One click: install what's missing of VoiceMode's Kokoro, keep it on 127.0.0.1, (re)start it."""
+    type: Literal["kokoro_setup"]
+
+
 class RescanMsg(_Msg):
     type: Literal["rescan"]
 
@@ -1296,7 +1310,7 @@ class DelegationDiscardMsg(_Msg):
 
 ClientMessage = Annotated[Union[
     SetupStatusMsg, BrowseMsg, PickFolderMsg, OpenFolderMsg, AddFolderMsg, StartSessionMsg, PinFolderMsg,
-    GetSettingsMsg, SetSettingsMsg, VoiceSampleMsg, RescanMsg, RoutinesMsg, RoutinesSeenMsg, RoutinesResolveMsg, MuteMsg,
+    GetSettingsMsg, SetSettingsMsg, VoiceSampleMsg, KokoroSetupMsg, RescanMsg, RoutinesMsg, RoutinesSeenMsg, RoutinesResolveMsg, MuteMsg,
     NewSessionMsg, ArchiveSessionMsg, RemoveSessionMsg, UserTextMsg, SpeechStartMsg, BargeInMsg, SpeechCancelledMsg, UtteranceMsg, VoiceTextMsg,
     HomeMsg, PlanStartMsg, PlanLaterMsg, PlanDoneMsg, ScreenMsg, TaskDetailMsg, ItemListMsg, ItemGetMsg, ItemDoneMsg, TasksBulkMsg, TasksSuggestMsg, NotesVerdictMsg, BrainListMsg, BrainGetMsg, BrainApplyMsg, BrainVerdictMsg, BrainReadMsg, ItemStartMsg, TaskActionMsg, InterruptMsg, PlaybackMsg, PermissionMsg, ReadAllMsg, DictateNoteMsg, UndoRequestMsg, UndoConfirmMsg,
     McpStatusMsg, McpReconnectMsg, SetModeMsg, SetModelMsg, RevokeGrantMsg, DelegateMsg, DelegateBulkMsg, DelegateConfirmMsg, MakeTaskMsg, MakeTaskConfirmMsg, MakeTaskUndoMsg,

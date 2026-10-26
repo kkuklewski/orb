@@ -16,7 +16,7 @@ from pathlib import Path
 
 import claude_agent_sdk
 
-from . import billing, folders, home, parakeet, speech
+from . import billing, folders, home, kokoro_setup, parakeet, speech
 from .settings import settings
 
 # Folders people often keep their code in; the onboarding offers the ones that exist.
@@ -54,15 +54,6 @@ async def auth_status() -> dict:
             "subscriptionLogin": method == "claude.ai", "error": None}
 
 
-def kokoro_install() -> dict:
-    """How far VoiceMode's Kokoro is set up: the command, the service's files, the login item. Only looked at,
-    never run: the setup shows the commands and the owner runs them in Terminal."""
-    home = Path.home()
-    return {"voicemode": bool(shutil.which("voicemode")) or (home / ".local" / "bin" / "voicemode").is_file(),
-            "installed": (home / ".voicemode" / "services" / "kokoro").is_dir(),
-            "autostart": (home / "Library" / "LaunchAgents" / "com.voicemode.kokoro.plist").is_file()}
-
-
 def _repos(root: Path) -> list[str]:
     return [f.rel for f in folders.discover(root)][:200]
 
@@ -95,7 +86,7 @@ async def status() -> dict:
         "home": str(Path.home()),
         "speech": {**health, "parakeet": parakeet.MODEL.is_file() and parakeet.LIB.is_file()},
         "voices": speech.recommended(installed, settings["voice"]) if health.get("kokoro") else [],
-        "kokoro_install": kokoro_install(),
+        "kokoro_install": kokoro_setup.status(),
         "values": {k: settings[k] for k in ("stt", "tts", "voice", "skip_names", "onboarded")},
         "vault": await asyncio.to_thread(home.vault_info, settings.vault()),
     }

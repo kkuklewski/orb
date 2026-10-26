@@ -58,21 +58,26 @@ describe("setup assistant", () => {
     expect(screen.getByRole("radio", { name: /Bella/ }).getAttribute("aria-checked")).toBe("true");
   });
 
-  it("walks through setting up Kokoro, looks again on its own, and picks her voice once she answers", () => {
+  it("installs Kokoro with one click, follows its steps, and picks her voice once she answers", () => {
     vi.useFakeTimers();
     const off = { kokoro: false, whisper: false, parakeet: false };
-    useSetup.setState({ step: 4, status: status({ speech: off, kokoro_install: { voicemode: true, installed: false, autostart: false } }) });
+    const k = { voicemode: false, installed: false, autostart: false, exposed: false };
+    useSetup.setState({ step: 4, status: status({ speech: off, kokoro_install: k }) });
     render(<Setup />);
     fireEvent.click(screen.getByRole("button", { name: "Set up Kokoro" }));
-    expect(screen.getByText("voicemode service install kokoro")).toBeTruthy();
-    const done = () => [...document.querySelectorAll(".onb-steps li.done code")].map((c) => c.textContent);
-    expect(done()).toEqual(["uv tool install voice-mode"]);
+    expect(screen.getByText("voicemode service install kokoro")).toBeTruthy(); // by hand, if they'd rather
+    fireEvent.click(screen.getByRole("button", { name: "Install Kokoro" }));
+    expect(sent).toContainEqual({ type: "kokoro_setup" });
+
+    act(() => useSetup.setState({ status: status({ speech: off, kokoro_install: { ...k, voicemode: true, job: { step: "Installing Kokoro and its voices", running: true } } }) }));
+    expect(screen.getByRole("status").textContent).toBe("Installing Kokoro and its voices…");
+    expect(screen.queryByRole("button", { name: "Install Kokoro" })).toBeNull();
     sent.length = 0;
     act(() => { vi.advanceTimersByTime(5000); });
     expect(sent).toEqual([{ type: "setup_status" }]);
 
-    act(() => useSetup.setState({ status: status({ speech: { ...off, kokoro: true }, kokoro_install: { voicemode: true, installed: true, autostart: false } }) }));
-    expect(done()).toEqual(["uv tool install voice-mode", "voicemode service install kokoro", "voicemode service start kokoro"]);
+    act(() => useSetup.setState({ status: status({ speech: { ...off, kokoro: true }, kokoro_install: { ...k, voicemode: true, installed: true, autostart: true, job: { step: "Starting", running: false } } }) }));
+    expect(screen.getByText(/Kokoro is running/)).toBeTruthy();
     expect(sent).toContainEqual({ type: "set_settings", values: { tts: "kokoro" } });
     sent.length = 0;
     act(() => { vi.advanceTimersByTime(10000); });
@@ -80,8 +85,30 @@ describe("setup assistant", () => {
     vi.useRealTimers();
   });
 
-  it("offers no Kokoro steps when she already runs", () => {
+  it("shows a failed step and lets it be tried again", () => {
+    const k = { voicemode: true, installed: true, autostart: false, exposed: false, job: { step: "Starting it", running: false, error: "❌ Failed to start kokoro" } };
+    useSetup.setState({ step: 4, status: status({ speech: { kokoro: false }, kokoro_install: k }) });
+    render(<Setup />);
+    fireEvent.click(screen.getByRole("button", { name: "Set up Kokoro" }));
+    expect(screen.getByText("❌ Failed to start kokoro")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(sent).toContainEqual({ type: "kokoro_setup" });
+  });
+
+  it("warns when Kokoro listens on the whole network, even while she runs, and fixes it with one click", () => {
+    useSetup.setState({ step: 4, status: status({ kokoro_install: { voicemode: true, installed: true, autostart: true, exposed: true } }) });
+    render(<Setup />);
+    expect(screen.getByText(/listens on your whole network/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Keep it on this Mac" }));
+    expect(sent).toContainEqual({ type: "kokoro_setup" });
+  });
+
+  it("offers no Kokoro setup when she already runs on this Mac only, or off a Mac", () => {
     useSetup.setState({ step: 4, status: status() });
+    render(<Setup />);
+    expect(screen.queryByRole("button", { name: "Set up Kokoro" })).toBeNull();
+    cleanup();
+    useSetup.setState({ status: status({ speech: { kokoro: false }, kokoro_install: null }) });
     render(<Setup />);
     expect(screen.queryByRole("button", { name: "Set up Kokoro" })).toBeNull();
   });

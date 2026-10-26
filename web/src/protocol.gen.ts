@@ -15,6 +15,7 @@ export type ClientMessage =
   | GetSettingsMsg
   | SetSettingsMsg
   | VoiceSampleMsg
+  | KokoroSetupMsg
   | RescanMsg
   | RoutinesMsg
   | RoutinesSeenMsg
@@ -224,6 +225,15 @@ export interface SetSettingsMsg {
 export interface VoiceSampleMsg {
   type: "voice_sample";
   voice?: string | null;
+}
+/**
+ * One click: install what's missing of VoiceMode's Kokoro, keep it on 127.0.0.1, (re)start it.
+ *
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "KokoroSetupMsg".
+ */
+export interface KokoroSetupMsg {
+  type: "kokoro_setup";
 }
 /**
  * This interface was referenced by `OrbProtocol`'s JSON-Schema
@@ -886,7 +896,7 @@ export interface SetupStatusEvent {
   auth: AuthStatus;
   folder?: string | null;
   home: string;
-  kokoro_install: KokoroInstall;
+  kokoro_install?: KokoroInstall | null;
   login_cmd: string;
   replay?: boolean | null;
   roots: RootInfo[];
@@ -915,15 +925,28 @@ export interface AuthStatus {
   subscriptionLogin?: boolean;
 }
 /**
- * How far VoiceMode's Kokoro is set up on this Mac, for the setup's install steps (running is `speech.kokoro`).
+ * How far VoiceMode's Kokoro is set up on this Mac, for the setup's Kokoro card (running is `speech.kokoro`).
  *
  * This interface was referenced by `OrbProtocol`'s JSON-Schema
  * via the `definition` "KokoroInstall".
  */
 export interface KokoroInstall {
   autostart: boolean;
+  exposed: boolean;
   installed: boolean;
+  job?: KokoroJob | null;
   voicemode: boolean;
+}
+/**
+ * The one-click Kokoro setup's progress (kokoro_setup.py).
+ *
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "KokoroJob".
+ */
+export interface KokoroJob {
+  error?: string | null;
+  running: boolean;
+  step: string;
 }
 /**
  * This interface was referenced by `OrbProtocol`'s JSON-Schema

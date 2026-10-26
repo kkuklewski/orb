@@ -51,11 +51,10 @@ body.onb-open { overflow: hidden; }
 .onb-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
 .onb-code { flex: 1 1 220px; min-width: 0; font: 13px var(--onb-mono); padding: 10px 12px; border-radius: 10px; background: var(--code-bg, #0F110D); border: 1px solid var(--line); overflow-wrap: anywhere; }
 .onb-kokoro { margin: 4px 0 12px; }
-.onb-steps { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 12px; }
-.onb-step-what { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--text-2); }
-.onb-steps li.done .onb-step-what { color: var(--text-3); }
-.onb-steps li.done .onb-dot { background: var(--onb-acc); }
-.onb-steps li.done .onb-code { opacity: .55; }
+.onb-kokoro-manual { margin-top: 10px; font-size: 13px; color: var(--text-2); }
+.onb-kokoro-manual summary { cursor: pointer; }
+.onb-steps { list-style: decimal inside; margin: 10px 0 0; padding: 0; display: grid; gap: 8px; }
+.onb-steps li > * { display: inline-flex; }
 .onb-input { flex: 1 1 220px; min-width: 0; font: 13px var(--onb-mono); padding: 10px 12px; border-radius: 10px; background: var(--code-bg, #0F110D); border: 1px solid var(--line); color: var(--text); }
 .onb-input:focus { outline: none; border-color: var(--onb-acc); }
 .onb-list { display: grid; gap: 8px; }
@@ -148,7 +147,6 @@ button.onb-item:hover { border-color: var(--onb-acc); }
 [data-skin="studio"] .onb-status { border-radius: 8px; background: var(--bg-elev); }
 [data-skin="studio"] .onb-status.good .onb-dot { background: var(--text); box-shadow: none; }
 [data-skin="studio"] .onb-dot { background: var(--s-acc); border-radius: 0; }
-[data-skin="studio"] .onb-steps li.done .onb-dot { background: var(--text); }
 [data-skin="studio"] .onb-code, [data-skin="studio"] .onb-input { background: var(--bg-elev); border-radius: 6px; }
 [data-skin="studio"] .onb-list { border-top: 1px solid var(--text); gap: 0; }
 [data-skin="studio"] .onb-item { border: 0; border-bottom: 1px solid var(--line); border-radius: 0; padding: 13px 2px; }

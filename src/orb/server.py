@@ -21,7 +21,7 @@ import json
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import billing, chain, config, delegation, desk, folders, forget, handoff, home, items, make_task, navigate, needs, parakeet, routines, settings, setup, slash, speech, tasks, triage, vault_write, vendor, vikunja, vocab, worktree
+from . import billing, chain, config, delegation, desk, folders, forget, handoff, home, items, kokoro_setup, make_task, navigate, needs, parakeet, routines, settings, setup, slash, speech, tasks, triage, vault_write, vendor, vikunja, vocab, worktree
 from .agent import SCREEN_MAX, FolderSession, dumps, first_request
 from .brain import CaptureGuard
 from .sessions import SessionStore
@@ -817,7 +817,8 @@ async def run_local(conn: Conn, s: FolderSession, name: str, args: str) -> None:
 
 
 # Until the onboarding is done, the page can only check the setup and change settings.
-SETUP_ONLY = {"setup_status", "get_settings", "set_settings", "mute", "voice_sample", "browse", "pick_folder"}
+SETUP_ONLY = {"setup_status", "get_settings", "set_settings", "mute", "voice_sample", "browse", "pick_folder",
+              "kokoro_setup"}
 
 
 async def handle(conn: Conn, msg: dict) -> None:
@@ -828,6 +829,9 @@ async def handle(conn: Conn, msg: dict) -> None:
     if t == "pick_folder":
         await conn.send(await setup.pick_native())
         return
+    if t == "kokoro_setup":  # the click is the approval; the page polls setup_status for the progress
+        kokoro_setup.start()
+        t = "setup_status"
     if t == "setup_status":
         ev = await setup.status()
         await conn.send(ev)

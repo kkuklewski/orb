@@ -224,42 +224,52 @@ function Seg({ label, options, value, onPick }: {
   );
 }
 
-// VoiceMode's Kokoro, step by step: Orb only looks at what's there (setup.kokoro_install); the owner runs each command.
-const KOKORO_STEPS: [string, string, (k: { voicemode: boolean; installed: boolean; autostart: boolean }, running: boolean) => boolean][] = [
-  ["uv tool install voice-mode", "VoiceMode, which installs and runs Kokoro", (k) => k.voicemode],
-  ["voicemode service install kokoro", "Kokoro and its voices (a few minutes)", (k) => k.installed],
-  ["voicemode service start kokoro", "Start it", (_, running) => running],
-  ["voicemode service enable kokoro", "Start it at login", (k) => k.autostart],
+// VoiceMode's Kokoro: one click (kokoro_setup.py runs these, then keeps it on 127.0.0.1), or the commands by hand.
+const KOKORO_CMDS = [
+  "uv tool install voice-mode",
+  "voicemode service install kokoro",
+  "sed -i '' 's/--host 0.0.0.0/--host 127.0.0.1/' ~/.voicemode/services/kokoro/start-*.sh",
+  "voicemode service enable kokoro",
 ];
 const KOKORO_POLL_MS = 5000;
 
 function KokoroSetup({ running, onReady }: { running: boolean; onReady: () => void }) {
   const k = useSetup((s) => s.status?.kokoro_install);
   const [open, setOpen] = useState(false);
-  useEffect(() => { // while the steps are open, look again every few seconds until she answers
-    if (!open || running) return;
+  const job = k?.job;
+  const busy = !!job?.running;
+  useEffect(() => { // while it installs or starts, look again every few seconds until she answers
+    if (!(open || busy) || (running && !busy)) return;
     const t = setInterval(() => send({ type: "setup_status" }), KOKORO_POLL_MS);
     return () => clearInterval(t);
-  }, [open, running]);
-  useEffect(() => { if (open && running) onReady(); }, [open, running]);
-  if (!k || (running && !open)) return null;
+  }, [open, busy, running]);
+  useEffect(() => { if (open && running && !k?.exposed) onReady(); }, [open, running, k?.exposed]);
+  if (!k) return null;
+  const go = () => { setOpen(true); send({ type: "kokoro_setup" }); };
+  const progress = job && (job.error ? <Status good={false}>{job.error}</Status>
+    : <p className="onb-text small" role="status">{job.step}…</p>);
+  if (k.exposed) return (
+    <div className="onb-kokoro">
+      <Status good={false}>Kokoro listens on your whole network, so other devices can use it. Orb can keep it on this Mac.</Status>
+      {busy ? progress : <>{job?.error && progress}<Row><button type="button" className="onb-btn" onClick={go}>Keep it on this Mac</button></Row></>}
+    </div>
+  );
+  if (running && !open) return null;
   if (!open) return <Row><button type="button" className="onb-btn" onClick={() => setOpen(true)}>Set up Kokoro</button></Row>;
   return (
     <div className="onb-kokoro">
-      <p className="onb-text small">Kokoro is a local voice: it runs on this Mac, nothing leaves it. English voices only. Run these in Terminal, one at a time; each turns done here on its own.</p>
-      <ol className="onb-steps">
-        {KOKORO_STEPS.map(([cmd, what, done]) => {
-          const ok = done(k, running);
-          return (
-            <li key={cmd} className={ok ? "done" : undefined}>
-              <span className="onb-step-what"><span className="onb-dot" aria-hidden="true" />{what}{ok && <span className="sr-only"> (done)</span>}</span>
-              <Row><code className="onb-code">{cmd}</code><CopyButton text={cmd} /></Row>
-            </li>
-          );
-        })}
-      </ol>
+      <p className="onb-text small">Kokoro is a local voice: it runs on this Mac and nothing leaves it. English voices only. Orb installs it with VoiceMode (a few minutes, about 2 GB) and keeps it to this Mac.</p>
       {running ? <Status good>Kokoro is running. Her voice is set to Kokoro.</Status>
-        : <Row><button type="button" className="onb-btn" onClick={() => send({ type: "setup_status" })}>Check again</button></Row>}
+        : busy || (job && !job.error) ? progress
+        : <>{progress}<Row><button type="button" className="onb-btn" onClick={go}>{job?.error ? "Try again" : "Install Kokoro"}</button></Row></>}
+      {!running && !busy && (
+        <details className="onb-kokoro-manual">
+          <summary>Or run it yourself in Terminal</summary>
+          <ol className="onb-steps">
+            {KOKORO_CMDS.map((cmd) => <li key={cmd}><Row><code className="onb-code">{cmd}</code><CopyButton text={cmd} /></Row></li>)}
+          </ol>
+        </details>
+      )}
     </div>
   );
 }
