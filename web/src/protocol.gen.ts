@@ -73,7 +73,8 @@ export type ClientMessage =
   | DelegationDiscardMsg
   | DelegationRetryMsg
   | DelegationResumeMsg
-  | DelegationOutwardMsg;
+  | DelegationOutwardMsg
+  | DropMsg;
 /**
  * This interface was referenced by `OrbProtocol`'s JSON-Schema
  * via the `definition` "ServerEvent".
@@ -137,7 +138,9 @@ export type ServerEvent =
   | DelegationDiffEvent
   | MakeTaskCardEvent
   | MakeTaskDoneEvent
-  | MakeTaskUndoneEvent;
+  | MakeTaskUndoneEvent
+  | DropRoutedEvent
+  | DropDoneEvent;
 
 export interface OrbProtocol {
   client?: ClientMessage;
@@ -799,12 +802,25 @@ export interface DelegationOutwardMsg {
   type: "delegation_outward";
 }
 /**
+ * Home's drop zone: one pasted link, or one file (name + base64 bytes).
+ *
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "DropMsg".
+ */
+export interface DropMsg {
+  data?: string | null;
+  name?: string | null;
+  type: "drop";
+  url?: string | null;
+}
+/**
  * This interface was referenced by `OrbProtocol`'s JSON-Schema
  * via the `definition` "HelloEvent".
  */
 export interface HelloEvent {
   brain: boolean;
   build: string;
+  drops?: string[];
   folder?: string | null;
   folders: FolderItem[];
   onboarded: boolean;
@@ -866,6 +882,7 @@ export interface SessionItem {
  */
 export interface FeaturesEvent {
   brain: boolean;
+  drops?: string[];
   folder?: string | null;
   onboarded: boolean;
   plan?: string | null;
@@ -2191,6 +2208,39 @@ export interface MakeTaskUndoneEvent {
   type: "make_task_undone";
 }
 /**
+ * A drop on Home, routed and running in the background (intake.py, ADR 0009); refused: why.
+ *
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "DropRoutedEvent".
+ */
+export interface DropRoutedEvent {
+  folder?: string | null;
+  id?: string | null;
+  ok: boolean;
+  replay?: boolean | null;
+  route?: string | null;
+  session?: string | null;
+  text: string;
+  type: "drop_routed";
+}
+/**
+ * A drop ended (every page): a job's "Saved: <title>" and the note it wrote, a session's first turn ("Saved",
+ * "Answered"), or why it failed.
+ *
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "DropDoneEvent".
+ */
+export interface DropDoneEvent {
+  folder?: string | null;
+  id: string;
+  note?: string | null;
+  ok: boolean;
+  replay?: boolean | null;
+  session?: string | null;
+  text: string;
+  type: "drop_done";
+}
+/**
  * What this install has turned on, and how Claude Code is signed in (plan only).
  *
  * This interface was referenced by `OrbProtocol`'s JSON-Schema
@@ -2198,6 +2248,7 @@ export interface MakeTaskUndoneEvent {
  */
 export interface Features {
   brain: boolean;
+  drops?: string[];
   onboarded: boolean;
   plan?: string | null;
   roots: string[];

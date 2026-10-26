@@ -414,7 +414,7 @@ class FolderSession:
         self.unseen = False  # finished while nobody was looking
         self.guard = guard or CaptureGuard(config.STATE_DIR / "captures.json")
         self.fence = Fence(path)
-        self.grant: grant.Grant | None = None  # a delegation's grant (ADR 0005): never stored, never carried over
+        self.grant: grant.Cover | None = None  # a delegation's or a drop's grant (ADR 0005, 0009): never stored or carried over
         self.client: ClaudeSDKClient | None = None
         self.reader: asyncio.Task | None = None
         self.session_id: str | None = store.resume_id(path, key)
@@ -891,7 +891,7 @@ class FolderSession:
     # -- permissions ------------------------------------------------------------
 
     async def _can_use_tool(self, name: str, inp: dict[str, Any], ctx: ToolPermissionContext):
-        if self.grant is not None:  # the owner approved this on the Delegate card; the fence still goes first
+        if self.grant is not None:  # the owner approved this on the Delegate card or by the drop; the fence still goes first
             verdict = await asyncio.to_thread(grant.decide, self._rule(name, inp), self.grant, name, inp)
             if verdict == "allow":
                 return PermissionResultAllow(updated_input=self.grant.safe_input(name, inp))

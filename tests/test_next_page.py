@@ -11,7 +11,7 @@ def test_root_serves_the_built_react_page_without_cdn():
     assert "cdn.jsdelivr.net" not in policy and "script-src 'self' 'wasm-unsafe-eval'" in policy
 
 
-@pytest.mark.parametrize("route", ["/s/abc123", "/settings", "/routines", "/sessions", "/chats", "/activity", "/r/trig_1", "/t/inbox%2Fg7.md/6"])
+@pytest.mark.parametrize("route", ["/s/abc123", "/settings", "/routines", "/tasks", "/brain", "/n/inbox%2Fg7.md", "/sessions", "/chats", "/activity", "/r/trig_1", "/t/inbox%2Fg7.md/6"])
 def test_react_routes_get_the_same_page(route):
     r = TestClient(server.app).get(route)
     assert r.status_code == 200 and '<div id="root"></div>' in r.text and "cdn.jsdelivr.net" not in r.headers["content-security-policy"]

@@ -11,12 +11,13 @@ import { HomeEmpty, LeadCard } from "./HomeLead";
 import { NeedsStrip } from "./HomeNeeds";
 import { DelegateCards, DelegatedStrip } from "./HomeDelegated";
 import { saveTab, savedTab, TabCard, useRoutinesPane } from "./HomeTabs";
+import { HomeDrop } from "./HomeDrop";
 
 // The start screen: a header bar (day, jump), then one column under 1180px: the Needs you strip (HomeNeeds: what is
 // blocked until you act, by rule), the Next action with Up next under it (HomeLead: tasks, tasks in the notes,
 // results, pull requests, the notes batch; "All N" links reach the full lists), the Delegated strip (HomeDelegated),
 // the status card (HomeTabs: a tab each for routines and what not to forget, and how many notes changed this week).
-// From 1180px the status card moves to a right column. Nothing waiting and nothing queued: one line instead of the lead card. Pinned links at the bottom.
+// From 1180px the status card moves to a right column, with the drop zone under it (HomeDrop: a link or a file -> a job or a notes session in the background). Nothing waiting and nothing queued: one line instead of the lead card. Pinned links at the bottom.
 // Keys: ⌘K opens the picker; J K, Enter, S (Later) and D (Done) work the queue (HomeLead).
 
 function useNow(ms = 30000) {
@@ -106,7 +107,10 @@ export function Home() {
           <DelegateCards />
           <DelegatedStrip />
         </div>
-        <TabCard id="status" panes={panes} tab={tab} onTab={setTab} line={week} running={n.waiting.length + n.working.length} />
+        <div className="home-side">
+          <TabCard id="status" panes={panes} tab={tab} onTab={setTab} line={week} running={n.waiting.length + n.working.length} />
+          <HomeDrop />
+        </div>
       </div>
       <Links />
     </section>

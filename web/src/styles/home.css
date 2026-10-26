@@ -196,6 +196,28 @@
 .home-cols { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; padding: 24px clamp(16px, 2.5vw, 32px) 24px; }
 .home-main { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 @media (min-width: 1180px) { .home-cols { grid-template-columns: minmax(0, 1fr) minmax(340px, 30%); } }
+.home-side { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+/* The drop zone (HomeDrop): a dashed well with a big tray icon; dragging over it inks the border. */
+.drop-body { display: flex; flex-direction: column; align-items: center; gap: 12px; margin: 0 20px 16px; padding: 26px 16px 20px; border: 1.5px dashed var(--line); border-radius: 8px; text-align: center; transition: border-color .15s, background .15s; }
+.drop.over .drop-body { border-color: var(--text); background: var(--bg); }
+.drop-icon { color: var(--text-3); }
+.drop.over .drop-icon { color: var(--text); }
+.drop-title { margin: 0; font: 600 16px/1.3 var(--sans); }
+.drop-form { display: flex; gap: 8px; width: 100%; flex-wrap: wrap; justify-content: center; }
+.drop-form input[type=url] { flex: 1 1 180px; min-width: 0; height: 38px; padding: 0 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--text); font: 14px var(--sans); }
+.drop-form input[type=url]:focus-visible { outline: 2px solid var(--text); outline-offset: 1px; }
+.drop-form .hbtn { height: 38px; font-size: 13px; }
+.drop-said { margin: 0; font-size: 11.5px; color: var(--text-2); overflow-wrap: anywhere; }
+.drop-said.refused { color: var(--s-acc-txt, var(--warn)); }
+.drop-list { margin: 0; padding: 0 20px 12px; list-style: none; }
+.drop-item { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line-soft); }
+.drop-item:first-child { border-top: 0; }
+.drop-item-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.drop-item-what { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.drop-item-state { font-size: 11px; color: var(--text-3); overflow-wrap: anywhere; }
+.drop-item.ask .drop-item-state, .drop-item.bad .drop-item-state { color: var(--s-acc-txt, var(--warn)); }
+.drop-routes { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 0; padding: 12px 20px; list-style: none; background: var(--side); border-top: 1px solid var(--line-soft); font-size: 11px; color: var(--text-3); }
+@media (prefers-reduced-motion: reduce) { .drop-body { transition: none; } }
 .home > .home-links { padding: 0 clamp(16px, 2.5vw, 32px) 40px; }
 .hc-running { display: flex; justify-content: space-between; width: 100%; margin: 0; padding: 12px 20px; border: 0; border-top: 1px solid var(--line-soft); background: none; font-size: 11.5px; letter-spacing: .06em; color: var(--text); text-transform: uppercase; cursor: pointer; text-align: left; }
 .hc-running:hover { background: var(--side-row-hover); }

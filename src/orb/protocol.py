@@ -75,6 +75,7 @@ class Features(_Msg):
     tts: Literal["browser", "kokoro"]
     plan: str | None = None
     tracker: str = "Vikunja"  # the task tracker's name, for the page's words (ADR 0010)
+    drops: list[str] = []  # what Home's drop zone can do here, its route labels (intake.labels)
 
 
 class AuthStatus(_Msg):
@@ -885,6 +886,27 @@ class MakeTaskUndoneEvent(_Event):
     error: str | None = None
 
 
+class DropRoutedEvent(_Event):
+    """A drop on Home, routed and running in the background (intake.py, ADR 0009); refused: why."""
+    type: Literal["drop_routed"]
+    ok: bool
+    text: str  # the route's label ("YouTube → transcript"), or why the drop was refused
+    route: str | None = None
+    id: str | None = None  # the drop; its drop_done carries it
+    session: str | None = None  # a session's drop: its key in `folder` (its status is the progress until drop_done)
+    folder: str | None = None
+
+
+class DropDoneEvent(_Event):
+    """A drop ended (every page): a job's "Saved: <title>" and the note it wrote, a session's first turn ("Saved",
+    "Answered"), or why it failed."""
+    type: Literal["drop_done"]
+    id: str
+    ok: bool
+    text: str
+    note: str | None = None  # vault-relative path
+
+
 ServerEvent = Annotated[Union[
     HelloEvent, FeaturesEvent, FoldersEvent, SetupStatusEvent, BrowseEvent, PickedEvent, VoiceSampleEvent,
     SettingsEvent, ErrorEvent, NoticeEvent, OpenedEvent, HistoryEvent, StateEvent, SessionInfoEvent,
@@ -893,7 +915,7 @@ ServerEvent = Annotated[Union[
     ResultEvent, TimingEvent, PartialEvent, HeardNothingEvent, PinFocusedEvent, HeldEvent, PermissionEvent,
     PermissionDoneEvent, UndoAvailableEvent, UndoConfirmEvent, UndoDoneEvent, AudioEvent, SpeechResetEvent,
     DelegateCardEvent, DelegationsEvent, DelegationDiffEvent,
-    MakeTaskCardEvent, MakeTaskDoneEvent, MakeTaskUndoneEvent,
+    MakeTaskCardEvent, MakeTaskDoneEvent, MakeTaskUndoneEvent, DropRoutedEvent, DropDoneEvent,
 ], Field(discriminator="type")]
 
 
@@ -1309,6 +1331,14 @@ class DelegationDiscardMsg(_Msg):
     id: str
 
 
+class DropMsg(_Msg):
+    """Home's drop zone: one pasted link, or one file (name + base64 bytes)."""
+    type: Literal["drop"]
+    url: str | None = None
+    name: str | None = None
+    data: str | None = None
+
+
 ClientMessage = Annotated[Union[
     SetupStatusMsg, BrowseMsg, PickFolderMsg, OpenFolderMsg, AddFolderMsg, StartSessionMsg, PinFolderMsg,
     GetSettingsMsg, SetSettingsMsg, VoiceSampleMsg, KokoroSetupMsg, RescanMsg, RoutinesMsg, RoutinesSeenMsg, RoutinesResolveMsg, MuteMsg,
@@ -1316,7 +1346,7 @@ ClientMessage = Annotated[Union[
     HomeMsg, PlanStartMsg, PlanLaterMsg, PlanDoneMsg, ScreenMsg, TaskDetailMsg, ItemListMsg, ItemGetMsg, ItemDoneMsg, TasksBulkMsg, TasksSuggestMsg, NotesVerdictMsg, BrainListMsg, BrainGetMsg, BrainApplyMsg, BrainVerdictMsg, BrainReadMsg, ItemStartMsg, TaskActionMsg, InterruptMsg, PlaybackMsg, PermissionMsg, ReadAllMsg, DictateNoteMsg, UndoRequestMsg, UndoConfirmMsg,
     McpStatusMsg, McpReconnectMsg, SetModeMsg, SetModelMsg, RevokeGrantMsg, DelegateMsg, DelegateBulkMsg, DelegateConfirmMsg, MakeTaskMsg, MakeTaskConfirmMsg, MakeTaskUndoMsg,
     DelegationReviewMsg, DelegationApplyMsg, DelegationRevertMsg, DelegationDiscardMsg, DelegationRetryMsg,
-    DelegationResumeMsg, DelegationOutwardMsg,
+    DelegationResumeMsg, DelegationOutwardMsg, DropMsg,
 ], Field(discriminator="type")]
 
 

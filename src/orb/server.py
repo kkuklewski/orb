@@ -9,6 +9,7 @@ import datetime as dt
 import logging
 import secrets
 import time
+import uuid
 from collections.abc import Awaitable
 from pathlib import Path
 from urllib.parse import urlparse
@@ -21,7 +22,7 @@ import json
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import billing, chain, config, delegation, desk, folders, forget, handoff, home, items, kokoro_setup, make_task, navigate, needs, parakeet, routines, settings, setup, slash, speech, tasks, tracker, triage, vault_write, vendor, vocab, worktree
+from . import billing, chain, config, delegation, desk, folders, forget, handoff, home, intake, items, kokoro_setup, make_task, navigate, needs, parakeet, routines, settings, setup, slash, speech, tasks, tracker, triage, vault_write, vendor, vocab, worktree
 from .agent import SCREEN_MAX, FolderSession, dumps, first_request
 from .brain import CaptureGuard
 from .sessions import SessionStore
@@ -93,7 +94,8 @@ class Hub:
         self.commands: dict[str, list[dict]] = {}
         self.auth: dict = {}
         self.auth_at = 0.0
-        self.handoffs: set[asyncio.Task] = set()  # first requests of sessions opened by continue_in_repo
+        self.background: set[asyncio.Task] = set()  # first requests of new sessions (handoff, Start in Orb, drops), drop jobs
+        self.drops: dict[str, tuple[str, str]] = {}  # a drop's session key -> (drop id, its route); drop_done on its first turn's end
         self.jobs: set[asyncio.Task] = set()  # plan rankings
         self.results_sent: list[dict] | None = None  # the finished sessions the plan last got
         self.last_commands: list[dict] = []
@@ -213,9 +215,39 @@ class Hub:
         """"Start in Orb": a new session in `path` (already checked) whose first request is `brief`; this page follows it."""
         key = self.store.new_session(path)
         await open_session(conn, path, key)
-        task = asyncio.create_task(self.session(path, key).send(brief, "text"))
-        self.handoffs.add(task)
-        task.add_done_callback(self.handoffs.discard)
+        self._background(self.session(path, key).send(brief, "text"))
+
+    def _background(self, coro) -> None:
+        """Run `coro` without waiting for it; the set keeps the task alive until it ends."""
+        task = asyncio.create_task(coro)
+        self.background.add(task)
+        task.add_done_callback(self.background.discard)
+
+    async def run_drop(self, d: intake.Drop, vault: str) -> dict:
+        """A routed drop, in the background (ADR 0009): its job in a thread, or a new notes session that starts on its
+        request with the drop's grant. Every page hears drop_done when a job ends, or when the session's first turn
+        ends or errs (drop_session_done); in between, its status is the drop's progress."""
+        drop = uuid.uuid4().hex[:12]
+        if d.job is not None:
+            async def run(job=d.job) -> None:
+                try:
+                    done = await asyncio.to_thread(job)
+                    ev = {"type": "drop_done", "id": drop, "ok": True, "text": done.text, "note": done.note}
+                except intake.Refused as e:
+                    ev = {"type": "drop_done", "id": drop, "ok": False, "text": str(e)}
+                except Exception:
+                    log.exception("drop job failed")
+                    ev = {"type": "drop_done", "id": drop, "ok": False, "text": "The drop failed; see Orb's log."}
+                await asyncio.gather(*(c.send(ev) for c in self.conns))
+            self._background(run())
+            return {"id": drop}
+        key = self.store.new_session(vault)
+        s = self.session(vault, key)
+        s.grant = d.cover
+        self.drops[key] = (drop, d.route)
+        self._background(s.send(d.request, "text"))
+        await self.push_folders()
+        return {"id": drop, "session": key, "folder": vault}
 
     async def handoff(self, src: FolderSession, repo: str, brief: str) -> str:
         """`continue_in_repo`: a new session in another repo that starts on `brief`; pages showing the
@@ -234,9 +266,7 @@ class Hub:
             await open_session(c, str(p), key)  # first, so the request shows once, live
         text = (f"Handed over by Claude from a session in {self.label(src.path)}; the brief below was written by the model, "
                 f"not typed by the user.\n\n{brief}")
-        task = asyncio.create_task(self.session(str(p), key).send(text, "text"))
-        self.handoffs.add(task)
-        task.add_done_callback(self.handoffs.discard)
+        self._background(self.session(str(p), key).send(text, "text"))
         return (f"Started a new session in {self.label(str(p))} with your brief; the user's page moved there. "
                 "Say one short line that you handed it over, and stop.")
 
@@ -260,8 +290,19 @@ class Hub:
         targets = [c for c in self.conns if c.key == key or ev["type"] == "rate_limit"]
         await asyncio.gather(*(c.send(ev) for c in targets))
         await self.delegator.on_event(key, ev)
+        if key in self.drops and ev["type"] in ("result", "error"):
+            await self.drop_session_done(key, ev)
         if ev["type"] in ("result", "session_info", "state", "permission", "permission_done", "user"):
             await self.push_folders()
+
+    async def drop_session_done(self, key: str, ev: dict) -> None:
+        """A drop's session ended its first turn (result) or hit an error: every page hears how the drop ended."""
+        drop, route = self.drops.pop(key)
+        if ev["type"] == "error" or ev.get("is_error"):
+            done = {"ok": False, "text": str(ev.get("text") or "It stopped with an error; open it to see why.")[:300]}
+        else:
+            done = {"ok": True, "text": "Saved" if route == "link" else "Answered"}
+        await asyncio.gather(*(c.send({"type": "drop_done", "id": drop, **done}) for c in self.conns))
 
     async def notify(self, s: FolderSession, kind: str) -> None:
         """A background session finished or needs approval: a sound and one spoken line on
@@ -415,12 +456,15 @@ def page(request: Request, html: str, cdn: bool) -> HTMLResponse:
 @app.get("/chats")
 @app.get("/activity")
 @app.get("/routines")
+@app.get("/tasks")
+@app.get("/brain")
 @app.get("/settings")
 @app.get("/vikunjas")
 @app.get("/items/{route:path}")
 @app.get("/s/{route:path}")
 @app.get("/t/{route:path}")
 @app.get("/r/{route:path}")
+@app.get("/n/{route:path}")
 async def index(request: Request, route: str = ""):
     """The React page (web/, built into static/app). Its own routes (/s/<session>, /settings, …) all get
     the same page; the page reads the path."""
@@ -501,7 +545,13 @@ def features() -> dict:
     s = settings.settings
     return {"roots": s["roots"], "vault": str(s.vault() or ""), "brain": s["brain"], "routines": s["routines"],
             "onboarded": s["onboarded"], "stt": s["stt"], "tts": s["tts"], "plan": hub.auth.get("subscription"),
-            "tracker": tracker.name(s.data)}
+            "tracker": tracker.name(s.data), "drops": intake.labels(drop_env())}
+
+
+def drop_env() -> intake.Env:
+    """What Home's drop routes may count on, from the settings (intake.Env)."""
+    s = settings.settings
+    return intake.Env(s.vault(), bool(s["brain"]), s["transcript_script"], s["transcripts_folder"] or vault_write.TRANSCRIPTS)
 
 
 async def settings_event() -> dict:
@@ -905,6 +955,26 @@ async def handle(conn: Conn, msg: dict) -> None:
             await conn.send({"type": "voice_sample", "voice": voice, "mime": "audio/mpeg", "data": base64.b64encode(audio).decode()})
         except Exception as e:  # noqa: BLE001 - the page shows it on the voice it asked for
             await conn.send({"type": "voice_sample", "voice": voice, "error": speech.tts_error(e)})
+        return
+    if t == "drop":
+        # Home's drop zone (ADR 0009): a link or a file -> a job Orb runs, or a background session in the notes folder
+        # with the drop's grant. The page stays where it is; drop_done says how it ended.
+        vault = settings.settings.vault()
+        env = drop_env()
+        try:
+            if not vault:
+                raise intake.Refused("Set the Brain folder in Settings first: drops run in your notes.")
+            if msg.get("data") is not None:
+                data = base64.b64decode(str(msg["data"]), validate=True)
+                d = await asyncio.to_thread(intake.route_file, str(msg.get("name") or "drop"), data, env)
+            else:
+                d = intake.route_link(str(msg.get("url") or ""), env)
+        except (intake.Refused, ValueError) as e:
+            text = str(e) if isinstance(e, intake.Refused) else "The file didn't arrive whole; try again."
+            await conn.send({"type": "drop_routed", "ok": False, "text": text})
+            return
+        await conn.send({"type": "drop_routed", "ok": True, "route": d.route, "text": d.label,
+                         **await hub.run_drop(d, str(vault))})
         return
     if t == "rescan":
         hub.scan()

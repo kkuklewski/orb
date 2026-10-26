@@ -21,7 +21,7 @@ import re
 import shlex
 import subprocess
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import Any, Literal, Protocol
 
 from .fence import Fence
 
@@ -40,6 +40,12 @@ _PR_FLAGS = {"-d", "--draft", "-f", "--fill"}
 _PR_VALUES = {"-t", "--title", "-b", "--body", "-B", "--base", "-H", "--head"}
 
 Decision = Literal["deny", "card", "allow"]
+
+
+class Cover(Protocol):
+    """What `decide` asks of a grant: a delegation's Grant, or a drop's (intake.DropGrant, ADR 0009)."""
+    def covers(self, tool: str, inp: dict[str, Any]) -> bool: ...
+    def safe_input(self, tool: str, inp: dict[str, Any]) -> dict[str, Any]: ...
 
 
 @dataclass
@@ -120,7 +126,7 @@ class Grant:
         return out.returncode == 0 and out.stdout.strip() == self.branch
 
 
-def decide(rule: dict, grant: Grant | None, tool: str, inp: dict[str, Any]) -> Decision:
+def decide(rule: dict, grant: Cover | None, tool: str, inp: dict[str, Any]) -> Decision:
     """deny (the fence's word is final), allow (the grant covers it) or card (ask the owner)."""
     verdict = rule.get("hookSpecificOutput", {}).get("permissionDecision")
     if verdict == "deny":

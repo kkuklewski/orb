@@ -25,6 +25,8 @@ DEFAULTS = {
     "vault": config.env("VAULT", ""),  # an Obsidian-style notes repo; "" = no second-brain features
     "vault_protected": [],  # top folders of the vault whose edits always need a card
     "brain": False,  # claude.ai "Brain" / "Brain Capture" connectors in every session
+    "transcript_script": config.env("TRANSCRIPT_SCRIPT", ""),  # the vault's YouTube transcript fetch script (vault-relative); "" = no YouTube drops
+    "transcripts_folder": "",  # where a dropped video's transcript goes (vault-relative); "" = vault_write.TRANSCRIPTS
     "routines": False,  # Routines panel (claude.ai scheduled agents)
     "routines_judge": True,  # Haiku judges each result: only the ones worth reading notify (off: every result does)
     "routines_notify": {},  # routine id -> "always" | "never": overrides the judge for that routine's results

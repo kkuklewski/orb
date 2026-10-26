@@ -75,8 +75,12 @@ export function Brain() {
             {groups[k].map((n) => <SuggestLine key={n.file} n={n} />)}
           </section>
         ))}
-        {grouped.size > 0 && rows.length > 0 && <h3 className="chats-repo">Other notes<span className="mono">{rows.length}</span></h3>}
-        {rows.map((n) => <NoteLine key={n.file} n={n} />)}
+        {rows.length > 0 && (
+          <section className="rt-group" aria-label="Other notes">
+            {grouped.size > 0 && <h3 className="chats-repo">Other notes<span className="mono">{rows.length}</span></h3>}
+            {rows.map((n) => <NoteLine key={n.file} n={n} />)}
+          </section>
+        )}
       </div>
     </div>
   );

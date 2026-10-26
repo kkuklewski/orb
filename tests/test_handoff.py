@@ -57,7 +57,7 @@ def test_hub_opens_a_session_in_the_other_repo_and_starts_it(tmp_path, monkeypat
 
     async def run():
         out = await hub.handoff(src, "web", "Fix the thing in README.")
-        await asyncio.gather(*hub.handoffs)
+        await asyncio.gather(*hub.background)
         return out
 
     out = asyncio.run(run())

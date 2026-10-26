@@ -19,7 +19,17 @@
 .chip-btn:hover { color: var(--text); border-color: var(--text-3); }
   .chip-btn { padding: 5px 9px; font-size: 12px; }
 .view { overflow-y: auto; min-height: 0; grid-row: 2 / 4; }
-.view-col { max-width: 780px; margin: 0 auto; padding: 28px 24px 40px; }
+/* width: 100% because .view-col is a grid item of .main, where auto margins alone shrink it to its content:
+   Sessions, Tasks, Brain and Routines all get the same column. */
+.view-col { width: 100%; max-width: 960px; margin: 0 auto; padding: 28px 24px 40px; }
+/* Their groups sit on a card like Home's (.hc): --bg-elev is white on the grey page in light, the raised grey in dark
+   (lighter than the page, never pure black or white text on it). */
+.view-col :is(.rt-group, .chats-group) { background: var(--bg-elev); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.view-col :is(.rt-group, .chats-group) > .chats-repo { margin: 0; padding: 14px 20px 8px; }
+.view-col :is(.rt-group, .chats-group) > :is(.rt-line, .act-row) { padding-left: 20px; padding-right: 20px; border-bottom: 0; border-top: 1px solid var(--line-soft); }
+.view-col :is(.rt-group, .chats-group) > :is(.rt-line, .act-row):hover { background: var(--bg); }
+.view-col :is(.rt-group, .chats-group) > :is(.rt-off, .show-older) { margin: 0; padding: 12px 20px; }
+.view-col :is(.rt-group, .chats-group) > :is(.rt-off, .show-older):not(:first-child) { width: 100%; text-align: left; border-top: 1px solid var(--line-soft); }
 .view-head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 18px; flex-wrap: wrap; }
 .view-head h2 { margin: 0; font-size: 22px; }
 .view-sub { font-size: 11px; color: var(--text-3); letter-spacing: .04em; }

@@ -7,7 +7,8 @@ out note tasks on Home. The rule is now an allowlist: what is on it Orb's code m
 1. **Verdict fields**: `human_verdict`, `verdict_at`, `owner_read` in a note's frontmatter; "restore" removes them.
    Never the body (ADR 0006).
 2. **Note-task lines**: one `- [ ]` line's marker and date (done `✅`, drop `❌`, snooze `⏳ <date>`); no other line.
-3. **Drop** (planned): new files in the vault inbox, never an edit to an existing note. Added by its own ADR.
+3. **Drop** (ADR 0009): a dropped YouTube link's transcript, a new file in the transcripts folder (default
+   `scrapers/Transcripts`), never an edit to an existing note; committed alone and pushed (the one place Orb commits).
 
 ## Consequences
 
@@ -22,4 +23,4 @@ out note tasks on Home. The rule is now an allowlist: what is on it Orb's code m
   written and the owner is told to look again. The VPS pushes the vault every 15 minutes and the owner pulls by
   hand, so a stale write is the real risk. A task line carries the line as the page showed it (`expect`); a verdict
   carries each note's verdict as the Notes list showed it (`seen`), and one changed note refuses the whole batch.
-- Orb commits nothing; the owner commits the vault.
+- Orb commits nothing but a drop's own new transcript (ADR 0009); the owner commits the rest of the vault.
