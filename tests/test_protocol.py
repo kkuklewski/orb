@@ -15,6 +15,7 @@ SRC = Path(protocol.__file__).parent
 ROOT = SRC.parent.parent
 # Dicts with a "type" that are not WebSocket events: Agent SDK options and prompts.
 NOT_EVENTS = {("agent.py", "preset"), ("routines.py", "user"),
+              ("server.py", "websocket.close"),  # an ASGI message (server.Guard)
               ("jira.py", "doc"), ("jira.py", "paragraph"), ("jira.py", "hardBreak"), ("jira.py", "text")}  # Jira descriptions (ADF)
 
 

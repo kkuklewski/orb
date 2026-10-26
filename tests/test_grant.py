@@ -126,7 +126,7 @@ def test_covered_commit_and_push_run_without_repo_hooks(dev):
     heredoc = "git commit -m \"$(cat <<'EOF'\nfix\nEOF\n)\""
     for cmd in ('git commit -m "fix"', heredoc, "git push -u origin orb/fix-login"):
         assert g.safe_input("Bash", {"command": cmd})["command"] == "git -c core.hooksPath=/dev/null " + cmd[4:]
-    for cmd in ("git add -A", TEST, "gh pr create --title x"):
+    for cmd in ("git add -A", "gh pr create --title x"):
         assert g.safe_input("Bash", {"command": cmd}) == {"command": cmd}
     assert g.safe_input("Edit", {"file_path": "a.py"}) == {"file_path": "a.py"}
 
@@ -253,7 +253,7 @@ async def test_config_shows_and_edits_outward_steps_and_commands(dev, tmp_path, 
     web.fence = fence(dev, "web")
     await server.run_local(Conn(), web, "config", 'outwardSteps=on test="uv run pytest -q"')
     assert store.outward(web.path) and store.commands(web.path) == {"test": "uv run pytest -q", "build": ""}
-    assert 'outwardSteps=on, applyMode=squash, test="uv run pytest -q", build=(none)' in sent[-1]["text"]
+    assert 'outwardSteps=on, trustSettings=off, applyMode=squash, test="uv run pytest -q", build=(none)' in sent[-1]["text"]
     await server.run_local(Conn(), web, "config", "")
     assert "outwardSteps=on" in sent[-1]["text"] and "Change with /config" in sent[-1]["text"]
     assert "applyMode=squash" in sent[-1]["text"]

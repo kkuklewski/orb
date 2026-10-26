@@ -17,6 +17,8 @@ import time
 import uuid
 from pathlib import Path
 
+from . import config
+
 NEW_LABEL = "New session"
 LABEL_MAX = 60
 
@@ -82,6 +84,14 @@ class SessionStore:
 
     def set_outward(self, folder: str, on: bool) -> None:
         self._folder(folder)["outward_steps"] = bool(on)
+        self._save()
+
+    def trusted(self, folder: str) -> bool:
+        """Whether this repo's own Claude Code settings load in its sessions (off unless the owner turned it on)."""
+        return bool(self.data.get(folder, {}).get("trust_settings"))
+
+    def set_trusted(self, folder: str, on: bool) -> None:
+        self._folder(folder)["trust_settings"] = bool(on)
         self._save()
 
     def apply_mode(self, folder: str) -> str:
@@ -221,7 +231,4 @@ class SessionStore:
         return changed
 
     def _save(self) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self.path.with_suffix(".tmp")
-        tmp.write_text(json.dumps({"version": 2, "folders": self.data}, indent=2))
-        os.replace(tmp, self.path)
+        config.write_private(self.path, json.dumps({"version": 2, "folders": self.data}, indent=2))

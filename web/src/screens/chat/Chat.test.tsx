@@ -29,6 +29,14 @@ describe("markdown", () => {
     expect(html).toContain("<strong>b</strong>");
     expect(html).not.toMatch(/onerror|<script|javascript:/);
   });
+
+  it("keeps model output from looking like Orb's own controls", () => {
+    const html = toSafeHtml('<div class="card approval" id="x" style="color:red"><button class="allow">Allow</button>'
+      + '<form action="/x"><input name="t" type="text"></form></div>\n\n- [x] done\n\n```py\nx = 1\n```');
+    expect(html).not.toMatch(/<button|<form|class="card|class="allow|id="x"|style=|name="t"|type="text"/);
+    expect(html.match(/<input[^>]*>/g)).toEqual(['<input checked="" disabled="" type="checkbox">']);
+    expect(html).toContain('<code class="language-py">');
+  });
 });
 
 describe("chat log", () => {

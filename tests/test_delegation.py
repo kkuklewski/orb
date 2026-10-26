@@ -126,7 +126,7 @@ async def test_delegate_raises_the_grant_card_and_deny_starts_nothing(dev):
     card = rig.d.card(TASK, rig.web, "web")
     assert card["type"] == "delegate_card" and card["task"] == 7 and card["repo"] == "web"
     assert card["branch"] == wts.branch_name(7, TASK["title"])
-    assert card["covers"] == ["Edit files in its own worktree", "Run the test command: uv run pytest -q",
+    assert card["covers"] == ["Edit files in its own worktree", "Run the test command in a sandbox (worktree only, no home folder): uv run pytest -q",
                               f"git add and git commit on {card['branch']}",
                               "Push and a PR: Orb asks you after the tests pass"]
     assert "No test or build command declared" in delegation.covers("b", {"test": "", "build": ""})[1]
@@ -788,3 +788,30 @@ async def test_the_outward_message_reaches_the_delegation(dev, remote, gh, monke
     assert conn.sent[-1] == {"type": "error", "text": "That delegation is gone."}
     await server.handle(conn, {"type": "delegation_outward", "id": r["id"], "allow": False})
     assert rig.row()["needs"] is None and on_remote(remote) == ["main"]
+
+
+async def test_apply_takes_only_the_commit_its_check_ran_on(dev):
+    rig = Rig(dev, test="true")
+    r = await rig.allow()
+    await rig.turn({"d.txt": "checked\n"})
+    assert rig.row()["stage"] == "ready"
+    commit(r["worktree"], {"e.txt": "after the check\n"}, "late")  # a turn still running when Apply came
+    head = git(rig.web, "rev-parse", "HEAD")
+
+    await rig.d.apply(r["id"], rig.store.apply_mode)
+    assert git(rig.web, "rev-parse", "HEAD") == head and rig.marked == []
+    await rig.settle()
+    assert rig.row()["stage"] == "ready" and rig.d.items[r["id"]]["checked"] == git(r["worktree"], "rev-parse", "HEAD")
+
+    await rig.d.apply(r["id"], rig.store.apply_mode)
+    assert (Path(rig.web) / "e.txt").read_text() == "after the check\n" and rig.marked == [(7, True)]
+
+
+async def test_a_branch_that_moved_after_its_check_is_not_pushed(dev, remote, gh):
+    rig = Rig(dev, test="true")
+    r = await rig.allow()
+    await rig.turn({"d.txt": "checked\n"})
+    commit(r["worktree"], {"e.txt": "not checked\n"}, "late")
+    await rig.d.outward(r["id"], True)
+    assert on_remote(remote) == ["main"] and gh.calls == []
+    assert rig.row()["line"].endswith(f"not pushed: {r['branch']} changed after its check; re-run the check.")

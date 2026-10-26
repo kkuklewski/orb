@@ -337,10 +337,7 @@ class Watch:
     # -- state ------------------------------------------------------------------------
 
     def save(self) -> None:
-        self.state_path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self.state_path.with_suffix(".tmp")
-        tmp.write_text(json.dumps(self.state))
-        os.replace(tmp, self.state_path)
+        config.write_private(self.state_path, json.dumps(self.state))
 
     def items(self) -> list[dict]:
         now = time.time()

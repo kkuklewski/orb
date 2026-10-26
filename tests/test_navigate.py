@@ -116,6 +116,9 @@ def make(path, nav=None, handoff=None):
         def model(self, f, d="sonnet"):
             return d
 
+        def trusted(self, f):
+            return False
+
     async def noop(ev):
         pass
     return FolderSession(path, "k1", Store(), noop, lambda: False, navigate=nav, handoff=handoff)

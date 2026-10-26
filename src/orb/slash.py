@@ -26,7 +26,7 @@ LOCAL: tuple[dict, ...] = (
     {"name": "standup", "description": "Home chat: a short standup from your recent sessions, open work and tasks", "argumentHint": ""},
     {"name": "task", "description": "Home chat: look at one task and say what to do about it", "argumentHint": "<id or key>"},
     {"name": "config", "description": "Settings of this repo's sessions (not your global Claude Code settings)",
-     "argumentHint": "[permissionMode=default|auto|plan] [model=haiku|sonnet|opus] [outwardSteps=on|off] [applyMode=squash|merge] [test=\"...\"] [build=\"...\"]"},
+     "argumentHint": "[permissionMode=default|auto|plan] [model=haiku|sonnet|opus] [outwardSteps=on|off] [trustSettings=on|off] [applyMode=squash|merge] [test=\"...\"] [build=\"...\"]"},
 )
 
 # /config keys the dashboard keeps per repo (folder), like the header chips, with the values each takes.
@@ -36,6 +36,7 @@ CONFIG_KEYS: dict[str, tuple[str, ...] | None] = {
     "permissionMode": ("default", "auto", "plan"),
     "model": ("haiku", "sonnet", "opus"),
     "outwardSteps": ("on", "off"),  # a delegation's grant covers push and its PR (never in a client folder)
+    "trustSettings": ("on", "off"),  # load the repo's own .claude settings, hooks and skills (never in a worktree)
     "applyMode": ("squash", "merge"),  # how Apply lands a delegation's branch
     "test": None,  # the repo's declared test command: a delegation runs it without asking
     "build": None,  # the repo's declared build command

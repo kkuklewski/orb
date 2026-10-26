@@ -19,6 +19,8 @@ import shlex
 from pathlib import Path
 from typing import Any
 
+from . import config
+
 CAPTURE_TOOL = "mcp__claude_ai_Brain_Capture__capture"
 BRAIN_READ_TOOLS = [f"mcp__claude_ai_Brain__{t}" for t in
                     ("search_notes", "read_note", "recent_notes", "list_topics", "last_curation_run", "vault_overview")]
@@ -69,10 +71,7 @@ class CaptureGuard:
 
     def record(self) -> None:
         n = self.count() + 1
-        self.state.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self.state.with_suffix(".tmp")
-        tmp.write_text(json.dumps({"date": self._today(), "count": n}))
-        os.replace(tmp, self.state)
+        config.write_private(self.state, json.dumps({"date": self._today(), "count": n}))
 
     def refuse(self, text: str) -> str | None:
         """Why a capture can't be made, or None."""

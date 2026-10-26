@@ -42,7 +42,7 @@ from claude_agent_sdk import (
 )
 from claude_agent_sdk.types import TERMINAL_TASK_STATUSES
 
-from . import billing, chain, config, desk, grant, handoff, navigate, settings, slash, speech
+from . import billing, chain, config, desk, grant, handoff, navigate, settings, slash, speech, trust
 from .brain import BRAIN_READ_TOOLS, CAPTURE_TOOL, NOTE_REQUEST, CaptureGuard, brain_prompt, split_note, vault_rule
 from .fence import Fence, strictest
 from .replies import NO, YES, classify_reply, match_option
@@ -491,8 +491,12 @@ class FolderSession:
     # -- lifecycle ------------------------------------------------------------
 
     def _options(self) -> ClaudeAgentOptions:
+        # the repo's own settings (allow rules, hooks, skills) only when the owner trusts them; else Orb adds its CLAUDE.md
+        sources = trust.sources(self.path, self.store.trusted(self.path))
+        repo_rules = trust.instructions(self.path) if sources == trust.USER_ONLY else ""
         return ClaudeAgentOptions(
             cwd=self.path,
+            setting_sources=sources,
             model=self.model,
             effort=chain.EFFORT.get(self.model),
             agents=chain.agents(settings.settings["coder_effort"]),
@@ -513,7 +517,7 @@ class FolderSession:
                 "PostToolUseFailure": [HookMatcher(matcher=CAPTURE_TOOL, hooks=[self._capture_failed])],
             },
             env=billing.sdk_env(),
-            system_prompt={"type": "preset", "preset": "claude_code", "append": "\n".join((VOICE_PROMPT, self._brain_prompt(), chain.routing_prompt(self.model), handoff.PROMPT if self.handoff else "", navigate.PROMPT if self.navigate else "", chain.DESK_PROMPT if self.is_desk else ""))},
+            system_prompt={"type": "preset", "preset": "claude_code", "append": "\n".join((VOICE_PROMPT, self._brain_prompt(), chain.routing_prompt(self.model), handoff.PROMPT if self.handoff else "", navigate.PROMPT if self.navigate else "", chain.DESK_PROMPT if self.is_desk else "", repo_rules))},
             stderr=lambda line: log.debug("claude[%s]: %s", self.path, line),
         )
 
@@ -758,6 +762,15 @@ class FolderSession:
             else:
                 await self._reconnect()
         await self._emit({"type": "session_info", "folder": self.path, "session": self.key, **self.info, "session_id": self.session_id})
+
+    async def set_trusted(self, on: bool) -> None:
+        """Load (or stop loading) the repo's own Claude Code settings: they apply from the next connect."""
+        self.store.set_trusted(self.path, on)
+        if self.client is not None:
+            if self.busy or self.pending or self.running_tasks():
+                self.reconnect_after = True
+            else:
+                await self._reconnect()
 
     async def _reconnect(self) -> None:
         self.reconnect_after = False

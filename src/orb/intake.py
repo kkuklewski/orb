@@ -128,7 +128,7 @@ def youtube_id(url: str) -> str | None:
             return None
     else:
         return None
-    return vid if vault_write.VIDEO_ID.match(vid) else None
+    return vid if vault_write.VIDEO_ID.fullmatch(vid) else None
 
 
 def _same_url(a: str, b: str) -> bool:

@@ -174,7 +174,7 @@ def test_vikunja_write_refused_says_what_to_fix(monkeypatch):
 
     def refuse(req, timeout=0):
         raise urllib.error.HTTPError(req.full_url, 403, "no", {}, io.BytesIO(b""))
-    monkeypatch.setattr(urllib.request, "urlopen", refuse)
+    monkeypatch.setattr(vikunja.config, "urlopen", refuse)
     import pytest
     with pytest.raises(vikunja.VikunjaError, match="needs write access"):
         vikunja._post("http://v", "tk", "/tasks/1", {})
@@ -250,7 +250,7 @@ def test_tasks_source_says_why_vikunja_cant_be_read(monkeypatch):
 
     def down(*a, **k):
         raise OSError("connection refused")
-    monkeypatch.setattr(vikunja.urllib.request, "urlopen", down)
+    monkeypatch.setattr(vikunja.config, "urlopen", down)
     assert vikunja.source("http://v")["error"] == "Vikunja not reachable: didn't answer: connection refused"
     monkeypatch.setattr(vikunja, "open_tasks", lambda url: {"tasks": [TASK], "total": 1, "url": "http://v"})
     assert vikunja.source("http://v") == {"tasks": [TASK], "total": 1, "url": "http://v", "error": None}

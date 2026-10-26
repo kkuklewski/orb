@@ -163,10 +163,10 @@ def test_a_refusal_says_what_to_fix(monkeypatch):
         def urlopen(req, timeout):
             raise urllib.error.HTTPError(req.full_url, code, "no", {}, io.BytesIO(body))
         return urlopen
-    monkeypatch.setattr(jira.urllib.request, "urlopen", refuse(401, b""))
+    monkeypatch.setattr(jira.config, "urlopen", refuse(401, b""))
     with pytest.raises(jira.JiraError, match="ORB_JIRA_EMAIL and ORB_JIRA_TOKEN"):
         jira._call(BASE, "Basic x", "/issue/1")
-    monkeypatch.setattr(jira.urllib.request, "urlopen", refuse(400, b'{"errorMessages": [], "errors": {"duedate": "bad date"}}'))
+    monkeypatch.setattr(jira.config, "urlopen", refuse(400, b'{"errorMessages": [], "errors": {"duedate": "bad date"}}'))
     with pytest.raises(jira.JiraError, match=r"\(400: duedate: bad date\)"):
         jira._call(BASE, "Basic x", "/issue/1", method="PUT", body={})
 
@@ -196,3 +196,30 @@ def test_jira_url_setting_takes_web_addresses_only(tmp_path):
     s = settings.Settings(tmp_path / "s.json")
     assert s.update({"jira_url": "https://acme.atlassian.net"})["jira_url"] == "https://acme.atlassian.net"
     assert s.update({"jira_url": "file:///etc"})["jira_url"] == ""
+
+
+def test_tracker_calls_do_not_follow_redirects():
+    # A redirect would carry the Authorization header to another address.
+    import http.server
+    import threading
+
+    seen = []
+
+    class H(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            seen.append(self.path)
+            self.send_response(302)
+            self.send_header("Location", "/elsewhere")
+            self.end_headers()
+
+        def log_message(self, *a):
+            pass
+
+    srv = http.server.HTTPServer(("127.0.0.1", 0), H)
+    threading.Thread(target=srv.handle_request, daemon=True).start()
+    try:
+        with pytest.raises(jira.JiraError, match="302"):
+            jira._call(f"http://127.0.0.1:{srv.server_port}", "Basic x", "/myself")
+    finally:
+        srv.server_close()
+    assert seen == ["/rest/api/3/myself"]

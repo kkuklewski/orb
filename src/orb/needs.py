@@ -317,10 +317,7 @@ class Needs:
         return {"fp": "", "at": None, "ranking": [], "error": None}
 
     def _save(self) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self.path.with_suffix(".tmp")
-        tmp.write_text(json.dumps(self.state))
-        os.replace(tmp, self.path)
+        config.write_private(self.path, json.dumps(self.state))
 
     def _ranked(self) -> list[dict]:
         """What the model sees: all of Needs you and the head of the queue."""

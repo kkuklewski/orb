@@ -28,14 +28,18 @@ import shlex
 from pathlib import Path
 from typing import Any
 
-from . import config, settings, worktree
+from . import config, settings, trust, worktree
 from .brain import ask, deny
 from .folders import _git_config_remote, remote_label
 
 SECRETS_DIR = "secrets"
-SECRET_FILES = (Path.home() / ".claude" / ".credentials.json", Path.home() / ".codex" / "auth.json")
+SECRET_FILES = tuple(Path.home() / f for f in (
+    ".claude/.credentials.json", ".codex/auth.json", ".config/gh/hosts.yml", ".docker/config.json", ".kube/config",
+    ".npmrc", ".pypirc", ".gem/credentials", ".config/hub"))
+SECRET_DIRS = {".aws", ".ssh", ".gnupg"}
 _ENV_TEMPLATES = {"example", "sample", "template", "dist"}
-_SECRET_SAMPLES = (".env", ".env.local", "server.pem", "server.key", "id_rsa", "id_ed25519", "credentials.json")
+_SECRET_SAMPLES = (".env", ".env.local", "server.pem", "server.key", "id_rsa", "id_ed25519", "id_ecdsa", "credentials.json",
+                   ".netrc", ".git-credentials")
 _RECURSIVE = re.compile(r"\b(?:rg|find|fd|ag|tar|zip|rsync|du|tree)\b|\s-[A-Za-z]*[rR]\b|--recursive")
 _GLOB_CHARS = re.compile(r"[*?\[]")
 _PATH_ARG_FLAGS = {"cd", "pushd", "-C", "--prefix", "--cwd", "--dir", "--directory", "--git-dir", "--work-tree"}
@@ -72,7 +76,9 @@ def is_secret_name(name: str) -> bool:
         return True
     if n.endswith((".pem", ".key")) and not n.startswith("."):
         return True
-    return n.startswith(("id_rsa", "id_ed25519", "credentials"))
+    if n in (".netrc", "_netrc", ".git-credentials", ".pgpass"):
+        return True
+    return n.startswith(("id_rsa", "id_ed25519", "id_ecdsa", "id_dsa", "credentials"))
 
 
 def _flag_ok(cmd: str, tok: str) -> bool:
@@ -198,7 +204,7 @@ class Fence:
         self.home = self._canon(self.session)  # the session's repo: for a worktree, the repo it belongs to
         self.root = self._root(self.home) or self.home  # the session's own root (labels, client folders)
         home = Path.home()
-        self.sensitive = [*(os.path.join(r, SECRETS_DIR) for r in self.roots), str(home / ".aws"), str(home / ".ssh"),
+        self.sensitive = [*(os.path.join(r, SECRETS_DIR) for r in self.roots), *(str(home / d) for d in sorted(SECRET_DIRS)),
                           *map(str, SECRET_FILES)]
 
     def in_client(self) -> bool:
@@ -221,10 +227,17 @@ class Fence:
         return max((r for r in self.roots if _within(target, r)), key=len, default=None)
 
     def check_path(self, target: str, write: bool = True) -> tuple[str, str] | None:
-        """('deny' | 'ask', reason) for one resolved path, or None."""
-        if is_secret_name(os.path.basename(target)) or ".aws" in Path(target).parts or \
+        """('deny' | 'ask', reason) for one resolved path, or None. A write to a file that decides what runs
+        without a card (settings, hooks, skills, MCP servers) always asks, in any repo and under a grant."""
+        verdict = self._check_path(target, write)
+        if write and (verdict is None or verdict[0] == "ask") and trust.runs_code(target):
+            return "ask", trust.RUNS_CODE if verdict is None else f"{verdict[1]} {trust.RUNS_CODE}"
+        return verdict
+
+    def _check_path(self, target: str, write: bool) -> tuple[str, str] | None:
+        if is_secret_name(os.path.basename(target)) or SECRET_DIRS & {p.casefold() for p in Path(target).parts} or \
                 any(target.casefold() == str(f).casefold() for f in SECRET_FILES):
-            return "deny", "Secret files (.env, keys, credentials) are blocked in Orb."
+            return "deny", "Secret files (.env, keys, credentials, ~/.ssh, ~/.aws) are blocked in Orb."
         if hit := next((p for p in Path(target).parts if p.casefold() in self.never), None):
             return "deny", f"{hit}/ is on your never-open list in Orb's settings."
         actual, target = target, self._canon(target)

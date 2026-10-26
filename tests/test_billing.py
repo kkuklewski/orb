@@ -1,3 +1,5 @@
+import os
+
 import pytest
 
 from orb import billing
@@ -45,3 +47,21 @@ def test_main_exits_when_key_is_set(monkeypatch):
     with pytest.raises(SystemExit) as e:
         orb.main()
     assert e.value.code == 2
+
+
+def test_base_url_is_refused_like_a_key():
+    assert billing.forbidden_vars({"ANTHROPIC_BASE_URL": "https://proxy.example"}) == ["ANTHROPIC_BASE_URL"]
+
+
+def test_tracker_tokens_leave_the_environment_at_startup(monkeypatch):
+    import importlib
+
+    from orb import config
+    monkeypatch.setenv("ORB_VIKUNJA_TOKEN", "tk-1")
+    monkeypatch.setenv("ORB_JIRA_TOKEN", "tk-2")
+    fresh = importlib.reload(config)
+    try:
+        assert "ORB_VIKUNJA_TOKEN" not in os.environ and "ORB_JIRA_TOKEN" not in os.environ
+        assert fresh.secret("VIKUNJA_TOKEN") == "tk-1" and fresh.secret("JIRA_TOKEN") == "tk-2"
+    finally:
+        fresh._secrets.clear()

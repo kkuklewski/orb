@@ -20,3 +20,14 @@ def test_page_closing_right_away_is_not_an_error(caplog):
     with client.websocket_connect(f"/ws?t={server.config.token()}", headers={"origin": "http://testserver"}) as ws:
         assert ws.receive_json()["type"] == "hello"
     assert "Exception in ASGI application" not in caplog.text
+
+
+def test_every_start_makes_a_new_token(monkeypatch):
+    path = server.config.STATE_DIR / "token"
+    monkeypatch.setattr(server.config, "_token", "")
+    first = server.config.token()
+    assert server.config.token() == first == path.read_text()
+    assert path.stat().st_mode & 0o777 == 0o600
+    monkeypatch.setattr(server.config, "_token", "")  # a restart
+    assert server.config.token() != first
+    assert path.read_text() == server.config.token()
