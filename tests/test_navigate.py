@@ -11,7 +11,8 @@ from orb.agent import FolderSession
 
 ROOT = Path(__file__).parent.parent
 TASKS = {"tasks": [{"id": 12, "title": "Ship the globex invoice", "project": "acme", "project_id": 3},
-                   {"id": 13, "title": "Call acme about the invoice", "project": "", "project_id": 0}], "total": 2, "url": "http://v"}
+                   {"id": 13, "title": "Call acme about the invoice", "project": "", "project_id": 0},
+                   {"id": 7, "title": "ACME-7 Fix the login", "project": "acme", "project_id": 3}], "total": 3, "url": "http://v"}
 NOTES = [{"file": "inbox/Kafka retries.md", "title": "Kafka retries, explained"},
          {"file": "inbox/Ząbki trip.md", "title": "Ząbki trip"}]
 SESSIONS = {
@@ -55,6 +56,7 @@ def test_items_open_that_item(src):
     assert go(src, "routines", "the last run of inspire") == {"type": "navigate", "destination": "routines", "routine": "trig_1"}
     assert go(src, "tasks", "#12")["task"] == "12"
     assert go(src, "tasks", "globex invoice")["task"] == "12"
+    assert go(src, "tasks", "acme-7")["task"] == "7"  # a Jira issue key, from the start of the title
     assert go(src, "sessions", "acme fix login") == {"type": "navigate", "destination": "sessions", "folder": "/r/acme", "session": "a1"}
     assert go(src, "sessions", "readme")["session"] == "a2"
     assert go(src, "sessions", "globex")["session"] == "g1"  # just the repo: its newest session
@@ -65,7 +67,7 @@ def test_items_open_that_item(src):
 def test_unknown_or_ambiguous_items_are_refused_with_a_line_to_say(src):
     for dest, item, said in [("brain", "quantum soup", "No note waiting for a verdict matches"),
                              ("routines", "nightly", "No routine matches"),
-                             ("tasks", "#99", "No open task #99"),
+                             ("tasks", "#99", "No open task #99"), ("tasks", "ACME-99", "No open task ACME-99"),
                              ("tasks", "invoice", "matches several"),
                              ("sessions", "fix login", "matches several sessions"),
                              ("sessions", "what's on today", "No session matches"),  # the Home chat is never a row

@@ -192,9 +192,7 @@ def slash_message(src: Sources, name: str, args: str, today: dt.date | None = No
     """/today, /standup and /task <id>: a short question plus the data it needs. The server sends the data as the
     screen note, so it never shows in the bubble. The ask never starts with "/" (a command to Claude Code)."""
     if name == "task":
-        if not args.strip().isdigit():
-            raise DeskError("Use /task <id>, the number after # in the task list.")
-        n = int(args)
+        n = _ref(src, args.strip())
         return SlashMessage(f"Look at {_name(src)} task #{n} and tell me what is going on and what I should do about it.",
                             f"task {n}", task(src, n))
     if name == "standup":
@@ -202,6 +200,21 @@ def slash_message(src: Sources, name: str, args: str, today: dt.date | None = No
                             "Name the repo for each item.", "standup", home_brief(src, today))
     return SlashMessage("What should I do first today? Rank by what needs me now, then due tasks, then routines.",
                         "today", home_brief(src, today))
+
+
+def _ref(src: Sources, ref: str) -> int:
+    """/task's argument: the number after # in the task list, or a Jira issue key (ACME-12) among the open tasks."""
+    if ref.isdigit():
+        return int(ref)
+    if not tracker.KEY.fullmatch(ref):
+        raise DeskError("Use /task <id> or /task <issue key>, as the task list shows it.")
+    try:
+        t = tracker.by_key(tracker.open_tasks(src.cfg())["tasks"], ref)
+    except tracker.ERRORS as e:
+        raise DeskError(str(e)) from e
+    if t is None:
+        raise DeskError(f"No open task {ref.upper()}.")
+    return int(t["id"])
 
 
 def label(name: str, inp: dict, title: str = "") -> str:

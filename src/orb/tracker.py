@@ -8,6 +8,7 @@ the product.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from types import ModuleType
 
@@ -15,6 +16,7 @@ from . import jira, vikunja
 
 ERRORS = (vikunja.VikunjaError, jira.JiraError)  # `except tracker.ERRORS` catches either backend's refusal
 home_event = vikunja.home_event
+KEY = re.compile(r"[A-Za-z][A-Za-z0-9_]*-\d+")  # a Jira issue key (ACME-12); the task's title starts with it
 
 
 def _jira(cfg: dict) -> bool:
@@ -50,6 +52,12 @@ def configured(cfg: dict) -> bool:
 def open_tasks(cfg: dict, project: str | None = None) -> dict:
     m, url = _b(cfg)
     return m.open_tasks(url, project)
+
+
+def by_key(tasks: list[dict], key: str) -> dict | None:
+    """The open task whose title starts with this issue key (ACME-12), else None."""
+    want = key.strip().upper() + " "
+    return next((t for t in tasks if str(t["title"]).upper().startswith(want)), None)
 
 
 def source(cfg: dict) -> dict:

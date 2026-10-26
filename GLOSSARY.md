@@ -53,7 +53,8 @@ read and sorted). The drop is the owner's approval for its own link or file only
 _Avoid_: Upload, import, capture
 
 **Task**:
-A Vikunja task, listed in Tasks. Vikunja is the owner's one task tracker: "Make it a task" creates one there.
+A task in the owner's one task tracker (Vikunja, or Jira when a Jira address is set; ADR 0010), listed in Tasks.
+"Make it a task" creates one there. A Jira task's title starts with its issue key (ACME-12).
 _Avoid_: To-do, ticket, item
 
 **Note task**:
@@ -67,7 +68,7 @@ _Avoid_: Cron job, scheduled task
 
 **Needs you**:
 An item that is blocked or broken until the owner acts, for a reason a plain rule can state: an approval, a failed
-routine, a reminder due today or earlier, an overdue task, a broken setup (sign-in expired, Vikunja unreachable, a
+routine, a reminder due today or earlier, an overdue task, a broken setup (sign-in expired, the task tracker unreachable, a
 chosen speech engine down, linking into Settings at the section that fixes it).
 _Avoid_: Urgent, waiting, important
 
