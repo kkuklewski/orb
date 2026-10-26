@@ -42,8 +42,9 @@ from claude_agent_sdk import (
 )
 from claude_agent_sdk.types import TERMINAL_TASK_STATUSES
 
-from . import billing, chain, config, desk, grant, handoff, navigate, settings, slash, speech
-from .brain import BRAIN_READ_TOOLS, CAPTURE_TOOL, NOTE_REQUEST, CaptureGuard, brain_prompt, split_note, vault_rule
+from . import billing, chain, config, desk, grant, handoff, navigate, settings, slash, speech, trust
+from .brain import (BRAIN_READ_TOOLS, CAPTURE_TOOL, CONNECTOR_PREFIX, NOTE_REQUEST, CaptureGuard, brain_prompt,
+                    connector_allowed, connector_env, deny, split_note, vault_rule)
 from .fence import Fence, strictest
 from .replies import NO, YES, classify_reply, match_option
 from .spoken import VOICE_PROMPT, TextBlockRouter, TurnState, read_all_sentences, split_spoken
@@ -491,8 +492,12 @@ class FolderSession:
     # -- lifecycle ------------------------------------------------------------
 
     def _options(self) -> ClaudeAgentOptions:
+        # the repo's own settings (allow rules, hooks, skills) only when the owner trusts them; else Orb adds its CLAUDE.md
+        sources = trust.sources(self.path, self.store.trusted(self.path))
+        repo_rules = trust.instructions(self.path) if sources == trust.USER_ONLY else ""
         return ClaudeAgentOptions(
             cwd=self.path,
+            setting_sources=sources,
             model=self.model,
             effort=chain.EFFORT.get(self.model),
             agents=chain.agents(settings.settings["coder_effort"]),
@@ -508,12 +513,13 @@ class FolderSession:
             mcp_servers={handoff.SERVER: self._orb_server()} if self.handoff or self.is_desk or self.navigate else {},
             hooks={
                 "PreToolUse": [HookMatcher(matcher=f"Edit|Write|MultiEdit|NotebookEdit|Bash|Read|Glob|Grep|{CAPTURE_TOOL}|{handoff.TOOL}|{'|'.join(desk.WRITE_TOOLS)}",
-                                           hooks=[self._pre_tool])],
+                                           hooks=[self._pre_tool]),
+                               HookMatcher(matcher=f"{CONNECTOR_PREFIX}.*", hooks=[self._connector_tool])],
                 "PostToolUse": [HookMatcher(matcher=CAPTURE_TOOL, hooks=[self._capture_done])],
                 "PostToolUseFailure": [HookMatcher(matcher=CAPTURE_TOOL, hooks=[self._capture_failed])],
             },
-            env=billing.sdk_env(),
-            system_prompt={"type": "preset", "preset": "claude_code", "append": "\n".join((VOICE_PROMPT, self._brain_prompt(), chain.routing_prompt(self.model), handoff.PROMPT if self.handoff else "", navigate.PROMPT if self.navigate else "", chain.DESK_PROMPT if self.is_desk else ""))},
+            env={**billing.sdk_env(), **connector_env(settings.settings)},
+            system_prompt={"type": "preset", "preset": "claude_code", "append": "\n".join((VOICE_PROMPT, self._brain_prompt(), chain.routing_prompt(self.model), handoff.PROMPT if self.handoff else "", navigate.PROMPT if self.navigate else "", chain.DESK_PROMPT if self.is_desk else "", repo_rules))},
             stderr=lambda line: log.debug("claude[%s]: %s", self.path, line),
         )
 
@@ -759,6 +765,23 @@ class FolderSession:
                 await self._reconnect()
         await self._emit({"type": "session_info", "folder": self.path, "session": self.key, **self.info, "session_id": self.session_id})
 
+    async def set_trusted(self, on: bool) -> None:
+        """Load (or stop loading) the repo's own Claude Code settings: they apply from the next connect."""
+        self.store.set_trusted(self.path, on)
+        await self._reconnect_when_idle()
+
+    async def refresh(self) -> None:
+        """The profile or the connectors changed: the fence at once, the session's connectors from the next connect."""
+        self.fence = Fence(self.path)
+        await self._reconnect_when_idle()
+
+    async def _reconnect_when_idle(self) -> None:
+        if self.client is not None:
+            if self.busy or self.pending or self.running_tasks():
+                self.reconnect_after = True
+            else:
+                await self._reconnect()
+
     async def _reconnect(self) -> None:
         self.reconnect_after = False
         await self.close()
@@ -987,6 +1010,16 @@ class FolderSession:
             await self.emit({"type": "notice", "level": "warn",
                              "text": out["hookSpecificOutput"].get("permissionDecisionReason", "Blocked.")})
         return out
+
+    async def _connector_tool(self, data: dict, tool_use_id: str | None, context: Any) -> dict:
+        """A claude.ai connector's call: Brain's only, unless the owner turned the other connectors on. A hook,
+        so the user's own allow rules can't let one past."""
+        name = data.get("tool_name", "")
+        if connector_allowed(name, settings.settings):
+            return {}
+        reason = "claude.ai connectors other than Brain are off in Orb (settings: connectors)."
+        await self.emit({"type": "notice", "level": "warn", "text": reason})
+        return deny(reason)
 
     async def _capture_done(self, data: dict, tool_use_id: str | None, context: Any) -> dict:
         self.guard.record()

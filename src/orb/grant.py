@@ -7,6 +7,7 @@ carried to another session. Before the tool gate raises an approval card it asks
    the repo's declared test or build commands, `git add` / `git commit` while the worktree is on the
    delegation branch, and `git push` of that branch / `gh pr create` only when outward steps are allowed;
 3. everything else raises the normal card.
+A declared command runs in the sandbox (`sandbox.py`); where there is none, it is not covered.
 Bash is matched word by word; anything with a shell operator, substitution or redirection is not covered
 (the declared commands excepted: the owner typed those exactly), and git / gh flags are allowlisted. Edits
 under `.git` are never covered: its config and gitdir decide which code a covered git command runs. A
@@ -23,6 +24,7 @@ import subprocess
 from dataclasses import dataclass
 from typing import Any, Literal, Protocol
 
+from . import sandbox
 from .fence import Fence
 
 _EDIT_TOOLS = {"Edit": "file_path", "Write": "file_path", "MultiEdit": "file_path", "NotebookEdit": "notebook_path"}
@@ -71,7 +73,7 @@ class Grant:
             return False
         cmd = _norm(str(inp.get("command", "")))
         if cmd and cmd in self.commands:
-            return True
+            return sandbox.available()  # it runs files the session edited: only in the sandbox
         if m := _HEREDOC_COMMIT.fullmatch(cmd.strip()):
             flags, body = m.group(1).split(), m.group(2)
             return "EOF" not in body.split("\n") and all(_commit_flag(f) for f in flags) and self.on_branch()
@@ -92,8 +94,11 @@ class Grant:
         return False
 
     def safe_input(self, tool: str, inp: dict[str, Any]) -> dict[str, Any]:
-        """The input a covered call runs with: git commit / push with the repo's hooks turned off."""
+        """The input a covered call runs with: a declared command in the sandbox, git commit / push with the
+        repo's hooks turned off."""
         cmd = str(inp.get("command", "")) if tool == "Bash" else ""
+        if cmd and _norm(cmd) in self.commands:
+            return {**inp, "command": sandbox.wrap(self.worktree, cmd)}
         if re.match(r"git (commit|push)\b", cmd.strip()):
             return {**inp, "command": "git " + _NO_HOOKS + cmd.strip()[4:]}
         return inp

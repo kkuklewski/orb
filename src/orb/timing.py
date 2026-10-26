@@ -58,8 +58,8 @@ class TurnTiming:
     def record(self, folder: str) -> None:
         log.info("timing %s [%s %s]: %s", folder, self.source, self.model or "?", self.line())
         try:
-            with (config.STATE_DIR / "timing.jsonl").open("a") as f:
-                f.write(json.dumps({"at": time.time(), "folder": folder, "turn": self.turn, "source": self.source,
-                                    "model": self.model, **self.hops(), **self.extra}) + "\n")
+            config.append_private(config.STATE_DIR / "timing.jsonl", json.dumps(
+                {"at": time.time(), "folder": folder, "turn": self.turn, "source": self.source, "model": self.model,
+                 **self.hops(), **self.extra}) + "\n")
         except OSError as e:
             log.debug("timing.jsonl: %s", e)

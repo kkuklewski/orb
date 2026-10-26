@@ -57,7 +57,7 @@ def test_youtube_ids_come_from_every_link_shape():
                 "https://youtube.com/live/dQw4w9WgXcQ", "https://music.youtube.com/watch?v=dQw4w9WgXcQ"):
         assert intake.youtube_id(url) == "dQw4w9WgXcQ", url
     for url in ("https://www.youtube.com/@acme", "https://youtu.be/short", "https://notyoutube.com/watch?v=dQw4w9WgXcQ",
-                "https://www.youtube.com/playlist?list=PL123"):
+                "https://www.youtube.com/playlist?list=PL123", "https://www.youtube.com/watch?v=dQw4w9WgXcQ%0A"):
         assert intake.youtube_id(url) is None, url
 
 
@@ -90,6 +90,15 @@ def test_a_push_that_fails_keeps_the_note_and_says_so(repo, tmp_path):
     done = intake.route_link("https://youtu.be/dQw4w9WgXcQ", env(vault)).job()
     assert "not pushed: your vault is behind GitHub" in done.text and (vault / done.note).is_file()
 
+
+
+def test_owner_commits_that_are_not_pushed_yet_stay_local(repo):
+    vault, remote = repo
+    git(vault, "commit", "-qm", "owner's draft", "--", "b.md")
+    before = git(remote, "rev-parse", "main")
+    done = intake.route_link("https://youtu.be/dQw4w9WgXcQ", env(vault)).job()
+    assert "not pushed: other unpushed commits" in done.text and (vault / done.note).is_file()
+    assert git(remote, "rev-parse", "main") == before
 
 def test_a_failing_fetch_is_refused_and_writes_nothing(repo):
     vault, _ = repo

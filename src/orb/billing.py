@@ -10,10 +10,11 @@ from __future__ import annotations
 import os
 from collections.abc import Mapping
 
-# Any of these makes Claude Code bill something other than the subscription login.
+# Any of these makes Claude Code bill something other than the subscription login, or send it elsewhere.
 FORBIDDEN_ENV = (
     "ANTHROPIC_API_KEY",
     "ANTHROPIC_AUTH_TOKEN",
+    "ANTHROPIC_BASE_URL",  # another endpoint: it would also receive the login's token
     "CLAUDE_CODE_USE_BEDROCK",
     "CLAUDE_CODE_USE_VERTEX",
     "CLAUDE_CODE_USE_FOUNDRY",

@@ -75,10 +75,7 @@ def load(path: Path = PATH) -> dict[str, dict]:
 
 
 def save(data: dict[str, dict], path: Path = PATH) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(".tmp")
-    tmp.write_text(json.dumps(data))
-    os.replace(tmp, path)
+    config.write_private(path, json.dumps(data))
 
 
 def current(tasks: list[dict], cache: dict[str, dict]) -> dict[int, dict]:

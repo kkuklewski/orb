@@ -138,3 +138,14 @@ def test_notes_folder_outside_the_roots(tmp_path):
     coder = Fence(str(code / "app"), roots=[code], clients=(), vault=notes)
     out = coder.rule("Read", {"file_path": str(notes / "inbox" / "today.md")})
     assert decision(out) == "ask" and "Other repo: Notes" in out["hookSpecificOutput"]["permissionDecisionReason"]
+
+
+def test_ssh_and_more_credential_files_are_denied(dev):
+    f = fence(dev, "mine")
+    home = Path.home()
+    for target in (home / ".ssh" / "config", home / ".ssh" / "id_ecdsa", home / ".gnupg" / "x",
+                   home / ".config" / "gh" / "hosts.yml", home / ".netrc", dev / "mine" / ".git-credentials",
+                   dev / "mine" / "deploy" / "id_dsa"):
+        assert decision(f.rule("Read", {"file_path": str(target)})) == "deny", target
+    assert decision(f.rule("Bash", {"command": "cat ~/.ssh/known_hosts"})) == "deny"
+    assert is_secret_name("id_ecdsa.pub") and not is_secret_name("netrc.md")

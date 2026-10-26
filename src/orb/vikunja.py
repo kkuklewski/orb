@@ -40,7 +40,7 @@ def wanted(url: str) -> bool:
 def configured(url: str) -> tuple[str, str] | None:
     """(base url, token) when both are set."""
     base = (url or config.env("VIKUNJA_URL", "")).strip().rstrip("/")
-    token = config.env("VIKUNJA_TOKEN", "").strip()
+    token = config.secret("VIKUNJA_TOKEN").strip()
     return (base, token) if base.startswith(("http://", "https://")) and token else None
 
 
@@ -48,7 +48,7 @@ def _fetch(base: str, token: str, path: str, params: dict) -> object:
     req = urllib.request.Request(f"{base}/api/v1{path}?{urllib.parse.urlencode(params)}",
                                  headers={"Authorization": f"Bearer {token}", "Accept": "application/json"})
     try:
-        with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
+        with config.urlopen(req, timeout=TIMEOUT) as r:
             data = json.load(r)
     except (OSError, ValueError) as e:
         raise VikunjaError(f"Vikunja didn't answer: {e}") from e
@@ -59,7 +59,7 @@ def _write(base: str, token: str, path: str, body: dict | None = None, method: s
     req = urllib.request.Request(f"{base}/api/v1{path}", data=None if body is None else json.dumps(body).encode(), method=method,
                                  headers={"Authorization": f"Bearer {token}", "Accept": "application/json", "Content-Type": "application/json"})
     try:
-        with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
+        with config.urlopen(req, timeout=TIMEOUT) as r:
             raw = r.read()
     except urllib.error.HTTPError as e:
         if e.code in (401, 403):
@@ -205,6 +205,8 @@ def repo_map(vault: Path | None) -> dict[int, str]:
     if not vault:
         return out
     for f in sorted((vault / "projects").glob("*.md")):
+        if not folders.inside(vault, f):
+            continue
         try:
             head = f.read_text(encoding="utf-8").split("---", 2)
         except (OSError, UnicodeDecodeError):

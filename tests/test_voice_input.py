@@ -95,6 +95,7 @@ class Store:
     def set_model(self, *a): pass
     def label_from_request(self, *a): pass
     def touch(self, *a): pass
+    def trusted(self, f): return False
 
 
 class Ctx:

@@ -38,13 +38,14 @@ import json
 import logging
 import os
 import re
+import signal
 import time
 import uuid
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
 
-from . import grant, worktree
+from . import config, grant, sandbox, worktree
 from .brief import quoted
 from .fence import Fence
 
@@ -83,7 +84,10 @@ def ordinal(n: int) -> str:
 def covers(branch: str, commands: dict[str, str], outward: bool = False) -> list[str]:
     """What the grant lets the session do without asking, in the card's words."""
     out = ["Edit files in its own worktree"]
-    out += [f"Run the {k} command: {c}" for k, c in commands.items() if c]
+    if any(commands.values()) and not sandbox.available():
+        out.append("No sandbox on this machine: running the test or build command asks first")
+    else:
+        out += [f"Run the {k} command in a sandbox (worktree only, no home folder): {c}" for k, c in commands.items() if c]
     if not any(commands.values()):
         out.append("No test or build command declared: running one asks first")
     out.append(f"git add and git commit on {branch}")
@@ -125,14 +129,18 @@ async def open_pr(repo: str, branch: str, into: str, title: str, body: str) -> t
 
 
 async def run_tests(path: str, cmd: str, timeout: float = TEST_TIMEOUT) -> tuple[bool, str]:
-    """The repo's declared test command in the worktree (the owner typed it): (passed, first failing line)."""
-    proc = await asyncio.create_subprocess_shell(cmd, cwd=path, stdout=asyncio.subprocess.PIPE,
+    """The repo's declared test command in the worktree, in the sandbox: it runs files the session edited.
+    (passed, first failing line); a timeout kills the whole process group."""
+    proc = await asyncio.create_subprocess_shell(sandbox.wrap(path, cmd), cwd=path, stdout=asyncio.subprocess.PIPE,
                                                  stderr=asyncio.subprocess.STDOUT, stdin=asyncio.subprocess.DEVNULL,
                                                  start_new_session=True)
     try:
         out, _ = await asyncio.wait_for(proc.communicate(), timeout)
     except asyncio.TimeoutError:
-        proc.kill()
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
         await proc.wait()
         return False, f"timed out after {int(timeout // 60)} min"
     text = out[-OUTPUT_MAX:].decode(errors="replace")
@@ -171,11 +179,7 @@ class Delegator:
     # -- records ------------------------------------------------------------------------------
 
     def _save(self) -> None:
-        self.path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-        tmp = self.path.with_suffix(".tmp")
-        tmp.write_text(json.dumps({"version": 1, "delegations": self.items}, indent=2))
-        tmp.chmod(0o600)
-        os.replace(tmp, self.path)
+        config.write_private(self.path, json.dumps({"version": 1, "delegations": self.items}, indent=2))
 
     def of_session(self, key: str) -> dict | None:
         return next((r for r in self.items.values() if r["session"] == key), None)
@@ -233,7 +237,8 @@ class Delegator:
             head = f"Ready: PR #{r['pr']}, " if r.get("pr") else f"Ready: branch {b}, "
             tail = {"failed": f" · not pushed: {r.get('outward_problem')}",
                     "snapshot": " · not pushed: it starts from your uncommitted changes"}.get(r.get("outward") or "", "")
-            return head + ("tests passed" if r.get("tests") == "passed" else "no tests declared") + tail
+            said = {"passed": "tests passed", "skipped": "tests not run (no sandbox here)"}.get(r.get("tests"), "no tests declared")
+            return head + said + tail
         if s == "failed":
             return r.get("problem") or "Tests failed"
         if s == "applied":
@@ -448,21 +453,27 @@ class Delegator:
 
     async def check(self, r: dict) -> None:
         """After a turn: committed work, a clean worktree and the declared tests passing make it Ready."""
+        r.pop("checked", None)  # the commit Ready stands for: push and Apply take only that one
         try:
             wt = self._wt(r)
+            head = await asyncio.to_thread(worktree.tip, wt)
             if await asyncio.to_thread(worktree.ahead, wt) == 0:
                 r.update(stage="failed", problem=f"No commits on branch {r['branch']}")
             elif await asyncio.to_thread(worktree.dirty, wt):
                 r.update(stage="failed", problem=f"Uncommitted changes on branch {r['branch']}")
-            elif test := self.store.commands(r["repo"])["test"]:
+            elif (test := self.store.commands(r["repo"])["test"]) and not sandbox.available():
+                r.update(stage="ready", tests="skipped", checked=head)  # no sandbox: Orb doesn't run the session's code
+            elif test:
                 passed, first = await run_tests(wt.path, test)
-                if passed:
-                    r.update(stage="ready", tests="passed")
+                if await asyncio.to_thread(worktree.tip, wt) != head:
+                    r.update(stage="failed", problem=f"Branch {r['branch']} changed while the tests ran; retry to check it again")
+                elif passed:
+                    r.update(stage="ready", tests="passed", checked=head)
                     await self._outward(r, wt)
                 else:
                     r.update(stage="failed", tests="failed", problem=f"Tests failed: {first}")
             else:
-                r.update(stage="ready", tests="none")
+                r.update(stage="ready", tests="none", checked=head)
         except (DelegationError, worktree.WorktreeError, OSError, ValueError) as e:
             r.update(stage="failed", problem=str(e)[:LINE_MAX])
         await self.changed()
@@ -505,7 +516,7 @@ class Delegator:
         r.pop("outward_problem", None)
         await self.changed()
         try:
-            await asyncio.to_thread(worktree.push, wt, r["remote"])
+            await asyncio.to_thread(worktree.push, wt, r["remote"], r.get("checked") or "")
             if not r.get("pr"):
                 link = f": {r['url']}" if r.get("url") else ""
                 body = f"Task #{r['task']}{link}\n\nDelegated with Orb; the repo's tests passed in its worktree."
@@ -538,7 +549,13 @@ class Delegator:
         await self._stop(r)  # nothing writes to the branch while it lands
         wt = self._wt(r)
         try:
-            r["commit"] = await asyncio.to_thread(worktree.apply, wt, mode(r["repo"]), f"{r['title']} (task #{r['task']})")
+            r["commit"] = await asyncio.to_thread(worktree.apply, wt, mode(r["repo"]), f"{r['title']} (task #{r['task']})",
+                                                  r.get("checked") or "")
+        except worktree.Moved:  # commits came after the check: check again, Apply once it's Ready
+            r["stage"] = "testing"
+            await self.changed()
+            self._spawn(self.check(r))
+            return r
         except worktree.Conflict as e:
             r["conflict"] = str(e)
             await self.changed()

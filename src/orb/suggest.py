@@ -15,6 +15,8 @@ import datetime as dt
 import re
 from pathlib import Path
 
+from . import folders
+
 TAKE_NOW, DELEGATE, LATER = "take now", "delegate", "later"
 WEEK = 7  # days ahead that still count as "due this week" (the Tasks page's "this week" uses the same)
 _DUE = re.compile(r"📅\s*(\d{4}-\d{2}-\d{2})")
@@ -52,7 +54,7 @@ def thresholds(vault: Path | None) -> tuple[int, int]:
     """(reject at or below, approve at or above) from the rubric's "Thresholds:" line, e.g. "**≥ 8** read today ·
     **5–7** worth a look · **≤ 4** skip"; THRESHOLDS when the file or the line is missing or doesn't make sense."""
     try:
-        text = (vault / RUBRIC).read_text(encoding="utf-8") if vault else ""
+        text = (vault / RUBRIC).read_text(encoding="utf-8") if vault and folders.inside(vault, vault / RUBRIC) else ""
     except (OSError, UnicodeDecodeError):
         return THRESHOLDS
     for line in text.splitlines():

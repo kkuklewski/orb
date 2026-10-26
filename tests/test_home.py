@@ -86,3 +86,13 @@ def test_awaiting_scored_best_first(tmp_path):
     assert home.summary(tmp_path, now=now)["awaiting"] == home.summary(tmp_path, now=now)["awaiting"]
     protocol.SERVER_EVENTS["home"].model_validate(s)
     assert [n["title"] for n in home.awaiting_notes(tmp_path)][:2] == ["Nine", "Fresh pick"]
+
+
+def test_a_note_linking_out_of_the_vault_is_not_read(tmp_path):
+    vault, outside = tmp_path / "notes", tmp_path / "elsewhere"
+    write(vault / "inbox" / "a.md", "- [ ] Real task\n", 1_800_000_000)
+    write(outside / "b.md", "- [ ] From outside\n", 1_800_000_000)
+    (vault / "inbox" / "link.md").symlink_to(outside / "b.md")
+    (vault / "inbox" / "same.md").symlink_to(vault / "inbox" / "a.md")  # a link inside the vault is fine
+    names = sorted(p.name for p, _ in home._notes(vault))
+    assert names == ["a.md", "same.md"]

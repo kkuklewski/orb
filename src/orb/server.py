@@ -21,6 +21,7 @@ import json
 
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.datastructures import Headers, MutableHeaders
 
 from . import billing, chain, config, delegation, desk, folders, forget, handoff, home, intake, items, kokoro_setup, make_task, navigate, needs, parakeet, routines, settings, setup, slash, speech, tasks, tracker, triage, vault_write, vendor, vocab, worktree
 from .agent import SCREEN_MAX, FolderSession, dumps, first_request
@@ -416,7 +417,45 @@ async def lifespan(app: FastAPI):
         await s.close()
 
 
+def host_ok(host: str) -> bool:
+    """A Host this server answers to: the port is ignored, the name must be one of config.HOSTS, or *.ts.net
+    (Tailscale serve) in the personal profile."""
+    name = (host.split("]")[0] + "]" if host.startswith("[") else host.rsplit(":", 1)[0]).lower()
+    return name in config.HOSTS or (name.endswith(".ts.net") and not settings.settings.work)
+
+
+class Guard:
+    """Every request and response: a known Host (DNS rebinding), no raw HTML under /static (it would skip the
+    page's CSP), and `nosniff` plus no framing on every response."""
+
+    def __init__(self, app) -> None:
+        self.app = app
+
+    async def __call__(self, scope, receive, send) -> None:
+        if scope["type"] not in ("http", "websocket"):
+            return await self.app(scope, receive, send)
+        if not host_ok(Headers(scope=scope).get("host", "")):
+            if scope["type"] == "websocket":
+                return await send({"type": "websocket.close", "code": 1008})
+            return await PlainTextResponse("Unknown host.", status_code=421)(scope, receive, send)
+        path = scope.get("path", "").casefold()
+        if scope["type"] == "http" and path.startswith("/static/") and path.endswith((".html", ".htm")):
+            return await PlainTextResponse("Not found", status_code=404)(scope, receive, send)
+
+        async def headed(message) -> None:
+            if message["type"] == "http.response.start":
+                h = MutableHeaders(scope=message)
+                h.setdefault("X-Content-Type-Options", "nosniff")
+                h.setdefault("X-Frame-Options", "DENY")
+                if "content-security-policy" not in h:
+                    h["Content-Security-Policy"] = "frame-ancestors 'none'"
+            await send(message)
+
+        await self.app(scope, receive, headed)
+
+
 app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
+app.add_middleware(Guard)
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
 
@@ -437,6 +476,7 @@ def csp(host: str, secure: bool, cdn: bool = True) -> str:
         "worker-src 'self' blob:",
         "object-src 'none'",
         "base-uri 'none'",
+        "form-action 'none'",  # a form in rendered model output never submits anywhere
         "frame-ancestors 'none'",
     ])
 
@@ -543,7 +583,7 @@ async def ws_endpoint(ws: WebSocket):
 def features() -> dict:
     """What the page shows: the user's folders, and the optional parts they turned on."""
     s = settings.settings
-    return {"roots": s["roots"], "vault": str(s.vault() or ""), "brain": s["brain"], "routines": s["routines"],
+    return {"roots": s["roots"], "vault": str(s.vault() or ""), "brain": s["brain"], "routines": s["routines"], "profile": s["profile"],
             "onboarded": s["onboarded"], "stt": s["stt"], "tts": s["tts"], "plan": hub.auth.get("subscription"),
             "tracker": tracker.name(s.data), "drops": intake.labels(drop_env())}
 
@@ -557,7 +597,7 @@ def drop_env() -> intake.Env:
 async def settings_event() -> dict:
     vocab_file = config.STATE_DIR / "vocabulary.txt"
     installed = await speech.voices()
-    return {"type": "settings", "values": settings.settings.data, "voices": installed,
+    return {"type": "settings", "values": settings.settings.view(), "voices": installed,
             "recommended": speech.recommended(installed, settings.settings["voice"]),
             "vocabulary": vocab_file.read_text() if vocab_file.exists() else "",
             "vocab_seed": vocab.SEED, "whisper_prompt": speech.PROMPT,
@@ -851,6 +891,10 @@ async def run_local(conn: Conn, s: FolderSession, name: str, args: str) -> None:
                 await x.set_model(changes["model"])
         if "outwardSteps" in changes:
             hub.store.set_outward(s.path, changes["outwardSteps"] == "on")
+        if "trustSettings" in changes:
+            for x in folder:
+                await x.set_trusted(changes["trustSettings"] == "on")
+            hub.store.set_trusted(s.path, changes["trustSettings"] == "on")  # also with no session open
         if "applyMode" in changes:
             hub.store.set_apply_mode(s.path, changes["applyMode"])
         for kind in ("test", "build"):
@@ -862,9 +906,10 @@ async def run_local(conn: Conn, s: FolderSession, name: str, args: str) -> None:
         await conn.send({"type": "notice", "text": f"{repo}: permissionMode={s.mode}, model={s.model}, "
                          f"outwardSteps={'on' if hub.store.outward(s.path) else 'off'}"
                          + (" (client folder: always off)" if s.fence.in_client() else "")
+                         + f", trustSettings={'on' if hub.store.trusted(s.path) else 'off'}"
                          + f", applyMode={hub.store.apply_mode(s.path)}, {shown}"
                          + ("" if changes else ". Change with /config permissionMode=default|auto|plan model=haiku|sonnet|opus"
-                            " outwardSteps=on|off applyMode=squash|merge test=\"…\" build=\"…\"")
+                            " outwardSteps=on|off trustSettings=on|off applyMode=squash|merge test=\"…\" build=\"…\"")
                          + ". Only this repo's sessions; your global Claude Code settings are untouched."})
 
 
@@ -933,18 +978,22 @@ async def handle(conn: Conn, msg: dict) -> None:
         return
     if t == "set_settings":
         values = msg.get("values") or {}
+        before = {k: settings.settings[k] for k in ("profile", "brain", "connectors")}
         settings.settings.update(values)
+        if any(settings.settings[k] != v for k, v in before.items()):  # the fence and the connectors change
+            for x in list(hub.sessions.values()):
+                await x.refresh()
         if isinstance(msg.get("vocabulary"), str):
             path = config.STATE_DIR / "vocabulary.txt"
-            path.write_text(msg["vocabulary"][:4000])
+            config.write_private(path, msg["vocabulary"][:4000])
         if isinstance(msg.get("vocabulary"), str) or {"roots", "skip_names"} & set(values):
             hub.scan()  # new folders, or a new Whisper prompt
             await hub.push_folders()
         if {"routines_judge", "routines_notify"} & set(values):
             await hub.push_routines()  # every page shows who notifies now
-        if {"roots", "vault", "brain", "routines", "onboarded", "stt", "tts", "vikunja_url", "jira_url"} & set(values):
+        if {"roots", "vault", "brain", "routines", "onboarded", "stt", "tts", "vikunja_url", "jira_url", "profile"} & set(values):
             await asyncio.gather(*(c.send({"type": "features", **features()}) for c in hub.conns))
-        if {"roots", "vault", "stt", "tts"} & set(values) and not values.get("onboarded"):
+        if {"roots", "vault", "stt", "tts", "profile"} & set(values) and not values.get("onboarded"):
             await conn.send(await setup.status())  # the setup page shows the result at once
         await conn.send(await settings_event())
         return

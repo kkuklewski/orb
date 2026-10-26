@@ -89,7 +89,7 @@ def setup_problems(auth: dict | None, tasks_error: str | None, stt: str, tts: st
     if tasks_error:
         out.append({"id": "vikunja", "title": f"{tracker} isn't reachable", "reason": _clip(tasks_error, REASON_MAX)})
     if stt == "parakeet" and not parakeet:
-        out.append({"id": "speech", "title": "Parakeet's model is missing", "reason": "Speech recognition can't hear you on this Mac."})
+        out.append({"id": "speech", "title": "Parakeet's model is missing", "reason": "Speech recognition can't hear you on this Mac: install it in Settings, or type."})
     elif stt == "whisper" and not health.get("whisper"):
         out.append({"id": "speech", "title": "Whisper isn't answering", "reason": "Speech recognition can't hear you on this Mac."})
     if tts == "kokoro" and not health.get("kokoro"):
@@ -317,10 +317,7 @@ class Needs:
         return {"fp": "", "at": None, "ranking": [], "error": None}
 
     def _save(self) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self.path.with_suffix(".tmp")
-        tmp.write_text(json.dumps(self.state))
-        os.replace(tmp, self.path)
+        config.write_private(self.path, json.dumps(self.state))
 
     def _ranked(self) -> list[dict]:
         """What the model sees: all of Needs you and the head of the queue."""

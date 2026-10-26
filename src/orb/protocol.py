@@ -75,6 +75,7 @@ class Features(_Msg):
     tts: Literal["browser", "kokoro"]
     plan: str | None = None
     tracker: str = "Vikunja"  # the task tracker's name, for the page's words (ADR 0010)
+    profile: Literal["work", "personal"] = "work"  # settings.py: work keeps connectors, browser speech and other repos off
     drops: list[str] = []  # what Home's drop zone can do here, its route labels (intake.labels)
 
 

@@ -11,7 +11,7 @@ export interface FeaturesState {
   build: string | null;
 }
 
-const FEATURE_KEYS = ["roots", "vault", "brain", "routines", "onboarded", "stt", "tts", "plan", "tracker"] as const;
+const FEATURE_KEYS = ["roots", "vault", "brain", "routines", "onboarded", "stt", "tts", "plan", "tracker", "profile"] as const;
 
 function pick(ev: Features): Features {
   return Object.fromEntries(FEATURE_KEYS.map((k) => [k, ev[k]])) as unknown as Features;

@@ -41,7 +41,7 @@ function connect() {
   ws.onopen = () => { backoff = 500; S.localLabel = null; refreshState(); send({ type: "mute", value: S.muted }); };
   ws.onmessage = (m) => onEvent(JSON.parse(m.data));
   ws.onclose = (e) => {
-    if (e.code === 4403) { // stale token (a new install or state folder makes a new one) or a foreign page
+    if (e.code === 4403) { // stale token (every start makes a new one) or a foreign page
       setState("offline");
       notice("This page's access token is out of date. Open the link Orb printed in the terminal (it ends in #t=…).", "error");
       return;
@@ -847,9 +847,23 @@ function scheduleRender(b) {
   if (S.replaying) { renderMd(b); pendingRender.delete(b); return; }
   if (!renderQueued) { renderQueued = true; setTimeout(() => { renderQueued = false; for (const x of pendingRender) renderMd(x); pendingRender.clear(); scrollToEnd(); }, 50); }
 }
+// Model output must not look like Orb's own controls: no form elements, no class / id / style except a code
+// block's language class; a task list's checkbox stays, disabled. Its own DOMPurify instance.
+const purify = DOMPurify(window);
+const MD_FORBID = { FORBID_TAGS: ["form", "button", "select", "option", "optgroup", "textarea", "label", "fieldset", "dialog", "style"] };
+purify.addHook("uponSanitizeAttribute", (node, data) => {
+  if (["id", "name", "style", "form", "formaction"].includes(data.attrName)
+    || (data.attrName === "class" && !(node.nodeName === "CODE" && /^language-[\w+#.-]+$/.test(data.attrValue)))) data.keepAttr = false;
+});
+purify.addHook("afterSanitizeAttributes", (node) => {
+  if (node.nodeName !== "INPUT") return;
+  if (node.getAttribute("type") === "checkbox") node.setAttribute("disabled", "");
+  else node.remove();
+});
+const safeMd = (text) => purify.sanitize(marked.parse(text), MD_FORBID);
 const COPY_ICON = '<svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M8 8V5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-3v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2h3Zm2 0h4a2 2 0 0 1 2 2v4h3V5h-9v3Zm-5 2v9h9v-9H5Z"/></svg>';
 function renderMd(b) {
-  b.el.innerHTML = DOMPurify.sanitize(marked.parse(b.text));
+  b.el.innerHTML = safeMd(b.text);
   b.el.querySelectorAll("pre").forEach((pre) => {
     const code = pre.querySelector("code");
     const wrap = el("div", "code");
@@ -951,7 +965,7 @@ function permissionCard(ev) {
   } else if (ev.tool === "ExitPlanMode") {
     card.classList.add("plan-card");
     card.querySelector(".ptitle").textContent = "Plan ready";
-    const md = el("div", "md"); md.innerHTML = DOMPurify.sanitize(marked.parse(ev.input?.plan || ""));
+    const md = el("div", "md"); md.innerHTML = safeMd(ev.input?.plan || "");
     card.append(md);
     const btns = el("div", "pbtns");
     const allow = el("button", "allow", "Approve plan"); allow.onclick = () => send({ type: "permission", id: ev.id, allow: true });

@@ -4,7 +4,8 @@ PreToolUse decision for file tools (Read, Glob, Grep, Edit, Write, ...) and Bash
 1. deny, always: secret files (.env, keys, credentials, ~/.ssh, ~/.aws) and any secrets/ folder at the
    top of a root (the folders the user gave Orb in the onboarding).
 2. deny: a client folder (settings["client_dirs"]) from a session that wasn't opened inside it.
-3. ask: any other repo inside the roots; the card and the spoken prompt say where it goes.
+3. ask: any other repo inside the roots; the card and the spoken prompt say where it goes. In the work profile
+   (settings.py) every other repo is fenced like a client folder: denied, and the vault session only reads.
 With a notes vault set up, the vault session is the hub: it may read client folders too (with a card),
 but never change them; only a Bash command made of plain read-only commands counts as reading.
 Paths outside the roots get no objection here (the normal approval flow decides).
@@ -28,14 +29,18 @@ import shlex
 from pathlib import Path
 from typing import Any
 
-from . import config, settings, worktree
+from . import config, settings, trust, worktree
 from .brain import ask, deny
 from .folders import _git_config_remote, remote_label
 
 SECRETS_DIR = "secrets"
-SECRET_FILES = (Path.home() / ".claude" / ".credentials.json", Path.home() / ".codex" / "auth.json")
+SECRET_FILES = tuple(Path.home() / f for f in (
+    ".claude/.credentials.json", ".codex/auth.json", ".config/gh/hosts.yml", ".docker/config.json", ".kube/config",
+    ".npmrc", ".pypirc", ".gem/credentials", ".config/hub"))
+SECRET_DIRS = {".aws", ".ssh", ".gnupg"}
 _ENV_TEMPLATES = {"example", "sample", "template", "dist"}
-_SECRET_SAMPLES = (".env", ".env.local", "server.pem", "server.key", "id_rsa", "id_ed25519", "credentials.json")
+_SECRET_SAMPLES = (".env", ".env.local", "server.pem", "server.key", "id_rsa", "id_ed25519", "id_ecdsa", "credentials.json",
+                   ".netrc", ".git-credentials")
 _RECURSIVE = re.compile(r"\b(?:rg|find|fd|ag|tar|zip|rsync|du|tree)\b|\s-[A-Za-z]*[rR]\b|--recursive")
 _GLOB_CHARS = re.compile(r"[*?\[]")
 _PATH_ARG_FLAGS = {"cd", "pushd", "-C", "--prefix", "--cwd", "--dir", "--directory", "--git-dir", "--work-tree"}
@@ -72,7 +77,9 @@ def is_secret_name(name: str) -> bool:
         return True
     if n.endswith((".pem", ".key")) and not n.startswith("."):
         return True
-    return n.startswith(("id_rsa", "id_ed25519", "credentials"))
+    if n in (".netrc", "_netrc", ".git-credentials", ".pgpass"):
+        return True
+    return n.startswith(("id_rsa", "id_ed25519", "id_ecdsa", "id_dsa", "credentials"))
 
 
 def _flag_ok(cmd: str, tok: str) -> bool:
@@ -179,13 +186,14 @@ def strictest(*decisions: dict) -> dict:
 class Fence:
     def __init__(self, session: str, root: Path | None = None, clients: tuple[str, ...] | None = None,
                  vault: Path | None = None, roots: list[Path] | None = None, never: set[str] | None = None,
-                 worktrees: dict[str, str] | None = None) -> None:
+                 worktrees: dict[str, str] | None = None, isolated: bool | None = None) -> None:
         if roots is None:
             roots = [root] if root is not None else settings.settings.roots()
         self.roots = [os.path.realpath(r) for r in roots]
         self.session = os.path.realpath(session)
         self._worktrees = worktrees  # worktree -> repo; None: the registry, read as it changes
         self.clients = tuple(settings.settings["client_dirs"]) if clients is None else clients
+        self.isolated = settings.settings.work if isolated is None else isolated  # every repo is a client folder
         # Folder names the user put on the never-open list (Settings): denied anywhere, like secrets.
         self.never = {n.casefold() for n in (settings.settings["skip_names"] if never is None else never)}
         vault = settings.settings.vault() if vault is None else vault
@@ -198,11 +206,13 @@ class Fence:
         self.home = self._canon(self.session)  # the session's repo: for a worktree, the repo it belongs to
         self.root = self._root(self.home) or self.home  # the session's own root (labels, client folders)
         home = Path.home()
-        self.sensitive = [*(os.path.join(r, SECRETS_DIR) for r in self.roots), str(home / ".aws"), str(home / ".ssh"),
+        self.sensitive = [*(os.path.join(r, SECRETS_DIR) for r in self.roots), *(str(home / d) for d in sorted(SECRET_DIRS)),
                           *map(str, SECRET_FILES)]
 
     def in_client(self) -> bool:
-        """True when the session works inside one of the client folders."""
+        """True when the session works inside one of the client folders (any repo, in the work profile)."""
+        if self.isolated:
+            return True
         rel = os.path.relpath(self.home, self.root)
         top = rel.split(os.sep)[0].casefold() if rel != "." else ""
         return bool(top) and any(top == c.casefold() for c in self.clients)
@@ -221,10 +231,17 @@ class Fence:
         return max((r for r in self.roots if _within(target, r)), key=len, default=None)
 
     def check_path(self, target: str, write: bool = True) -> tuple[str, str] | None:
-        """('deny' | 'ask', reason) for one resolved path, or None."""
-        if is_secret_name(os.path.basename(target)) or ".aws" in Path(target).parts or \
+        """('deny' | 'ask', reason) for one resolved path, or None. A write to a file that decides what runs
+        without a card (settings, hooks, skills, MCP servers) always asks, in any repo and under a grant."""
+        verdict = self._check_path(target, write)
+        if write and (verdict is None or verdict[0] == "ask") and trust.runs_code(target):
+            return "ask", trust.RUNS_CODE if verdict is None else f"{verdict[1]} {trust.RUNS_CODE}"
+        return verdict
+
+    def _check_path(self, target: str, write: bool) -> tuple[str, str] | None:
+        if is_secret_name(os.path.basename(target)) or SECRET_DIRS & {p.casefold() for p in Path(target).parts} or \
                 any(target.casefold() == str(f).casefold() for f in SECRET_FILES):
-            return "deny", "Secret files (.env, keys, credentials) are blocked in Orb."
+            return "deny", "Secret files (.env, keys, credentials, ~/.ssh, ~/.aws) are blocked in Orb."
         if hit := next((p for p in Path(target).parts if p.casefold() in self.never), None):
             return "deny", f"{hit}/ is on your never-open list in Orb's settings."
         actual, target = target, self._canon(target)
@@ -254,6 +271,9 @@ class Fence:
                                 f"{os.path.basename(self.home)}. Open {client} as its own session in Orb.")
         here = _repo_label(self.home, self.root).split("/")[-1]  # "api", not "acme/api"
         there = os.path.basename(root) if root == self.notes_root else _repo_label(target, root).split("/")[-1]
+        if self.isolated and not (self.hub and not write):
+            return "deny", (f"Other repo: {there}. In Orb's work profile a session stays in its own repo "
+                            f"({here}); open {there} as its own session in Orb.")
         return "ask", f"Other repo: {there}. This session is in {here}."
 
     def _paths(self, tool: str, inp: dict[str, Any], base: str) -> list[str]:

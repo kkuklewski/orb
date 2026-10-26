@@ -36,6 +36,8 @@ def _notes(vault: Path) -> list[tuple[Path, float]]:
         for f in files:
             if f.endswith(".md"):
                 p = Path(root, f)
+                if p.is_symlink() and not folders.inside(vault, p):
+                    continue
                 try:
                     st = p.stat()
                 except OSError:

@@ -34,7 +34,7 @@ export const routines = (over: Partial<RoutinesEvent> = {}): RoutinesEvent => ({
 
 export const settings = (over: Partial<SettingsEvent> = {}): SettingsEvent => ({
   type: "settings",
-  values: { voice: "af_heart", default_mode: "default", default_model: "sonnet", stt: "browser", tts: "kokoro" },
+  values: { voice: "af_heart", default_mode: "default", default_model: "sonnet", stt: "browser", tts: "kokoro", profile: "personal" },
   voices: ["af_heart", "af_bella"],
   recommended: [{ id: "af_heart", name: "Heart", desc: "warm", grade: "A" }, { id: "af_bella", name: "Bella", desc: "bright", grade: "A-" }],
   vocabulary: "Kimai", vocab_seed: ["Claude", "Opus"], whisper_prompt: "Claude, Opus, Kimai", vault: "", port: 8765, host: "127.0.0.1",

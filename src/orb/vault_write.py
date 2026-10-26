@@ -36,7 +36,7 @@ CHANGED = "The note changed since Orb read it, so nothing was written. Open it a
 _FIELD = re.compile(r"^([A-Za-z_][\w-]*):\s*(.*?)\s*$")
 _DAY = re.compile(r"\d{4}-\d{2}-\d{2}")
 TRANSCRIPTS = "scrapers/Transcripts"  # the default; settings "transcripts_folder"
-VIDEO_ID = re.compile(r"^[A-Za-z0-9_-]{11}$")
+VIDEO_ID = re.compile(r"[A-Za-z0-9_-]{11}")  # fullmatch: "$" lets a trailing newline through
 # Vault-local git config that makes git run a program (or send the push elsewhere): a session could have written it, so
 # Orb's own git calls refuse to run while it is set (`unsafe_config`). Matched on lower-case names with fnmatch.
 UNSAFE_GIT = ("core.fsmonitor", "core.sshcommand", "core.gitproxy", "core.askpass", "core.alternaterefscommand",
@@ -203,7 +203,7 @@ def new_transcript(vault: Path, video_id: str, title: str, lang: str, text: str,
                    folder: str = TRANSCRIPTS) -> str:
     """Write <folder>/<day>-<id>.md in the vault's transcript note format; never over an existing file, never outside
     the vault. Returns the vault-relative path."""
-    if not VIDEO_ID.match(video_id):
+    if not VIDEO_ID.fullmatch(video_id):
         raise TaskError("That isn't a YouTube video id.")
     f = Path(folder)
     if not folder or f.is_absolute() or ".." in f.parts or f.parts[0].startswith("."):
@@ -255,8 +255,9 @@ def unsafe_config(vault: Path) -> str | None:
 
 def commit_new(vault: Path, rel: str, message: str) -> Pushed:
     """Commit only `rel` (other staged or unstaged work stays as it is), then push without force. Hooks, fsmonitor and
-    signing are off and a vault config that runs commands is refused: those are files a session could have edited. A
-    failed commit unstages `rel`; a failed push leaves the commit for the owner's next push."""
+    signing are off and a vault config that runs commands is refused: those are files a session could have edited. It
+    pushes only when this commit is the only one ahead of upstream. A failed commit unstages `rel`; a push that fails
+    or doesn't run leaves the commit for the owner's next push."""
     if why := unsafe_config(vault):
         return Pushed(False, why)
     git = ["git", "-C", str(vault), "-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false"]
@@ -271,6 +272,11 @@ def commit_new(vault: Path, rel: str, message: str) -> Pushed:
         if run("commit", "-q", "--no-verify", "--no-gpg-sign", "--only", "-m", message, "--", rel).returncode:
             run("reset", "-q", "--", rel)
             return Pushed(False, "the commit failed, commit it yourself")
+        ahead = run("rev-list", "--count", "@{upstream}..HEAD")
+        if ahead.returncode:
+            return Pushed(False, "the branch has no upstream; push it yourself")
+        if ahead.stdout.strip() != "1":  # the owner's (or a session's) unpushed commits go out only with them
+            return Pushed(False, "other unpushed commits are in your vault; push them yourself")
         r = run("push", "-q", "--no-verify", timeout=90)
     except (OSError, subprocess.SubprocessError):
         return Pushed(False, "git didn't answer")

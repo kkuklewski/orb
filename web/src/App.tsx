@@ -45,7 +45,7 @@ const LABEL: Record<Connection, string> = {
   connecting: "Connecting…",
   online: "Online",
   offline: "Reconnecting…",
-  refused: "This page's access token is out of date. Open the link Orb printed in the terminal.",
+  refused: "This page's access token is out of date (Orb makes a new one each start). Open the link Orb printed in the terminal.",
   "no-token": "Open the link Orb printed in the terminal (it ends in #t=…).",
 };
 

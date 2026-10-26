@@ -7,8 +7,24 @@ import DOMPurify from "dompurify";
 // tab. While text streams in, rendering is throttled to one pass per 50 ms.
 const md = new Marked({ gfm: true, breaks: false });
 
+// Model output must not be able to look like Orb's own controls (a fake Allow card): no form elements, no
+// class / id / style (they'd pick up the page's own styles), except a code block's language class. A GFM task
+// list's checkbox stays, always disabled. Its own instance: Mermaid's sanitizer keeps its defaults.
+const purify = DOMPurify(window);
+const FORBID_TAGS = ["form", "button", "select", "option", "optgroup", "textarea", "label", "fieldset", "dialog", "style"];
+const LANGUAGE = /^language-[\w+#.-]+$/;
+purify.addHook("uponSanitizeAttribute", (node, data) => {
+  if (["id", "name", "style", "form", "formaction"].includes(data.attrName)
+    || (data.attrName === "class" && !(node.nodeName === "CODE" && LANGUAGE.test(data.attrValue)))) data.keepAttr = false;
+});
+purify.addHook("afterSanitizeAttributes", (node) => {
+  if (node.nodeName !== "INPUT") return;
+  if (node.getAttribute("type") === "checkbox") node.setAttribute("disabled", "");
+  else node.remove();
+});
+
 export function toSafeHtml(text: string): string {
-  return DOMPurify.sanitize(md.parse(text, { async: false }));
+  return purify.sanitize(md.parse(text, { async: false }), { FORBID_TAGS });
 }
 
 let hljs: Promise<typeof import("highlight.js/lib/common").default> | null = null;

@@ -43,6 +43,10 @@ class WorktreeError(Exception):
     """A git step refused; the message says why, in plain words."""
 
 
+class Moved(WorktreeError):
+    """The branch has commits its check didn't see."""
+
+
 class Conflict(WorktreeError):
     def __init__(self, files: list[str]) -> None:
         super().__init__("Conflict in " + ", ".join(files) + ". Nothing was merged." if files else
@@ -87,11 +91,7 @@ def _load() -> dict[str, dict]:
 
 def _save(data: dict[str, dict]) -> None:
     path = _registry_path()
-    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-    tmp = path.with_suffix(".tmp")
-    tmp.write_text(json.dumps({"version": 1, "worktrees": data}, indent=2))
-    tmp.chmod(0o600)
-    os.replace(tmp, path)
+    config.write_private(path, json.dumps({"version": 1, "worktrees": data}, indent=2))
 
 
 def _linked(path: str, repo: str) -> bool:
@@ -215,6 +215,10 @@ def create(repo: str, branch: str, dest: str | None = None, never: set[str] | No
 DIFF_MAX = 200_000
 
 
+def tip(wt: Worktree) -> str:
+    return _line(wt.repo, "rev-parse", f"refs/heads/{wt.branch}")
+
+
 def ahead(wt: Worktree) -> int:
     """Commits on the delegation branch since it started."""
     return int(_line(wt.repo, "rev-list", "--count", f"{wt.base}..refs/heads/{wt.branch}"))
@@ -265,10 +269,12 @@ def unpushed(wt: Worktree, remote: str, into: str) -> int:
     return int(out.stdout.strip() or 0) if out.returncode == 0 else 0
 
 
-def push(wt: Worktree, remote: str) -> None:
-    """The delegation branch to `remote` under the same name; no force, hooks off."""
+def push(wt: Worktree, remote: str, commit: str) -> None:
+    """`commit` (the one the check ran on) as the delegation branch on `remote`; no force, hooks off."""
+    if tip(wt) != commit:
+        raise Moved(f"{wt.branch} changed after its check; re-run the check.")
     ref = f"refs/heads/{wt.branch}"
-    _git(wt.repo, "push", "--quiet", remote, f"{ref}:{ref}")
+    _git(wt.repo, "push", "--quiet", remote, f"{commit}:{ref}")
 
 
 # -- apply and revert ---------------------------------------------------------------------------
@@ -290,8 +296,9 @@ def _land(repo: str, base: str, ours: str, theirs: str, parents: list[str], mess
     return commit
 
 
-def apply(wt: Worktree, mode: str = "squash", message: str | None = None) -> str:
-    """Land the delegation's work on the checkout's current branch; returns the new commit."""
+def apply(wt: Worktree, mode: str = "squash", message: str | None = None, expect: str | None = None) -> str:
+    """Land the delegation's work on the checkout's current branch; returns the new commit. With `expect`, only
+    when the branch is still that commit (the one its check ran on)."""
     if mode not in MODES:
         raise WorktreeError(f"Unknown apply mode {mode}: use squash or merge.")
     if not wt.config or _config_print(wt.repo) != wt.config:
@@ -304,6 +311,8 @@ def apply(wt: Worktree, mode: str = "squash", message: str | None = None) -> str
     tip = _line(wt.repo, "rev-parse", f"refs/heads/{wt.branch}")
     if tip == wt.base:
         raise WorktreeError(f"{wt.branch} has no commits to apply.")
+    if expect is not None and tip != expect:
+        raise Moved(f"{wt.branch} changed after its check.")
     if mode == "squash":
         return _land(wt.repo, wt.base, head, tip, [head], message or f"Apply {wt.branch}")
     return _land(wt.repo, wt.base, head, tip, [head, tip], message or f"Merge branch '{wt.branch}' into {current}")

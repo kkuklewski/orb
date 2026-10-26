@@ -57,3 +57,22 @@ def test_next_redirect_stays_on_this_origin(path):
     r = TestClient(server.app).get(path, follow_redirects=False)
     loc = r.headers["location"]
     assert r.status_code == 307 and loc.startswith("/") and not loc.startswith(("//", "/\\"))
+
+
+def test_raw_html_under_static_is_refused_and_every_response_gets_the_headers():
+    c = TestClient(server.app)
+    for path in ("/static/index.html", "/static/app/index.html", "/static/APP/Index.HTML"):
+        assert c.get(path).status_code == 404
+    r = c.get("/static/app.js")
+    assert r.status_code == 200 and r.headers["x-content-type-options"] == "nosniff"
+    assert r.headers["content-security-policy"] == "frame-ancestors 'none'"
+    assert "form-action 'none'" in c.get("/").headers["content-security-policy"]
+
+
+@pytest.mark.parametrize("host, ok", [
+    ("127.0.0.1:8765", True), ("localhost:8765", True), ("[::1]:8765", True), ("mbp.example.ts.net", True),
+    ("testserver", True), ("evil.example:8765", False), ("127.0.0.1.evil.example", False), ("", False),
+])
+def test_only_known_hosts_are_answered(host, ok):
+    assert server.host_ok(host) is ok
+    assert (TestClient(server.app).get("/manifest.webmanifest", headers={"host": host}).status_code != 421) is ok

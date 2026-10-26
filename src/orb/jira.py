@@ -48,7 +48,7 @@ def wanted(url: str) -> bool:
 def configured(url: str) -> tuple[str, str] | None:
     """(base url, Authorization header) when the address, email and token are all set."""
     base = (url or config.env("JIRA_URL", "")).strip().rstrip("/")
-    email, token = config.env("JIRA_EMAIL", "").strip(), config.env("JIRA_TOKEN", "").strip()
+    email, token = config.secret("JIRA_EMAIL").strip(), config.secret("JIRA_TOKEN").strip()
     if not (base.startswith(("http://", "https://")) and email and token):
         return None
     return base, "Basic " + base64.b64encode(f"{email}:{token}".encode()).decode()
@@ -77,7 +77,7 @@ def _call(base: str, auth: str, path: str, params: dict | None = None, body: dic
                                  method=method, headers={"Authorization": auth, "Accept": "application/json",
                                                          "Content-Type": "application/json"})
     try:
-        with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
+        with config.urlopen(req, timeout=TIMEOUT) as r:
             raw = r.read()
     except urllib.error.HTTPError as e:
         said = _said(e)
@@ -278,6 +278,8 @@ def _frontmatter(vault: Path | None) -> list[tuple[str, str]]:
     if not vault:
         return out
     for f in sorted((vault / "projects").glob("*.md")):
+        if not folders.inside(vault, f):
+            continue
         try:
             head = f.read_text(encoding="utf-8").split("---", 2)
         except (OSError, UnicodeDecodeError):

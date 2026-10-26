@@ -16,6 +16,14 @@ SKIP_NAMES = {"secrets", "node_modules", ".venv", "venv", "__pycache__", ".git",
 def skip_names() -> set[str]:
     from .settings import settings
     return SKIP_NAMES | set(settings["skip_names"])
+
+
+def inside(root: str | os.PathLike, path: str | os.PathLike) -> bool:
+    """True when path, links followed, is root or under it (a note that links out of the vault is not read)."""
+    r, p = os.path.realpath(root), os.path.realpath(path)
+    return p == r or p.startswith(r.rstrip(os.sep) + os.sep)
+
+
 MAX_DEPTH = 5
 
 

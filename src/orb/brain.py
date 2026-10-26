@@ -19,9 +19,13 @@ import shlex
 from pathlib import Path
 from typing import Any
 
+from . import config
+
 CAPTURE_TOOL = "mcp__claude_ai_Brain_Capture__capture"
 BRAIN_READ_TOOLS = [f"mcp__claude_ai_Brain__{t}" for t in
                     ("search_notes", "read_note", "recent_notes", "list_topics", "last_curation_run", "vault_overview")]
+CONNECTOR_PREFIX = "mcp__claude_ai_"  # every claude.ai connector's tools
+BRAIN_PREFIXES = ("mcp__claude_ai_Brain__", "mcp__claude_ai_Brain_Capture__")
 MAX_NOTE_BYTES = 4096
 DAILY_LIMIT = 20
 FILE_TOOLS = ("Edit", "Write", "MultiEdit", "NotebookEdit")
@@ -69,10 +73,7 @@ class CaptureGuard:
 
     def record(self) -> None:
         n = self.count() + 1
-        self.state.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self.state.with_suffix(".tmp")
-        tmp.write_text(json.dumps({"date": self._today(), "count": n}))
-        os.replace(tmp, self.state)
+        config.write_private(self.state, json.dumps({"date": self._today(), "count": n}))
 
     def refuse(self, text: str) -> str | None:
         """Why a capture can't be made, or None."""
@@ -113,6 +114,17 @@ def allow(updated_input: dict | None = None) -> dict:
     if updated_input is not None:
         out["updatedInput"] = updated_input
     return {"hookSpecificOutput": out}
+
+
+def connector_env(s) -> dict[str, str]:
+    """A session's claude.ai connectors: none unless Brain or the other connectors are on (s: the settings;
+    the work profile keeps both off)."""
+    return {} if s["brain"] or s["connectors"] else {"ENABLE_CLAUDEAI_MCP_SERVERS": "false"}
+
+
+def connector_allowed(name: str, s) -> bool:
+    """A claude.ai connector tool a session may call: Brain's with settings["brain"], any with "connectors"."""
+    return bool(s["connectors"] or (s["brain"] and name.startswith(BRAIN_PREFIXES)))
 
 
 def deny(reason: str) -> dict:
