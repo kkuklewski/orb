@@ -43,8 +43,8 @@ DEFAULTS = {
     "vikunja_url": config.env("VIKUNJA_URL", ""),  # open tasks from Vikunja (token: ORB_VIKUNJA_TOKEN, env only)
     "jira_url": config.env("JIRA_URL", ""),  # or from Jira Cloud, which wins when set (ORB_JIRA_EMAIL + ORB_JIRA_TOKEN, env only)
     "tasks_inbox": config.env("TASKS_INBOX", "Inbox"),  # the project a new task with no mapped repo goes to
-    "delegation_limit": 3,
-    "sandbox_read": [],  # extra home folders a delegation's test/build commands may read (toolchains); settings.json only  # delegations working at once; the next ones wait as Queued
+    "delegation_limit": 3,  # delegations working at once; the next ones wait as Queued
+    "sandbox_read": [],  # extra home folders a delegation's test/build commands may read (toolchains); settings.json only
     "onboarded": False,
 }
 MODES = ("default", "auto", "plan")
