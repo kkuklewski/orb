@@ -65,7 +65,7 @@ class DelegationError(Exception):
 
 def brief(task: dict, branch: str, test: str) -> str:
     tests = f"Run the repo's tests (`{test}`) and fix what fails. " if test else ""
-    return quoted("a task from my task tracker (Vikunja), delegated to you",
+    return quoted("a task from my task tracker, delegated to you",
                   [("Task", f"#{task['id']} {task['title']}"), ("Project", task.get("project") or "-"),
                    ("Due", task.get("due")), ("Link", task.get("url"))],
                   task.get("description"),

@@ -86,6 +86,19 @@ Optional extras for power users, in `~/.orb/settings.json`: `client_dirs` (folde
 may touch), `skip_names` (folder names never opened), a notes `vault`, `brain` (claude.ai Brain
 connectors) and `routines` (a panel for claude.ai scheduled agents).
 
+## Tasks: Vikunja or Jira
+
+Home, the Tasks list, delegations and "Make it a task" read and write one task tracker. Set its address in
+Settings → Tasks; tokens come only from the environment, never from the page or `settings.json`:
+
+- **Vikunja:** `vikunja_url` (or `ORB_VIKUNJA_URL`) and `ORB_VIKUNJA_TOKEN`.
+- **Jira Cloud:** `jira_url` (or `ORB_JIRA_URL`, e.g. `https://acme.atlassian.net`), `ORB_JIRA_EMAIL` and
+  `ORB_JIRA_TOKEN` (an API token from id.atlassian.com). Orb lists issues assigned to you that aren't done;
+  `ORB_JIRA_JQL` replaces that query. Jira wins when both addresses are set.
+
+A notes vault can map repos to projects in `projects/*.md` frontmatter: `vikunja_project: <id>` or
+`jira_project: <KEY>`, next to `local: <repo path>`.
+
 ## Development
 
 ```sh

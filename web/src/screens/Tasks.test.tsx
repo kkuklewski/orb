@@ -60,7 +60,7 @@ describe("Tasks page", () => {
     expect(screen.getByText("not connected")).toBeTruthy();
     expect(screen.getByRole("status").textContent).toContain("ORB_VIKUNJA_TOKEN");
     expect(screen.queryByText("Table")).toBeNull();
-    fireEvent.click(screen.getByText("Vikunja settings"));
+    fireEvent.click(screen.getByText("Task settings"));
     expect(useViews.getState()).toMatchObject({ view: "settings", settingsAt: "vikunja" });
   });
 });

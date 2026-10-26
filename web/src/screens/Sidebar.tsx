@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useDelegations } from "../stores/delegation";
-import { useFeatures } from "../stores/features";
+import { trackerName, useFeatures } from "../stores/features";
 import { needsCount, needsYou, useHome } from "../stores/home";
 import { activityRows, dotClass, openSessions, runningRows, useViews, type View } from "../stores/views";
 import {
@@ -151,7 +151,7 @@ export function Sidebar() {
         {features?.vault && (
           <button type="button" className={"nav-item" + (view === "brain" || view === "note" ? " active" : "")} aria-current={view === "brain" ? "page" : undefined} onClick={() => { openBrain(); useSession.setState({ drawer: false }); }}><Icon d={ICONS.brain} />Brain</button>
         )}
-        <button type="button" className={"nav-item" + (view === "tasks" ? " active" : "")} aria-current={view === "tasks" ? "page" : undefined} onClick={() => showView("tasks")} title="Vikunja tasks"><Icon d={ICONS.tasks} />Tasks</button>
+        <button type="button" className={"nav-item" + (view === "tasks" ? " active" : "")} aria-current={view === "tasks" ? "page" : undefined} onClick={() => showView("tasks")} title={`${trackerName()} tasks`}><Icon d={ICONS.tasks} />Tasks</button>
         {features?.routines && (
           <button type="button" className={"nav-item" + (view === "routines" ? " active" : "")} aria-current={view === "routines" ? "page" : undefined} onClick={() => showView("routines")}><Icon d={ICONS.routines} />Routines</button>
         )}

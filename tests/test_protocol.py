@@ -14,7 +14,8 @@ from orb import protocol, server
 SRC = Path(protocol.__file__).parent
 ROOT = SRC.parent.parent
 # Dicts with a "type" that are not WebSocket events: Agent SDK options and prompts.
-NOT_EVENTS = {("agent.py", "preset"), ("routines.py", "user")}
+NOT_EVENTS = {("agent.py", "preset"), ("routines.py", "user"),
+              ("jira.py", "doc"), ("jira.py", "paragraph"), ("jira.py", "hardBreak"), ("jira.py", "text")}  # Jira descriptions (ADF)
 
 
 def built_events() -> dict[str, list[tuple[str, set[str], bool]]]:

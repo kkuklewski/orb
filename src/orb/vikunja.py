@@ -257,9 +257,9 @@ def repo_path(vault: Path | None, project_id: int) -> str | None:
     return repo_map(vault).get(project_id) if project_id else None
 
 
-def brief(t: dict) -> str:
+def brief(t: dict, tracker: str = "Vikunja") -> str:
     """The prompt for working on a task; title, project and description come from the tracker, so they are quoted."""
-    return quoted("a task from my task tracker (Vikunja)",
+    return quoted(f"a task from my task tracker ({tracker})",
                   [("Task", t["title"]), ("Project", t.get("project") or "-"), ("Due", t.get("due")), ("Link", t["url"])],
                   t.get("description"),
                   "What I want: read the task, look at the repo, then say how you'd do it and what you need from me. "

@@ -975,7 +975,7 @@ class FolderSession:
             out = self.guard.pre_capture(self.key, inp)
         elif name == handoff.TOOL:  # a card in every permission mode (auto included): it starts work in another repo
             out = handoff.ask(inp)
-        elif name in desk.WRITE_TOOLS:  # a card in every mode: it changes a task in Vikunja
+        elif name in desk.WRITE_TOOLS:  # a card in every mode: it changes a task in the tracker
             title = await asyncio.to_thread(desk.card_title, self.sources, inp.get("id")) if self.sources else ""
             if tool_use_id and title:
                 self.card_titles = {**dict(list(self.card_titles.items())[-8:]), tool_use_id: title}

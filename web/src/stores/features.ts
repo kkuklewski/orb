@@ -1,4 +1,4 @@
-// What this install has turned on (folders, vault, Brain, routines, speech engines, plan), the repo
+// What this install has turned on (folders, vault, Brain, routines, speech engines, plan, task tracker), the repo
 // list, and which local services answer. Filled from hello, then kept current by features / folders.
 import { create } from "zustand";
 import type { Features, FolderItem, ServerEvent } from "../protocol.gen";
@@ -11,7 +11,7 @@ export interface FeaturesState {
   build: string | null;
 }
 
-const FEATURE_KEYS = ["roots", "vault", "brain", "routines", "onboarded", "stt", "tts", "plan"] as const;
+const FEATURE_KEYS = ["roots", "vault", "brain", "routines", "onboarded", "stt", "tts", "plan", "tracker"] as const;
 
 function pick(ev: Features): Features {
   return Object.fromEntries(FEATURE_KEYS.map((k) => [k, ev[k]])) as unknown as Features;
@@ -38,4 +38,14 @@ export function wireFeatures(): () => void {
   const apply = (ev: ServerEvent) => useFeatures.setState((s) => reduce(s, ev));
   const offs = [on("hello", apply), on("features", apply), on("folders", apply)];
   return () => offs.forEach((off) => off());
+}
+
+/** The task tracker's name for the page's words: "Vikunja" or "Jira" (ADR 0010). */
+export function trackerName(): string {
+  return useFeatures.getState().features?.tracker ?? "Vikunja";
+}
+
+/** The same, as a hook: re-renders when the tracker changes. */
+export function useTracker(): string {
+  return useFeatures((s) => s.features?.tracker ?? "Vikunja");
 }

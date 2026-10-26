@@ -2,14 +2,16 @@ import { useEffect } from "react";
 import { useViews, NOTIFY_LABEL, dayTime, routineStatus, safeRunUrl, setNotify, whyLine, type NotifyMode } from "../stores/views";
 import { askAbout, confirmTask, makeTask, markRead, resolvable, resolveRun, undoTask, useMakeTask, useRoutineScreen } from "../stores/routine";
 import { useChat } from "../stores/chat";
+import { useTracker } from "../stores/features";
 import { useSession } from "../stores/session";
 import { ItemView } from "./chat/Chat";
 
 // One routine's last run: the whole text (plain text, never markup: it may quote email or repos),
 // why it did or didn't notify, and what to do with it. Orb's routine access is read-only, so there is
-// no "run again" here; "Open run" goes to claude.ai. "Make it a task" writes one Vikunja task, after a card.
+// no "run again" here; "Open run" goes to claude.ai. "Make it a task" writes one task in the tracker, after a card.
 
 function MakeTaskCard({ routine }: { routine: string }) {
+  const tracker = useTracker();
   const { routine: r, pending, card, done, undone } = useMakeTask();
   if (r !== routine) return null;
   if (pending || !card) return pending ? <p className="mono task-say">Working out the task…</p> : null;
@@ -17,7 +19,7 @@ function MakeTaskCard({ routine }: { routine: string }) {
   return (
     <div className={"perm" + (done ? " done" : "")} role="group" aria-label="Make it a task">
       <div className="ptitle">Make it a task</div>
-      <div className="pwhat">Create a Vikunja task in {card.project}: “{card.title}”</div>
+      <div className="pwhat">Create a {tracker} task in {card.project}: “{card.title}”</div>
       {!done && (
         <div className="pbtns">
           <button type="button" className="allow" onClick={() => confirmTask(card.id, true)}>Create the task</button>

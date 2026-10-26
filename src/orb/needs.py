@@ -76,9 +76,10 @@ def _ago(due: str, today: str) -> str:
     return "Was due yesterday." if days == 1 else f"Was due {days} days ago ({due})."
 
 
-def setup_problems(auth: dict | None, tasks_error: str | None, stt: str, tts: str, health: dict, parakeet: bool) -> list[dict]:
+def setup_problems(auth: dict | None, tasks_error: str | None, stt: str, tts: str, health: dict, parakeet: bool,
+                   tracker: str = "Vikunja") -> list[dict]:
     """[{id, title, reason}] for what is broken in the setup, each named by the Settings section that fixes it
-    ("claude", "vikunja", "speech", "voice"). `auth` is `setup.auth_status()` ({} = not checked yet: no verdict),
+    ("claude", "vikunja" = Tasks, "speech", "voice"). `auth` is `setup.auth_status()` ({} = not checked yet: no verdict),
     `health` is `speech.health()`; only the engines the owner chose count."""
     out = []
     if auth and not auth.get("installed"):
@@ -86,7 +87,7 @@ def setup_problems(auth: dict | None, tasks_error: str | None, stt: str, tts: st
     elif auth and not auth.get("loggedIn"):
         out.append({"id": "claude", "title": "Claude Code is signed out", "reason": "No session can run until you sign in again."})
     if tasks_error:
-        out.append({"id": "vikunja", "title": "Vikunja isn't reachable", "reason": _clip(tasks_error, REASON_MAX)})
+        out.append({"id": "vikunja", "title": f"{tracker} isn't reachable", "reason": _clip(tasks_error, REASON_MAX)})
     if stt == "parakeet" and not parakeet:
         out.append({"id": "speech", "title": "Parakeet's model is missing", "reason": "Speech recognition can't hear you on this Mac."})
     elif stt == "whisper" and not health.get("whisper"):

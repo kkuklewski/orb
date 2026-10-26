@@ -1309,7 +1309,7 @@
     },
     "DelegateBulkMsg": {
       "additionalProperties": false,
-      "description": "Bulk Delegate from Up next: Vikunja tasks with a known repo. The server answers with the first repo's card; the\nothers follow, one per repo, whatever the answer.",
+      "description": "Bulk Delegate from Up next: tracker tasks with a known repo. The server answers with the first repo's card; the\nothers follow, one per repo, whatever the answer.",
       "properties": {
         "tasks": {
           "items": {
@@ -1460,7 +1460,7 @@
     },
     "DelegateMsg": {
       "additionalProperties": false,
-      "description": "Delegate on a Vikunja task: the server answers with the grant card. `path`: the picker's repo, for a task whose\nproject has no mapped repo (this delegation only).",
+      "description": "Delegate on a tracker task: the server answers with the grant card. `path`: the picker's repo, for a task whose\nproject has no mapped repo (this delegation only).",
       "properties": {
         "path": {
           "anyOf": [
@@ -2006,6 +2006,10 @@
           ],
           "type": "string"
         },
+        "tracker": {
+          "default": "Vikunja",
+          "type": "string"
+        },
         "tts": {
           "enum": [
             "browser",
@@ -2097,6 +2101,10 @@
             "parakeet",
             "whisper"
           ],
+          "type": "string"
+        },
+        "tracker": {
+          "default": "Vikunja",
           "type": "string"
         },
         "tts": {
@@ -2469,6 +2477,10 @@
             "parakeet",
             "whisper"
           ],
+          "type": "string"
+        },
+        "tracker": {
+          "default": "Vikunja",
           "type": "string"
         },
         "tts": {
@@ -2856,7 +2868,7 @@
     },
     "HomeTasksEvent": {
       "additionalProperties": false,
-      "description": "Home's view of the Tasks source (vikunja.home_event): the first open tasks and the count, or why Vikunja can't\nbe read. `tasks` is None when Vikunja isn't set up (Home counts the notes' tasks instead).",
+      "description": "Home's view of the Tasks source (tracker.home_event): the first open tasks and the count, or why the tracker\ncan't be read. `tasks` is None when no tracker is set up (Home counts the notes' tasks instead).",
       "properties": {
         "error": {
           "anyOf": [
@@ -2989,7 +3001,7 @@
     },
     "ItemDoneMsg": {
       "additionalProperties": false,
-      "description": "Archive: mark a Vikunja task done (done=False brings it back). The server answers with the new item_list.",
+      "description": "Archive: mark a tracker task done (done=False brings it back). The server answers with the new item_list.",
       "properties": {
         "done": {
           "default": true,
@@ -3510,7 +3522,7 @@
     },
     "MakeTaskCardEvent": {
       "additionalProperties": false,
-      "description": "\"Make it a task\": the card to allow or deny before Orb creates a Vikunja task (ADR 0008).",
+      "description": "\"Make it a task\": the card to allow or deny before Orb creates a task in the tracker (ADR 0008, 0010).",
       "properties": {
         "folder": {
           "anyOf": [
@@ -4818,7 +4830,7 @@
     },
     "PlanDoneMsg": {
       "additionalProperties": false,
-      "description": "Done on a queue task (\"vikunja:<id>\" or \"note:<file>:<line>\"): written at once; undo=True reopens the Vikunja task.",
+      "description": "Done on a queue task (\"vikunja:<id>\" or \"note:<file>:<line>\"): written at once; undo=True reopens the tracker's task.",
       "properties": {
         "key": {
           "type": "string"
@@ -7404,7 +7416,7 @@
     },
     "TasksBulkMsg": {
       "additionalProperties": false,
-      "description": "Bulk change on Vikunja tasks (ids as the list shows them): `done` archives (or reopens) them, `priority` (0 to 5)\nsets their priority. Exactly one of the two. The page confirms with a count first.",
+      "description": "Bulk change on tracker tasks (ids as the list shows them): `done` archives (or reopens) them, `priority` (0 to 5)\nsets their priority. Exactly one of the two. The page confirms with a count first.",
       "properties": {
         "done": {
           "anyOf": [
@@ -7448,7 +7460,7 @@
     },
     "TasksSuggestMsg": {
       "additionalProperties": false,
-      "description": "Ask for AI-suggested priorities for the open tasks (one Haiku call, subscription only). Nothing is written to Vikunja.",
+      "description": "Ask for AI-suggested priorities for the open tasks (one Haiku call, subscription only). Nothing is written to the tracker.",
       "properties": {
         "type": {
           "const": "tasks_suggest",

@@ -383,7 +383,7 @@ export interface PlanLaterMsg {
   type: "plan_later";
 }
 /**
- * Done on a queue task ("vikunja:<id>" or "note:<file>:<line>"): written at once; undo=True reopens the Vikunja task.
+ * Done on a queue task ("vikunja:<id>" or "note:<file>:<line>"): written at once; undo=True reopens the tracker's task.
  *
  * This interface was referenced by `OrbProtocol`'s JSON-Schema
  * via the `definition` "PlanDoneMsg".
@@ -431,7 +431,7 @@ export interface ItemGetMsg {
   type: "item_get";
 }
 /**
- * Archive: mark a Vikunja task done (done=False brings it back). The server answers with the new item_list.
+ * Archive: mark a tracker task done (done=False brings it back). The server answers with the new item_list.
  *
  * This interface was referenced by `OrbProtocol`'s JSON-Schema
  * via the `definition` "ItemDoneMsg".
@@ -443,7 +443,7 @@ export interface ItemDoneMsg {
   type: "item_done";
 }
 /**
- * Bulk change on Vikunja tasks (ids as the list shows them): `done` archives (or reopens) them, `priority` (0 to 5)
+ * Bulk change on tracker tasks (ids as the list shows them): `done` archives (or reopens) them, `priority` (0 to 5)
  * sets their priority. Exactly one of the two. The page confirms with a count first.
  *
  * This interface was referenced by `OrbProtocol`'s JSON-Schema
@@ -456,7 +456,7 @@ export interface TasksBulkMsg {
   type: "tasks_bulk";
 }
 /**
- * Ask for AI-suggested priorities for the open tasks (one Haiku call, subscription only). Nothing is written to Vikunja.
+ * Ask for AI-suggested priorities for the open tasks (one Haiku call, subscription only). Nothing is written to the tracker.
  *
  * This interface was referenced by `OrbProtocol`'s JSON-Schema
  * via the `definition` "TasksSuggestMsg".
@@ -671,7 +671,7 @@ export interface RevokeGrantMsg {
   type: "revoke_grant";
 }
 /**
- * Delegate on a Vikunja task: the server answers with the grant card. `path`: the picker's repo, for a task whose
+ * Delegate on a tracker task: the server answers with the grant card. `path`: the picker's repo, for a task whose
  * project has no mapped repo (this delegation only).
  *
  * This interface was referenced by `OrbProtocol`'s JSON-Schema
@@ -683,7 +683,7 @@ export interface DelegateMsg {
   type: "delegate";
 }
 /**
- * Bulk Delegate from Up next: Vikunja tasks with a known repo. The server answers with the first repo's card; the
+ * Bulk Delegate from Up next: tracker tasks with a known repo. The server answers with the first repo's card; the
  * others follow, one per repo, whatever the answer.
  *
  * This interface was referenced by `OrbProtocol`'s JSON-Schema
@@ -820,6 +820,7 @@ export interface HelloEvent {
   };
   session?: string | null;
   stt: "browser" | "parakeet" | "whisper";
+  tracker?: string;
   tts: "browser" | "kokoro";
   type: "hello";
   vault: string;
@@ -873,6 +874,7 @@ export interface FeaturesEvent {
   routines: boolean;
   session?: string | null;
   stt: "browser" | "parakeet" | "whisper";
+  tracker?: string;
   tts: "browser" | "kokoro";
   type: "features";
   vault: string;
@@ -1497,8 +1499,8 @@ export interface DirtyRepo {
   path: string;
 }
 /**
- * Home's view of the Tasks source (vikunja.home_event): the first open tasks and the count, or why Vikunja can't
- * be read. `tasks` is None when Vikunja isn't set up (Home counts the notes' tasks instead).
+ * Home's view of the Tasks source (tracker.home_event): the first open tasks and the count, or why the tracker
+ * can't be read. `tasks` is None when no tracker is set up (Home counts the notes' tasks instead).
  *
  * This interface was referenced by `OrbProtocol`'s JSON-Schema
  * via the `definition` "HomeTasksEvent".
@@ -2139,7 +2141,7 @@ export interface DelegationDiffEvent {
   type: "delegation_diff";
 }
 /**
- * "Make it a task": the card to allow or deny before Orb creates a Vikunja task (ADR 0008).
+ * "Make it a task": the card to allow or deny before Orb creates a task in the tracker (ADR 0008, 0010).
  *
  * This interface was referenced by `OrbProtocol`'s JSON-Schema
  * via the `definition` "MakeTaskCardEvent".
@@ -2201,6 +2203,7 @@ export interface Features {
   roots: string[];
   routines: boolean;
   stt: "browser" | "parakeet" | "whisper";
+  tracker?: string;
   tts: "browser" | "kokoro";
   vault: string;
 }

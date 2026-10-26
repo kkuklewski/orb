@@ -1,6 +1,6 @@
-"""Item pages: one table and one detail page per source (Vikunja tasks, your open pull requests, repos with
+"""Item pages: one table and one detail page per source (tracker tasks, your open pull requests, repos with
 unsaved work). A source only says which rows it has and what its prompt is; the page, the sorting, "Copy prompt"
-and "Start in Orb" are the same for all. Pure and read-only (Archive is `vikunja.set_done`); the server maps a
+and "Start in Orb" are the same for all. Pure and read-only (Archive is `tracker.set_done`); the server maps a
 `repo_path` to an allowed folder and its label, so the page never names a path.
 """
 
@@ -12,7 +12,7 @@ import time
 import shutil
 import subprocess
 
-from . import forget, home, triage, vikunja
+from . import forget, home, tracker, triage
 from .brief import quoted
 
 SOURCES = ("vikunja", "prs", "repos", "notes", "tasks")
@@ -37,8 +37,8 @@ def _local(found: list[dict], label: str) -> str | None:
 def list_(source: str, cfg: dict, vault, found: list[dict]) -> dict:
     """{kicker, heading, columns, rows, ...}: rows carry `repo_path` (or None) for the server to resolve."""
     if source == "vikunja":
-        got = vikunja.source(cfg.get("vikunja_url") or "")
-        repos = vikunja.repo_map(vault) if got["tasks"] else {}
+        got = tracker.source(cfg)
+        repos = tracker.repo_map(cfg, vault) if got["tasks"] else {}
         mine = triage.current(got["tasks"], triage.load())
         rows = []
         for t in got["tasks"]:
@@ -47,7 +47,7 @@ def list_(source: str, cfg: dict, vault, found: list[dict]) -> dict:
                          "status": "ranked" if t["priority"] else "unranked",
                          "cells": {"project": t["project"], "due": t["due"] or "", "priority": str(t["priority"]), "created": t["created"],
                                    "suggested": str(s_["p"]) if s_ else "", "suggested_why": s_["why"] if s_ else ""}})
-        return {"source": source, "kicker": "VIKUNJA", "heading": "Tasks" if got["error"] else f"{got['total']} open tasks", "rows": rows,
+        return {"source": source, "kicker": tracker.name(cfg).upper(), "heading": "Tasks" if got["error"] else f"{got['total']} open tasks", "rows": rows,
                 "columns": [_col("title", "Task", "title"), _col("project", "Project", "chip"), _col("repo", "Repo", "repo"), _col("due", "Due", "due"),
                             _col("priority", "Priority", "priority"), _col("suggested", "Suggested", "priority"), _col("created", "Created")],
                 "group_key": "project", "can_archive": True, "can_suggest": True, "statuses": ["unranked", "ranked"],
@@ -115,13 +115,13 @@ def get(source: str, item_id: str, cfg: dict, vault, found: list[dict]) -> dict:
     """{title, kicker, chips, body, url, url_label, brief, done, can_archive, repo_path} for one item."""
     if source == "vikunja":
         try:
-            t = vikunja.task(cfg.get("vikunja_url") or "", int(item_id))
-        except (vikunja.VikunjaError, ValueError) as e:
+            t = tracker.task(cfg, int(item_id))
+        except (*tracker.ERRORS, ValueError) as e:
             raise ItemError(str(e)) from e
         chips = [c for c in (t["project"], f"due {t['due']}" if t["due"] else "", "high priority" if t["priority"] >= 4 else "") if c]
-        return {"title": t["title"], "kicker": "VIKUNJA", "chips": chips, "body": t["description"], "url": t["url"],
-                "url_label": "Open in Vikunja →", "brief": vikunja.brief(t), "done": t["done"], "can_archive": True,
-                "repo_path": vikunja.repo_path(vault, t["project_id"])}
+        return {"title": t["title"], "kicker": tracker.name(cfg).upper(), "chips": chips, "body": t["description"], "url": t["url"],
+                "url_label": f"Open in {tracker.name(cfg)} →", "brief": tracker.brief(cfg, t), "done": t["done"], "can_archive": True,
+                "repo_path": tracker.repo_path(cfg, vault, t["project_id"])}
     if source == "prs":
         p = next((x for x in forget.prs() if f"{x['repo']}#{x['number']}" == item_id), None) if PR_ID.match(item_id) else None
         if p is None:
