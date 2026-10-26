@@ -14,7 +14,7 @@ import re
 import unicodedata
 from pathlib import Path
 
-from . import home, vikunja
+from . import home, tracker
 from .desk import Sources
 from .handoff import SERVER
 
@@ -30,7 +30,7 @@ DESTINATION_WORDS = {
     "sessions": ("sessions", "running now", "finished", "ready", "delegated", "queued", "sesje", "sesja",
                  "działa teraz", "skończone", "gotowe", "delegowane", "w kolejce"),
     "brain": ("brain", "second brain", "notes", "note", "verdict", "mózg", "drugi mózg", "notatki", "notatka"),
-    "tasks": ("tasks", "task", "vikunja", "zadania", "zadanie"),
+    "tasks": ("tasks", "task", "vikunja", "jira", "zadania", "zadanie"),
     "routines": ("routines", "routine", "run", "runs", "rutyny", "rutyna", "przebieg"),
     "settings": ("settings", "ustawienia"),
 }
@@ -60,7 +60,7 @@ DESCRIPTION = (
     + "; ".join(f"{d}: {_words(w)}" for d, w in DESTINATION_WORDS.items()) + ". "
     "`item` (optional) opens one thing there: sessions: a session by repo and its first request (\"orb fix login\"), "
     "or a state: \"running now\" (running or waiting), \"ready\"; brain: a note waiting for a verdict, by title; tasks: "
-    "a Vikunja task by number or title; routines: a routine by name (its page shows the last run), or a routine state "
+    "a tracker task (Vikunja or Jira) by number or title; routines: a routine by name (its page shows the last run), or a routine state "
     "(" + _words(ROUTINE_STATES) + ") for the list. Home and Settings take no item. "
     "\"Chat\" (" + _words(NOT_A_PLACE) + ") is not a screen: the owner is already talking to you, so never call this "
     "for it. If the call is refused, say why in one short line; the page stays where it is."
@@ -149,11 +149,10 @@ def _note(src: Sources, item: str) -> tuple[dict, str]:
 
 
 def _task(src: Sources, item: str) -> tuple[dict, str]:
-    url = src.cfg().get("vikunja_url") or ""
     try:
-        tasks = vikunja.open_tasks(url)["tasks"]
-    except vikunja.VikunjaError as e:
-        raise NavigateError(f"Vikunja not reachable: {e}") from e
+        tasks = tracker.open_tasks(src.cfg())["tasks"]
+    except tracker.ERRORS as e:
+        raise NavigateError(f"{tracker.name(src.cfg())} not reachable: {e}") from e
     num = re.fullmatch(r"#?\s*(\d+)", item.strip())
     if num:
         t = next((x for x in tasks if x["id"] == int(num.group(1))), None)

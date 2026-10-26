@@ -21,7 +21,7 @@ import json
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import billing, chain, config, delegation, desk, folders, forget, handoff, home, items, kokoro_setup, make_task, navigate, needs, parakeet, routines, settings, setup, slash, speech, tasks, triage, vault_write, vendor, vikunja, vocab, worktree
+from . import billing, chain, config, delegation, desk, folders, forget, handoff, home, items, kokoro_setup, make_task, navigate, needs, parakeet, routines, settings, setup, slash, speech, tasks, tracker, triage, vault_write, vendor, vocab, worktree
 from .agent import SCREEN_MAX, FolderSession, dumps, first_request
 from .brain import CaptureGuard
 from .sessions import SessionStore
@@ -106,7 +106,7 @@ class Hub:
             config.STATE_DIR / "delegations.json", store=self.store, session=self.session, push=self.push_all,
             done=self.task_done, waiting=self.card_words,
             limit=lambda: int(settings.settings["delegation_limit"]))
-        self.maker = make_task.Maker(url=lambda: settings.settings.data.get("vikunja_url") or "", vault=settings.settings.vault,
+        self.maker = make_task.Maker(cfg=lambda: settings.settings.data, vault=settings.settings.vault,
                                      inbox=lambda: settings.settings["tasks_inbox"])
 
     def card_words(self, key: str) -> str:
@@ -127,7 +127,7 @@ class Hub:
         s = settings.settings
         engines = s["tts"] == "kokoro" or s["stt"] == "whisper"
         return needs.setup_problems(self.auth, tasks_error, s["stt"], s["tts"], await speech.health() if engines else {},
-                                    parakeet.MODEL.is_file() and parakeet.LIB.is_file())
+                                    parakeet.MODEL.is_file() and parakeet.LIB.is_file(), tracker.name(s.data))
 
     def commands_for(self, s: FolderSession) -> list[dict]:
         return s.commands or self.commands.get(s.path) or self.last_commands or slash.merge(None)
@@ -287,11 +287,11 @@ class Hub:
         await self.push_folders()
 
     async def task_done(self, task: int, on: bool) -> None:
-        """A delegation's Apply (or its Undo): the Vikunja task done (or open again), and the plan follows."""
+        """A delegation's Apply (or its Undo): the tracker's task done (or open again), and the plan follows."""
         try:
-            await asyncio.to_thread(vikunja.set_done, settings.settings.data.get("vikunja_url") or "", task, on)
-        except vikunja.VikunjaError as e:
-            await self.push_all({"type": "notice", "level": "warn", "text": f"Task #{task} not changed in Vikunja: {e}"})
+            await asyncio.to_thread(tracker.set_done, settings.settings.data, task, on)
+        except tracker.ERRORS as e:
+            await self.push_all({"type": "notice", "level": "warn", "text": f"Task #{task} not changed in {tracker.name(settings.settings.data)}: {e}"})
             return
         await self.needs.mark("done", f"vikunja:{task}", dt.date.today().isoformat(), on=on)
 
@@ -500,7 +500,8 @@ def features() -> dict:
     """What the page shows: the user's folders, and the optional parts they turned on."""
     s = settings.settings
     return {"roots": s["roots"], "vault": str(s.vault() or ""), "brain": s["brain"], "routines": s["routines"],
-            "onboarded": s["onboarded"], "stt": s["stt"], "tts": s["tts"], "plan": hub.auth.get("subscription")}
+            "onboarded": s["onboarded"], "stt": s["stt"], "tts": s["tts"], "plan": hub.auth.get("subscription"),
+            "tracker": tracker.name(s.data)}
 
 
 async def settings_event() -> dict:
@@ -536,9 +537,9 @@ async def tasks_suggest(conn: "Conn") -> None:
     triaging = True
     try:
         await item_list(conn, "vikunja")
-        got = await asyncio.to_thread(vikunja.open_tasks, settings.settings.data.get("vikunja_url") or "")
+        got = await asyncio.to_thread(tracker.open_tasks, settings.settings.data)
         await triage.suggest(got["tasks"], dt.date.today().isoformat(), lambda p: routines.ask_haiku(p, triage.MODEL))
-    except (vikunja.VikunjaError, RuntimeError, OSError) as e:
+    except (*tracker.ERRORS, RuntimeError, OSError) as e:
         await conn.send({"type": "error", "text": f"Couldn't suggest priorities: {e}"})
     finally:
         triaging = False
@@ -628,10 +629,11 @@ async def item_get(conn: "Conn", source: str, item_id: str, start: bool) -> None
 
 
 async def delegate(conn: Conn, task_id: int, path: str | None) -> None:
-    """Delegate on a Vikunja task: the grant card. The repo comes from the repo map, or for an unmapped task from the
+    """Delegate on a tracker task: the grant card. The repo comes from the repo map, or for an unmapped task from the
     picker (this delegation only; the notes are never edited); either way it must be an allowed folder."""
-    task = await asyncio.to_thread(vikunja.task, settings.settings.data.get("vikunja_url") or "", task_id)
-    mapped = vikunja.repo_path(settings.settings.vault(), task["project_id"])
+    cfg = settings.settings.data
+    task = await asyncio.to_thread(tracker.task, cfg, task_id)
+    mapped = await asyncio.to_thread(tracker.repo_path, cfg, settings.settings.vault(), task["project_id"])
     repo = repo_of(mapped) if mapped else repo_of(path)
     if repo is None:
         raise delegation.DelegationError("Its repo isn't an allowed folder here." if mapped or path else "Choose the repo to work in.")
@@ -641,12 +643,12 @@ async def delegate(conn: Conn, task_id: int, path: str | None) -> None:
 async def delegate_bulk(conn: Conn, ids: list[int]) -> None:
     """Bulk Delegate: each task's mapped repo (a task without one is skipped and named), grouped by repo in the order
     the tasks came; the first repo's card now, the next after each answer."""
-    url, vault = settings.settings.data.get("vikunja_url") or "", settings.settings.vault()
+    cfg, vault = settings.settings.data, settings.settings.vault()
     groups: dict[str, tuple[list[dict], str, str]] = {}
     skipped: list[str] = []
     for tid in dict.fromkeys(ids):
-        task = await asyncio.to_thread(vikunja.task, url, tid)
-        mapped = vikunja.repo_path(vault, task["project_id"])
+        task = await asyncio.to_thread(tracker.task, cfg, tid)
+        mapped = await asyncio.to_thread(tracker.repo_path, cfg, vault, task["project_id"])
         repo = repo_of(mapped) if mapped else None
         if repo is None:
             skipped.append(f"Task #{tid} has no repo here.")
@@ -678,7 +680,7 @@ async def delegation_step(conn: Conn, step: Awaitable[object]) -> None:
     """One delegation step for a page; a refusal comes back as its error line."""
     try:
         await step
-    except (delegation.DelegationError, worktree.WorktreeError, vikunja.VikunjaError, ValueError, OSError) as e:
+    except (delegation.DelegationError, worktree.WorktreeError, *tracker.ERRORS, ValueError, OSError) as e:
         await conn.send({"type": "error", "text": str(e)})
 
 
@@ -890,7 +892,7 @@ async def handle(conn: Conn, msg: dict) -> None:
             await hub.push_folders()
         if {"routines_judge", "routines_notify"} & set(values):
             await hub.push_routines()  # every page shows who notifies now
-        if {"roots", "vault", "brain", "routines", "onboarded", "stt", "tts"} & set(values):
+        if {"roots", "vault", "brain", "routines", "onboarded", "stt", "tts", "vikunja_url", "jira_url"} & set(values):
             await asyncio.gather(*(c.send({"type": "features", **features()}) for c in hub.conns))
         if {"roots", "vault", "stt", "tts"} & set(values) and not values.get("onboarded"):
             await conn.send(await setup.status())  # the setup page shows the result at once
@@ -912,16 +914,16 @@ async def handle(conn: Conn, msg: dict) -> None:
         await conn.send(hub.delegator.event())
         notes = await asyncio.to_thread(home.summary, settings.settings.vault())
         await conn.send(notes)
-        # Git and gh (Don't forget), then Vikunja (the Tasks source) are slower than the notes: events of their own.
+        # Git and gh (Don't forget), then the tracker (the Tasks source) are slower than the notes: events of their own.
         w = await asyncio.to_thread(forget.summary, settings.settings.data, hub.folders or hub.scan())
         await conn.send(w)
-        url = settings.settings.data.get("vikunja_url") or ""
-        src = await asyncio.to_thread(vikunja.source, url) if vikunja.wanted(url) else None
-        await conn.send(vikunja.home_event(src))
+        cfg = settings.settings.data
+        src = await asyncio.to_thread(tracker.source, cfg) if tracker.wanted(cfg) else None
+        await conn.send(tracker.home_event(src))
         # Then the plan: the rule lists at once, a new ranking in the background when it changed.
         open_ = src["tasks"] if src else []
-        mine = triage.current(open_, triage.load())  # the suggested priority stands in where Vikunja has none
-        repos = {pid: repo_of(path) for pid, path in (await asyncio.to_thread(vikunja.repo_map, settings.settings.vault())).items()}
+        mine = triage.current(open_, triage.load())  # the suggested priority stands in where the tracker has none
+        repos = {pid: repo_of(path) for pid, path in (await asyncio.to_thread(tracker.repo_map, cfg, settings.settings.vault())).items()}
         hub.replan(setup=await hub.setup_problems(src and src["error"]), reminders=forget.due_now(settings.settings.data),
                    tasks=[{**x, "suggested": (mine.get(x["id"]) or {}).get("p"), "repo": (repos.get(x.get("project_id")) or (None, None))[1]}
                           for x in open_], routines=hub.live_routines(),
@@ -935,13 +937,13 @@ async def handle(conn: Conn, msg: dict) -> None:
         await hub.needs.mark("later", str(msg["key"]), dt.date.today().isoformat())
         return
     if t == "plan_done":
-        # Done on a queue task: Vikunja's is written there at once (Undo opens it again); a notes task gets its line
+        # Done on a queue task: the tracker's is written there at once (Undo opens it again); a notes task gets its line
         # ticked like on the task screen, and that toast's Undo puts the line back.
         key, undo = str(msg["key"]), bool(msg.get("undo"))
         if key.startswith("vikunja:"):
             try:
-                await asyncio.to_thread(vikunja.set_done, settings.settings.data.get("vikunja_url") or "", int(key.split(":", 1)[1]), not undo)
-            except (vikunja.VikunjaError, ValueError) as e:
+                await asyncio.to_thread(tracker.set_done, settings.settings.data, int(key.split(":", 1)[1]), not undo)
+            except (*tracker.ERRORS, ValueError) as e:
                 await conn.send({"type": "error", "text": str(e)})
                 return
             await hub.needs.mark("done", key, dt.date.today().isoformat(), on=not undo)
@@ -966,17 +968,17 @@ async def handle(conn: Conn, msg: dict) -> None:
         return
     if t == "item_done":
         if msg["source"] != "vikunja":
-            await conn.send({"type": "error", "text": "Only Vikunja tasks can be archived."})
+            await conn.send({"type": "error", "text": "Only tracker tasks can be archived."})
             return
         try:
-            await asyncio.to_thread(vikunja.set_done, settings.settings.data.get("vikunja_url") or "", int(msg["id"]), bool(msg.get("done", True)))
-        except (vikunja.VikunjaError, ValueError) as e:
+            await asyncio.to_thread(tracker.set_done, settings.settings.data, int(msg["id"]), bool(msg.get("done", True)))
+        except (*tracker.ERRORS, ValueError) as e:
             await conn.send({"type": "error", "text": str(e)})
             return
         await item_list(conn, "vikunja")
         return
     if t == "tasks_bulk":
-        url = settings.settings.data.get("vikunja_url") or ""
+        cfg = settings.settings.data
         ids = [str(i) for i in msg["ids"]][:TASKS_BULK_MAX]
         if (msg.get("done") is None) == (msg.get("priority") is None):
             await conn.send({"type": "error", "text": "Choose Archive or a priority."})
@@ -986,10 +988,10 @@ async def handle(conn: Conn, msg: dict) -> None:
             for i in ids:
                 try:
                     if msg.get("done") is not None:
-                        vikunja.set_done(url, int(i), bool(msg["done"]))
+                        tracker.set_done(cfg, int(i), bool(msg["done"]))
                     else:
-                        vikunja.set_priority(url, int(i), int(msg["priority"]))
-                except (vikunja.VikunjaError, ValueError) as e:
+                        tracker.set_priority(cfg, int(i), int(msg["priority"]))
+                except (*tracker.ERRORS, ValueError) as e:
                     return str(e)
             return None
 

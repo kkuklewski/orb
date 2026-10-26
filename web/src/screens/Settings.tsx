@@ -7,7 +7,7 @@ import { setBarge, useVoice, type BargeMode } from "../stores/voice";
 import { unlockAudio } from "../audio/sample";
 import { openSetup } from "../stores/setup";
 
-// Settings kept on the server (voice, defaults for new folders, speech, vocabulary, the Vikunja address) and two
+// Settings kept on the server (voice, defaults for new folders, speech, vocabulary, the task tracker's address) and two
 // choices kept in this browser (barge-in, theme). A broken setup on Home opens it at the section that fixes it
 // (`settingsAt`: claude, vikunja, speech, voice).
 
@@ -53,6 +53,7 @@ export function Settings() {
   const at = useViews((s) => s.settingsAt);
   const tasks = useHome((s) => s.tasks);
   const [vikunja, setVikunja] = useState<string | null>(null);
+  const [jira, setJira] = useState<string | null>(null);
 
   useEffect(() => { send({ type: "get_settings" }); }, []);
   useEffect(() => {  // once the sections are there: scroll to the one Home sent us to, and move focus onto it
@@ -64,7 +65,7 @@ export function Settings() {
   }, [ev, at]);
 
   if (!ev) return <div className="view-col"><div className="view-head"><h2>Settings</h2></div><p className="side-hint">Loading…</p></div>;
-  const v = ev.values as { voice?: string; default_mode?: string; default_model?: string; coder_effort?: string; routines_judge?: boolean; stt?: string; tts?: string; vikunja_url?: string };
+  const v = ev.values as { voice?: string; default_mode?: string; default_model?: string; coder_effort?: string; routines_judge?: boolean; stt?: string; tts?: string; vikunja_url?: string; jira_url?: string };
   const voices: [string, string][] = ev.recommended.map((x) => [x.id, `${x.name} · ${x.desc}${x.grade ? ` · ${x.grade}` : ""}`]);
   if (ev.voices.includes("chatterbox")) voices.push(["chatterbox", "Chatterbox · Polish and English, slow"]);
   if (!voices.length && v.voice) voices.push([v.voice, v.voice]);
@@ -143,12 +144,18 @@ export function Settings() {
         </div>
       </Section>
 
-      <Section id="vikunja" title="Tasks (Vikunja)" hint="Open tasks for Home and the Tasks list. The token comes only from ORB_VIKUNJA_TOKEN in the environment, never from here.">
+      <Section id="vikunja" title={`Tasks (${features?.tracker ?? "Vikunja"})`} hint="Open tasks for Home and the Tasks list, from Vikunja or Jira Cloud (Jira wins when both are set). Tokens come only from the environment, never from here: ORB_VIKUNJA_TOKEN, or ORB_JIRA_EMAIL and ORB_JIRA_TOKEN.">
         <div className="set-row">
           <input className="set-input" aria-label="Vikunja address" placeholder="http://localhost:3456" value={vikunja ?? v.vikunja_url ?? ""}
             onChange={(e) => setVikunja(e.target.value)} />
-          <button type="button" className="chip-btn" disabled={vikunja === null || vikunja.trim() === (v.vikunja_url ?? "")}
+          <button type="button" className="chip-btn" aria-label="Save the Vikunja address" disabled={vikunja === null || vikunja.trim() === (v.vikunja_url ?? "")}
             onClick={() => { setServer({ vikunja_url: (vikunja ?? "").trim() }); setVikunja(null); send({ type: "home" }); }}>Save</button>
+        </div>
+        <div className="set-row">
+          <input className="set-input" aria-label="Jira address" placeholder="https://your-site.atlassian.net" value={jira ?? v.jira_url ?? ""}
+            onChange={(e) => setJira(e.target.value)} />
+          <button type="button" className="chip-btn" aria-label="Save the Jira address" disabled={jira === null || jira.trim() === (v.jira_url ?? "")}
+            onClick={() => { setServer({ jira_url: (jira ?? "").trim() }); setJira(null); send({ type: "home" }); }}>Save</button>
         </div>
         {tasks?.error ? <p className="set-hint set-bad" role="alert">{tasks.error}</p>
           : <p className="set-hint">{tasks?.url ? `Reachable · ${tasks.total} open task${tasks.total === 1 ? "" : "s"}` : "Not set up: Home uses the tasks in your notes."}</p>}

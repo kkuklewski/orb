@@ -32,6 +32,7 @@ DEFAULTS = {
     "reminders": [],  # home "Don't forget": [{"text", "due": "YYYY-MM-DD" (optional), "url" (optional)}]
     "links": [],  # home pinned links: [{"label", "url"}]
     "vikunja_url": config.env("VIKUNJA_URL", ""),  # open tasks from Vikunja (token: ORB_VIKUNJA_TOKEN, env only)
+    "jira_url": config.env("JIRA_URL", ""),  # or from Jira Cloud, which wins when set (ORB_JIRA_EMAIL + ORB_JIRA_TOKEN, env only)
     "tasks_inbox": config.env("TASKS_INBOX", "Inbox"),  # the project a new task with no mapped repo goes to
     "delegation_limit": 3,  # delegations working at once; the next ones wait as Queued
     "onboarded": False,
@@ -114,8 +115,9 @@ class Settings:
                                   for x in changes["links"][:50] if isinstance(x, dict) and _web(x.get("url"))]
         if isinstance(changes.get("delegation_limit"), int) and not isinstance(changes["delegation_limit"], bool):
             self.data["delegation_limit"] = min(max(changes["delegation_limit"], 1), 10)
-        if "vikunja_url" in changes:
-            self.data["vikunja_url"] = str(changes["vikunja_url"]).strip() if _web(changes["vikunja_url"]) else ""
+        for key in ("vikunja_url", "jira_url"):
+            if key in changes:
+                self.data[key] = str(changes[key]).strip() if _web(changes[key]) else ""
         if isinstance(changes.get("tasks_inbox"), str) and NAME.match(changes["tasks_inbox"].strip()):
             self.data["tasks_inbox"] = changes["tasks_inbox"].strip()
         for key in ("brain", "routines", "routines_judge", "onboarded"):

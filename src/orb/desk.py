@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import NamedTuple
 
-from . import forget, home, vikunja
+from . import forget, home, tracker
 from .brief import one
 from .handoff import SERVER
 
@@ -58,8 +58,8 @@ def fenced(name: str, text: str) -> str:
             f"<desk-{nonce}>\n{text.replace(nonce, '')}\n</desk-{nonce}>")
 
 
-def _url(src: Sources) -> str:
-    return src.cfg().get("vikunja_url") or ""
+def _name(src: Sources) -> str:
+    return tracker.name(src.cfg())
 
 
 def _day(ts: float | None) -> str:
@@ -74,15 +74,15 @@ def _task_line(t: dict, today: str) -> str:
 
 
 def _tasks_section(src: Sources, project: str | None, today: str) -> list[str]:
-    if not vikunja.configured(_url(src)):
-        return ["Vikunja isn't set up (vikunja_url and ORB_VIKUNJA_TOKEN)."]
+    if not tracker.configured(src.cfg()):
+        return [tracker.unset(src.cfg())]
     try:
-        got = vikunja.open_tasks(_url(src), project)
-    except vikunja.VikunjaError as e:
-        return [f"Vikunja unreachable: {e}"]
+        got = tracker.open_tasks(src.cfg(), project)
+    except tracker.ERRORS as e:
+        return [f"{_name(src)} unreachable: {e}"]
     shown = got["tasks"][:TASKS_SHOWN]
     more = got["total"] - len(shown)
-    return [f"Open tasks in Vikunja{' (project ' + project + ')' if project else ''}: {got['total']}, "
+    return [f"Open tasks in {_name(src)}{' (project ' + project + ')' if project else ''}: {got['total']}, "
             "overdue and soonest first (this is the task list of record):",
             *[_task_line(t, today) for t in shown], *([f"... and {more} more."] if more > 0 else [])]
 
@@ -150,8 +150,8 @@ def tasks(src: Sources, project: str | None = None, today: dt.date | None = None
 
 def task(src: Sources, task_id: int) -> str:
     try:
-        t = vikunja.task(_url(src), int(task_id))
-    except (vikunja.VikunjaError, ValueError) as e:
+        t = tracker.task(src.cfg(), int(task_id))
+    except (*tracker.ERRORS, ValueError) as e:
         raise DeskError(str(e)) from e
     return fenced("task", task_text(t))
 
@@ -195,7 +195,7 @@ def slash_message(src: Sources, name: str, args: str, today: dt.date | None = No
         if not args.strip().isdigit():
             raise DeskError("Use /task <id>, the number after # in the task list.")
         n = int(args)
-        return SlashMessage(f"Look at Vikunja task #{n} and tell me what is going on and what I should do about it.",
+        return SlashMessage(f"Look at {_name(src)} task #{n} and tell me what is going on and what I should do about it.",
                             f"task {n}", task(src, n))
     if name == "standup":
         return SlashMessage("Give me a short standup from this data: worked on, in progress or unsaved, next. "
@@ -222,29 +222,29 @@ def _id(raw: object) -> int:
 
 def _read(src: Sources, n: int) -> dict:
     try:
-        return vikunja.task(_url(src), n)
-    except vikunja.VikunjaError as e:
+        return tracker.task(src.cfg(), n)
+    except tracker.ERRORS as e:
         raise DeskError(str(e)) from e
 
 
 def task_done(src: Sources, raw_id: object) -> str:
-    """Mark a task done, then read it back: only what Vikunja says afterwards is reported."""
+    """Mark a task done, then read it back: only what the tracker says afterwards is reported."""
     n = _id(raw_id)
     before = _read(src, n)
     if before["done"]:
         return fenced("task_done", f"Nothing changed: task #{n} was already done.\n" + task_text(before))
     try:
-        vikunja.set_done(_url(src), n, True)
-    except vikunja.VikunjaError as e:
+        tracker.set_done(src.cfg(), n, True)
+    except tracker.ERRORS as e:
         raise DeskError(str(e)) from e
     after = _read(src, n)
     if not after["done"]:
-        raise DeskError(f"Vikunja still shows task #{n} as open after the change. Tell the user it did not work.")
-    return fenced("task_done", f"Marked done. State now, read back from Vikunja:\n" + task_text(after))
+        raise DeskError(f"{_name(src)} still shows task #{n} as open after the change. Tell the user it did not work.")
+    return fenced("task_done", f"Marked done. State now, read back from {_name(src)}:\n" + task_text(after))
 
 
 def task_snooze(src: Sources, raw_id: object, until: object, today: dt.date | None = None) -> str:
-    """Move a task's due date to `until` (Vikunja has no snooze), then read it back."""
+    """Move a task's due date to `until` (trackers have no snooze), then read it back."""
     n = _id(raw_id)
     today = today or dt.date.today()
     try:
@@ -255,45 +255,45 @@ def task_snooze(src: Sources, raw_id: object, until: object, today: dt.date | No
         raise DeskError(f"`until` must be after today and within {SNOOZE_MAX_DAYS} days.")
     before = _read(src, n)
     try:
-        vikunja.set_due(_url(src), n, day.isoformat())
-    except vikunja.VikunjaError as e:
+        tracker.set_due(src.cfg(), n, day.isoformat())
+    except tracker.ERRORS as e:
         raise DeskError(str(e)) from e
     after = _read(src, n)
     if after["due"] != day.isoformat():
-        raise DeskError(f"Vikunja shows task #{n} due {after['due'] or 'never'}, not {day}. Tell the user it did not work.")
-    return fenced("task_snooze", f"Due date moved from {before['due'] or 'none'} to {day}. State now, read back from Vikunja:\n" + task_text(after))
+        raise DeskError(f"{_name(src)} shows task #{n} due {after['due'] or 'never'}, not {day}. Tell the user it did not work.")
+    return fenced("task_snooze", f"Due date moved from {before['due'] or 'none'} to {day}. State now, read back from {_name(src)}:\n" + task_text(after))
 
 
 def card_title(src: Sources, raw_id: object) -> str:
     """The task's title for the approval card (best effort: the card still opens without it)."""
     try:
-        return one(vikunja.task(_url(src), _id(raw_id))["title"])[:80]
-    except (DeskError, vikunja.VikunjaError):
+        return one(tracker.task(src.cfg(), _id(raw_id))["title"])[:80]
+    except (DeskError, *tracker.ERRORS):
         return ""
 
 
 def ask(name: str, inp: dict, title: str = "") -> dict:
     """The PreToolUse decision for a write tool: always a card, whatever the session's permission mode."""
     return {"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "ask",
-                                   "permissionDecisionReason": f"Claude wants to change a Vikunja task: {label(name, inp, title)}."}}
+                                   "permissionDecisionReason": f"Claude wants to change a tracker task: {label(name, inp, title)}."}}
 
 
 DESCRIPTIONS = {
-    "home_brief": "The whole dashboard in one read: open Vikunja tasks, sessions, routines, repos with unsaved work, pull "
+    "home_brief": "The whole dashboard in one read: open tracker tasks, sessions, routines, repos with unsaved work, pull "
                   "requests, reminders and notes. Call it when the user asks what's first, about today, the dashboard, "
                   "or what needs them. Prefer it over the screen text.",
-    "tasks": "Open Vikunja tasks (the task list of record), overdue and soonest first. Call it when the user asks about "
-             "tasks or to-dos. `project` (optional) limits it to one Vikunja project by name.",
-    "task": "One Vikunja task in full (description, due, state). Call it when the user names a task or asks about one.",
+    "tasks": "Open tasks from the task tracker (Vikunja or Jira, the task list of record), overdue and soonest first. Call it when the user asks about "
+             "tasks or to-dos. `project` (optional) limits it to one project by name.",
+    "task": "One tracker task in full (description, due, state). Call it when the user names a task or asks about one.",
     "sessions": "This folder's Claude sessions, newest first. Call it when the user asks what they worked on or where "
                 "they left off here.",
     "routines": "Scheduled cloud agents: which need the user, which runs are worth reading, what runs next. Call it "
                 "when the user asks about routines or automations.",
     "notes_recent": "Recently changed notes and the ones waiting for the owner's verdict. Call it when the user asks "
                     "what changed in the notes.",
-    "task_done": "Mark a Vikunja task done. The user is asked first. Only after the user asked for it, never to tidy up. "
-                 "The result is the task read back from Vikunja: report that state, not what you meant to do.",
-    "task_snooze": "Move a Vikunja task's due date to `until` (YYYY-MM-DD, after today): Vikunja has no snooze. The "
+    "task_done": "Mark a tracker task done. The user is asked first. Only after the user asked for it, never to tidy up. "
+                 "The result is the task read back from the tracker: report that state, not what you meant to do.",
+    "task_snooze": "Move a tracker task's due date to `until` (YYYY-MM-DD, after today): there is no snooze. The "
                    "user is asked first. The result is the task read back: report that state.",
     "unsaved": "Repos with uncommitted or unpushed work and the open pull requests. Call it when the user asks about "
                "a repo's state, what is unsaved or what PRs are open.",

@@ -1,5 +1,6 @@
 import { useEffect, useState, type CSSProperties } from "react";
 import type { ItemColumn, ItemRow } from "../protocol.gen";
+import { trackerName } from "../stores/features";
 import { useViews } from "../stores/views";
 import { archiveItem, openItem, useItems } from "../stores/items";
 import { send } from "../ws";
@@ -73,10 +74,10 @@ export function ItemList() {
   const suggested = (list?.rows ?? []).filter((r) => picked.has(r.id) && Number(r.cells.suggested) > 0);
   const actions: Act[] = judge
     ? VERDICTS.map(([v, label]) => ({ label, note: "Writes human_verdict into their frontmatter; nothing is committed.", run: () => send({ type: "notes_verdict", notes: seenNotes(), verdict: v }) }))
-    : [{ label: "Archive", note: "Marks them done in Vikunja.", run: () => send({ type: "tasks_bulk", ids, done: true }) }];
-  const setPriority = (p: number): Act => ({ label: `Priority ${PRIORITY[p]}`, note: "Changes the priority in Vikunja.", run: () => send({ type: "tasks_bulk", ids, priority: p }) });
+    : [{ label: "Archive", note: `Marks them done in ${trackerName()}.`, run: () => send({ type: "tasks_bulk", ids, done: true }) }];
+  const setPriority = (p: number): Act => ({ label: `Priority ${PRIORITY[p]}`, note: `Changes the priority in ${trackerName()}.`, run: () => send({ type: "tasks_bulk", ids, priority: p }) });
   const applySuggested: Act = {
-    label: "Apply suggested priority", note: "Sets each task to the priority suggested for it in Vikunja.",
+    label: "Apply suggested priority", note: `Sets each task in ${trackerName()} to the priority suggested for it.`,
     run: () => { for (const p of new Set(suggested.map((r) => Number(r.cells.suggested)))) send({ type: "tasks_bulk", ids: suggested.filter((r) => Number(r.cells.suggested) === p).map((r) => r.id), priority: p }); },
   };
   const archive = (r: ItemRow) => { setLast({ id: r.id, title: r.title }); archiveItem(source, r.id); };
@@ -167,7 +168,7 @@ export function ItemList() {
                     {pick && <td><input type="checkbox" aria-label={`Select: ${r.title}`} checked={picked.has(r.id)} onChange={(e) => toggle([r], e.target.checked)} /></td>}
                     <td className="mono vk-n">{groups.slice(0, gi).reduce((n, x) => n + x.rows.length, 0) + i + 1}</td>
                     {cols.map((c) => cell(c, r))}
-                    {list?.can_archive && <td><button type="button" className="vk-arch mono" title="Marks the task done in Vikunja (Undo, or reopen it there)" aria-label={`Archive: ${r.title}`} onClick={() => archive(r)}>Archive</button></td>}
+                    {list?.can_archive && <td><button type="button" className="vk-arch mono" title={`Marks the task done in ${trackerName()} (Undo, or reopen it there)`} aria-label={`Archive: ${r.title}`} onClick={() => archive(r)}>Archive</button></td>}
                   </tr>
                 ))}
               </tbody>

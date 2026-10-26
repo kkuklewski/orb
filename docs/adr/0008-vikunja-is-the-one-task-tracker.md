@@ -12,3 +12,5 @@ thing the owner had moved away from. The file was never created, so the path was
   (`repo_map`), otherwise the inbox project (settings `tasks_inbox`, default "Inbox", Vikunja's own first project). The label stays "Make it a task".
 - It is a write: it raises a card like `task_done`, and Undo deletes the task it created (Orb keeps the returned id).
 - Note tasks are only the lines the owner writes in notes; Orb ticks, drops or snoozes them (ADR 0007), never adds one.
+
+Later: ADR 0010 lets Jira Cloud stand in for Vikunja. "One task tracker" still holds: whichever is set up.

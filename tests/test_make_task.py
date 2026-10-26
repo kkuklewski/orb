@@ -60,7 +60,7 @@ def vault_files(v):
 
 def test_the_card_names_the_repos_project_and_creates_only_on_allow(fake, vault):
     before = vault_files(vault)
-    m = make_task.Maker(url=lambda: BASE, vault=lambda: vault, inbox=lambda: "Inbox")
+    m = make_task.Maker(cfg=lambda: {"vikunja_url": BASE}, vault=lambda: vault, inbox=lambda: "Inbox")
     card = m.card(row(repo="acme/api"))
     assert card["type"] == "make_task_card" and card["project"] == "acme-api" and card["routine"] == "t1"
     assert card["title"].startswith('Look at the run of "Nightly check" (')
@@ -77,19 +77,19 @@ def test_the_card_names_the_repos_project_and_creates_only_on_allow(fake, vault)
 
 @pytest.mark.parametrize("repo", ["", "globex/web"])
 def test_no_mapped_repo_goes_to_the_inbox(fake, vault, repo):
-    m = make_task.Maker(url=lambda: BASE, vault=lambda: vault, inbox=lambda: "Inbox")
+    m = make_task.Maker(cfg=lambda: {"vikunja_url": BASE}, vault=lambda: vault, inbox=lambda: "Inbox")
     assert m.card(row(repo=repo))["project"] == "Inbox"
 
 
 def test_deny_creates_nothing(fake, vault):
-    m = make_task.Maker(url=lambda: BASE, vault=lambda: vault, inbox=lambda: "Inbox")
+    m = make_task.Maker(cfg=lambda: {"vikunja_url": BASE}, vault=lambda: vault, inbox=lambda: "Inbox")
     card = m.card(row())
     assert m.confirm(card["id"], False) == {"type": "make_task_done", "id": card["id"], "ok": False}
     assert fake.calls == []
 
 
 def test_undo_deletes_only_a_task_orb_made(fake, vault):
-    m = make_task.Maker(url=lambda: BASE, vault=lambda: vault, inbox=lambda: "Inbox")
+    m = make_task.Maker(cfg=lambda: {"vikunja_url": BASE}, vault=lambda: vault, inbox=lambda: "Inbox")
     done = m.confirm(m.card(row())["id"], True)
     refused = m.undo(55)  # a task the owner made
     assert not refused["ok"] and "only removes a task it just created" in refused["error"]
@@ -100,7 +100,7 @@ def test_undo_deletes_only_a_task_orb_made(fake, vault):
 
 
 def test_no_run_no_inbox_or_no_vikunja_is_an_error(fake, vault, monkeypatch):
-    m = make_task.Maker(url=lambda: BASE, vault=lambda: vault, inbox=lambda: "Inbox")
+    m = make_task.Maker(cfg=lambda: {"vikunja_url": BASE}, vault=lambda: vault, inbox=lambda: "Inbox")
     assert m.card(row(last=False)) == {"type": "error", "text": "That routine has no run yet."}
     assert m.card(None)["type"] == "error"
     monkeypatch.setattr(vikunja, "_get", lambda *a: [p for p in PROJECTS if p["title"] != "Inbox"])
@@ -111,7 +111,7 @@ def test_no_run_no_inbox_or_no_vikunja_is_an_error(fake, vault, monkeypatch):
 
 
 def test_a_failed_create_says_why(fake, vault, monkeypatch):
-    m = make_task.Maker(url=lambda: BASE, vault=lambda: vault, inbox=lambda: "Inbox")
+    m = make_task.Maker(cfg=lambda: {"vikunja_url": BASE}, vault=lambda: vault, inbox=lambda: "Inbox")
     cid = m.card(row())["id"]
 
     def refuse(*a, **k):
@@ -122,7 +122,7 @@ def test_a_failed_create_says_why(fake, vault, monkeypatch):
 
 
 def test_old_cards_are_forgotten(fake, vault):
-    m = make_task.Maker(url=lambda: BASE, vault=lambda: vault, inbox=lambda: "Inbox")
+    m = make_task.Maker(cfg=lambda: {"vikunja_url": BASE}, vault=lambda: vault, inbox=lambda: "Inbox")
     first = m.card(row())["id"]
     for _ in range(make_task.MAX_CARDS):
         m.card(row())
@@ -149,7 +149,7 @@ class Page:
 
 def test_the_server_runs_card_allow_undo(fake, vault, monkeypatch):
     monkeypatch.setitem(settings.settings.data, "onboarded", True)
-    monkeypatch.setattr(server.hub, "maker", make_task.Maker(url=lambda: BASE, vault=lambda: vault, inbox=lambda: "Inbox"))
+    monkeypatch.setattr(server.hub, "maker", make_task.Maker(cfg=lambda: {"vikunja_url": BASE}, vault=lambda: vault, inbox=lambda: "Inbox"))
     monkeypatch.setattr(server.hub.routines, "items", lambda: [row(repo="acme/api")])
     page = Page()
     asyncio.run(server.handle(page, {"type": "make_task", "routine": "t1"}))

@@ -4,7 +4,7 @@
 import type { BrainNote, BrainNoteEvent, FolderItem, HomeEvent, HomeForgetEvent, HomeTasksEvent, ItemEvent, ItemListEvent, RoutinesEvent, TaskDetailEvent } from "../protocol.gen";
 import { send } from "../ws";
 import { useConnection } from "./connection";
-import { useFeatures } from "./features";
+import { trackerName, useFeatures } from "./features";
 import { useHome, needsYou, brief, delegText, vikunjaTasks } from "./home";
 import { useItems } from "./items";
 import { pinsNote, usePins } from "./pins";
@@ -30,7 +30,7 @@ export function homeText(folders: FolderItem[], routines: RoutinesEvent | null, 
   if (n.delegations.length) out.push("Delegations that need the owner:", ...n.delegations.map((d) => `- ${delegText(d)}`));
   if (n.items.length) out.push("Needs you (blocked or broken until the owner acts, most important first):", ...n.items.map((p) => `- ${p.title}: ${p.reason}`));
   const tr = vikunjaTasks(tasks);
-  if (tr?.tasks.length) out.push(`Open tasks in Vikunja (${tr.total}, most urgent first; the task list of record):`, ...tr.tasks.slice(0, 12).map((t) => `- #${t.id} ${t.title} (${t.project || "no project"}${t.due ? `, due ${t.due}` : ""})`));
+  if (tr?.tasks.length) out.push(`Open tasks in ${trackerName()} (${tr.total}, most urgent first; the task list of record):`, ...tr.tasks.slice(0, 12).map((t) => `- #${t.id} ${t.title} (${t.project || "no project"}${t.due ? `, due ${t.due}` : ""})`));
   if (routinesOn && routines) out.push("Routines (scheduled cloud agents):", ...routines.items.map((x) => `- ${x.name}: ${routineStatus(x)}${x.next_run_at ? `, next ${day(x.next_run_at)}` : ""}`));
   if (forget?.repos.length) out.push("Repos with unsaved work:", ...forget.repos.slice(0, 8).map((r) => `- ${r.label}${r.branch ? ` (${r.branch})` : ""}: ${r.changed} changed file${r.changed === 1 ? "" : "s"}${r.ahead ? `, ${r.ahead} unpushed commit${r.ahead === 1 ? "" : "s"}` : ""}`));
   if (forget?.prs.length) out.push("Open pull requests:", ...forget.prs.slice(0, 8).map((p) => `- ${p.repo}#${p.number} ${p.title}${p.draft ? " (draft)" : ""}, quiet ${p.idle_days} day${p.idle_days === 1 ? "" : "s"}`));

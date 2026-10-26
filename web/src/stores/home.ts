@@ -4,7 +4,7 @@ import { create } from "zustand";
 import type { DelegationItem, FolderItem, HomeEvent, HomeForgetEvent, HomeTasksEvent, PlanEvent, PlanItem, RoutinesEvent } from "../protocol.gen";
 import { on } from "../events";
 import { send } from "../ws";
-import { useFeatures } from "./features";
+import { trackerName, useFeatures } from "./features";
 import { activityRows, useViews, type SessionRow } from "./views";
 import { askIn, openFolder } from "./session";
 import { openItem, startItem } from "./items";
@@ -132,7 +132,7 @@ export function brief(d: { waiting: SessionRow[]; done: SessionRow[]; routines: 
   if (d.done.length) out.push([{ b: plural(d.done.length, "session", "sessions") }, ` finished while you were away.`]);
   const tr = vikunjaTasks(d.tasks ?? null);
   if (tr) {
-    out.push(["Vikunja holds ", { b: `${tr.total} open task${tr.total === 1 ? "" : "s"}` }, d.vault && d.notes ? [", and ", { b: `${d.notes.notes_week} note${d.notes.notes_week === 1 ? "" : "s"}` }, " changed this week."] : ["."]].flat());
+    out.push([`${trackerName()} holds `, { b: `${tr.total} open task${tr.total === 1 ? "" : "s"}` }, d.vault && d.notes ? [", and ", { b: `${d.notes.notes_week} note${d.notes.notes_week === 1 ? "" : "s"}` }, " changed this week."] : ["."]].flat());
   } else if (d.vault && d.notes) {
     out.push(["Your notes hold ", { b: `${d.notes.open_tasks} open task${d.notes.open_tasks === 1 ? "" : "s"}` }, ", and ", { b: `${d.notes.notes_week} note${d.notes.notes_week === 1 ? "" : "s"}` }, " changed this week."]);
   }

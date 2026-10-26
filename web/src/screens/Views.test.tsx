@@ -170,12 +170,21 @@ describe("Settings", () => {
     render(<Settings />);
     expect(screen.getByRole("alert").textContent).toBe("Vikunja not reachable: didn't answer: down");
     fireEvent.change(screen.getByLabelText("Vikunja address"), { target: { value: " http://10.0.0.5:8002 " } });
-    fireEvent.click(within(screen.getByRole("region", { name: "Tasks (Vikunja)" })).getByRole("button", { name: "Save" }));
+    fireEvent.click(within(screen.getByRole("region", { name: "Tasks (Vikunja)" })).getByRole("button", { name: "Save the Vikunja address" }));
     expect(sent).toContainEqual({ type: "set_settings", values: { vikunja_url: "http://10.0.0.5:8002" } });
     expect(sent.at(-1)).toEqual({ type: "home" });
     act(() => useHome.setState({ tasks: { type: "home_tasks", tasks: [], total: 1, url: "http://10.0.0.5:8002", error: null } }));
     expect(screen.queryByRole("alert")).toBeNull();
     expect(screen.getByText("Reachable · 1 open task")).toBeTruthy();
+  });
+
+  it("with Jira as the tracker the section names it and saves the Jira address", () => {
+    useViews.setState({ settings: settings() });
+    useFeatures.setState({ features: { roots: [], vault: "", brain: false, routines: false, onboarded: true, stt: "browser", tts: "browser", plan: "max", tracker: "Jira" } });
+    render(<Settings />);
+    fireEvent.change(screen.getByLabelText("Jira address"), { target: { value: " https://acme.atlassian.net " } });
+    fireEvent.click(within(screen.getByRole("region", { name: "Tasks (Jira)" })).getByRole("button", { name: "Save the Jira address" }));
+    expect(sent).toContainEqual({ type: "set_settings", values: { jira_url: "https://acme.atlassian.net" } });
   });
 
   it("the Claude Code section opens setup at the sign-in step", () => {

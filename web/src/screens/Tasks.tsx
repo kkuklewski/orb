@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import type { ItemRow } from "../protocol.gen";
+import { useTracker } from "../stores/features";
 import { openItem, openItems, useItems } from "../stores/items";
 import { openSettings } from "../stores/views";
 import { send } from "../ws";
 
-// Tasks (Vikunja) laid out like Routines: one line per task (dot, title, state word, when), grouped by what it asks of
+// Tasks (Vikunja or Jira, ADR 0010) laid out like Routines: one line per task (dot, title, state word, when), grouped by what it asks of
 // you, the project and repo on the line under it. A line opens the task; Table opens the sortable table with the bulk
-// actions. Vikunja not set up: the page says what's missing and where to set it. Task text is shown as plain text.
+// actions. No tracker set up: the page says what's missing and where to set it. Task text is shown as plain text.
 
 export type TaskState = "overdue" | "due today" | "urgent" | "this week" | "planned" | "open";
 export const TASK_GROUPS: { name: string; states: TaskState[]; fold: boolean }[] = [
@@ -50,10 +51,11 @@ const dot = (s: TaskState) => (s === "overdue" || s === "due today" || s === "ur
 
 export function Tasks() {
   const list = useItems((s) => s.lists.vikunja);
+  const tracker = useTracker();
   const [showOpen, setShowOpen] = useState(false);
   useEffect(() => { send({ type: "item_list", source: "vikunja" }); }, []);
   const groups = taskGroups(list?.rows ?? []);
-  const sub = !list ? "loading…" : list.error ? "not connected" : `${list.rows.length} open · from Vikunja`;
+  const sub = !list ? "loading…" : list.error ? "not connected" : `${list.rows.length} open · from ${tracker}`;
 
   return (
     <div className="view-col">
@@ -70,8 +72,8 @@ export function Tasks() {
         {list?.error ? (
           <div className="tk-setup" role="status">
             <p>{list.error}</p>
-            <p className="side-hint">Set the Vikunja address in Settings and ORB_VIKUNJA_TOKEN in Orb's environment, then restart Orb. Your open tasks show up here, grouped like Routines.</p>
-            <button type="button" className="chip-btn" onClick={() => openSettings("vikunja")}>Vikunja settings</button>
+            <p className="side-hint">Set the Vikunja or Jira address in Settings and its token in Orb's environment (ORB_VIKUNJA_TOKEN, or ORB_JIRA_EMAIL and ORB_JIRA_TOKEN), then restart Orb. Your open tasks show up here, grouped like Routines.</p>
+            <button type="button" className="chip-btn" onClick={() => openSettings("vikunja")}>Task settings</button>
           </div>
         ) : list && !list.rows.length ? <div className="side-hint">No open tasks.</div> : null}
         {groups.map((g) => (

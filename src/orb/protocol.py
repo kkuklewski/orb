@@ -74,6 +74,7 @@ class Features(_Msg):
     stt: Literal["browser", "parakeet", "whisper"]
     tts: Literal["browser", "kokoro"]
     plan: str | None = None
+    tracker: str = "Vikunja"  # the task tracker's name, for the page's words (ADR 0010)
 
 
 class AuthStatus(_Msg):
@@ -384,7 +385,7 @@ class NavigateEvent(_Event):
     folder: str | None  # sessions: the session's folder
     session: str | None  # sessions: open this session
     note: str | None  # brain: a note waiting for a verdict (path in the vault)
-    task: str | None  # tasks: a Vikunja task id
+    task: str | None  # tasks: a tracker task id
     routine: str | None  # routines: the routine's page (its last run)
 
 
@@ -486,15 +487,15 @@ class PlanItem(_Msg):
     unchanged (plain text, from untrusted data)."""
     key: str  # unique on the page: "routine:<id>", "vikunja:<id>", "setup:<section>", "reminder:<due>:<text>"
     kind: Literal["approval", "setup", "routine", "reminder", "task", "note_task", "result", "pr", "notes_batch"]
-    id: str  # what the page opens: routine id, Vikunja id, the Settings section that fixes a broken setup
+    id: str  # what the page opens: routine id, tracker task id, the Settings section that fixes a broken setup
     title: str
     reason: str
-    source: str | None = None  # Vikunja project, "routine"
+    source: str | None = None  # the tracker's project, "routine"
     due: str | None = None  # YYYY-MM-DD
     priority: int | None = None
     url: str | None = None
     actions: list[Literal["open", "start", "done", "later", "delegate"]] = []
-    repo: str | None = None  # a Vikunja task's repo from the repo map (label); None: Delegate asks for one
+    repo: str | None = None  # a tracker task's repo from the repo map (label); None: Delegate asks for one
     suggest: Literal["take now", "delegate", "later"] | None = None  # tasks only: the rule's action (suggest.py), a hint
     urgent: bool = False  # Needs you only: a broken setup, or a routine that is urgent (routines.urgent); shown red
 
@@ -539,7 +540,7 @@ class ItemListEvent(_Event):
     busy: bool = False  # a suggestion run is in progress
     url: str | None = None
     url_label: str | None = None
-    error: str | None = None  # the list can't be read (Tasks: "Vikunja not reachable: <reason>"), shown in place of the table
+    error: str | None = None  # the list can't be read (Tasks: "Vikunja not reachable: <reason>", or Jira), shown in place of the table
 
 
 class HomeForgetEvent(_Event):
@@ -552,8 +553,8 @@ class HomeForgetEvent(_Event):
 
 
 class HomeTasksEvent(_Event):
-    """Home's view of the Tasks source (vikunja.home_event): the first open tasks and the count, or why Vikunja can't
-    be read. `tasks` is None when Vikunja isn't set up (Home counts the notes' tasks instead)."""
+    """Home's view of the Tasks source (tracker.home_event): the first open tasks and the count, or why the tracker
+    can't be read. `tasks` is None when no tracker is set up (Home counts the notes' tasks instead)."""
     type: Literal["home_tasks"]
     tasks: list[TrackerTask] | None
     total: int
@@ -856,7 +857,7 @@ class DelegationDiffEvent(_Event):
 
 
 class MakeTaskCardEvent(_Event):
-    """"Make it a task": the card to allow or deny before Orb creates a Vikunja task (ADR 0008)."""
+    """"Make it a task": the card to allow or deny before Orb creates a task in the tracker (ADR 0008, 0010)."""
     type: Literal["make_task_card"]
     id: str
     routine: str
@@ -1046,7 +1047,7 @@ class PlanLaterMsg(_Msg):
 
 
 class PlanDoneMsg(_Msg):
-    """Done on a queue task ("vikunja:<id>" or "note:<file>:<line>"): written at once; undo=True reopens the Vikunja task."""
+    """Done on a queue task ("vikunja:<id>" or "note:<file>:<line>"): written at once; undo=True reopens the tracker's task."""
     type: Literal["plan_done"]
     key: str
     undo: bool = False
@@ -1077,7 +1078,7 @@ class ItemGetMsg(_Msg):
 
 
 class ItemDoneMsg(_Msg):
-    """Archive: mark a Vikunja task done (done=False brings it back). The server answers with the new item_list."""
+    """Archive: mark a tracker task done (done=False brings it back). The server answers with the new item_list."""
     type: Literal["item_done"]
     source: ItemSource
     id: str
@@ -1085,7 +1086,7 @@ class ItemDoneMsg(_Msg):
 
 
 class TasksBulkMsg(_Msg):
-    """Bulk change on Vikunja tasks (ids as the list shows them): `done` archives (or reopens) them, `priority` (0 to 5)
+    """Bulk change on tracker tasks (ids as the list shows them): `done` archives (or reopens) them, `priority` (0 to 5)
     sets their priority. Exactly one of the two. The page confirms with a count first."""
     type: Literal["tasks_bulk"]
     ids: list[str]
@@ -1094,7 +1095,7 @@ class TasksBulkMsg(_Msg):
 
 
 class TasksSuggestMsg(_Msg):
-    """Ask for AI-suggested priorities for the open tasks (one Haiku call, subscription only). Nothing is written to Vikunja."""
+    """Ask for AI-suggested priorities for the open tasks (one Haiku call, subscription only). Nothing is written to the tracker."""
     type: Literal["tasks_suggest"]
 
 
@@ -1247,7 +1248,7 @@ class RevokeGrantMsg(_Msg):
 
 
 class DelegateMsg(_Msg):
-    """Delegate on a Vikunja task: the server answers with the grant card. `path`: the picker's repo, for a task whose
+    """Delegate on a tracker task: the server answers with the grant card. `path`: the picker's repo, for a task whose
     project has no mapped repo (this delegation only)."""
     type: Literal["delegate"]
     task: int
@@ -1255,7 +1256,7 @@ class DelegateMsg(_Msg):
 
 
 class DelegateBulkMsg(_Msg):
-    """Bulk Delegate from Up next: Vikunja tasks with a known repo. The server answers with the first repo's card; the
+    """Bulk Delegate from Up next: tracker tasks with a known repo. The server answers with the first repo's card; the
     others follow, one per repo, whatever the answer."""
     type: Literal["delegate_bulk"]
     tasks: list[int]

@@ -1,4 +1,4 @@
-""""Make it a task": a routine's last run becomes a Vikunja task (ADR 0008), never a line in the notes.
+""""Make it a task": a routine's last run becomes a task in the tracker (ADR 0008, 0010), never a line in the notes.
 
 It is a write, so it goes card first: `card` works out the title and the project (the routine's repo's mapped
 project, else the inbox project, settings "tasks_inbox") and the page shows them; only `confirm` with ok creates the task. Orb remembers the
@@ -11,14 +11,14 @@ import secrets
 from collections.abc import Callable
 from pathlib import Path
 
-from . import routines, vikunja
+from . import routines, tracker
 
 MAX_CARDS = 20  # open cards kept; an older one is forgotten and its Allow says so
 
 
 class Maker:
-    def __init__(self, url: Callable[[], str], vault: Callable[[], Path | None], inbox: Callable[[], str]) -> None:
-        self.url, self.vault, self.inbox = url, vault, inbox
+    def __init__(self, cfg: Callable[[], dict], vault: Callable[[], Path | None], inbox: Callable[[], str]) -> None:
+        self.cfg, self.vault, self.inbox = cfg, vault, inbox
         self.cards: dict[str, dict] = {}  # card id -> what Allow creates
         self.made: dict[int, str] = {}  # task id -> title, created by this server
 
@@ -28,8 +28,8 @@ class Maker:
             return {"type": "error", "text": "That routine has no run yet."}
         title, description = routines.task_draft(x)
         try:
-            pid, project = vikunja.project_for(self.url(), self.vault(), x.get("repo") or None, self.inbox())
-        except vikunja.VikunjaError as e:
+            pid, project = tracker.project_for(self.cfg(), self.vault(), x.get("repo") or None, self.inbox())
+        except tracker.ERRORS as e:
             return {"type": "error", "text": str(e)}
         cid = secrets.token_hex(8)
         self.cards[cid] = {"project_id": pid, "project": project, "title": title, "description": description}
@@ -44,8 +44,8 @@ class Maker:
         if not ok:
             return {"type": "make_task_done", "id": cid, "ok": False}
         try:
-            t = vikunja.create(self.url(), c["project_id"], c["title"], c["description"])
-        except vikunja.VikunjaError as e:
+            t = tracker.create(self.cfg(), c["project_id"], c["title"], c["description"])
+        except tracker.ERRORS as e:
             return {"type": "make_task_done", "id": cid, "ok": False, "error": str(e)}
         self.made[t["id"]] = t["title"]
         return {"type": "make_task_done", "id": cid, "ok": True, "task": t["id"], "title": t["title"], "url": t["url"],
@@ -56,8 +56,8 @@ class Maker:
             return {"type": "make_task_undone", "task": task_id, "ok": False,
                     "error": "Orb only removes a task it just created, and not after a restart."}
         try:
-            vikunja.delete(self.url(), task_id)
-        except vikunja.VikunjaError as e:
+            tracker.delete(self.cfg(), task_id)
+        except tracker.ERRORS as e:
             return {"type": "make_task_undone", "task": task_id, "ok": False, "error": str(e)}
         del self.made[task_id]
         return {"type": "make_task_undone", "task": task_id, "ok": True}
