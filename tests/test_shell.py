@@ -53,6 +53,10 @@ def test_heredoc_commit():
     assert read(cmd.replace("'EOF'", "EOF")).heredoc_commit is None  # an unquoted heredoc expands
     early = cmd.replace("fix: login", "fix\nEOF\n)\"; rm -rf ~; echo \"$(cat <<'EOF'\nx")
     assert read(early).heredoc_commit is None  # its own EOF line would end the heredoc early
+    assert read(cmd.replace("fix: login", "fix(shell): a (b) c")).heredoc_commit  # balanced parentheses are text
+    assert read(cmd.replace("fix: login", "1) x")).heredoc_commit is None  # an older shell could end $( there
+    assert not read(cmd.replace("fix: login", "grep -r $X {a} ~")).recursive  # the message is not searched
+    assert read(cmd.replace("-s", "-s -r")).recursive  # the flags still are
 
 
 def test_a_heredoc_commits_message_is_not_a_push():
@@ -89,7 +93,8 @@ def test_recursive():
                 # quotes, backslashes and expansions the shell turns into a flag
                 "grep -\"\"r x .", "grep \"-\"r x .", "grep -\\r x .", "grep -n\\r x .", "grep -nd r x .",
                 "grep -nd 'r' x .", "grep {-r,x} .", "grep -$'\\x72' x .", "grep $F x .", "grep `echo -r` x .",
-                "grep -[r] x .", "f\"\"ind .", "bash -c 'grep -\"\"r x .'"):
+                "grep -[r] x .", "f\"\"ind .", "bash -c 'grep -\"\"r x .'", "grep \"'\" -$'\\x72' x .",
+                "grep \"it's\" $F x . '", "sh -c \"bash -c 'sh -c \\\"grep -r x .\\\"'\""):
         assert read(cmd).recursive, cmd
     for cmd in ("cat a", "ls -la", "grep -n x f", "git pull --rebase", "cat -- -x", "grep -d skip x .",
                 "grep --include=*.py x f", "grep '$x' f", "grep '{a,b}' f",

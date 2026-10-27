@@ -30,8 +30,6 @@ _SHORT_GROUP = re.compile(_FLAG_START + r"-([^-\s'\"][^\s'\"]*)")
 _LONG_OPTION = re.compile(_FLAG_START + r"--([A-Za-z][\w-]*)")
 _RECURSIVE_LONG = ("recursive", "dereference-recursive", "directories")
 _RECURSE_ARG = re.compile(_FLAG_START + r"-[^-\s'\"]*d\s*['\"]?r")  # grep -d recurse (also -nd r), or an abbreviation
-_EXPANSION = re.compile(r"[$`]")  # outside single quotes it can produce a flag
-_BRACE = re.compile(r"\{")  # outside any quotes: brace expansion, `{-r,x}`
 _PATH_ARG_FLAGS = {"cd", "pushd", "-C", "--prefix", "--cwd", "--dir", "--directory", "--git-dir", "--work-tree"}
 _SHELL = re.compile(r"[;&|<>`$(){}\\\n\r*?\[\]~]")
 # `git commit -m "$(cat <<'EOF' … EOF)"`, the way Claude Code writes a commit: a quoted heredoc never expands.
@@ -92,9 +90,21 @@ def read(cmd: str) -> Command:
     """The command, read once: the hook and every rule it runs ask the same reading."""
     n = norm(cmd)
     m = _HEREDOC_COMMIT.fullmatch(n.strip())
-    commit = (tuple(m.group(1).split()), m.group(2)) if m and "EOF" not in m.group(2).split("\n") else None
-    return Command(cmd, n, _read_only(cmd), _args(_lexed(cmd)), not commit and _recursive(cmd), _words(n), commit,
+    commit = (tuple(m.group(1).split()), m.group(2)) if m and _plain_body(m.group(2)) else None
+    recursive = _recursive("git commit " + " ".join(commit[0])) if commit else _recursive(cmd)
+    return Command(cmd, n, _read_only(cmd), _args(_lexed(cmd)), recursive, _words(n), commit,
                    None if commit else _push(cmd))
+
+
+def _plain_body(body: str) -> bool:
+    """A heredoc commit's message that can only be text: no `EOF` line of its own (it would end the heredoc early)
+    and no `)` without its `(` (an older shell could end the `$(…)` there)."""
+    depth = 0
+    for ch in body:
+        depth += {"(": 1, ")": -1}.get(ch, 0)
+        if depth < 0:
+            return False
+    return "EOF" not in body.split("\n")
 
 
 def norm(cmd: str) -> str:
@@ -123,8 +133,7 @@ def _recursive(cmd: str, depth: int = 0) -> bool:
     counts) and from the shell's words with quotes and backslashes removed (`-""r`, `-\\r`), each quoted script's words
     too. Fails closed on what could expand into a flag: `$…` or a backquote outside single quotes, a brace outside
     quotes, a glob in a word that starts with a dash (before its `=`: `--include=*.py` stays an include)."""
-    unquoted = re.sub(r"'[^']*'", "", cmd)
-    if (_EXPANSION.search(unquoted) or _BRACE.search(re.sub(r'"[^"]*"', "", unquoted))
+    if (_may_expand(cmd)
             or any(GLOB_CHARS.search(w.split("=", 1)[0]) for w in re.findall(r"(?:^|\s)(-\S*)", re.sub(r"'[^']*'|\"[^\"]*\"", "q", cmd)))):
         return True
     if (_WALKERS.search(cmd)
@@ -145,7 +154,30 @@ def _recursive(cmd: str, depth: int = 0) -> bool:
             if re.search(r"[rR]", group) or ("d" in group and not group.split("d", 1)[1]
                                               and i + 1 < len(words) and words[i + 1].startswith("r")):
                 return True
-        if depth < 2 and re.search(r"\s", w) and _recursive(w, depth + 1):
+        if re.search(r"\s", w) and (depth >= 2 or _recursive(w, depth + 1)):
+            return True  # a script too deep to read fails closed
+    return False
+
+
+def _may_expand(cmd: str) -> bool:
+    """`$…` or a backquote outside single quotes, or a brace outside any quotes, read left to right like the shell
+    (an apostrophe inside double quotes opens nothing; `$'…'` starts with a `$`)."""
+    state, escaped = "", False
+    for ch in cmd:
+        if escaped:
+            escaped = False
+        elif state == "'":
+            state = "" if ch == "'" else state
+        elif ch == "\\":
+            escaped = True
+        elif state == '"':
+            if ch == '"':
+                state = ""
+            elif ch in "$`":
+                return True
+        elif ch in "'\"":
+            state = ch
+        elif ch in "$`{":
             return True
     return False
 
