@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 from . import config
@@ -17,6 +18,7 @@ from . import config
 AWAY_SECONDS = 24 * 3600
 RECAP_KEEP = 12 * 3600  # a recap the owner came back to but never closed is gone this long after
 SAVE_EVERY = 60  # last-active is written at most this often, a recap change at once
+LINES = 8  # the card's lines (routines, later Finished and Ready); past this one "N more"
 
 # Page messages that are the owner acting. Everything else (home, routines, screen, the lists and reads, open_folder on a
 # reload, settings reads, speech plumbing) can come from a page nobody is looking at.
@@ -71,8 +73,9 @@ class Clock:
         self.save()
         return True
 
-    def current(self, now: float | None = None) -> dict | None:
-        """The recap a page shows now: frozen once the owner is back, live while they are still away, else None."""
+    def current(self, now: float | None = None, lines: Callable[[float], list[dict]] | None = None) -> dict | None:
+        """The recap a page shows now: frozen once the owner is back, live while they are still away, else None.
+        `lines(since)` gives what finished without the owner; the card keeps the first LINES and counts the rest."""
         now = time.time() if now is None else now
         if self.recap and now - self.recap["back"] >= RECAP_KEEP:
             self.recap = None
@@ -83,7 +86,9 @@ class Clock:
             since, back = self.last_active, None
         else:
             return None
-        return {"since": since, "back": back, "heading": heading((back or now) - since)}
+        got = [{k: v for k, v in x.items() if k != "at"} for x in (lines(since) if lines else [])]
+        return {"since": since, "back": back, "heading": heading((back or now) - since), "lines": got[:LINES],
+                "more": max(0, len(got) - LINES)}
 
-    def event(self, now: float | None = None) -> dict:
-        return {"type": "away_recap", "recap": self.current(now)}
+    def event(self, now: float | None = None, lines: Callable[[float], list[dict]] | None = None) -> dict:
+        return {"type": "away_recap", "recap": self.current(now, lines)}

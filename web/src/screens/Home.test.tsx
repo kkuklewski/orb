@@ -12,6 +12,7 @@ import { greeting, needsYou, routinesLine, useHome, wireHome } from "../stores/h
 import { useTasks, wireTasks } from "../stores/tasks";
 import { initialDelegations, useDelegations, wireDelegations } from "../stores/delegation";
 import { useBrain } from "../stores/brain";
+import { useRoutineScreen } from "../stores/routine";
 import { folder, routine, routines, session, status } from "../test/fixtures";
 
 const sent: Record<string, unknown>[] = [];
@@ -116,6 +117,21 @@ describe("away recap", () => {
     expect(within(c).getByText("Needs you: 3 of 4")).toBeTruthy();
     expect(document.querySelector(".home-main")!.firstElementChild).toBe(c);
     expect(c.querySelector(".badge, [class*=badge]")).toBeNull();
+  });
+
+  it("lists the routines that ran ok, ×N when more than once, then N more; a line opens that routine's Run", () => {
+    render(<Home />);
+    const lines = [{ kind: "routine", id: "t1", title: "Curation", summary: "3 created, 1 merged", count: 2 },
+      { kind: "routine", id: "t2", title: "Radar", summary: "5 drafts", count: 1 }];
+    act(() => dispatch({ type: "away_recap", recap: { since: 0, back: 1, heading: "While you were away · 2 days", lines, more: 4 } } as ServerEvent));
+    const list = within(card()!).getByLabelText("Routines that ran");
+    const rows = within(list).getAllByRole("button");
+    expect(rows.map((r) => r.textContent)).toEqual(["ROUTINECuration3 created, 1 merged×2", "ROUTINERadar5 drafts"]);
+    expect(within(list).getByText("4 more")).toBeTruthy();
+    fireEvent.click(rows[0]);
+    expect(useViews.getState().view).toBe("routine");
+    expect(useRoutineScreen.getState().id).toBe("t1");
+    expect(sent).toContainEqual({ type: "away_seen" });
   });
 
   it("nothing needs you: says so", () => {

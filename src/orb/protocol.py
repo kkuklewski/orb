@@ -564,10 +564,21 @@ class HomeTasksEvent(_Event):
     error: str | None = None
 
 
+class AwayLine(_Msg):
+    """One thing that finished without the owner: a routine's latest ok Run (count: its Runs since they left)."""
+    kind: Literal["routine"]
+    id: str
+    title: str
+    summary: str = ""
+    count: int = 1
+
+
 class AwayRecap(_Msg):
     since: float  # the owner's last action before they were away
     back: float | None = None  # their first action back; None while they are still away (the span still grows)
     heading: str  # "While you were away · 2 days"
+    lines: list[AwayLine] = []  # at most away.LINES
+    more: int = 0  # lines past those: "N more"
 
 
 class AwayRecapEvent(_Event):
