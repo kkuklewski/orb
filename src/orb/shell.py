@@ -97,8 +97,11 @@ def read(cmd: str) -> Command:
 
 
 def _plain_body(body: str) -> bool:
-    """A heredoc commit's message that can only be text: no `EOF` line of its own (it would end the heredoc early)
-    and no `)` without its `(` (an older shell could end the `$(…)` there)."""
+    """A heredoc commit's message that can only be text: no `EOF` line of its own (it would end the heredoc early).
+    An older bash finds the end of `$(…)` by counting parentheses outside quotes and comments, so a message with a
+    parenthesis has no quote, backslash, backquote or `#`, and its parentheses balance."""
+    if re.search(r"[()]", body) and re.search(r"['\"\\`#]", body):
+        return False
     depth = 0
     for ch in body:
         depth += {"(": 1, ")": -1}.get(ch, 0)

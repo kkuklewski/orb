@@ -55,6 +55,9 @@ def test_heredoc_commit():
     assert read(early).heredoc_commit is None  # its own EOF line would end the heredoc early
     assert read(cmd.replace("fix: login", "fix(shell): a (b) c")).heredoc_commit  # balanced parentheses are text
     assert read(cmd.replace("fix: login", "1) x")).heredoc_commit is None  # an older shell could end $( there
+    for body in ("fix(a): it's", "fix(a): `x`", "x (# y)", "x ('a)')", "(a) \\"):  # an older shell reads these quotes
+        assert read(cmd.replace("fix: login", body)).heredoc_commit is None, body
+    assert read(cmd.replace("fix: login", "it's `x`")).heredoc_commit  # quotes without a parenthesis are text
     assert not read(cmd.replace("fix: login", "grep -r $X {a} ~")).recursive  # the message is not searched
     assert read(cmd.replace("-s", "-s -r")).recursive  # the flags still are
 
