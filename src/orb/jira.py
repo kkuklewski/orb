@@ -27,7 +27,7 @@ PER_PAGE = 100
 MAX_PAGES = 20
 TIMEOUT = 8
 JQL = "assignee = currentUser() AND statusCategory != Done ORDER BY updated DESC"
-FIELDS = "summary,project,duedate,created,updated,priority,status"
+FIELDS = "summary,project,duedate,created,updated,priority,status,labels"  # labels: read only (needs.py pin labels)
 PROJECTS_TTL = 600  # project keys -> ids for the repo map; they rarely change
 # Jira's default priority names on Orb's (Vikunja's) 0-5 scale: 0 unset, 1 low, 2 medium, 3 high, 4 urgent, 5 do now.
 PRIORITY = {"lowest": 1, "low": 1, "medium": 2, "high": 3, "highest": 4}
@@ -122,7 +122,8 @@ def _row(base: str, issue: dict) -> dict:
     return {"id": int(issue.get("id", 0)), "title": _title(issue), "project": str(project.get("name", "")),
             "project_id": int(project.get("id") or 0), "due": f.get("duedate") or None,
             "created": str(f.get("created", ""))[:10], "priority": _priority(f.get("priority")),
-            "updated": _updated(f.get("updated")), "url": _browse(base, str(issue.get("key", "")))}
+            "updated": _updated(f.get("updated")), "url": _browse(base, str(issue.get("key", ""))),
+            "labels": [str(x)[:80] for x in f.get("labels") or [] if isinstance(x, str) and x]}
 
 
 def open_tasks(url: str, project: str | None = None) -> dict:

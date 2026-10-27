@@ -19,7 +19,8 @@ the last ranking's order for the items it ranked. A reason the model gave stays 
 facts change.
 
 A rule may pin a Needs you row (docs/adr/0012): security (a broken setup, a routine whose judged run is a security
-risk) or client (an overdue task whose repo is a client folder). Pinned rows lead, in a block the model orders only
+risk), client (an overdue task whose repo is a client folder) or money (an overdue task with a pin label, one of
+the tracker labels in settings "pin_labels"; first match in that order names the class). Pinned rows lead, in a block the model orders only
 inside, like the rest. A row's age counts from its due date (tasks, reminders) or from when it entered Needs you
 (routines, setup: `since` in needs.json, dropped when it leaves). Past ESCALATE_H a routine row turns red, a task or
 reminder only when it is pinned too. The model reads the age; the fingerprint doesn't, so a day passing asks nothing.
@@ -116,7 +117,8 @@ def needs_you(routines: list[dict] | None, tasks: list[dict] | None, today: str,
     (oldest first, then highest priority). [{key, kind, id, title, reason, source, due, priority, url, actions,
     facts, stable, pin}]; `facts` is what the model reads, `stable` what the fingerprint uses, `pin` the class a rule
     pinned it in (security: a broken setup or a routine whose judged run is a security risk; client: an overdue task
-    whose repo is a client folder, `client` on the task), else None."""
+    whose repo is a client folder, `client` on the task; money: an overdue task with a pin label, `money` on the task,
+    see `money`), else None; a task in both is client."""
     out: list[dict] = []
     for p in setup or []:
         out.append({"key": f"setup:{p['id']}", "kind": "setup", "id": p["id"], "title": p["title"], "reason": p["reason"],
@@ -150,8 +152,15 @@ def needs_you(routines: list[dict] | None, tasks: list[dict] | None, today: str,
                     "suggest": suggest.task(t["due"], t.get("repo"), today), "urgent": False,
                     "facts": f"Tracker task: {_clip(t['title'], 200)}; project {t.get('project') or '-'}; was due {t['due']}; "
                              f"priority {t.get('priority') or 'unset'}",
-                    "stable": f"{t['title']}|{t['due']}|{t.get('priority')}", "pin": "client" if t.get("client") else None})
+                    "stable": f"{t['title']}|{t['due']}|{t.get('priority')}", "pin": "client" if t.get("client") else "money" if t.get("money") else None})
     return out
+
+
+def money(labels: list[str] | None, pin_labels: list[str] | None) -> bool:
+    """A task carries a pin label (settings "pin_labels", matched case-insensitively): an overdue one pins as money.
+    No pin labels, or a tracker without such a label, leave the class empty."""
+    want = {str(p).strip().casefold() for p in pin_labels or [] if str(p).strip()}
+    return bool(want) and any(str(x).strip().casefold() in want for x in labels or [])
 
 
 def clock(items: list[dict], since: dict[str, float], now: float, known: set[str]) -> dict[str, float]:

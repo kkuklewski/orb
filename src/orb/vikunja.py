@@ -98,6 +98,11 @@ def order(tasks: list[dict]) -> list[dict]:
     return sorted(tasks, key=lambda t: (t["due"] is None, t["due"] or "", -t["priority"], -t["updated"]))
 
 
+def labels(t: dict) -> list[str]:
+    """A task's label names as Vikunja lists them (null when it has none). Orb only reads labels, never writes one."""
+    return [str(x["title"])[:80] for x in t.get("labels") or [] if isinstance(x, dict) and x.get("title")]
+
+
 def open_tasks(url: str, project: str | None = None) -> dict:
     """{"tasks": [...], "total": n, "url": base}: every open task (or one project's), most urgent first."""
     cfg = configured(url)
@@ -123,7 +128,7 @@ def open_tasks(url: str, project: str | None = None) -> dict:
         out.append({"id": int(t.get("id", 0)), "title": str(t.get("title", ""))[:200], "project": name,
                     "project_id": int(t.get("project_id") or 0),
                     "due": _due(t.get("due_date")), "created": str(t.get("created", ""))[:10], "priority": int(t.get("priority") or 0), "updated": updated,
-                    "url": f"{base}/tasks/{t.get('id')}"})
+                    "url": f"{base}/tasks/{t.get('id')}", "labels": labels(t)})
     return {"tasks": order(out), "total": len(out), "url": base}
 
 

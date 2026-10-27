@@ -5415,7 +5415,8 @@
             {
               "enum": [
                 "security",
-                "client"
+                "client",
+                "money"
               ],
               "type": "string"
             },
@@ -8386,6 +8387,13 @@
         },
         "id": {
           "type": "integer"
+        },
+        "labels": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
         },
         "priority": {
           "type": "integer"

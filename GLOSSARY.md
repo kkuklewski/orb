@@ -77,6 +77,10 @@ A Needs you row a rule holds at the top until it leaves: security, client or mon
 red after 48 hours in Needs you (past due, for a task).
 _Avoid_: Sticky, escalated, priority
 
+**Pin label**:
+A tracker label from `pin_labels` that pins an overdue task as money; a convention, default money. Orb only reads it.
+_Avoid_: Money tag, billing flag
+
 **Next action**:
 The single item Home suggests the owner start now, after everything that needs them.
 _Avoid_: Lead, top item, today's plan
