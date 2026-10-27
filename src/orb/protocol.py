@@ -357,6 +357,7 @@ class RoutineItem(_Msg):
     state: Literal["failed", "stuck", "missed", "needs you", "worth reading", "nothing to report", "off"]  # the line's one word
     urgent: bool = False  # failed / waiting / stuck, or a judged problem with a deadline within a week or a security risk
     resolved: bool = False  # you marked the last run's judged problem resolved; the next run is judged afresh
+    security: bool = False  # its judged problem is a security risk: its Needs you row is pinned (docs/adr/0012)
 
 
 class RoutinesEvent(_Event):
@@ -499,7 +500,8 @@ class PlanItem(_Msg):
     actions: list[Literal["open", "start", "done", "later", "delegate"]] = []
     repo: str | None = None  # a tracker task's repo from the repo map (label); None: Delegate asks for one
     suggest: Literal["take now", "delegate", "later"] | None = None  # tasks only: the rule's action (suggest.py), a hint
-    urgent: bool = False  # Needs you only: a broken setup, or a routine that is urgent (routines.urgent); shown red
+    urgent: bool = False  # Needs you only: a broken setup, an urgent routine (routines.urgent), or one past ESCALATE_H; shown red
+    pin: Literal["security", "client"] | None = None  # Needs you only: the class a rule pinned it in (docs/adr/0012); it leads
 
 
 class PlanEvent(_Event):

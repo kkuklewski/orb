@@ -309,3 +309,11 @@ def test_urgent_is_a_hard_stop_or_a_near_deadline_or_a_security_risk():
     assert urgent("action", {**far, "deadline": "2026-10-01"}, now)  # past
     assert urgent("broken", {"kind": "broken", "deadline": None, "security": True}, now)
     assert not urgent(None, {"kind": "info", "deadline": "2026-10-26", "security": True}, now)  # not a problem: never urgent
+
+
+def test_a_judged_security_problem_marks_the_item_security_so_needs_you_pins_it():
+    sec = {"cse_1": {"read": True, "kind": "action", "why": "account alert", "deadline": None, "security": True}}
+    assert item(routine(), [run()], OK, {}, NOW, sec)["security"] is True
+    info = {"cse_1": {**sec["cse_1"], "kind": "info"}}  # not a problem: not in Needs you, never pinned
+    assert item(routine(), [run()], OK, {}, NOW, info)["security"] is False
+    assert item(routine(), [run()], {"cse_1": {"outcome": "failed"}}, {}, NOW, sec)["security"] is False

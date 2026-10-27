@@ -18,6 +18,12 @@ With no ranking for exactly these items (stale, failed, never asked) Needs you i
 the last ranking's order for the items it ranked. A reason the model gave stays on its item until that item's
 facts change.
 
+A rule may pin a Needs you row (docs/adr/0012): security (a broken setup, a routine whose judged run is a security
+risk) or client (an overdue task whose repo is a client folder). Pinned rows lead, in a block the model orders only
+inside, like the rest. A row's age counts from its due date (tasks, reminders) or from when it entered Needs you
+(routines, setup: `since` in needs.json, dropped when it leaves). Past ESCALATE_H a routine row turns red, a task or
+reminder only when it is pinned too. The model reads the age; the fingerprint doesn't, so a day passing asks nothing.
+
 Cached in `~/.orb/needs.json`. Asked again only when the items changed (a fingerprint of the stable facts) and at
 most every MIN_GAP seconds, or when you press Re-rank.
 """
@@ -43,9 +49,11 @@ REASON_MAX = 140
 ROUTINE_RANK = {"failed": 0, "broken": 1, "waiting": 2, "stuck": 3, "missed": 4, "action": 5}
 ROUTINE_SAYS = {"failed": "failed", "broken": "reports a problem", "waiting": "needs a decision", "stuck": "is stuck",
                 "missed": "missed its run", "action": "asks you to act"}
-SENT = ("key", "kind", "id", "title", "reason", "source", "due", "priority", "url", "actions", "repo", "suggest", "urgent")
+SENT = ("key", "kind", "id", "title", "reason", "source", "due", "priority", "url", "actions", "repo", "suggest", "urgent", "pin")
 QUEUE_MAX = 30  # queue items the model sees (the first in rule order); the rest follow in rule order
 UP_NEXT = 5
+ESCALATE_H = 48  # hours in Needs you (past due, for a task or reminder) after which a routine, or a pinned row, turns red
+CLOCKED = ("setup", "routine")  # kinds whose age counts from when they entered Needs you (`since`), not from a due date
 
 RULES = (
     "You are the owner's chief of staff. The owner is a freelance developer who runs a few client projects and "
@@ -106,12 +114,15 @@ def needs_you(routines: list[dict] | None, tasks: list[dict] | None, today: str,
     """What needs the owner, in rule order: a broken setup (`setup_problems`), routines with a problem (worst
     first), reminders due today or earlier (`forget.due_now`, oldest first), then Vikunja tasks due before `today`
     (oldest first, then highest priority). [{key, kind, id, title, reason, source, due, priority, url, actions,
-    facts, stable}]; `facts` is what the model reads, `stable` what the fingerprint uses."""
+    facts, stable, pin}]; `facts` is what the model reads, `stable` what the fingerprint uses, `pin` the class a rule
+    pinned it in (security: a broken setup or a routine whose judged run is a security risk; client: an overdue task
+    whose repo is a client folder, `client` on the task), else None."""
     out: list[dict] = []
     for p in setup or []:
         out.append({"key": f"setup:{p['id']}", "kind": "setup", "id": p["id"], "title": p["title"], "reason": p["reason"],
                     "source": "setup", "due": None, "priority": None, "url": None, "actions": ["open"], "repo": None, "suggest": None,
-                    "urgent": True, "facts": f"Urgent. Broken setup: {p['title']}. {_clip(p['reason'])}", "stable": f"{p['title']}|{p['reason']}"})
+                    "urgent": True, "facts": f"Urgent. Broken setup: {p['title']}. {_clip(p['reason'])}", "stable": f"{p['title']}|{p['reason']}",
+                    "pin": "security"})
     bad = [r for r in routines or [] if r.get("enabled") and r.get("needs") in ROUTINE_RANK]
     for r in sorted(bad, key=lambda r: ROUTINE_RANK[r["needs"]]):
         last = r.get("last") or {}
@@ -121,12 +132,13 @@ def needs_you(routines: list[dict] | None, tasks: list[dict] | None, today: str,
                     "url": None, "actions": ["open"], "repo": None, "suggest": None, "urgent": bool(r.get("urgent")),
                     "facts": f"{'Urgent. ' if r.get('urgent') else ''}Scheduled job '{_clip(r['name'], 80)}': {r['needs']}. Judge: {_clip(r.get('why'), 120) or '-'}. "
                              f"Last run: {_clip(last.get('summary') or last.get('detail'))}",
-                    "stable": f"{last.get('id')}|{r['needs']}"})
+                    "stable": f"{last.get('id')}|{r['needs']}", "pin": "security" if r.get("security") else None})
     for r in sorted((r for r in reminders or [] if r.get("due") and r["due"] <= today), key=lambda r: r["due"]):
         out.append({"key": f"reminder:{r['due']}:{_clip(r['text'], 80)}", "kind": "reminder", "id": r["due"],
                     "title": _clip(r["text"], 120), "reason": _late(r["due"], today), "source": "reminder", "due": r["due"],
                     "priority": None, "url": r.get("url"), "actions": ["open"] if r.get("url") else [], "repo": None, "suggest": None,
-                    "urgent": False, "facts": f"Reminder the owner set: {_clip(r['text'], 200)}; due {r['due']}", "stable": f"{r['text']}|{r['due']}"})
+                    "urgent": False, "facts": f"Reminder the owner set: {_clip(r['text'], 200)}; due {r['due']}", "stable": f"{r['text']}|{r['due']}",
+                    "pin": None})
     late = [t for t in tasks or [] if t.get("due") and t["due"] < today]
     for t in sorted(late, key=lambda t: (t["due"], -(t.get("priority") or 0))):
         out.append({"key": f"vikunja:{t['id']}", "kind": "task", "id": str(t["id"]), "title": _clip(t["title"], 120),
@@ -135,7 +147,41 @@ def needs_you(routines: list[dict] | None, tasks: list[dict] | None, today: str,
                     "suggest": suggest.task(t["due"], t.get("repo"), today), "urgent": False,
                     "facts": f"Tracker task: {_clip(t['title'], 200)}; project {t.get('project') or '-'}; was due {t['due']}; "
                              f"priority {t.get('priority') or 'unset'}",
-                    "stable": f"{t['title']}|{t['due']}|{t.get('priority')}"})
+                    "stable": f"{t['title']}|{t['due']}|{t.get('priority')}", "pin": "client" if t.get("client") else None})
+    return out
+
+
+def clock(items: list[dict], since: dict[str, float], now: float, known: set[str]) -> dict[str, float]:
+    """`since` for these items: a routine or setup key keeps the time it entered Needs you, a new one gets `now`, one
+    that left is dropped (a return starts a new clock). Keys of a kind whose facts haven't arrived yet (not in `known`,
+    e.g. right after a restart) are kept."""
+    out = {k: t for k, t in since.items() if k.split(":", 1)[0] not in known}
+    for c in items:
+        if c["kind"] in CLOCKED:
+            out[c["key"]] = since.get(c["key"], now)
+    return out
+
+
+def _hours(c: dict, since: dict[str, float], today: str, now: float) -> float:
+    if c["kind"] in CLOCKED:
+        return max(0.0, now - since.get(c["key"], now)) / 3600
+    try:
+        return max(0, (dt.date.fromisoformat(today) - dt.date.fromisoformat(c["due"] or today)).days) * 24.0
+    except ValueError:
+        return 0.0
+
+
+def aged(items: list[dict], since: dict[str, float], today: str, now: float) -> list[dict]:
+    """Needs you's items with their age: the model's facts end with "in Needs you for N days" (facts aren't hashed, so a
+    day passing changes no fingerprint), and `urgent` turns on past ESCALATE_H for a routine, or for a task or reminder
+    that is pinned too; a plain overdue task stays grey however old it is."""
+    out = []
+    for c in items:
+        hours = _hours(c, since, today, now)
+        days = int(hours // 24)
+        late = hours >= ESCALATE_H and (c["kind"] == "routine" or (bool(c.get("pin")) and c["kind"] in ("task", "reminder")))
+        out.append({**c, "urgent": bool(c["urgent"] or late),
+                    "facts": f"{c['facts']}; in Needs you for {days} day{'' if days == 1 else 's'}"})
     return out
 
 
@@ -268,10 +314,11 @@ def _rows(rows: list[dict], by: dict[str, tuple[int, dict]]) -> list[dict]:
 
 
 def ordered(items: list[dict], ranking: list[dict], fresh: bool) -> list[dict]:
-    """Needs you's rows. A fresh ranking orders the items it ranked (any it missed follow in rule order); a stale one
-    leaves the rule order."""
+    """Needs you's rows. Pinned rows lead (docs/adr/0012); inside that block and inside the rest, a fresh ranking orders
+    the items it ranked (any it missed follow in rule order) and a stale one leaves the rule order."""
     by = {p["key"]: (n, p) for n, p in enumerate(ranking)}
-    return _rows(sorted(items, key=lambda c: by[c["key"]][0] if c["key"] in by else len(by)) if fresh else list(items), by)
+    rows = sorted(items, key=lambda c: by[c["key"]][0] if c["key"] in by else len(by)) if fresh else list(items)
+    return _rows(sorted(rows, key=lambda c: not c.get("pin")), by)
 
 
 def queued(items: list[dict], ranking: list[dict]) -> list[dict]:
@@ -314,7 +361,7 @@ class Needs:
                 return data
         except (OSError, ValueError):
             pass
-        return {"fp": "", "at": None, "ranking": [], "error": None}
+        return {"fp": "", "at": None, "ranking": [], "error": None, "since": {}}
 
     def _save(self) -> None:
         config.write_private(self.path, json.dumps(self.state))
@@ -329,10 +376,21 @@ class Needs:
         self.items = needs_you(f["routines"], f["tasks"], self.today, f["setup"], f["reminders"])  # type: ignore[arg-type]
         self.queue = queue(f["tasks"], f["notes"], f["results"], f["prs"], int(f["awaiting"] or 0), self.today, hidden)  # type: ignore[arg-type]
 
+    def _aged(self, now: float | None = None) -> list[dict]:
+        return aged(self.items, self.state.get("since") or {}, self.today, now or time.time())
+
+    def _clock(self, now: float) -> None:
+        """Start or drop the routine and setup rows' clocks; saved with the ranking (one file, one atomic write)."""
+        known = {kind for kind, part in (("setup", "setup"), ("routine", "routines")) if self.facts[part] is not None}
+        since = clock(self.items, self.state.get("since") or {}, now, known)
+        if since != self.state.get("since"):
+            self.state["since"] = since
+            self._save()
+
     def needs_rows(self) -> list[dict]:
         """Needs you's plan rows in today's order (a read: the next action's pin stays as it is)."""
         ranked = self._ranked()
-        return ordered(self.items, self.state["ranking"], bool(ranked) and self.state["fp"] == fingerprint(ranked, self.today))
+        return ordered(self._aged(), self.state["ranking"], bool(ranked) and self.state["fp"] == fingerprint(ranked, self.today))
 
     def event(self) -> dict:
         ranked = self._ranked()
@@ -348,7 +406,7 @@ class Needs:
             self._save()
         if rows:
             rows.insert(0, rows.pop(keys.index(pin["key"])))
-        return {"type": "plan", "needs_you": ordered(self.items, self.state["ranking"], fresh),
+        return {"type": "plan", "needs_you": ordered(self._aged(), self.state["ranking"], fresh),
                 "next": rows[0] if rows else None, "up_next": rows[1:1 + UP_NEXT],
                 "ranked_at": self.state["at"], "stale": bool(ranked) and not fresh, "busy": self.busy,
                 "error": self.state.get("error")}
@@ -373,8 +431,9 @@ class Needs:
         self.facts.update({k: v for k, v in facts.items() if k in self.facts})
         self.today = today
         self._build()
-        ranked = self._ranked()
         now = now or time.time()
+        self._clock(now)
+        ranked = self._ranked()
         fp = fingerprint(ranked, today)
         tried = self.state.get("tried")
         due = force or (fp != self.state["fp"] and (tried is None or now - tried >= MIN_GAP))
@@ -384,7 +443,7 @@ class Needs:
         self.busy, self.state["tried"] = True, now
         await self.push(self.event())
         try:
-            text, ids = prompt(ranked, today)
+            text, ids = prompt(self._aged(now) + self.queue[:QUEUE_MAX], today)
             stable = {c["key"]: c["stable"] for c in ranked}
             ranking = [{**p, "stable": stable[p["key"]]} for p in parse(await self.ask(text), ids)]
             self.state.update(fp=fp, at=now, ranking=ranking, error=None)
