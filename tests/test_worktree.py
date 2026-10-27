@@ -120,7 +120,7 @@ def test_the_fence_treats_a_registered_worktree_as_part_of_its_repo(dev):
     assert rule(web, "Edit", cwt / "a.txt") == "deny"  # a client repo's worktree is a client folder
     assert rule(portal, "Edit", cwt / "a.txt") == "ok"
     f = Fence(str(wt), root=dev, clients=("acme",), vault=None, never=set())
-    assert f.reason("Edit", {"file_path": str(web / "a.txt")}) == "Outside this worktree: the checkout of origin."  # labelled by remote
+    assert f.rule("Edit", {"file_path": str(web / "a.txt")})["hookSpecificOutput"]["permissionDecisionReason"] == "Outside this worktree: the checkout of origin."  # labelled by remote
     assert Fence(str(cwt), root=dev, clients=("acme",), vault=None, never=set()).in_client()
     assert not f.in_client()
 

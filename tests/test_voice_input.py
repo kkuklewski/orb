@@ -104,6 +104,7 @@ class Ctx:
     description = None
     blocked_path = None
     display_name = None
+    decision_reason = None
 
 
 async def card_session(monkeypatch, transcripts):

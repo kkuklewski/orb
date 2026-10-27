@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from orb.fence import Fence, glob_may_hit_secret, is_secret_name, read_only_bash, strictest
+from orb.fence import Fence, glob_may_hit_secret, is_secret_name, strictest
 from orb.brain import ask, deny
 
 
@@ -65,7 +65,7 @@ def test_other_repos_need_a_card_that_says_where(dev):
     f = fence(dev, "mine")
     out = f.rule("Edit", {"file_path": str(dev / "other" / "README.md")})
     assert decision(out) == "ask"
-    assert f.reason("Edit", {"file_path": str(dev / "other" / "README.md")}) == "Other repo: other. This session is in mine."
+    assert f.rule("Edit", {"file_path": str(dev / "other" / "README.md")})["hookSpecificOutput"]["permissionDecisionReason"] == "Other repo: other. This session is in mine."
     assert decision(f.rule("Bash", {"command": "cat ../other/README.md"})) == "ask"
     assert decision(f.rule("Bash", {"command": "cd .. && ls"})) == "ask"
 
@@ -79,7 +79,7 @@ def test_strictest():
 def test_vault_session_reads_client_repos_with_a_card_but_never_changes_them(dev):
     hub = fence(dev, "vault")
     app = dev / "acme" / "portal" / "app"
-    assert hub.reason("Read", {"file_path": str(app / "README.md")}) == "Client repo: app."
+    assert hub.rule("Read", {"file_path": str(app / "README.md")})["hookSpecificOutput"]["permissionDecisionReason"] == "Client repo: app."
     assert decision(hub.rule("Grep", {"pattern": "x", "path": str(app)})) == "ask"
     assert decision(hub.rule("Bash", {"command": f"git -C {app} log --oneline -20 && ls {app}"})) == "ask"
     assert decision(hub.rule("Edit", {"file_path": str(app / "README.md")})) == "deny"
@@ -87,23 +87,6 @@ def test_vault_session_reads_client_repos_with_a_card_but_never_changes_them(dev
     assert decision(hub.rule("Bash", {"command": f"cat {app}/a > /tmp/b"})) == "deny"
     assert decision(hub.rule("Read", {"file_path": str(dev / "secrets" / "x")})) == "deny"
     assert decision(hub.rule("Read", {"file_path": str(dev / "other" / "a.md")})) == "ask"
-
-
-def test_read_only_bash():
-    assert read_only_bash("git -C ../x log --oneline && ls -la | head")
-    assert read_only_bash("git branch -a; git remote -v; grep -rn foo src")
-    assert read_only_bash("git --no-pager log --oneline -20 --stat && find src -name '*.py' -type f | head -n 5")
-    assert read_only_bash('grep -rn --include="*.ts" "a b" src/*.ts && find . -name "*.py"')
-    for cmd in ("git branch new", "git -c core.pager=x log", "git diff --output=f", "find . -delete",
-                "ls #\nrm -rf x", "ls # x\nrm x", "ls\rrm x",
-                "sort -o f a", "echo x > f", "cat $(ls)", "npm test", "sed -i s/a/b/ f",
-                "cat a & rm b", "cat a &rm b", "rg --pre ./x foo", "find . -fls out", "sort -uo f a", "tree -o f",
-                "find . -name *", "git log --ou*", "cat *", "grep -rn --include=*.ts x .",
-                "git branch -D x", "git branch --unset-upstream", "git tag -d v1", "git diff --ext-diff",
-                "(rm a)", "cat a\\\nrm b", 'find . -"delete"', "rg foo", "uniq a b", "jq . a",
-                "git -c x=y log", "git --exec-path=/x log", "git log --outp=f", "git diff --ext", "git --git-dir=x log",
-                "ls --hostname-bin=x", "grep --pre=x foo", "cat a\nrm b"):
-        assert not read_only_bash(cmd), cmd
 
 
 def test_searches_cannot_reach_secrets(dev):
@@ -115,6 +98,10 @@ def test_searches_cannot_reach_secrets(dev):
     assert decision(f.rule("Bash", {"command": "cd .. && grep -r KEY ."})) == "deny"
     assert decision(f.rule("Glob", {"pattern": "sub/../../secrets/*"})) == "deny"
     assert decision(f.rule("Bash", {"command": "rg KEY ~"})) == "deny"
+    # r / R anywhere in a flag group, an abbreviated long option or -d's action still recurses
+    for flags in ("-rn", "-nr", "-nRi", "-lr", "-rC2", "-5r", "'-rn'", "-d recurse", "--recur", "-d r",
+                  '-""r', '"-"r', "-\\r", "-nd r", "{-r,-n}", "-$'\\x72'"):
+        assert decision(f.rule("Bash", {"command": f"grep {flags} KEY {dev}"})) == "deny", flags
     assert decision(f.rule("Bash", {"command": "ls .."})) == "ask"  # names only, not a search
 
 
