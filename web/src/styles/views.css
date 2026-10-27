@@ -72,6 +72,7 @@
 .sg-open { border: 0; background: none; padding: 0; color: inherit; font: inherit; font-weight: 600; text-align: left; cursor: pointer; }
 .sg-open:hover { text-decoration: underline; }
 .sg-act { padding: 3px 10px; font-size: 12px; }
+.exp-chip { color: var(--warn); margin-right: 8px; } /* "expires in N days": the vault's archive day (ADR 0013) */
 .sg-refused { grid-column: 2 / -1; font-size: 12px; color: var(--err); margin-top: 3px; }
 .chats-repo .sg-all { margin-left: auto; width: auto; text-transform: none; letter-spacing: 0; }
 .note-head { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; font-size: 12px; color: var(--text-2); }

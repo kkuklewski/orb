@@ -9,7 +9,8 @@ const sent: Record<string, unknown>[] = [];
 vi.mock("../ws", () => ({ send: (m: Record<string, unknown>) => { sent.push(m); return true; } }));
 
 const { Brain, BrainAdjust, BrainSiblings, NotePage } = await import("./Brain");
-const { brainRows, openNote, scoreDot, useBrain, wireBrain } = await import("../stores/brain");
+const { GROUPS, SOON_DAYS, brainRows, daysLeft, expiringSoon, expiryText, localDay, openNote, scoreDot, suggestionGroups, useBrain, wireBrain } =
+  await import("../stores/brain");
 
 const note = (file: string, over: Partial<BrainNote> = {}): BrainNote => ({
   file, title: file.replace(/^.*\/|\.md$/g, ""), kind: "capture", mtime: Date.now() / 1000 - 3600, score: null, lane: "", why: "",
@@ -27,7 +28,7 @@ const NO_FILTER = { waiting: false, kinds: [], lanes: [], q: "" };
 let off = () => {};
 beforeEach(() => {
   sent.length = 0;
-  useBrain.setState({ list: null, file: null, note: null, filter: NO_FILTER, snap: null, applied: {}, refused: {}, picked: [] });
+  useBrain.setState({ list: null, file: null, note: null, filter: NO_FILTER, snap: null, applied: {}, refused: {}, picked: [], soon: [] });
   useViews.setState({ view: "home" });
   off = wireBrain();
 });
@@ -205,5 +206,63 @@ describe("Brain suggestions", () => {
     // Restore undoes one verdict applied in bulk.
     fireEvent.click(within(group("Suggested: reject")).getByRole("button", { name: "Restore gamma" }));
     expect(sent.at(-1)).toEqual({ type: "brain_apply", notes: [{ file: C.file, seen: "reject 2026-10-25", verdict: "restore" }] });
+  });
+});
+
+describe("Expiry (ADR 0013)", () => {
+  const TODAY = "2026-10-27";
+  const day = (n: number) => { const d = new Date(); return localDay(new Date(d.getFullYear(), d.getMonth(), d.getDate() + n)); };
+  const ai = (file: string, expires: string, over: Partial<BrainNote> = {}) =>
+    note(`scrapers/Topics/${file}.md`, { kind: "AI", score: 3, waiting: false, expires, ...over });
+
+  it("the chip: in N days, in 1 day, today on the day, tonight once past it; none without an expiry day", () => {
+    expect(["2026-11-03", "2026-10-28", TODAY, "2026-10-26", ""].map((expires) => expiryText({ expires }, TODAY)))
+      .toEqual(["expires in 7 days", "expires in 1 day", "expires today", "expires tonight", ""]);
+    expect(daysLeft({ expires: "2026-11-02" }, TODAY)).toBe(6); // across the clock change
+  });
+
+  it("Expiring soon is the pages within 3 days, past ones included; it sits above Reject", () => {
+    expect(SOON_DAYS).toBe(3);
+    const rows = [ai("in3", "2026-10-30"), ai("in4", "2026-10-31"), ai("past", "2026-10-25"), ai("none", "")];
+    expect(expiringSoon(rows, TODAY).map((n) => n.title)).toEqual(["in3", "past"]);
+    expect(GROUPS).toEqual(["approve", "soon", "reject"]);
+    const g = suggestionGroups([...rows, note("scrapers/Inbox/r.md", { suggest: "reject" })], {}, ["scrapers/Topics/in3.md"]);
+    expect([g.soon.map((n) => n.title), g.reject.map((n) => n.title)]).toEqual([["in3"], ["r"]]);
+  });
+
+  function show(notes: BrainNote[]) {
+    useViews.setState({ view: "brain" });
+    const r = render(<Brain />);
+    act(() => dispatch(list(notes)));
+    return r;
+  }
+  const group = (name: string) => screen.getByRole("region", { name });
+  const regions = () => screen.getAllByRole("region").map((e) => e.getAttribute("aria-label"));
+
+  it("shows the chip on a page that expires, Expiring soon above Reject, and none on a page that doesn't", () => {
+    const { container } = show([note("scrapers/Inbox/acme.md", { suggest: "reject", score: 2 }), ai("globex", day(2)), ai("later", day(9)),
+      note("inbox/mine.md", { kind: "your note", waiting: false })]);
+    expect(regions()).toEqual(["Expiring soon", "Suggested: reject", "Other notes"]);
+    expect(within(group("Expiring soon")).getByText("expires in 2 days")).toBeTruthy();
+    expect(within(group("Other notes")).getByText("expires in 9 days")).toBeTruthy();
+    expect(container.querySelectorAll(".exp-chip").length).toBe(2);
+    expect(within(group("Expiring soon")).queryByRole("button", { name: "Select all" })).toBeNull();
+  });
+
+  it("Keep sends the approve verdict like any other; the page stays in the group with Restore, a stale one shows why", () => {
+    const G = ai("globex", day(0)), A = ai("acme", day(-1));
+    show([G, A]);
+    expect(within(group("Expiring soon")).getByText("expires tonight")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Keep globex" }));
+    expect(sent.at(-1)).toEqual({ type: "brain_apply", notes: [{ file: G.file, seen: "", verdict: "approve" }] });
+    act(() => {
+      dispatch({ type: "brain_applied", applied: [{ file: G.file, verdict: "approve" }], refused: [] } as never);
+      dispatch(list([{ ...G, verdict: "approve 2026-10-27", expires: "" }, A]));
+    });
+    expect(within(group("Expiring soon")).getByRole("button", { name: "Restore globex" })).toBeTruthy();
+    expect(within(group("Expiring soon")).queryByText("expires today")).toBeNull(); // kept: the vault's rule no longer covers it
+    fireEvent.click(screen.getByRole("button", { name: "Keep acme" }));
+    act(() => dispatch({ type: "brain_applied", applied: [], refused: [{ file: A.file, reason: "The note changed since Orb read it" }] } as never));
+    expect(within(group("Expiring soon")).getByRole("alert").textContent).toBe("The note changed since Orb read it");
   });
 });

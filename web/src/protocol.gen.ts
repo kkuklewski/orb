@@ -1765,6 +1765,7 @@ export interface BrainListEvent {
  * via the `definition` "BrainNote".
  */
 export interface BrainNote {
+  expires?: string;
   file: string;
   kind: string;
   lane: string;
@@ -1785,6 +1786,7 @@ export interface BrainNote {
  */
 export interface BrainNoteEvent {
   body: string;
+  expires?: string;
   file: string;
   folder?: string | null;
   kind: string;
