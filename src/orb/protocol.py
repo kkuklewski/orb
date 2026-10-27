@@ -472,6 +472,7 @@ class DirtyRepo(_Msg):
     branch: str | None = None
     changed: int  # uncommitted files
     ahead: int | None = None  # commits not pushed; None = no upstream
+    behind: int = 0  # commits to pull, as of the last fetch
 
 
 class OpenPr(_Msg):
@@ -510,8 +511,9 @@ class ItemColumn(_Msg):
 class PlanItem(_Msg):
     """One row of Home's plan (needs.py). title is ours; reason is the rule's, or the model's while that item's facts are
     unchanged (plain text, from untrusted data)."""
-    key: str  # unique on the page: "routine:<id>", "vikunja:<id>", "setup:<section>", "reminder:<due>:<text>"
-    kind: Literal["approval", "setup", "routine", "reminder", "task", "note_task", "result", "pr", "notes_batch"]
+    key: str  # unique on the page: "routine:<id>", "vikunja:<id>", "setup:<section>", "reminder:<due>:<text>",
+    # "vault:conflict" | "vault:diverged" | "vault:unchecked"
+    kind: Literal["approval", "setup", "vault", "routine", "reminder", "task", "note_task", "result", "pr", "notes_batch"]
     id: str  # what the page opens: routine id, tracker task id, the Settings section that fixes a broken setup
     title: str
     reason: str

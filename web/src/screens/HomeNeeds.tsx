@@ -45,12 +45,17 @@ function DelegationRow({ d }: { d: DelegationItem }) {
   );
 }
 
-const TAG: Partial<Record<PlanItem["kind"], string>> = { setup: "SETUP", routine: "ROUTINE", reminder: "DUE", task: "OVERDUE" };
+const TAG: Partial<Record<PlanItem["kind"], string>> = { setup: "SETUP", vault: "VAULT", routine: "ROUTINE", reminder: "DUE", task: "OVERDUE" };
 
 function planRow(p: PlanItem, canResolve: (id: string) => boolean): Row {
   // A pinned row (docs/adr/0012) says its class in the side column, in the column's own grey: it leads, it isn't louder.
   const row = { key: p.key, tag: TAG[p.kind] ?? p.kind.toUpperCase(), title: p.title, reason: p.reason, side: p.pin ?? p.due ?? p.source ?? "", urgent: !!p.urgent, pin: p.pin };
   if (p.kind === "setup") return { ...row, side: p.pin ?? "", open: () => openSettings(p.id) };
+  // The vault clone (needs.vault_row): Open is a session in the vault folder; Orb never pulls, merges or fixes it.
+  if (p.kind === "vault") {
+    const vault = useFeatures.getState().features?.vault;
+    return { ...row, side: "", open: vault ? () => openFolder(vault) : undefined };
+  }
   if (p.kind === "reminder") return { ...row, href: p.url && /^https?:\/\//.test(p.url) ? p.url : null };
   if (p.kind === "routine") return { ...row, open: () => openRoutine(p.id), resolve: canResolve(p.id) ? () => resolveRun(p.id) : undefined,
     task: p.actions?.[0] === "make_task" ? () => { openRoutine(p.id); makeTask(p.id); } : undefined,

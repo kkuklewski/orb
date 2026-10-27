@@ -100,7 +100,7 @@ def _repo(f: dict) -> dict | None:
                            capture_output=True, text=True, timeout=GIT_TIMEOUT)
         if c.returncode not in (0, 1) or (c.returncode == 1 and c.stdout):  # 1 = no filters; anything else: don't guess
             return None
-        r = subprocess.run(["git", "-C", f["path"], *GIT_SAFE, "status", "--porcelain=v1", "-b", "--ignore-submodules=all"],
+        r = subprocess.run(["git", "--no-optional-locks", "-C", f["path"], *GIT_SAFE, "status", "--porcelain=v1", "-b", "--ignore-submodules=all"],
                            capture_output=True, text=True, timeout=GIT_TIMEOUT,
                            env=os.environ | blank_env(repo_filters(c.stdout)))
     except (OSError, subprocess.TimeoutExpired):
@@ -114,7 +114,8 @@ def _repo(f: dict) -> dict | None:
 
 
 def repos(found: list[dict]) -> list[dict]:
-    """Repos (from the folder scan) with uncommitted files or unpushed commits, most changed first."""
+    """Repos (from the folder scan) with uncommitted files or unpushed commits, most changed first; `behind` is as of
+    the last fetch."""
     with ThreadPoolExecutor(max_workers=8) as pool:
         rows = [r for r in pool.map(_repo, [f for f in found if Path(f["path"], ".git").exists()]) if r]
     return sorted(rows, key=lambda r: (-(r["ahead"] or 0), -r["changed"]))

@@ -22,8 +22,9 @@ A rule may pin a Needs you row (docs/adr/0012): security (a broken setup, a rout
 risk), client (an overdue task whose repo is a client folder) or money (an overdue task with a pin label, one of
 the tracker labels in settings "pin_labels"; first match in that order names the class). Pinned rows lead, in a block the model orders only
 inside, like the rest. A row's age counts from its due date (tasks, reminders) or from when it entered Needs you
-(routines, setup: `since` in needs.json, dropped when it leaves). Past ESCALATE_H a routine row turns red, a task or
-reminder only when it is pinned too. The model reads the age; the fingerprint doesn't, so a day passing asks nothing.
+(routines, setup, the vault: `since` in needs.json, dropped when it leaves). Past ESCALATE_H a routine row or a
+diverged vault clone turns red, a task or reminder only when it is pinned too. The model reads the age; the
+fingerprint doesn't, so a day passing asks nothing.
 
 Cached in `~/.orb/needs.json`. Asked again only when the items changed (a fingerprint of the stable facts) and at
 most every MIN_GAP seconds, or when you press Re-rank.
@@ -41,7 +42,7 @@ import time
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 
-from . import config, suggest
+from . import config, suggest, vault_git
 
 MODEL = config.env("NEEDS_MODEL", "sonnet")
 MIN_GAP = 20 * 60  # seconds between two automatic calls
@@ -54,7 +55,7 @@ SENT = ("key", "kind", "id", "title", "reason", "source", "due", "priority", "ur
 QUEUE_MAX = 30  # queue items the model sees (the first in rule order); the rest follow in rule order
 UP_NEXT = 5
 ESCALATE_H = 48  # hours in Needs you (past due, for a task or reminder) after which a routine, or a pinned row, turns red
-CLOCKED = ("setup", "routine")  # kinds whose age counts from when they entered Needs you (`since`), not from a due date
+CLOCKED = ("setup", "routine", "vault")  # kinds whose age counts from when they entered Needs you (`since`), not from a due date
 
 RULES = (
     "You are the owner's chief of staff. The owner is a freelance developer who runs a few client projects and "
@@ -106,15 +107,39 @@ def setup_problems(auth: dict | None, tasks_error: str | None, stt: str, tts: st
     return out
 
 
+def vault_row(h: vault_git.Health | None) -> dict | None:
+    """The vault clone's Needs you row from `vault_git.health` (ticket 833), counts only, never a path: red when it is
+    conflicted, grey when it has diverged (red later on the since clock) or Orb can't check it; None when there is
+    nothing to resolve (in step, ahead-only, behind-only or only dirty)."""
+    if h is None:
+        return None
+    if h.why:
+        state, title, reason = "unchecked", "Vault: Orb can't check it", h.why.replace("the vault's ", "its ", 1).split(";")[0]
+    elif h.conflicted or h.diverged:
+        n = h.unmerged
+        parts = [f"behind {h.behind}" if h.behind else "", f"ahead {h.ahead}" if h.ahead else "",
+                 f"{n} conflict{'' if n == 1 else 's'}" if n else f"mid-{h.operation}" if h.operation else ""]
+        fetched = dt.datetime.fromtimestamp(h.fetched) if h.fetched else None
+        title = "Vault: " + ", ".join(x for x in parts if x) + (f" · fetched {fetched.day} {fetched:%b}" if fetched else "")
+        state, reason = ("conflict", "Orb writes no notes until it's resolved") if h.conflicted else ("diverged", "pull, then push")
+    else:
+        return None
+    return {"key": f"vault:{state}", "kind": "vault", "id": "vault", "title": title, "reason": reason, "source": "vault",
+            "due": None, "priority": None, "url": None, "actions": ["open"], "repo": None, "suggest": None,
+            "urgent": state == "conflict",
+            "facts": f"{'Urgent. ' if state == 'conflict' else ''}The notes vault's local git clone: {title.removeprefix('Vault: ')}. {reason}",
+            "stable": f"{state}|{h.unmerged}|{h.operation}", "pin": None, "repair": None}
+
+
 def _late(due: str, today: str) -> str:
     return "Due today." if due >= today else _ago(due, today)
 
 
 def needs_you(routines: list[dict] | None, tasks: list[dict] | None, today: str,
-              setup: list[dict] | None = None, reminders: list[dict] | None = None) -> list[dict]:
-    """What needs the owner, in rule order: a broken setup (`setup_problems`), routines with a problem (worst
-    first), reminders due today or earlier (`forget.due_now`, oldest first), then Vikunja tasks due before `today`
-    (oldest first, then highest priority). [{key, kind, id, title, reason, source, due, priority, url, actions,
+              setup: list[dict] | None = None, reminders: list[dict] | None = None, vault: list | None = None) -> list[dict]:
+    """What needs the owner, in rule order: a broken setup (`setup_problems`), the vault clone (`vault_row`), routines
+    with a problem (worst first), reminders due today or earlier (`forget.due_now`, oldest first), then Vikunja tasks
+    due before `today` (oldest first, then highest priority). [{key, kind, id, title, reason, source, due, priority, url, actions,
     facts, stable, pin}]; `facts` is what the model reads, `stable` what the fingerprint uses, `pin` the class a rule
     pinned it in (security: a broken setup or a routine whose judged run is a security risk; client: an overdue task
     whose repo is a client folder, `client` on the task; money: an overdue task with a pin label, `money` on the task,
@@ -125,6 +150,7 @@ def needs_you(routines: list[dict] | None, tasks: list[dict] | None, today: str,
                     "source": "setup", "due": None, "priority": None, "url": None, "actions": ["open"], "repo": None, "suggest": None,
                     "urgent": True, "facts": f"Urgent. Broken setup: {p['title']}. {_clip(p['reason'])}", "stable": f"{p['title']}|{p['reason']}",
                     "pin": "security", "repair": None})
+    out += [row for h in vault or [] if (row := vault_row(h))]
     bad = [r for r in routines or [] if r.get("enabled") and r.get("needs") in ROUTINE_RANK]
     for r in sorted(bad, key=lambda r: ROUTINE_RANK[r["needs"]]):
         last = r.get("last") or {}
@@ -194,12 +220,13 @@ def _hours(c: dict, since: dict[str, float], today: str, now: float) -> float:
 def aged(items: list[dict], since: dict[str, float], today: str, now: float) -> list[dict]:
     """Needs you's items with their age: the model's facts end with "in Needs you for N days" (facts aren't hashed, so a
     day passing changes no fingerprint), and `urgent` turns on past ESCALATE_H for a routine, or for a task or reminder
-    that is pinned too; a plain overdue task stays grey however old it is."""
+    that is pinned too, or for a diverged vault clone (one Orb can't check stays grey); a plain overdue task stays grey
+    however old it is."""
     out = []
     for c in items:
         hours = _hours(c, since, today, now)
         days = int(hours // 24)
-        late = hours >= ESCALATE_H and (c["kind"] == "routine" or (bool(c.get("pin")) and c["kind"] in ("task", "reminder")))
+        late = hours >= ESCALATE_H and (c["kind"] == "routine" or c["key"] == "vault:diverged" or (bool(c.get("pin")) and c["kind"] in ("task", "reminder")))
         out.append({**c, "urgent": bool(c["urgent"] or late),
                     "facts": f"{c['facts']}; in Needs you for {days} day{'' if days == 1 else 's'}"})
     return out
@@ -362,7 +389,7 @@ class Needs:
     notes and pull requests with a Home refresh, routines and session results whenever they change), so each part is
     kept until it is sent again."""
 
-    FACTS = ("setup", "routines", "reminders", "tasks", "notes", "results", "prs", "awaiting")
+    FACTS = ("setup", "vault", "routines", "reminders", "tasks", "notes", "results", "prs", "awaiting")
     MARKS = ("started", "later", "done")  # queue keys hidden for the day they were set
 
     def __init__(self, path: Path, ask: Callable[[str], Awaitable[str]], push: Callable[[dict], Awaitable[None]]) -> None:
@@ -393,15 +420,15 @@ class Needs:
     def _build(self) -> None:
         f = self.facts
         hidden = {k for part in self.MARKS for k, day in (self.state.get(part) or {}).items() if day == self.today}
-        self.items = needs_you(f["routines"], f["tasks"], self.today, f["setup"], f["reminders"])  # type: ignore[arg-type]
+        self.items = needs_you(f["routines"], f["tasks"], self.today, f["setup"], f["reminders"], f["vault"])  # type: ignore[arg-type]
         self.queue = queue(f["tasks"], f["notes"], f["results"], f["prs"], int(f["awaiting"] or 0), self.today, hidden)  # type: ignore[arg-type]
 
     def _aged(self, now: float | None = None) -> list[dict]:
         return aged(self.items, self.state.get("since") or {}, self.today, now or time.time())
 
     def _clock(self, now: float) -> None:
-        """Start or drop the routine and setup rows' clocks; saved with the ranking (one file, one atomic write)."""
-        known = {kind for kind, part in (("setup", "setup"), ("routine", "routines")) if self.facts[part] is not None}
+        """Start or drop the routine, setup and vault rows' clocks; saved with the ranking (one file, one atomic write)."""
+        known = {kind for kind, part in (("setup", "setup"), ("routine", "routines"), ("vault", "vault")) if self.facts[part] is not None}
         since = clock(self.items, self.state.get("since") or {}, now, known)
         if since != self.state.get("since"):
             self.state["since"] = since
@@ -446,7 +473,7 @@ class Needs:
         await self.push(self.event())
 
     async def update(self, today: str, force: bool = False, now: float | None = None, **facts: object) -> None:
-        """New facts (`setup=`, `routines=`, `reminders=`, `tasks=`, `notes=`, `results=`, `prs=`, `awaiting=`): send the rule lists at once;
+        """New facts (`setup=`, `vault=` ([Health] or []), `routines=`, `reminders=`, `tasks=`, `notes=`, `results=`, `prs=`, `awaiting=`): send the rule lists at once;
         ask for a ranking when they changed (or `force`)."""
         self.facts.update({k: v for k, v in facts.items() if k in self.facts})
         self.today = today

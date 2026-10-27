@@ -32,7 +32,7 @@ export function homeText(folders: FolderItem[], routines: RoutinesEvent | null, 
   const tr = vikunjaTasks(tasks);
   if (tr?.tasks.length) out.push(`Open tasks in ${trackerName()} (${tr.total}, most urgent first; the task list of record):`, ...tr.tasks.slice(0, 12).map((t) => `- #${t.id} ${t.title} (${t.project || "no project"}${t.due ? `, due ${t.due}` : ""})`));
   if (routinesOn && routines) out.push("Routines (scheduled cloud agents):", ...routines.items.map((x) => `- ${x.name}: ${routineStatus(x)}${x.next_run_at ? `, next ${day(x.next_run_at)}` : ""}`));
-  if (forget?.repos.length) out.push("Repos with unsaved work:", ...forget.repos.slice(0, 8).map((r) => `- ${r.label}${r.branch ? ` (${r.branch})` : ""}: ${r.changed} changed file${r.changed === 1 ? "" : "s"}${r.ahead ? `, ${r.ahead} unpushed commit${r.ahead === 1 ? "" : "s"}` : ""}`));
+  if (forget?.repos.length) out.push("Repos with unsaved work:", ...forget.repos.slice(0, 8).map((r) => `- ${r.label}${r.branch ? ` (${r.branch})` : ""}: ${r.changed} changed file${r.changed === 1 ? "" : "s"}${r.ahead ? `, ${r.ahead} unpushed commit${r.ahead === 1 ? "" : "s"}` : ""}${r.behind ? `, behind ${r.behind}` : ""}`));
   if (forget?.prs.length) out.push("Open pull requests:", ...forget.prs.slice(0, 8).map((p) => `- ${p.repo}#${p.number} ${p.title}${p.draft ? " (draft)" : ""}, quiet ${p.idle_days} day${p.idle_days === 1 ? "" : "s"}`));
   if (forget?.reminders.length) out.push("Reminders:", ...forget.reminders.slice(0, 8).map((r) => `- ${r.text}${r.due ? ` (due ${r.due}${r.days != null && r.days < 0 ? ", overdue" : ""})` : ""}`));
   // Notes are context: with Vikunja set up its tasks lead and the notes' checkboxes shrink to a few.

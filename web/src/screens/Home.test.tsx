@@ -282,6 +282,19 @@ describe("home screen", () => {
     expect(useViews.getState()).toMatchObject({ view: "settings", settingsAt: "claude" });
   });
 
+  it("a vault conflict is a red VAULT row whose Open goes to the notes folder, with nothing typed", () => {
+    const vault: PlanItem = { key: "vault:conflict", kind: "vault", id: "vault", title: "Vault: behind 1, ahead 1, 1 conflict · fetched 28 Oct", reason: "Orb writes no notes until it's resolved", source: "vault", actions: ["open"], urgent: true };
+    render(<Home />);
+    act(() => dispatch(plan([vault], { stale: true })));
+    const strip = screen.getByRole("article", { name: "2 things need you" });
+    const tag = [...strip.querySelectorAll(".needs-tag")].at(-1)!;
+    expect([tag.textContent, tag.classList.contains("urgent")]).toEqual(["VAULT", true]);
+    expect(strip.textContent).toContain("Orb writes no notes until it's resolved");
+    fireEvent.click(within(strip).getByRole("button", { name: /Vault: behind 1, ahead 1, 1 conflict/ }));
+    expect(sent.at(-1)).toEqual({ type: "open_folder", path: "/Users/a/notes", session: undefined });
+    expect(useSession.getState().pendingAsk).toBeFalsy();
+  });
+
   it("only an urgent row's tag is red; the others stay grey", () => {
     render(<Home />);
     act(() => dispatch(plan([{ ...failed, urgent: true }, overdue], { stale: true })));
