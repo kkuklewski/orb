@@ -88,7 +88,8 @@ def test_rule_table(dev):
         "test": "allow", "build": "allow", "test plus": "card", "other bash": "card",
         "edit git dir": "card", "edit git config": "card", "add flag": "card", "commit file": "card", "commit am": "allow",
         "push url": "card", "pr other repo": "card", "pr body file": "card", "pr head twice": "card",
-        "add": "allow", "commit": "allow", "commit heredoc": "allow", "commit sneaky": "card", "commit chained": "card",
+        "add": "allow", "commit": "allow", "commit heredoc": "allow", "commit sneaky": "deny",  # rm -rf ~ walks ~/.ssh
+        "commit chained": "card",
         "commit substitution": "card", "git global option": "card",
         "push": "card", "push bare": "card", "push main": "card", "push force": "card", "pr": "card", "pr other head": "card",
         "merge": "card", "secret": "deny", "secret edit": "deny", "other repo": "card", "web fetch": "card",

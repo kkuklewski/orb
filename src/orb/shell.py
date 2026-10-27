@@ -23,7 +23,12 @@ from typing import Literal
 GLOB_CHARS = re.compile(r"[*?\[]")
 _OPERATOR = re.compile(r"[();<>|&]+")
 _OPERATORS = {"&&", "||", ";", "|"}
-_RECURSIVE = re.compile(r"\b(?:rg|find|fd|ag|tar|zip|rsync|du|tree)\b|\s-[A-Za-z]*[rR]\b|--recursive")
+_WALKERS = re.compile(r"\b(?:rg|find|fd|ag|tar|zip|rsync|du|tree)\b")
+_FLAG_START = r"(?:^|[\s'\"`(=;&|])"  # a flag starts the text, a word or a quoted string (`bash -c '-r …'`)
+_SHORT_GROUP = re.compile(_FLAG_START + r"-([^-\s'\"][^\s'\"]*)")
+_LONG_OPTION = re.compile(_FLAG_START + r"--([A-Za-z][\w-]*)")
+_RECURSIVE_LONG = ("recursive", "dereference-recursive", "directories")
+_RECURSE_ARG = re.compile(_FLAG_START + r"-d\s*['\"]?r")  # grep -d recurse, or any abbreviation of it
 _PATH_ARG_FLAGS = {"cd", "pushd", "-C", "--prefix", "--cwd", "--dir", "--directory", "--git-dir", "--work-tree"}
 _SHELL = re.compile(r"[;&|<>`$(){}\\\n\r*?\[\]~]")
 # `git commit -m "$(cat <<'EOF' … EOF)"`, the way Claude Code writes a commit: a quoted heredoc never expands.
@@ -84,7 +89,7 @@ def read(cmd: str) -> Command:
     """The command, read once: the hook and every rule it runs ask the same reading."""
     n = norm(cmd)
     m = _HEREDOC_COMMIT.fullmatch(n.strip())
-    return Command(cmd, n, _read_only(cmd), _args(cmd), bool(_RECURSIVE.search(cmd)), _words(n),
+    return Command(cmd, n, _read_only(cmd), _args(_lexed(cmd)), _recursive(cmd), _words(n),
                    (tuple(m.group(1).split()), m.group(2)) if m else None, _push(cmd))
 
 
@@ -100,11 +105,24 @@ def _tokens(cmd: str) -> list[str]:
     return list(lex)
 
 
-def _args(cmd: str) -> tuple[Arg, ...]:
+def _lexed(cmd: str) -> list[str]:
     try:
-        tokens = _tokens(cmd)
+        return _tokens(cmd)
     except ValueError:  # unbalanced quotes (e.g. a heredoc with an apostrophe)
-        tokens = [t.strip("'\"") for t in cmd.split()]
+        return [t.strip("'\"") for t in cmd.split()]
+
+
+def _recursive(cmd: str) -> bool:
+    """It may walk a folder tree: a walker command, r / R anywhere in a single-dash flag group ("-rn", "-5r", "-rC2";
+    a -r meaning "reverse" only fails closed), any prefix of a recursive long option (getopt takes `--recur`,
+    `--dir=rec`) or grep's `-d recurse` (`-d r`). Read from the raw text, so a command inside `bash -c '…'` counts."""
+    return bool(_WALKERS.search(cmd)
+                or any(re.search(r"[rR]", group) for group in _SHORT_GROUP.findall(cmd))
+                or any(full.startswith(name) for name in _LONG_OPTION.findall(cmd) for full in _RECURSIVE_LONG)
+                or _RECURSE_ARG.search(cmd))
+
+
+def _args(tokens: list[str]) -> tuple[Arg, ...]:
     out, prev = [], ""
     for tok in tokens:
         if _OPERATOR.fullmatch(tok):

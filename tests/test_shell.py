@@ -73,9 +73,14 @@ def test_globs_count_as_paths_and_never_as_read_only_flags():
 
 
 def test_recursive():
-    for cmd in ("rg foo", "grep -r x .", "grep -nr x .", "ls -R", "find .", "grep --recursive x", "tar cf a.tar ."):
+    for cmd in ("rg foo", "grep -r x .", "grep -nr x .", "grep -rn x .", "grep -nRi x .", "grep -rC2 x .",
+                "grep -5r x .", "grep '-rn' x .", "grep -d recurse x .", "grep --directories=recurse x .",
+                "grep --dereference-recursive x .", "ls -R",
+                "bash -c 'grep -rn x .'", "sh -c \"grep --recursive x .\"", "grep --recur x .", "grep --dir=rec x .",
+                "grep -d rec x .", "grep -drecurse x .", "find .", "grep --recursive x", "tar cf a.tar ."):
         assert read(cmd).recursive, cmd
-    for cmd in ("cat a", "ls -la", "grep -n x f"):
+    for cmd in ("cat a", "ls -la", "grep -n x f", "git pull --rebase", "cat -- -x", "grep -d skip x .",
+                "grep --include=*.py x f"):
         assert not read(cmd).recursive, cmd
 
 
