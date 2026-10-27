@@ -5598,6 +5598,17 @@
         "reason": {
           "type": "string"
         },
+        "repair": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "repo": {
           "anyOf": [
             {
@@ -6156,6 +6167,17 @@
           "default": false,
           "type": "boolean"
         },
+        "repair": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RoutineRepair"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "repo": {
           "default": "",
           "type": "string"
@@ -6222,6 +6244,31 @@
         "state"
       ],
       "title": "RoutineItem",
+      "type": "object"
+    },
+    "RoutineRepair": {
+      "additionalProperties": false,
+      "description": "The routine's open Repair task (GLOSSARY: Repair task), as the last re-read in the tracker found it.",
+      "properties": {
+        "task": {
+          "type": "integer"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "task"
+      ],
+      "title": "RoutineRepair",
       "type": "object"
     },
     "RoutineRun": {
@@ -6295,6 +6342,13 @@
       "properties": {
         "count": {
           "type": "integer"
+        },
+        "runs": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/StreakRun"
+          },
+          "type": "array"
         },
         "since": {
           "anyOf": [
@@ -7635,6 +7689,31 @@
         "busy"
       ],
       "title": "StateEvent",
+      "type": "object"
+    },
+    "StreakRun": {
+      "additionalProperties": false,
+      "description": "One counted run of a failure streak: its start and its checked claude.ai link.",
+      "properties": {
+        "at": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "url"
+      ],
+      "title": "StreakRun",
       "type": "object"
     },
     "Suggestion": {

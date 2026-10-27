@@ -29,7 +29,7 @@ def test_streak_is_three_in_a_row_from_the_newest_run():
     assert STREAK == 3
     rs = runs()
     got = streak(rs, logs(FAILED, FAILED, FAILED, OK, OK), {"c3": CLEAN, "c4": CLEAN})
-    assert got == {"count": 3, "since": dt.datetime.fromisoformat(rs[2]["created_at"].replace("Z", "+00:00")).timestamp()}
+    assert {k: got[k] for k in ("count", "since")} == {"count": 3, "since": dt.datetime.fromisoformat(rs[2]["created_at"].replace("Z", "+00:00")).timestamp()}
     assert streak(rs, logs(FAILED, OK, FAILED), {"c1": BROKEN})["count"] == 3  # failed + broken + failed
     assert streak(rs, logs(FAILED, FAILED, FAILED, FAILED, FAILED))["count"] == 5  # all 5 kept runs
     assert streak(rs, logs(FAILED, FAILED, OK), {"c2": CLEAN}) is None  # 2 failed, then a clean ok

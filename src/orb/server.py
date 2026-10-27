@@ -1245,10 +1245,16 @@ async def handle(conn: Conn, msg: dict) -> None:
         await conn.send(await asyncio.to_thread(hub.maker.card, x))
         return
     if t == "make_task_confirm":
-        await conn.send(await asyncio.to_thread(hub.maker.confirm, str(msg["id"]), bool(msg["ok"])))
+        done = await asyncio.to_thread(hub.maker.confirm, str(msg["id"]), bool(msg["ok"]))
+        if done.get("ok") and done["task"] in hub.maker.repairs:  # a failure streak's Repair task: one per routine
+            await hub.routines.set_repair(hub.maker.repairs[done["task"]], done["task"], done["url"])
+        await conn.send(done)
         return
     if t == "make_task_undo":
-        await conn.send(await asyncio.to_thread(hub.maker.undo, int(msg["task"])))
+        undone = await asyncio.to_thread(hub.maker.undo, int(msg["task"]))
+        if undone.get("ok"):
+            await hub.routines.drop_repair(int(msg["task"]))
+        await conn.send(undone)
         return
     if t == "mute":
         conn.muted = bool(msg.get("value"))

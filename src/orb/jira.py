@@ -40,6 +40,10 @@ class JiraError(Exception):
     pass
 
 
+class JiraNotFound(JiraError):
+    """Jira answered 404: the issue isn't there, or this account may not see it."""
+
+
 def wanted(url: str) -> bool:
     """An address is set (settings or env): the owner wants Jira as the Tasks source."""
     return (url or config.env("JIRA_URL", "")).strip().startswith(("http://", "https://"))
@@ -87,7 +91,7 @@ def _call(base: str, auth: str, path: str, params: dict | None = None, body: dic
         if e.code == 403:
             raise JiraError(f"Jira refused: this account may not do that{' (' + said + ')' if said else ''}.") from e
         if e.code == 404:
-            raise JiraError(f"Not found in Jira{' (' + said + ')' if said else ''}.") from e
+            raise JiraNotFound(f"Not found in Jira{' (' + said + ')' if said else ''}.") from e
         raise JiraError(f"Jira refused the change ({e.code}{': ' + said if said else ''}).") from e
     except OSError as e:
         raise JiraError(f"Jira didn't answer: {e}") from e
@@ -198,7 +202,7 @@ def adf(text: str) -> dict:
 def _issue(base: str, auth: str, task_id: int, fields: str) -> dict:
     i = _call(base, auth, f"/issue/{int(task_id)}", {"fields": fields})
     if not isinstance(i, dict) or not str(i.get("id", "")).isdigit():
-        raise JiraError(f"Task {task_id} not found in Jira.")
+        raise JiraNotFound(f"Task {task_id} not found in Jira.")
     return i
 
 
@@ -208,12 +212,13 @@ def _done(issue: dict) -> bool:
 
 def task(url: str, task_id: int) -> dict:
     """One issue in full, in `vikunja.task`'s shape: {"id", "title", "description", "project", "project_id", "due",
-    "priority", "done", "url"}."""
+    "priority", "done", "done_at", "url"}; done_at is when it was resolved (None while open or unknown)."""
     base, auth = _cfg(url)
-    i = _issue(base, auth, task_id, FIELDS + ",description")
+    i = _issue(base, auth, task_id, FIELDS + ",description,resolutiondate")
     row = _row(base, i)
     return {**{k: row[k] for k in ("id", "title", "project", "project_id", "due", "priority", "url")},
-            "description": plain((i.get("fields") or {}).get("description"))[:8000], "done": _done(i)}
+            "description": plain((i.get("fields") or {}).get("description"))[:8000], "done": _done(i),
+            "done_at": (_updated((i.get("fields") or {}).get("resolutiondate")) or None) if _done(i) else None}
 
 
 def set_done(url: str, task_id: int, done: bool) -> None:
