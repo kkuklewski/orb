@@ -192,7 +192,7 @@
     },
     "AwayLine": {
       "additionalProperties": false,
-      "description": "One thing that finished without the owner: a routine's latest ok Run (count: its Runs since they left), or Orb's\nown \"2 sessions finished\" (opens Sessions) / \"1 delegation Ready\" (opens the Delegated strip); count: how many.",
+      "description": "One thing that finished without the owner: a routine's latest ok Run (count: its Runs since they left), the\nvault's \"3 pages expired\" (opens Brain's Expired view), or Orb's own \"2 sessions finished\" (opens Sessions) /\n\"1 delegation Ready\" (opens the Delegated strip); count: how many.",
       "properties": {
         "count": {
           "default": 1,
@@ -204,6 +204,7 @@
         "kind": {
           "enum": [
             "routine",
+            "expired",
             "finished",
             "ready"
           ],
@@ -544,6 +545,86 @@
         "notes"
       ],
       "title": "BrainApplyMsg",
+      "type": "object"
+    },
+    "BrainExpiredEvent": {
+      "additionalProperties": false,
+      "description": "Brain's Expired view (home.expired_notes): pages the vault archived in the last 30 days, newest first. Read\nonly: Orb never writes `auto_archived`; Keep is the approve verdict. `error` when there is no notes folder.",
+      "properties": {
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "notes": {
+          "items": {
+            "$ref": "#/$defs/ExpiredNote"
+          },
+          "type": "array"
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "brain_expired",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "notes"
+      ],
+      "title": "BrainExpiredEvent",
+      "type": "object"
+    },
+    "BrainExpiredMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "brain_expired",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "BrainExpiredMsg",
       "type": "object"
     },
     "BrainGetMsg": {
@@ -1033,6 +1114,7 @@
           "away_seen": "#/$defs/AwaySeenMsg",
           "barge_in": "#/$defs/BargeInMsg",
           "brain_apply": "#/$defs/BrainApplyMsg",
+          "brain_expired": "#/$defs/BrainExpiredMsg",
           "brain_get": "#/$defs/BrainGetMsg",
           "brain_list": "#/$defs/BrainListMsg",
           "brain_read": "#/$defs/BrainReadMsg",
@@ -1219,6 +1301,9 @@
         },
         {
           "$ref": "#/$defs/BrainListMsg"
+        },
+        {
+          "$ref": "#/$defs/BrainExpiredMsg"
         },
         {
           "$ref": "#/$defs/BrainGetMsg"
@@ -2327,6 +2412,79 @@
         "text"
       ],
       "title": "ErrorEvent",
+      "type": "object"
+    },
+    "ExpiredNote": {
+      "additionalProperties": false,
+      "properties": {
+        "archived": {
+          "type": "string"
+        },
+        "expires": {
+          "default": "",
+          "type": "string"
+        },
+        "file": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "lane": {
+          "type": "string"
+        },
+        "mtime": {
+          "type": "number"
+        },
+        "owner_read": {
+          "type": "string"
+        },
+        "score": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "suggest": {
+          "default": "",
+          "enum": [
+            "approve",
+            "reject",
+            ""
+          ],
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "verdict": {
+          "type": "string"
+        },
+        "waiting": {
+          "type": "boolean"
+        },
+        "why": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "file",
+        "title",
+        "kind",
+        "mtime",
+        "score",
+        "lane",
+        "why",
+        "waiting",
+        "verdict",
+        "owner_read",
+        "archived"
+      ],
+      "title": "ExpiredNote",
       "type": "object"
     },
     "Features": {
@@ -6435,6 +6593,7 @@
           "away_recap": "#/$defs/AwayRecapEvent",
           "bg_notice": "#/$defs/BgNoticeEvent",
           "brain_applied": "#/$defs/BrainAppliedEvent",
+          "brain_expired": "#/$defs/BrainExpiredEvent",
           "brain_list": "#/$defs/BrainListEvent",
           "brain_note": "#/$defs/BrainNoteEvent",
           "browse": "#/$defs/BrowseEvent",
@@ -6589,6 +6748,9 @@
         },
         {
           "$ref": "#/$defs/BrainListEvent"
+        },
+        {
+          "$ref": "#/$defs/BrainExpiredEvent"
         },
         {
           "$ref": "#/$defs/BrainNoteEvent"

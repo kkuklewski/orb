@@ -359,14 +359,17 @@ class Hub:
         self.replan(routines=self.live_routines())  # a routine that just failed needs you now, not at the next Home refresh
 
     def away_lines(self, since: float) -> list[dict]:
-        """The Away recap's lines from what Orb already keeps: the routines that ran ok (while the panel is on), then
-        the sessions still Finished (unopened) and the delegations that became Ready, each counted since `since`."""
+        """The Away recap's lines from what Orb already keeps: the routines that ran ok (while the panel is on), the
+        pages the vault archived (frontmatter only), then the sessions still Finished (unopened) and the delegations
+        that became Ready, each counted since `since`."""
         st = self.routines.state
         ran = routines.away_lines(self.routines.items(), st["runs"], st["logs"], since) if settings.settings["routines"] else []
         finished = [self.finished.get(x["key"], 0.0) for f in self.folder_list() for x in f["sessions"]
                     if x["status"] == "done" and not x["archived"] and not self.delegator.of_session(x["key"])]
         ready = [r["ready_at"] for r in self.delegator.items.values() if r.get("ready_at")]
-        return ran + away.own_lines(finished, ready, since)
+        vault = settings.settings.vault()
+        expired = away.expired_line(home.expired_since(vault, since)) if vault and vault.is_dir() else []
+        return ran + expired + away.own_lines(finished, ready, since)
 
     def away_event(self) -> dict:
         return self.away.event(lines=self.away_lines)
@@ -705,6 +708,14 @@ async def brain_list(conn: "Conn") -> None:
         await conn.send({"type": "brain_list", "notes": [], "error": "No notes folder is set up."})
         return
     await conn.send({"type": "brain_list", "notes": await asyncio.to_thread(home.brain_notes, vault)})
+
+
+async def brain_expired(conn: "Conn") -> None:
+    vault = settings.settings.vault()
+    if not vault:
+        await conn.send({"type": "brain_expired", "notes": [], "error": "No notes folder is set up."})
+        return
+    await conn.send({"type": "brain_expired", "notes": await asyncio.to_thread(home.expired_notes, vault)})
 
 
 async def brain_note(conn: "Conn", file: str) -> bool:
@@ -1179,6 +1190,9 @@ async def handle(conn: Conn, msg: dict) -> None:
         return
     if t == "brain_list":
         await brain_list(conn)
+        return
+    if t == "brain_expired":
+        await brain_expired(conn)
         return
     if t == "brain_get":
         await brain_note(conn, str(msg["file"]))

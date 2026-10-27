@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
-import type { BrainListEvent, BrainNote, BrainNoteEvent } from "../protocol.gen";
+import type { BrainExpiredEvent, BrainListEvent, BrainNote, BrainNoteEvent, ExpiredNote } from "../protocol.gen";
 import { dispatch } from "../events";
 import { useViews } from "../stores/views";
 
@@ -28,7 +28,7 @@ const NO_FILTER = { waiting: false, kinds: [], lanes: [], q: "" };
 let off = () => {};
 beforeEach(() => {
   sent.length = 0;
-  useBrain.setState({ list: null, file: null, note: null, filter: NO_FILTER, snap: null, applied: {}, refused: {}, picked: [], soon: [] });
+  useBrain.setState({ list: null, file: null, note: null, filter: NO_FILTER, snap: null, applied: {}, refused: {}, picked: [], soon: [], expired: null, showExpired: false });
   useViews.setState({ view: "home" });
   off = wireBrain();
 });
@@ -264,5 +264,54 @@ describe("Expiry (ADR 0013)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Keep acme" }));
     act(() => dispatch({ type: "brain_applied", applied: [], refused: [{ file: A.file, reason: "The note changed since Orb read it" }] } as never));
     expect(within(group("Expiring soon")).getByRole("alert").textContent).toBe("The note changed since Orb read it");
+  });
+});
+
+describe("Expired view (ADR 0013)", () => {
+  const gone = (file: string, archived: string, over: Partial<ExpiredNote> = {}): ExpiredNote =>
+    ({ ...note(`scrapers/Topics/${file}.md`, { kind: "AI", score: 3, waiting: false, why: "thin rewrite" }), archived, ...over });
+  const expired = (notes: ExpiredNote[]): BrainExpiredEvent => ({ type: "brain_expired", notes, error: "" });
+
+  it("opens from Brain's head, asks for the pages and lists them as the server sent: title, score, why, archive date", () => {
+    useViews.setState({ view: "brain" });
+    render(<Brain />);
+    act(() => dispatch(list()));
+    fireEvent.click(screen.getByRole("button", { name: "Expired" }));
+    expect(sent.at(-1)).toEqual({ type: "brain_expired" });
+    act(() => dispatch(expired([gone("globex", "2026-10-26"), gone("acme", "2026-10-20", { score: null, why: "" })])));
+    const rows = within(screen.getByRole("region", { name: "Expired pages" })).getAllByRole("button", { name: /^Keep / });
+    expect(rows.map((b) => b.getAttribute("aria-label"))).toEqual(["Keep globex", "Keep acme"]);
+    expect(screen.getByText("score 3 · thin rewrite · archived 2026-10-26")).toBeTruthy();
+    expect(screen.getByText("archived 2026-10-20")).toBeTruthy();
+    expect(screen.getByText("2 archived by the vault in the last 30 days")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /^Restore/ })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "acme" }));
+    expect(useBrain.getState().file).toBe("scrapers/Topics/acme.md");
+  });
+
+  it("Keep sends approve; the row then says kept and stays, and the view asks again", () => {
+    const G = gone("globex", "2026-10-26");
+    useViews.setState({ view: "brain" });
+    useBrain.setState({ showExpired: true });
+    render(<Brain />);
+    act(() => dispatch(expired([G])));
+    fireEvent.click(screen.getByRole("button", { name: "Keep globex" }));
+    expect(sent.at(-1)).toEqual({ type: "brain_apply", notes: [{ file: G.file, seen: "", verdict: "approve" }] });
+    sent.length = 0;
+    act(() => dispatch({ type: "brain_applied", applied: [{ file: G.file, verdict: "approve" }], refused: [] } as never));
+    expect(sent).toContainEqual({ type: "brain_expired" });
+    act(() => dispatch(expired([{ ...G, verdict: "approve 2026-10-27" }])));
+    expect(screen.getByText("kept")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Keep globex" })).toBeNull();
+  });
+
+  it("empty: says so; Back to notes returns to the list", () => {
+    useViews.setState({ view: "brain" });
+    useBrain.setState({ showExpired: true });
+    render(<Brain />);
+    act(() => dispatch(expired([])));
+    expect(screen.getByText("No page expired in the last 30 days.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Back to notes" }));
+    expect(useBrain.getState().showExpired).toBe(false);
   });
 });

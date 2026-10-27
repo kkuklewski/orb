@@ -575,9 +575,10 @@ class HomeTasksEvent(_Event):
 
 
 class AwayLine(_Msg):
-    """One thing that finished without the owner: a routine's latest ok Run (count: its Runs since they left), or Orb's
-    own "2 sessions finished" (opens Sessions) / "1 delegation Ready" (opens the Delegated strip); count: how many."""
-    kind: Literal["routine", "finished", "ready"]
+    """One thing that finished without the owner: a routine's latest ok Run (count: its Runs since they left), the
+    vault's "3 pages expired" (opens Brain's Expired view), or Orb's own "2 sessions finished" (opens Sessions) /
+    "1 delegation Ready" (opens the Delegated strip); count: how many."""
+    kind: Literal["routine", "expired", "finished", "ready"]
     id: str
     title: str
     summary: str = ""
@@ -652,6 +653,18 @@ class BrainListEvent(_Event):
     """Brain's list: the newest notes, newest first. `error` when there is no notes folder."""
     type: Literal["brain_list"]
     notes: list[BrainNote]
+    error: str | None = None
+
+
+class ExpiredNote(BrainNote):
+    archived: str  # the day the vault archived it (`auto_archived`, its local day)
+
+
+class BrainExpiredEvent(_Event):
+    """Brain's Expired view (home.expired_notes): pages the vault archived in the last 30 days, newest first. Read
+    only: Orb never writes `auto_archived`; Keep is the approve verdict. `error` when there is no notes folder."""
+    type: Literal["brain_expired"]
+    notes: list[ExpiredNote]
     error: str | None = None
 
 
@@ -947,7 +960,7 @@ ServerEvent = Annotated[Union[
     HelloEvent, FeaturesEvent, FoldersEvent, SetupStatusEvent, BrowseEvent, PickedEvent, VoiceSampleEvent,
     SettingsEvent, ErrorEvent, NoticeEvent, OpenedEvent, HistoryEvent, StateEvent, SessionInfoEvent,
     ContextEvent, TaskEvent, CommandsEvent, McpEvent, RateLimitEvent, RoutinesEvent, BgNoticeEvent, NavigateEvent,
-    HomeEvent, HomeForgetEvent, HomeTasksEvent, AwayRecapEvent, PlanEvent, TaskDetailEvent, ItemEvent, ItemListEvent, BrainListEvent, BrainNoteEvent, BrainAppliedEvent, TaskChangedEvent, UserEvent, TextStartEvent, TextEvent, SaidEvent, ToolStartEvent, ToolInputEvent, ToolResultEvent,
+    HomeEvent, HomeForgetEvent, HomeTasksEvent, AwayRecapEvent, PlanEvent, TaskDetailEvent, ItemEvent, ItemListEvent, BrainListEvent, BrainExpiredEvent, BrainNoteEvent, BrainAppliedEvent, TaskChangedEvent, UserEvent, TextStartEvent, TextEvent, SaidEvent, ToolStartEvent, ToolInputEvent, ToolResultEvent,
     ResultEvent, TimingEvent, PartialEvent, HeardNothingEvent, PinFocusedEvent, HeldEvent, PermissionEvent,
     PermissionDoneEvent, UndoAvailableEvent, UndoConfirmEvent, UndoDoneEvent, AudioEvent, SpeechResetEvent,
     DelegateCardEvent, DelegationsEvent, DelegationDiffEvent,
@@ -1179,6 +1192,10 @@ class BrainListMsg(_Msg):
     type: Literal["brain_list"]
 
 
+class BrainExpiredMsg(_Msg):
+    type: Literal["brain_expired"]
+
+
 class BrainGetMsg(_Msg):
     type: Literal["brain_get"]
     file: str
@@ -1384,7 +1401,7 @@ ClientMessage = Annotated[Union[
     SetupStatusMsg, BrowseMsg, PickFolderMsg, OpenFolderMsg, AddFolderMsg, StartSessionMsg, PinFolderMsg,
     GetSettingsMsg, SetSettingsMsg, VoiceSampleMsg, KokoroSetupMsg, RescanMsg, RoutinesMsg, RoutinesSeenMsg, RoutinesResolveMsg, MuteMsg,
     NewSessionMsg, ArchiveSessionMsg, RemoveSessionMsg, UserTextMsg, SpeechStartMsg, BargeInMsg, SpeechCancelledMsg, UtteranceMsg, VoiceTextMsg,
-    HomeMsg, AwaySeenMsg, PlanStartMsg, PlanLaterMsg, PlanDoneMsg, ScreenMsg, TaskDetailMsg, ItemListMsg, ItemGetMsg, ItemDoneMsg, TasksBulkMsg, TasksSuggestMsg, NotesVerdictMsg, BrainListMsg, BrainGetMsg, BrainApplyMsg, BrainVerdictMsg, BrainReadMsg, ItemStartMsg, TaskActionMsg, InterruptMsg, PlaybackMsg, PermissionMsg, ReadAllMsg, DictateNoteMsg, UndoRequestMsg, UndoConfirmMsg,
+    HomeMsg, AwaySeenMsg, PlanStartMsg, PlanLaterMsg, PlanDoneMsg, ScreenMsg, TaskDetailMsg, ItemListMsg, ItemGetMsg, ItemDoneMsg, TasksBulkMsg, TasksSuggestMsg, NotesVerdictMsg, BrainListMsg, BrainExpiredMsg, BrainGetMsg, BrainApplyMsg, BrainVerdictMsg, BrainReadMsg, ItemStartMsg, TaskActionMsg, InterruptMsg, PlaybackMsg, PermissionMsg, ReadAllMsg, DictateNoteMsg, UndoRequestMsg, UndoConfirmMsg,
     McpStatusMsg, McpReconnectMsg, SetModeMsg, SetModelMsg, RevokeGrantMsg, DelegateMsg, DelegateBulkMsg, DelegateConfirmMsg, MakeTaskMsg, MakeTaskConfirmMsg, MakeTaskUndoMsg,
     DelegationReviewMsg, DelegationApplyMsg, DelegationRevertMsg, DelegationDiscardMsg, DelegationRetryMsg,
     DelegationResumeMsg, DelegationOutwardMsg, DropMsg,

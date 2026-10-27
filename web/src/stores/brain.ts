@@ -6,9 +6,11 @@
 // suggestions; each verdict is written on its own, a refused one keeps its reason, and every applied one keeps Restore
 // (and its place in the group) for the rest of the page's life. Expiry (ADR 0013): the vault archives an unread AI page
 // scored 4 or lower 14 days after it was curated; the server sends that day (`expires`) and Orb only shows it, as a
-// chip, with the pages within SOON_DAYS in Expiring soon above Reject. Keep is the approve verdict, nothing else.
+// chip, with the pages within SOON_DAYS in Expiring soon above Reject. Keep is the approve verdict, nothing else. The
+// Expired view lists the pages the vault already archived (last 30 days, newest first), read only: Keep there writes the
+// approve verdict and the row says "kept"; only the vault can bring a page back, so there is no Restore.
 import { create } from "zustand";
-import type { BrainListEvent, BrainNote, BrainNoteEvent, VerdictNote } from "../protocol.gen";
+import type { BrainExpiredEvent, BrainListEvent, BrainNote, BrainNoteEvent, VerdictNote } from "../protocol.gen";
 import { on } from "../events";
 import { send } from "../ws";
 import { useViews, type View } from "./views";
@@ -28,7 +30,9 @@ export const useBrain = create<{
   refused: Record<string, string>; // the vault write module's reason, per note
   picked: string[]; // notes selected for Apply suggestions
   soon: string[]; // notes shown in Expiring soon on this visit: they stay there once kept or judged
-}>(() => ({ list: null, file: null, note: null, filter: NO_FILTER, snap: null, applied: {}, refused: {}, picked: [], soon: [] }));
+  expired: BrainExpiredEvent | null; // the Expired view's pages
+  showExpired: boolean; // Brain shows the Expired view instead of the list
+}>(() => ({ list: null, file: null, note: null, filter: NO_FILTER, snap: null, applied: {}, refused: {}, picked: [], soon: [], expired: null, showExpired: false }));
 
 export type Suggested = "approve" | "reject";
 export const SUGGESTED: Suggested[] = ["approve", "reject"];
@@ -65,9 +69,22 @@ export const expiringSoon = (rows: BrainNote[], today = localDay()) =>
 const IN_BRAIN: View[] = ["brain", "note"];
 
 export function openBrain() {
+  useBrain.setState({ showExpired: false });
   useViews.setState({ view: "brain" });
   send({ type: "brain_list" });
 }
+
+/** Brain's Expired view (the Away recap's "N pages expired" opens it too). */
+export function openExpired() {
+  useBrain.setState({ showExpired: true });
+  useViews.setState({ view: "brain" }); // the view asks for its rows when it shows
+}
+
+export const closeExpired = () => useBrain.setState({ showExpired: false });
+
+/** An expired row's state: "kept" once it has the approve verdict (or got it on this page), else its verdict, else "". */
+export const expiredState = (n: BrainNote, applied: Record<string, Suggested>) =>
+  applied[n.file] === "approve" || n.verdict.startsWith("approve") ? "kept" : n.verdict ? verdictText(n.verdict) : "";
 
 export function openNote(file: string) {
   const s = useBrain.getState();
@@ -172,21 +189,25 @@ export function wireBrain(): () => void {
   const offs = [
     on("brain_list", (ev) => useBrain.setState((s) => ({ list: ev, snap: s.snap ?? ev.notes.map((n) => n.file),
       soon: [...new Set([...s.soon, ...expiringSoon(ev.notes).map((n) => n.file)])] }))),
-    on("brain_applied", (ev) => useBrain.setState((s) => {
-      const applied = { ...s.applied }, refused = { ...s.refused };
-      for (const a of ev.applied) {
-        delete refused[a.file];
-        if (a.verdict === "restore") delete applied[a.file]; else applied[a.file] = a.verdict;
-      }
-      for (const r of ev.refused) refused[r.file] = r.reason;
-      const done = new Set(ev.applied.map((a) => a.file));
-      return { applied, refused, picked: s.picked.filter((f) => !done.has(f)) };
-    })),
+    on("brain_applied", (ev) => {
+      useBrain.setState((s) => {
+        const applied = { ...s.applied }, refused = { ...s.refused };
+        for (const a of ev.applied) {
+          delete refused[a.file];
+          if (a.verdict === "restore") delete applied[a.file]; else applied[a.file] = a.verdict;
+        }
+        for (const r of ev.refused) refused[r.file] = r.reason;
+        const done = new Set(ev.applied.map((a) => a.file));
+        return { applied, refused, picked: s.picked.filter((f) => !done.has(f)) };
+      });
+      if (useBrain.getState().showExpired) send({ type: "brain_expired" }); // a Keep there: the rows again
+    }),
+    on("brain_expired", (ev) => useBrain.setState({ expired: ev })),
     on("brain_note", (ev) => { if (ev.file === useBrain.getState().file) useBrain.setState({ note: ev }); }),
     useViews.subscribe((s) => {
       const v = s.view;
       if (IN_BRAIN.includes(v) && !inBrain) { inBrain = true; useBrain.setState({ snap: null, soon: [] }); } // a new visit: a new order
-      else if (!IN_BRAIN.includes(v)) inBrain = false;
+      else if (!IN_BRAIN.includes(v)) { inBrain = false; useBrain.setState({ showExpired: false }); }
       if (v === "note") onPage = true;
       else if (onPage) { onPage = false; leave(useBrain.getState().note); }
     }),

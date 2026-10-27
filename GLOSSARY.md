@@ -152,6 +152,8 @@ _Avoid_: Urgent, last chance, about to drop
 **Expired**:
 A page the vault has archived (`auto_archived`). It leaves Brain's list and is no longer waiting; the vault's word wins
 over Orb's count of days ("expires tonight" is a page past its day the nightly run hasn't reached yet).
+Brain's Expired view lists the last 30 days, read only (Keep is the approve verdict; Orb never un-archives); the Away
+recap counts the pages archived after the owner's last-active day ("2 pages expired").
 _Avoid_: Deleted, dropped, rejected
 
 **Finished**:
