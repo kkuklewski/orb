@@ -145,7 +145,7 @@ def _away_section(src: Sources) -> list[str]:
         return ["Away recap: none (the owner hasn't been away 24 hours or more)."]
     when = "the last one, which the owner already opened" if rec["seen"] else "pending on Home"
     out = [f"Away recap ({when}; bring it up only when the owner asks what happened while they were away): {rec['heading']}"]
-    out += [one(f"- {x['title']}: {x['summary'][:LINE_MAX]}".rstrip(": ") + (f" ×{x['count']}" if x["count"] > 1 else ""))
+    out += [one(f"- {x['title']}: {x['summary'][:LINE_MAX]}".rstrip(": ") + (f" ×{x['count']}" if x["kind"] == "routine" and x["count"] > 1 else ""))
             for x in rec["lines"]]
     out += [f"- {rec['more']} more"] if rec["more"] else []
     needs = rec["needs"]

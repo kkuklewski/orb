@@ -87,6 +87,7 @@ class Hub:
         self.rate_limit: dict | None = None
         self.guard = CaptureGuard(config.STATE_DIR / "captures.json")  # shared: one daily limit
         self.away = away.Clock(config.STATE_DIR / "away.json")  # the Away recap: when the owner last acted
+        self.finished: dict[str, float] = {}  # when each session last became Finished (this run only), for the Away recap
         self.routines = routines.Watch(config.STATE_DIR / "routines.json", notify=self.routine_notice,
                                        push=self.push_routines)
         self.needs = needs.Needs(config.STATE_DIR / "needs.json", ask=lambda p: routines.ask_haiku(p, needs.MODEL),
@@ -315,6 +316,8 @@ class Hub:
             return
         targets = [c for c in self.conns if c.key != s.key]
         d = self.delegator.of_session(s.key)
+        if kind == "done" and not d:
+            self.finished[s.key] = time.time()
         if not targets or (d and kind == "done"):  # a delegation is never Finished: its stage line says Ready
             await self.push_folders()
             return
@@ -356,9 +359,14 @@ class Hub:
         self.replan(routines=self.live_routines())  # a routine that just failed needs you now, not at the next Home refresh
 
     def away_lines(self, since: float) -> list[dict]:
-        """The Away recap's lines from what Orb already keeps: the routines that ran ok (while the panel is on)."""
+        """The Away recap's lines from what Orb already keeps: the routines that ran ok (while the panel is on), then
+        the sessions still Finished (unopened) and the delegations that became Ready, each counted since `since`."""
         st = self.routines.state
-        return routines.away_lines(self.routines.items(), st["runs"], st["logs"], since) if settings.settings["routines"] else []
+        ran = routines.away_lines(self.routines.items(), st["runs"], st["logs"], since) if settings.settings["routines"] else []
+        finished = [self.finished.get(x["key"], 0.0) for f in self.folder_list() for x in f["sessions"]
+                    if x["status"] == "done" and not x["archived"] and not self.delegator.of_session(x["key"])]
+        ready = [r["ready_at"] for r in self.delegator.items.values() if r.get("ready_at")]
+        return ran + away.own_lines(finished, ready, since)
 
     def away_event(self) -> dict:
         return self.away.event(lines=self.away_lines)

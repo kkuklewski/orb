@@ -151,6 +151,44 @@ def test_the_hub_gives_routine_lines_only_while_the_routines_panel_is_on(tmp_pat
     assert server.hub.away_event()["recap"]["lines"] == []
 
 
+def test_own_lines_count_finished_and_ready_since_the_owner_left_and_say_nothing_at_0():
+    assert away.own_lines([], [], 100) == []
+    assert away.own_lines([50, 0.0], [99], 100) == []  # before last-active (or no time): not counted
+    assert away.own_lines([150, 50, 120], [130], 100) == [
+        {"kind": "finished", "id": "finished", "title": "2 sessions finished", "summary": "", "count": 2, "at": 150},
+        {"kind": "ready", "id": "ready", "title": "1 delegation Ready", "summary": "", "count": 1, "at": 130}]
+    assert [x["title"] for x in away.own_lines([150], [130, 140], 100)] == ["1 session finished", "2 delegations Ready"]
+
+
+def test_own_lines_follow_the_routines_under_the_same_cap(tmp_path):
+    c = clock(tmp_path)
+    c.acted(now=0)
+    ran = [{"kind": "routine", "id": f"t{i}", "title": f"R{i}", "summary": "", "count": 1, "at": 9} for i in range(7)]
+    rec = c.current(now=30 * H, lines=lambda since: ran + away.own_lines([H], [2 * H], since))
+    assert [x["kind"] for x in rec["lines"]] == ["routine"] * 7 + ["finished"] and rec["more"] == 1
+
+
+def test_the_hub_counts_unopened_finished_sessions_and_ready_delegations(tmp_path, monkeypatch):
+    import time
+
+    from orb import server
+
+    hub = server.hub
+    now = time.time()
+    rows = [{"key": "a", "status": "done", "archived": False}, {"key": "b", "status": "done", "archived": False},
+            {"key": "c", "status": "idle", "archived": False}, {"key": "d", "status": "done", "archived": True},
+            {"key": "deleg", "status": "done", "archived": False}]
+    monkeypatch.setattr(hub, "folder_list", lambda: [{"label": "acme", "sessions": rows}])
+    monkeypatch.setattr(hub, "finished", {"a": now - 10, "b": now - 50 * H, "c": now - 10, "d": now - 10, "deleg": now - 10})
+    monkeypatch.setattr(hub.delegator, "items", {
+        "1": {"session": "deleg", "stage": "ready", "ready_at": now - 20},
+        "2": {"session": "x", "stage": "ready", "ready_at": now - 50 * H},
+        "3": {"session": "y", "stage": "ready"}})  # Ready before this change: no time, not counted
+    monkeypatch.setitem(server.settings.settings.data, "routines", False)
+    got = hub.away_lines(now - 30 * H)
+    assert [(x["kind"], x["count"]) for x in got] == [("finished", 1), ("ready", 1)]
+
+
 def test_peek_reads_the_pending_or_the_last_recap_and_changes_nothing(tmp_path):
     c = clock(tmp_path)
     assert c.peek(now=0) is None

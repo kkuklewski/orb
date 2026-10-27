@@ -181,6 +181,23 @@ async def test_ready_without_a_declared_test_says_so(dev):
     assert rig.row()["line"].endswith(", no tests declared")
 
 
+async def test_ready_records_when_it_became_ready_and_a_restart_keeps_it(dev):
+    import time
+
+    rig = Rig(dev, test="exit 1")
+    r = await rig.allow()
+    await rig.turn({"d.txt": "delegated\n"})
+    assert rig.row()["stage"] == "failed" and "ready_at" not in r
+    rig.store.set_command(rig.web, "test", "true")
+    before = time.time()
+    await rig.turn({"e.txt": "fixed\n"})
+    assert rig.row()["stage"] == "ready" and before <= r["ready_at"] <= time.time()
+    assert rig.make().items[r["id"]]["ready_at"] == r["ready_at"]  # saved: it survives a restart
+    rig.store.set_command(rig.web, "test", "exit 1")
+    await rig.turn({"f.txt": "broke\n"})
+    assert "ready_at" not in r  # failed again: no longer Ready
+
+
 async def test_failing_tests_no_commits_or_uncommitted_work_are_not_ready(dev):
     rig = Rig(dev, test="echo collected 3; echo 'FAILED tests/test_x.py::test_login'; exit 1")
     r = await rig.allow()
