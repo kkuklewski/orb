@@ -105,7 +105,7 @@ class Hub:
             cfg=lambda: settings.settings.data, vault=settings.settings.vault,
             folders=lambda: self.folders or self.scan(),
             routines=self.live_routines,
-            sessions=self.store.sessions)
+            sessions=self.store.sessions, away=self.away_brief)
         self.delegator = delegation.Delegator(
             config.STATE_DIR / "delegations.json", store=self.store, session=self.session, push=self.push_all,
             done=self.task_done, waiting=self.card_words,
@@ -355,12 +355,25 @@ class Hub:
         await asyncio.gather(*(c.send(ev) for c in self.conns))
         self.replan(routines=self.live_routines())  # a routine that just failed needs you now, not at the next Home refresh
 
+    def away_lines(self, since: float) -> list[dict]:
+        """The Away recap's lines from what Orb already keeps: the routines that ran ok (while the panel is on)."""
+        st = self.routines.state
+        return routines.away_lines(self.routines.items(), st["runs"], st["logs"], since) if settings.settings["routines"] else []
+
     def away_event(self) -> dict:
-        """The Away recap with its lines from what Orb already keeps: the routines that ran ok (while the panel is on)."""
-        def lines(since: float) -> list[dict]:
-            st = self.routines.state
-            return routines.away_lines(self.routines.items(), st["runs"], st["logs"], since) if settings.settings["routines"] else []
-        return self.away.event(lines=lines)
+        return self.away.event(lines=self.away_lines)
+
+    def away_brief(self) -> dict | None:
+        """The Away recap for the Home chat's home_brief: pending, or the last one once opened, with Needs you in the
+        page's order (sessions waiting for an OK, delegations, the plan's rows). A read: the card stays as it is."""
+        rec = self.away.peek(lines=self.away_lines)
+        if rec is None:
+            return None
+        waiting = [f"{f['label']}: {x['label'] or 'New session'}, waiting for your OK"
+                   for f in self.folder_list() for x in f["sessions"] if x["status"] == "approval"]
+        delegated = [f"Delegated #{d['task']} {d['title']} ({d['repo']}): {d['line']}" for d in self.delegator.event()["items"] if d["needs"]]
+        plan = [f"{p['title']}: {p['reason']}" for p in self.needs.needs_rows()]
+        return {**rec, "needs": waiting + delegated + plan}
 
     def live_routines(self) -> list[dict] | None:
         return self.routines.items() if settings.settings["routines"] else None

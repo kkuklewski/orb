@@ -43,6 +43,7 @@ class Sources:
     folders: Callable[[], list[dict]]
     routines: Callable[[], list[dict] | None]  # None = the Routines panel is off
     sessions: Callable[[str], list[dict]]  # a folder's sessions, newest first
+    away: Callable[[], dict | None] = lambda: None  # the Away recap (Hub.away_brief): pending or the last one, else None
 
 
 def schema(*required: str, **props: str) -> dict:
@@ -134,13 +135,32 @@ def _notes_section(src: Sources, n: int = 8) -> list[str]:
     return out
 
 
+AWAY_TOP = 3  # Needs you's rows the recap names, as on the card
+
+
+def _away_section(src: Sources) -> list[str]:
+    """The Away recap as the card has it (heading, lines, "N more", Needs you top 3 + total). Said only when asked."""
+    rec = src.away()
+    if not rec:
+        return ["Away recap: none (the owner hasn't been away 24 hours or more)."]
+    when = "the last one, which the owner already opened" if rec["seen"] else "pending on Home"
+    out = [f"Away recap ({when}; bring it up only when the owner asks what happened while they were away): {rec['heading']}"]
+    out += [one(f"- {x['title']}: {x['summary'][:LINE_MAX]}".rstrip(": ") + (f" ×{x['count']}" if x["count"] > 1 else ""))
+            for x in rec["lines"]]
+    out += [f"- {rec['more']} more"] if rec["more"] else []
+    needs = rec["needs"]
+    out += [f"Needs you: {min(AWAY_TOP, len(needs))} of {len(needs)}", *[one(f"- {x[:LINE_MAX]}") for x in needs[:AWAY_TOP]]] if needs \
+        else ["Nothing needs you."]
+    return out
+
+
 def home_brief(src: Sources, today: dt.date | None = None) -> str:
     """The whole day in one text: tasks, sessions, routines, unsaved work and PRs, reminders, notes."""
     today = today or dt.date.today()
     rem = forget.reminders(src.cfg().get("reminders") or [], today)
     parts = [*_tasks_section(src, None, today.isoformat()), *_sessions_section(src), *_routines_section(src), *_repos_section(src),
              *(["Reminders:", *[one(f"- {r['text']}" + (f" (due {r['due']})" if r["due"] else "")) for r in rem[:10]]] if rem else []),
-             *_notes_section(src, 5)]
+             *_notes_section(src, 5), *_away_section(src)]
     return fenced("home_brief", "\n".join(parts))
 
 
@@ -294,7 +314,8 @@ def ask(name: str, inp: dict, title: str = "") -> dict:
 DESCRIPTIONS = {
     "home_brief": "The whole dashboard in one read: open tracker tasks, sessions, routines, repos with unsaved work, pull "
                   "requests, reminders and notes. Call it when the user asks what's first, about today, the dashboard, "
-                  "or what needs them. Prefer it over the screen text.",
+                  "or what needs them. Prefer it over the screen text. It also holds the Away recap: use it when the user "
+                  "asks what happened while they were away (\"co się działo, jak mnie nie było?\"), in their language.",
     "tasks": "Open tasks from the task tracker (Vikunja or Jira, the task list of record), overdue and soonest first. Call it when the user asks about "
              "tasks or to-dos. `project` (optional) limits it to one project by name.",
     "task": "One tracker task in full (description, due, state). Call it when the user names a task or asks about one.",
