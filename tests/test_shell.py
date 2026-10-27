@@ -85,11 +85,17 @@ def test_recursive():
                 "grep -5r x .", "grep '-rn' x .", "grep -d recurse x .", "grep --directories=recurse x .",
                 "grep --dereference-recursive x .", "ls -R",
                 "bash -c 'grep -rn x .'", "sh -c \"grep --recursive x .\"", "grep --recur x .", "grep --dir=rec x .",
-                "grep -d rec x .", "grep -drecurse x .", "find .", "grep --recursive x", "tar cf a.tar ."):
+                "grep -d rec x .", "grep -drecurse x .", "find .", "grep --recursive x", "tar cf a.tar .",
+                # quotes, backslashes and expansions the shell turns into a flag
+                "grep -\"\"r x .", "grep \"-\"r x .", "grep -\\r x .", "grep -n\\r x .", "grep -nd r x .",
+                "grep -nd 'r' x .", "grep {-r,x} .", "grep -$'\\x72' x .", "grep $F x .", "grep `echo -r` x .",
+                "grep -[r] x .", "f\"\"ind .", "bash -c 'grep -\"\"r x .'"):
         assert read(cmd).recursive, cmd
     for cmd in ("cat a", "ls -la", "grep -n x f", "git pull --rebase", "cat -- -x", "grep -d skip x .",
-                "grep --include=*.py x f"):
+                "grep --include=*.py x f", "grep '$x' f", "grep '{a,b}' f",
+                "git commit -m \"$(cat <<'EOF'\nfix: grep -r $X {a}\nEOF\n)\""):
         assert not read(cmd).recursive, cmd
+    assert read("awk '{print $1}' f").recursive  # a quoted script's words are read like a command: fails closed
 
 
 @pytest.mark.parametrize("cmd,verdict", [

@@ -99,7 +99,8 @@ def test_searches_cannot_reach_secrets(dev):
     assert decision(f.rule("Glob", {"pattern": "sub/../../secrets/*"})) == "deny"
     assert decision(f.rule("Bash", {"command": "rg KEY ~"})) == "deny"
     # r / R anywhere in a flag group, an abbreviated long option or -d's action still recurses
-    for flags in ("-rn", "-nr", "-nRi", "-lr", "-rC2", "-5r", "'-rn'", "-d recurse", "--recur", "-d r"):
+    for flags in ("-rn", "-nr", "-nRi", "-lr", "-rC2", "-5r", "'-rn'", "-d recurse", "--recur", "-d r",
+                  '-""r', '"-"r', "-\\r", "-nd r", "{-r,-n}", "-$'\\x72'"):
         assert decision(f.rule("Bash", {"command": f"grep {flags} KEY {dev}"})) == "deny", flags
     assert decision(f.rule("Bash", {"command": "ls .."})) == "ask"  # names only, not a search
 

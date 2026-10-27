@@ -29,7 +29,9 @@ _FLAG_START = r"(?:^|[\s'\"`(=;&|])"  # a flag starts the text, a word or a quot
 _SHORT_GROUP = re.compile(_FLAG_START + r"-([^-\s'\"][^\s'\"]*)")
 _LONG_OPTION = re.compile(_FLAG_START + r"--([A-Za-z][\w-]*)")
 _RECURSIVE_LONG = ("recursive", "dereference-recursive", "directories")
-_RECURSE_ARG = re.compile(_FLAG_START + r"-d\s*['\"]?r")  # grep -d recurse, or any abbreviation of it
+_RECURSE_ARG = re.compile(_FLAG_START + r"-[^-\s'\"]*d\s*['\"]?r")  # grep -d recurse (also -nd r), or an abbreviation
+_EXPANSION = re.compile(r"[$`]")  # outside single quotes it can produce a flag
+_BRACE = re.compile(r"\{")  # outside any quotes: brace expansion, `{-r,x}`
 _PATH_ARG_FLAGS = {"cd", "pushd", "-C", "--prefix", "--cwd", "--dir", "--directory", "--git-dir", "--work-tree"}
 _SHELL = re.compile(r"[;&|<>`$(){}\\\n\r*?\[\]~]")
 # `git commit -m "$(cat <<'EOF' … EOF)"`, the way Claude Code writes a commit: a quoted heredoc never expands.
@@ -91,7 +93,7 @@ def read(cmd: str) -> Command:
     n = norm(cmd)
     m = _HEREDOC_COMMIT.fullmatch(n.strip())
     commit = (tuple(m.group(1).split()), m.group(2)) if m and "EOF" not in m.group(2).split("\n") else None
-    return Command(cmd, n, _read_only(cmd), _args(_lexed(cmd)), _recursive(cmd), _words(n), commit,
+    return Command(cmd, n, _read_only(cmd), _args(_lexed(cmd)), not commit and _recursive(cmd), _words(n), commit,
                    None if commit else _push(cmd))
 
 
@@ -114,14 +116,38 @@ def _lexed(cmd: str) -> list[str]:
         return [t.strip("'\"") for t in cmd.split()]
 
 
-def _recursive(cmd: str) -> bool:
+def _recursive(cmd: str, depth: int = 0) -> bool:
     """It may walk a folder tree: a walker command, r / R anywhere in a single-dash flag group ("-rn", "-5r", "-rC2";
     a -r meaning "reverse" only fails closed), any prefix of a recursive long option (getopt takes `--recur`,
-    `--dir=rec`) or grep's `-d recurse` (`-d r`). Read from the raw text, so a command inside `bash -c '…'` counts."""
-    return bool(_WALKERS.search(cmd)
-                or any(re.search(r"[rR]", group) for group in _SHORT_GROUP.findall(cmd))
-                or any(full.startswith(name) for name in _LONG_OPTION.findall(cmd) for full in _RECURSIVE_LONG)
-                or _RECURSE_ARG.search(cmd))
+    `--dir=rec`) or grep's `-d recurse` (`-d r`, `-nd r`). Read from the raw text (a command inside `bash -c '…'`
+    counts) and from the shell's words with quotes and backslashes removed (`-""r`, `-\\r`), each quoted script's words
+    too. Fails closed on what could expand into a flag: `$…` or a backquote outside single quotes, a brace outside
+    quotes, a glob in a word that starts with a dash (before its `=`: `--include=*.py` stays an include)."""
+    unquoted = re.sub(r"'[^']*'", "", cmd)
+    if (_EXPANSION.search(unquoted) or _BRACE.search(re.sub(r'"[^"]*"', "", unquoted))
+            or any(GLOB_CHARS.search(w.split("=", 1)[0]) for w in re.findall(r"(?:^|\s)(-\S*)", re.sub(r"'[^']*'|\"[^\"]*\"", "q", cmd)))):
+        return True
+    if (_WALKERS.search(cmd)
+            or any(re.search(r"[rR]", group) for group in _SHORT_GROUP.findall(cmd))
+            or any(full.startswith(name) for name in _LONG_OPTION.findall(cmd) for full in _RECURSIVE_LONG)
+            or _RECURSE_ARG.search(cmd)):
+        return True
+    words = _lexed(cmd)
+    if _WALKERS.search(" ".join(words)):
+        return True
+    for i, w in enumerate(words):
+        if w.startswith("--"):
+            name = w[2:].split("=", 1)[0]
+            if name and any(full.startswith(name) for full in _RECURSIVE_LONG):
+                return True
+        elif w.startswith("-") and len(w) > 1:
+            group = w[1:]
+            if re.search(r"[rR]", group) or ("d" in group and not group.split("d", 1)[1]
+                                              and i + 1 < len(words) and words[i + 1].startswith("r")):
+                return True
+        if depth < 2 and re.search(r"\s", w) and _recursive(w, depth + 1):
+            return True
+    return False
 
 
 def _args(tokens: list[str]) -> tuple[Arg, ...]:
