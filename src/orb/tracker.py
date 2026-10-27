@@ -15,6 +15,7 @@ from types import ModuleType
 from . import jira, vikunja
 
 ERRORS = (vikunja.VikunjaError, jira.JiraError)  # `except tracker.ERRORS` catches either backend's refusal
+NOT_FOUND = (vikunja.VikunjaNotFound, jira.JiraNotFound)  # the backend answered 404: catch it before ERRORS
 home_event = vikunja.home_event
 KEY = re.compile(r"[A-Za-z][A-Za-z0-9_]*-\d+")  # a Jira issue key (ACME-12); the task's title starts with it
 

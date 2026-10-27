@@ -32,6 +32,10 @@ class VikunjaError(Exception):
     pass
 
 
+class VikunjaNotFound(VikunjaError):
+    """Vikunja answered 404: the task (or project) isn't there, or not for this token."""
+
+
 def wanted(url: str) -> bool:
     """An address is set (settings or env): the owner wants the Tasks source, so a missing token is an error to show."""
     return (url or config.env("VIKUNJA_URL", "")).strip().startswith(("http://", "https://"))
@@ -50,6 +54,10 @@ def _fetch(base: str, token: str, path: str, params: dict) -> object:
     try:
         with config.urlopen(req, timeout=TIMEOUT) as r:
             data = json.load(r)
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            raise VikunjaNotFound("Not found in Vikunja.") from e
+        raise VikunjaError(f"Vikunja didn't answer: {e}") from e
     except (OSError, ValueError) as e:
         raise VikunjaError(f"Vikunja didn't answer: {e}") from e
     return data
@@ -87,6 +95,16 @@ def _cfg(url: str) -> tuple[str, str]:
 def _get(base: str, token: str, path: str, params: dict) -> list[dict]:
     data = _fetch(base, token, path, params)
     return data if isinstance(data, list) else []
+
+
+def _when(raw: str | None) -> float | None:
+    """A Vikunja time as a timestamp; its zero date ("no date") and anything unreadable are None."""
+    if not raw or raw.startswith(NO_DATE):
+        return None
+    try:
+        return dt.datetime.fromisoformat(raw).timestamp()
+    except ValueError:
+        return None
 
 
 def _due(raw: str | None) -> str | None:
@@ -157,20 +175,21 @@ def plain(text: str | None) -> str:
 
 
 def task(url: str, task_id: int) -> dict:
-    """One task in full: {"id", "title", "description" (plain text), "project", "project_id", "due", "priority", "done", "url"}."""
+    """One task in full: {"id", "title", "description" (plain text), "project", "project_id", "due", "priority", "done",
+    "done_at" (a timestamp, None while open), "url"}."""
     cfg = configured(url)
     if not cfg:
         raise VikunjaError("Vikunja isn't set up (vikunja_url and ORB_VIKUNJA_TOKEN).")
     base, token = cfg
     t = _fetch(base, token, f"/tasks/{int(task_id)}", {})
     if not isinstance(t, dict) or not t.get("id"):
-        raise VikunjaError(f"Task {task_id} not found in Vikunja.")
+        raise VikunjaNotFound(f"Task {task_id} not found in Vikunja.")
     pid = int(t.get("project_id") or 0)
     project = _fetch(base, token, f"/projects/{pid}", {}) if pid else {}
     return {"id": int(t["id"]), "title": str(t.get("title", ""))[:200], "description": plain(t.get("description"))[:8000],
             "project": str(project.get("title", "")) if isinstance(project, dict) else "", "project_id": pid,
             "due": _due(t.get("due_date")), "priority": int(t.get("priority") or 0), "done": bool(t.get("done")),
-            "url": f"{base}/tasks/{t['id']}"}
+            "done_at": _when(t.get("done_at")) if t.get("done") else None, "url": f"{base}/tasks/{t['id']}"}
 
 
 def _update(url: str, task_id: int, change: dict) -> None:

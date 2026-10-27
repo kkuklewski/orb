@@ -50,7 +50,7 @@ REASON_MAX = 140
 ROUTINE_RANK = {"failed": 0, "broken": 1, "waiting": 2, "stuck": 3, "missed": 4, "action": 5}
 ROUTINE_SAYS = {"failed": "failed", "broken": "reports a problem", "waiting": "needs a decision", "stuck": "is stuck",
                 "missed": "missed its run", "action": "asks you to act"}
-SENT = ("key", "kind", "id", "title", "reason", "source", "due", "priority", "url", "actions", "repo", "suggest", "urgent", "pin")
+SENT = ("key", "kind", "id", "title", "reason", "source", "due", "priority", "url", "actions", "repo", "suggest", "urgent", "pin", "repair")
 QUEUE_MAX = 30  # queue items the model sees (the first in rule order); the rest follow in rule order
 UP_NEXT = 5
 ESCALATE_H = 48  # hours in Needs you (past due, for a task or reminder) after which a routine, or a pinned row, turns red
@@ -124,26 +124,34 @@ def needs_you(routines: list[dict] | None, tasks: list[dict] | None, today: str,
         out.append({"key": f"setup:{p['id']}", "kind": "setup", "id": p["id"], "title": p["title"], "reason": p["reason"],
                     "source": "setup", "due": None, "priority": None, "url": None, "actions": ["open"], "repo": None, "suggest": None,
                     "urgent": True, "facts": f"Urgent. Broken setup: {p['title']}. {_clip(p['reason'])}", "stable": f"{p['title']}|{p['reason']}",
-                    "pin": "security"})
+                    "pin": "security", "repair": None})
     bad = [r for r in routines or [] if r.get("enabled") and r.get("needs") in ROUTINE_RANK]
     for r in sorted(bad, key=lambda r: ROUTINE_RANK[r["needs"]]):
         last = r.get("last") or {}
         said = _clip(last.get("summary") or last.get("detail") or r.get("why"), REASON_MAX)
         streak = r.get("streak")  # a failure streak (routines.streak): make it a task first
+        repair = r.get("repair")  # its open Repair task: Open first, no second card (GLOSSARY: Repair task)
         if streak:
             said = f"{streak['count']} failed runs in a row since {dt.datetime.fromtimestamp(streak['since']).date().isoformat()}"
+        plain = f"Its last run {ROUTINE_SAYS[r['needs']]}."
+        stable = f"{last.get('id')}|{r['needs']}"
+        if repair:
+            said = f"{(said or plain).rstrip('.')} · Task #{repair['task']}"
+            stable += f"|{repair['task']}"
         out.append({"key": f"routine:{r['id']}", "kind": "routine", "id": r["id"], "title": f"Routine ‘{r['name']}’ {ROUTINE_SAYS[r['needs']]}",
-                    "reason": said or f"Its last run {ROUTINE_SAYS[r['needs']]}.", "source": "routine", "due": None, "priority": None,
-                    "url": None, "actions": ["make_task", "open"] if streak else ["open"], "repo": None, "suggest": None, "urgent": bool(r.get("urgent")),
+                    "reason": said or plain, "source": "routine", "due": None, "priority": None,
+                    "url": repair.get("url") if repair else None, "actions": ["make_task", "open"] if streak and not repair else ["open"],
+                    "repo": None, "suggest": None, "urgent": bool(r.get("urgent")),
                     "facts": f"{'Urgent. ' if r.get('urgent') else ''}Scheduled job '{_clip(r['name'], 80)}': {r['needs']}. Judge: {_clip(r.get('why'), 120) or '-'}. "
-                             f"Last run: {_clip(last.get('summary') or last.get('detail'))}{f'. {said}' if streak else ''}",
-                    "stable": f"{last.get('id')}|{r['needs']}", "pin": "security" if r.get("security") else None})
+                             f"Last run: {_clip(last.get('summary') or last.get('detail'))}{f'. {said}' if streak or repair else ''}",
+                    "stable": stable, "pin": "security" if r.get("security") else None,
+                    "repair": repair["task"] if repair else None})
     for r in sorted((r for r in reminders or [] if r.get("due") and r["due"] <= today), key=lambda r: r["due"]):
         out.append({"key": f"reminder:{r['due']}:{_clip(r['text'], 80)}", "kind": "reminder", "id": r["due"],
                     "title": _clip(r["text"], 120), "reason": _late(r["due"], today), "source": "reminder", "due": r["due"],
                     "priority": None, "url": r.get("url"), "actions": ["open"] if r.get("url") else [], "repo": None, "suggest": None,
                     "urgent": False, "facts": f"Reminder the owner set: {_clip(r['text'], 200)}; due {r['due']}", "stable": f"{r['text']}|{r['due']}",
-                    "pin": None})
+                    "pin": None, "repair": None})
     late = [t for t in tasks or [] if t.get("due") and t["due"] < today]
     for t in sorted(late, key=lambda t: (t["due"], -(t.get("priority") or 0))):
         out.append({"key": f"vikunja:{t['id']}", "kind": "task", "id": str(t["id"]), "title": _clip(t["title"], 120),
@@ -152,7 +160,7 @@ def needs_you(routines: list[dict] | None, tasks: list[dict] | None, today: str,
                     "suggest": suggest.task(t["due"], t.get("repo"), today), "urgent": False,
                     "facts": f"Tracker task: {_clip(t['title'], 200)}; project {t.get('project') or '-'}; was due {t['due']}; "
                              f"priority {t.get('priority') or 'unset'}",
-                    "stable": f"{t['title']}|{t['due']}|{t.get('priority')}", "pin": "client" if t.get("client") else "money" if t.get("money") else None})
+                    "stable": f"{t['title']}|{t['due']}|{t.get('priority')}", "pin": "client" if t.get("client") else "money" if t.get("money") else None, "repair": None})
     return out
 
 

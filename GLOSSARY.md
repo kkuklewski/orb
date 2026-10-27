@@ -174,6 +174,12 @@ _Avoid_: Result, report, output
 newest of the 5 kept runs; its Needs you row says "3 failed runs in a row since <date>" and offers Make it a task first.
 _Avoid_: Repeat error, flapping
 
+**Repair task**:
+The one open task per routine that Make it a task creates after a failure streak; Orb never creates it unasked. While
+it is open the routine's row says "Task #N" and offers Open, not a second card; once it is done or gone, a new streak
+counts only the runs that started after it.
+_Avoid_: Auto-ticket, incident
+
 **Don't forget**:
 The pane in Home's status card for things that wait quietly: dated reminders, pull requests going stale, repos with
 unsaved work. A reminder due today or overdue moves to Needs you by rule.

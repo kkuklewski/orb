@@ -337,10 +337,23 @@ class RoutineRun(_Msg):
     url: str = ""
 
 
+class StreakRun(_Msg):
+    """One counted run of a failure streak: its start and its checked claude.ai link."""
+    at: float | None = None
+    url: str
+
+
 class RoutineStreak(_Msg):
     """A failure streak (routines.streak, GLOSSARY: Failure streak)."""
     count: int  # consecutive failed or judged-broken runs, newest first (at least routines.STREAK)
     since: float | None = None  # the start of the oldest counted run
+    runs: list[StreakRun] = []  # the counted runs with a checked link, newest first (a Repair task's description)
+
+
+class RoutineRepair(_Msg):
+    """The routine's open Repair task (GLOSSARY: Repair task), as the last re-read in the tracker found it."""
+    task: int
+    url: str | None = None  # None until a check read it (after a restart, or while the tracker can't be read)
 
 
 class RoutineItem(_Msg):
@@ -365,6 +378,7 @@ class RoutineItem(_Msg):
     resolved: bool = False  # you marked the last run's judged problem resolved; the next run is judged afresh
     security: bool = False  # its judged problem is a security risk: its Needs you row is pinned (docs/adr/0012)
     streak: RoutineStreak | None = None  # a failure streak: its Needs you row offers Make it a task first
+    repair: RoutineRepair | None = None  # its open Repair task: no second one is offered while it is open
 
 
 class RoutinesEvent(_Event):
@@ -510,6 +524,7 @@ class PlanItem(_Msg):
     suggest: Literal["take now", "delegate", "later"] | None = None  # tasks only: the rule's action (suggest.py), a hint
     urgent: bool = False  # Needs you only: a broken setup, an urgent routine (routines.urgent), or one past ESCALATE_H; shown red
     pin: Literal["security", "client", "money"] | None = None  # Needs you only: the class a rule pinned it in (docs/adr/0012); it leads
+    repair: int | None = None  # a routine row: its open Repair task's id ("Task #N"); url is that task's link
 
 
 class PlanEvent(_Event):

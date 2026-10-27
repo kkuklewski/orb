@@ -243,6 +243,29 @@ describe("home screen", () => {
     expect(sent).toContainEqual({ type: "make_task", routine: "acme-sync" });
   });
 
+  it("a routine whose Repair task is open names Task #N with its link and opens the routine, with no Make it a task", () => {
+    const open: PlanItem = { key: "routine:acme-sync", kind: "routine", id: "acme-sync", title: "Routine ‘acme-sync’ failed",
+      reason: "3 failed runs in a row since 2026-10-24 · Task #42", source: "routine", actions: ["open"], repair: 42, url: "https://tasks.example/tasks/42" };
+    const unread: PlanItem = { ...open, key: "routine:globex-digest", id: "globex-digest", title: "Routine ‘globex-digest’ failed",
+      reason: "Its last run failed · Task #7", repair: 7, url: null };
+    render(<Home />);
+    act(() => dispatch(plan([open, unread])));
+    const strip = screen.getByRole("article", { name: "3 things need you" });
+    const row = within(strip).getByRole("group", { name: "Routine ‘acme-sync’ failed" });
+    expect(row.textContent).toContain("3 failed runs in a row since 2026-10-24 · Task #42");
+    const link = within(row).getByRole("link", { name: "Task #42" });
+    expect([link.getAttribute("href"), link.getAttribute("target"), link.getAttribute("rel")]).toEqual(["https://tasks.example/tasks/42", "_blank", "noopener noreferrer"]);
+    expect(within(strip).queryByRole("button", { name: "Make it a task" })).toBeNull();
+    const other = within(strip).getByRole("group", { name: "Routine ‘globex-digest’ failed" });
+    expect(within(other).queryByRole("link")).toBeNull();  // the tracker didn't answer: the number only
+    expect(other.textContent).toContain("Task #7");
+    sent.length = 0;
+    fireEvent.click(within(row).getByText("Routine ‘acme-sync’ failed"));
+    expect(useViews.getState().view).toBe("routine");
+    expect(useRoutineScreen.getState().id).toBe("acme-sync");
+    expect(sent).not.toContainEqual({ type: "make_task", routine: "acme-sync" });
+  });
+
   it("a broken setup opens Settings at its section; a reminder due opens its link, or is just a line without one", () => {
     const signedOut: PlanItem = { key: "setup:claude", kind: "setup", id: "claude", title: "Claude Code is signed out", reason: "No session can run until you sign in again.", source: "setup", actions: ["open"] };
     const renew: PlanItem = { key: "reminder:2026-10-25:Renew", kind: "reminder", id: "2026-10-25", title: "Renew acme.example", reason: "Due today.", source: "reminder", due: "2026-10-25", url: "https://registrar.example/acme", actions: ["open"] };

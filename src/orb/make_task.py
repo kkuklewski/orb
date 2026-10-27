@@ -3,6 +3,9 @@
 It is a write, so it goes card first: `card` works out the title and the project (the routine's repo's mapped
 project, else the inbox project, settings "tasks_inbox") and the page shows them; only `confirm` with ok creates the task. Orb remembers the
 ids it created, and `undo` deletes only one of those, so Undo can never remove a task the owner made.
+
+During a failure streak the task is the routine's Repair task (GLOSSARY: Repair task): one per routine. Allow records it
+in the routine's state (`Watch.set_repair`, by the server); while it is open the routine offers no second card.
 """
 
 from __future__ import annotations
@@ -21,18 +24,22 @@ class Maker:
         self.cfg, self.vault, self.inbox = cfg, vault, inbox
         self.cards: dict[str, dict] = {}  # card id -> what Allow creates
         self.made: dict[int, str] = {}  # task id -> title, created by this server
+        self.repairs: dict[int, str] = {}  # task id -> routine id: a Repair task this server created
 
     def card(self, x: dict | None) -> dict:
         """The card event for routine `x` (a Routines row), or an error event."""
         if not x or not x.get("last"):
             return {"type": "error", "text": "That routine has no run yet."}
+        if x.get("repair"):
+            return {"type": "error", "text": f"Task #{x['repair']['task']} is still open for this routine."}
         title, description = routines.task_draft(x)
         try:
             pid, project = tracker.project_for(self.cfg(), self.vault(), x.get("repo") or None, self.inbox())
         except tracker.ERRORS as e:
             return {"type": "error", "text": str(e)}
         cid = secrets.token_hex(8)
-        self.cards[cid] = {"project_id": pid, "project": project, "title": title, "description": description}
+        self.cards[cid] = {"project_id": pid, "project": project, "title": title, "description": description,
+                           "routine": x["id"], "repair": bool(x.get("streak"))}
         while len(self.cards) > MAX_CARDS:
             self.cards.pop(next(iter(self.cards)))
         return {"type": "make_task_card", "id": cid, "routine": x["id"], "title": title, "project": project}
@@ -48,6 +55,8 @@ class Maker:
         except tracker.ERRORS as e:
             return {"type": "make_task_done", "id": cid, "ok": False, "error": str(e)}
         self.made[t["id"]] = t["title"]
+        if c["repair"]:
+            self.repairs[t["id"]] = c["routine"]
         return {"type": "make_task_done", "id": cid, "ok": True, "task": t["id"], "title": t["title"], "url": t["url"],
                 "project": c["project"]}
 
@@ -60,4 +69,5 @@ class Maker:
         except tracker.ERRORS as e:
             return {"type": "make_task_undone", "task": task_id, "ok": False, "error": str(e)}
         del self.made[task_id]
+        self.repairs.pop(task_id, None)
         return {"type": "make_task_undone", "task": task_id, "ok": True}

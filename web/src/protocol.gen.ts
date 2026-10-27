@@ -1368,6 +1368,7 @@ export interface RoutineItem {
   next_run_at?: number | null;
   notify?: ("always" | "never") | null;
   quiet?: boolean;
+  repair?: RoutineRepair | null;
   repo?: string;
   resolved?: boolean;
   security?: boolean;
@@ -1391,6 +1392,16 @@ export interface RoutineRun {
   url?: string;
 }
 /**
+ * The routine's open Repair task (GLOSSARY: Repair task), as the last re-read in the tracker found it.
+ *
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "RoutineRepair".
+ */
+export interface RoutineRepair {
+  task: number;
+  url?: string | null;
+}
+/**
  * A failure streak (routines.streak, GLOSSARY: Failure streak).
  *
  * This interface was referenced by `OrbProtocol`'s JSON-Schema
@@ -1398,7 +1409,18 @@ export interface RoutineRun {
  */
 export interface RoutineStreak {
   count: number;
+  runs?: StreakRun[];
   since?: number | null;
+}
+/**
+ * One counted run of a failure streak: its start and its checked claude.ai link.
+ *
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "StreakRun".
+ */
+export interface StreakRun {
+  at?: number | null;
+  url: string;
 }
 /**
  * This interface was referenced by `OrbProtocol`'s JSON-Schema
@@ -1658,6 +1680,7 @@ export interface PlanItem {
   pin?: ("security" | "client" | "money") | null;
   priority?: number | null;
   reason: string;
+  repair?: number | null;
   repo?: string | null;
   source?: string | null;
   suggest?: ("take now" | "delegate" | "later") | null;

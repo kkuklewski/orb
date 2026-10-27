@@ -12,11 +12,12 @@ import { Actions } from "./HomeDelegated";
 // task and repo, with their actions), then the plan's rows from the server: a broken setup, routines with a problem,
 // reminders due, then tasks past their due date, rows a rule pinned leading them. A tap opens the item (a broken setup opens Settings at the section
 // that fixes it, a reminder its link); an approval opens its session, where the Allow / Deny card lives. A routine in
-// a failure streak offers Make it a task first (the server's actions), which opens the routine with its card. Home
+// a failure streak offers Make it a task first (the server's actions), which opens the routine with its card; once its
+// Repair task exists the row names "Task #N" (a link to the task) and opens the routine, with no second card. Home
 // itself never allows or denies. Hidden when nothing needs you.
 
 export type Row = { key: string; tag: string; title: string; reason: string; quote?: string | null; side: string; open?: () => void; href?: string | null;
-  resolve?: () => void; task?: () => void; urgent?: boolean; pin?: string | null };
+  resolve?: () => void; task?: () => void; repair?: { task: number; href: string | null }; urgent?: boolean; pin?: string | null };
 
 const ago = (ts?: number | null) => (ts ? (relTime(ts) === "now" ? "just now" : `${relTime(ts)} ago`) : "just now");
 
@@ -52,7 +53,8 @@ function planRow(p: PlanItem, canResolve: (id: string) => boolean): Row {
   if (p.kind === "setup") return { ...row, side: p.pin ?? "", open: () => openSettings(p.id) };
   if (p.kind === "reminder") return { ...row, href: p.url && /^https?:\/\//.test(p.url) ? p.url : null };
   if (p.kind === "routine") return { ...row, open: () => openRoutine(p.id), resolve: canResolve(p.id) ? () => resolveRun(p.id) : undefined,
-    task: p.actions?.[0] === "make_task" ? () => { openRoutine(p.id); makeTask(p.id); } : undefined };
+    task: p.actions?.[0] === "make_task" ? () => { openRoutine(p.id); makeTask(p.id); } : undefined,
+    repair: p.repair ? { task: p.repair, href: p.url && /^https?:\/\//.test(p.url) ? p.url : null } : undefined };
   return { ...row, open: () => openItem("vikunja", p.id) };
 }
 
@@ -105,8 +107,8 @@ export function NeedsStrip({ n }: { n: NeedsYou }) {
   );
 }
 
-/** A routine with its own buttons on the right (Make it a task on a failure streak, Mark resolved on a reported
- *  problem); the text opens it. */
+/** A routine with its own buttons on the right (Make it a task on a failure streak, its open Repair task's link,
+ *  Mark resolved on a reported problem); the text opens it. */
 const actionRow = (r: Row) => (
   <div key={r.key} className="needs-row deleg-needs" role="group" aria-label={r.title}>
     <Tag r={r} />
@@ -116,12 +118,14 @@ const actionRow = (r: Row) => (
     </button>
     <span className="deleg-actions">{r.pin && <span className="needs-side mono">{r.pin}</span>}
       {r.task && <button type="button" className="hbtn" onClick={r.task}>Make it a task</button>}
+      {r.repair && (r.repair.href ? <a className="hbtn" href={r.repair.href} target="_blank" rel="noopener noreferrer">Task #{r.repair.task}</a>
+        : <span className="needs-side mono">Task #{r.repair.task}</span>)}
       {r.resolve && <button type="button" className="hbtn" onClick={r.resolve}>Mark resolved</button>}
     </span>
   </div>
 );
 
-export const row = (r: Row) => r.resolve || r.task ? actionRow(r) : r.open ? <button key={r.key} type="button" className="needs-row" onClick={r.open}><RowBody r={r} /></button>
+export const row = (r: Row) => r.resolve || r.task || r.repair ? actionRow(r) : r.open ? <button key={r.key} type="button" className="needs-row" onClick={r.open}><RowBody r={r} /></button>
   : r.href ? <a key={r.key} className="needs-row" href={r.href} target="_blank" rel="noopener noreferrer"><RowBody r={r} /></a>
   : <div key={r.key} className="needs-row still"><RowBody r={r} /></div>;
 
