@@ -31,6 +31,7 @@ export type ClientMessage =
   | UtteranceMsg
   | VoiceTextMsg
   | HomeMsg
+  | AwaySeenMsg
   | PlanStartMsg
   | PlanLaterMsg
   | PlanDoneMsg
@@ -105,6 +106,7 @@ export type ServerEvent =
   | HomeEvent
   | HomeForgetEvent
   | HomeTasksEvent
+  | AwayRecapEvent
   | PlanEvent
   | TaskDetailEvent
   | ItemEvent
@@ -364,6 +366,15 @@ export interface VoiceTextMsg {
 export interface HomeMsg {
   rerank?: boolean;
   type: "home";
+}
+/**
+ * The Away recap was closed, or Home left while it showed: it goes on every page.
+ *
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "AwaySeenMsg".
+ */
+export interface AwaySeenMsg {
+  type: "away_seen";
 }
 /**
  * Home started a queue item (by its plan key): it leaves the queue for today, the next one moves up.
@@ -1548,6 +1559,28 @@ export interface TrackerTask {
   title: string;
   updated: number;
   url: string;
+}
+/**
+ * Home's Away recap (away.Clock): the one-shot card after 24 hours or more without the owner acting, or None.
+ *
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "AwayRecapEvent".
+ */
+export interface AwayRecapEvent {
+  folder?: string | null;
+  recap: AwayRecap | null;
+  replay?: boolean | null;
+  session?: string | null;
+  type: "away_recap";
+}
+/**
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "AwayRecap".
+ */
+export interface AwayRecap {
+  back?: number | null;
+  heading: string;
+  since: number;
 }
 /**
  * Home's plan. needs_you is decided by rules (docs/adr/0001): a broken setup, routines with a problem, reminders
