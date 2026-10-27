@@ -44,10 +44,11 @@ def test_links_keep_web_urls_only():
 
 def test_parse_status():
     assert forget.parse_status("## main...origin/main [ahead 2, behind 1]\n M a.py\n?? b.py\n") == \
-        {"branch": "main", "changed": 2, "ahead": 2}
-    assert forget.parse_status("## main...origin/main\n") == {"branch": "main", "changed": 0, "ahead": 0}
-    assert forget.parse_status("## feature\n M x\n") == {"branch": "feature", "changed": 1, "ahead": None}
-    assert forget.parse_status("## No commits yet on main\n") == {"branch": "main", "changed": 0, "ahead": None}
+        {"branch": "main", "changed": 2, "ahead": 2, "behind": 1}
+    assert forget.parse_status("## main...origin/main\n") == {"branch": "main", "changed": 0, "ahead": 0, "behind": 0}
+    assert forget.parse_status("## feature\n M x\n") == {"branch": "feature", "changed": 1, "ahead": None, "behind": 0}
+    assert forget.parse_status("## main...origin/main [behind 13]\n")["behind"] == 13
+    assert forget.parse_status("## No commits yet on main\n") == {"branch": "main", "changed": 0, "ahead": None, "behind": 0}
 
 
 def test_repos_lists_only_unsaved(tmp_path):
@@ -61,7 +62,7 @@ def test_repos_lists_only_unsaved(tmp_path):
     (tmp_path / "dirty" / "new.txt").write_text("x")
     not_git = {"path": str(tmp_path), "label": "root"}
     assert forget.repos([clean, dirty, not_git]) == [
-        {"path": dirty["path"], "label": "acme/dirty", "branch": "main", "changed": 1, "ahead": None}]
+        {"path": dirty["path"], "label": "acme/dirty", "branch": "main", "changed": 1, "ahead": None, "behind": 0}]
 
 
 def test_repos_never_run_programs_from_the_repos_config(tmp_path):
