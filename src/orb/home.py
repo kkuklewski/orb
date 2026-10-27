@@ -207,6 +207,38 @@ def brain_notes(vault: Path, limit: int = BRAIN_MAX) -> list[dict]:
     return out
 
 
+EXPIRED_DAYS = 30  # the Expired view's window
+
+
+def _archived(fm: dict[str, str]) -> str:
+    """The day the vault archived the page (`auto_archived`, YYYY-MM-DD), "" when missing or not a real date."""
+    try:
+        return dt.date.fromisoformat(_day(fm.get("auto_archived"))).isoformat()
+    except ValueError:
+        return ""
+
+
+def expired_notes(vault: Path, days: int = EXPIRED_DAYS, today: dt.date | None = None) -> list[dict]:
+    """Brain's Expired view: pages the vault archived (`auto_archived`) in the last `days` days, newest first, each a
+    Brain row with its archive day. Read only: Orb never writes or clears `auto_archived` (docs/adr/0013)."""
+    since = ((today or dt.date.today()) - dt.timedelta(days=days)).isoformat()
+    out: list[dict] = []
+    limits = suggest.thresholds(vault)
+    for p, t in _notes(vault):
+        fm = _front(p, t)
+        day = _archived(fm)
+        if day >= since and fm.get("kind") != "review":
+            out.append({**_brain_row(vault, p, t, fm, limits), "archived": day})
+    return sorted(out, key=lambda n: (n["archived"], n["mtime"]), reverse=True)
+
+
+def expired_since(vault: Path, since: float) -> int:
+    """How many pages the vault archived after the owner's last-active day (`since`): the Away recap's expired line."""
+    # The vault actor writes its local <today> on the VPS, so Orb compares calendar days, never times.
+    day = dt.date.fromtimestamp(since).isoformat()
+    return sum(1 for p, t in _notes(vault) if _archived(_front(p, t)) > day)
+
+
 def brain_note(vault: Path | None, file: str) -> dict:
     """One note for its page: the row's fields and the body under the frontmatter (cut at BODY_MAX characters)."""
     p = note_path(vault, file)

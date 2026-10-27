@@ -1,12 +1,13 @@
 import { awaySeen, useHome, type NeedsYou } from "../stores/home";
+import { openExpired } from "../stores/brain";
 import { openRoutine } from "../stores/routine";
 import { openSessions } from "../stores/views";
 import type { AwayLine } from "../protocol.gen";
 import { needsLines, row } from "./HomeNeeds";
 
 // Home's Away recap (GLOSSARY): after 24 hours or more without the owner acting, one card at the top of Home: how long
-// they were away, the routines that ran ok meanwhile (one line each, "×2" when it ran twice; each opens its Run), then
-// "2 sessions finished" (opens Sessions) and "1 delegation Ready" (the Delegated strip), at most 8 lines from the server,
+// they were away, the routines that ran ok meanwhile (one line each, "×2" when it ran twice; each opens its Run), the
+// vault's "3 pages expired" (opens Brain's Expired view), then "2 sessions finished" (opens Sessions) and "1 delegation Ready" (the Delegated strip), at most 8 lines from the server,
 // then "N more"; and the first few Needs you rows in today's order, with the total. One-shot: Close, opening a row or
 // leaving Home sends away_seen and it goes on every page until they are away again (server: away.py). No Badge.
 
@@ -20,7 +21,11 @@ const routineRow = (x: AwayLine) => ({ key: `away-${x.id}`, tag: "ROUTINE", titl
 const ownRow = (x: AwayLine) => ({ key: `away-${x.kind}`, tag: x.kind === "ready" ? "READY" : "FINISHED", title: x.title, reason: "", side: "",
   open: () => { awaySeen(); if (x.kind === "ready") document.getElementById("delegated")?.scrollIntoView?.({ block: "start" }); else openSessions(); } });
 
-const lineRow = (x: AwayLine) => (x.kind === "routine" ? routineRow(x) : ownRow(x));
+/** The pages the vault archived meanwhile: opens Brain's Expired view. */
+const expiredRow = (x: AwayLine) => ({ key: "away-expired", tag: "EXPIRED", title: x.title, reason: "", side: "",
+  open: () => { awaySeen(); openExpired(); } });
+
+const lineRow = (x: AwayLine) => (x.kind === "routine" ? routineRow(x) : x.kind === "expired" ? expiredRow(x) : ownRow(x));
 
 export function AwayRecap({ n }: { n: NeedsYou }) {
   const away = useHome((s) => s.away);

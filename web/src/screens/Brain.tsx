@@ -1,7 +1,8 @@
 import { useEffect } from "react";
 import type { BrainNote } from "../protocol.gen";
-import { GROUPS, GROUP_NAME, KINDS, LANES, accept, applyPicked, brainRows, expiryText, headerLine, keep, openNote, pickAll, restore, scoreDot, setFilter,
-  setVerdict, suggestable, suggestionGroups, toggleIn, togglePick, useBrain, verdictText, type Group } from "../stores/brain";
+import type { ExpiredNote } from "../protocol.gen";
+import { GROUPS, GROUP_NAME, KINDS, LANES, accept, applyPicked, brainRows, closeExpired, expiredState, expiryText, headerLine, keep, openExpired, openNote,
+  pickAll, restore, scoreDot, setFilter, setVerdict, suggestable, suggestionGroups, toggleIn, togglePick, useBrain, verdictText, type Group } from "../stores/brain";
 import { openSettings, relTime } from "../stores/views";
 import { send } from "../ws";
 
@@ -10,7 +11,8 @@ import { send } from "../ws";
 // why and the suggested word, which accepts it; select several and Apply suggestions. A note's page shows the header
 // line (score, lane, why), the Verdict and the note's text. Note text is shown as plain text, never as HTML. A page the
 // vault will archive (ADR 0013) carries an "expires in N days" chip; within 3 days it moves to Expiring soon, above
-// Reject, where Keep (the approve verdict) stops it; Apply suggestions leaves those to Keep.
+// Reject, where Keep (the approve verdict) stops it; Apply suggestions leaves those to Keep. Expired opens the pages the
+// vault archived in the last 30 days, newest first: title, score, why and the archive day; Keep there says "kept" after.
 
 /** The expiry chip, when the vault's rule covers the page. */
 const Expiry = ({ n }: { n: BrainNote }) => { const t = expiryText(n); return t ? <span className="exp-chip">{t}</span> : null; };
@@ -51,7 +53,48 @@ function SuggestLine({ n, group }: { n: BrainNote; group: Group }) {
   );
 }
 
+/** One archived page: open it, Keep it (the approve verdict); once kept it says so and stays: Orb can't un-archive. */
+function ExpiredLine({ n }: { n: ExpiredNote }) {
+  const said = useBrain((s) => expiredState(n, s.applied));
+  const refused = useBrain((s) => s.refused[n.file]);
+  return (
+    <div className="rt-line sg-line" data-state={said === "kept" ? "approved" : said ? said.split(" ")[0] : "expired"}>
+      <span className={scoreDot(n.score)} title={n.score != null ? `value score ${n.score}` : "not scored"} />
+      <button type="button" className="rt-name sg-open" onClick={() => openNote(n.file)}>{n.title}</button>
+      <span className="rt-state mono">{said}</span>
+      {said ? <span /> : <button type="button" className="chip-btn sg-act" aria-label={`Keep ${n.title}`} onClick={() => keep(n)}>Keep</button>}
+      <span className="rt-tail mono">{[n.score != null ? `score ${n.score}` : null, n.why || null, `archived ${n.archived}`].filter(Boolean).join(" · ")}</span>
+      {refused && <span className="sg-refused" role="alert">{refused}</span>}
+    </div>
+  );
+}
+
+/** Brain's Expired view: read only, the vault's archive of the last 30 days. */
+function ExpiredView() {
+  const ev = useBrain((s) => s.expired);
+  useEffect(() => { send({ type: "brain_expired" }); }, []);
+  const notes = ev?.notes ?? [];
+  return (
+    <div className="view-col">
+      <div className="view-head">
+        <h2>Expired</h2>
+        <span className="mono view-sub">{!ev ? "loading…" : ev.error ? "no notes folder" : `${notes.length} archived by the vault in the last 30 days`}</span>
+        <button type="button" className="chip-btn" onClick={closeExpired}>Back to notes</button>
+      </div>
+      <section className="rt-group" aria-label="Expired pages">
+        {ev?.error ? <div className="side-hint">{ev.error}</div>
+          : ev && !notes.length ? <div className="side-hint">No page expired in the last 30 days.</div>
+          : notes.map((n) => <ExpiredLine key={n.file} n={n} />)}
+      </section>
+    </div>
+  );
+}
+
 export function Brain() {
+  return useBrain((s) => s.showExpired) ? <ExpiredView /> : <NotesList />;
+}
+
+function NotesList() {
   const { list, filter, snap, applied, picked, soon } = useBrain();
   useEffect(() => { send({ type: "brain_list" }); }, []);
   const all = brainRows(list?.notes ?? [], filter, snap);
@@ -68,6 +111,7 @@ export function Brain() {
         <h2>Brain</h2>
         <span className="mono view-sub">{sub}</span>
         {picked.length > 0 && <button type="button" className="chip-btn" onClick={applyPicked}>Apply suggestions ({picked.length})</button>}
+        <button type="button" className="chip-btn" onClick={openExpired}>Expired</button>
         <button type="button" className="chip-btn" onClick={() => send({ type: "brain_list" })}>Check now</button>
       </div>
       <div id="brain-list">

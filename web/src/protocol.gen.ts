@@ -44,6 +44,7 @@ export type ClientMessage =
   | TasksSuggestMsg
   | NotesVerdictMsg
   | BrainListMsg
+  | BrainExpiredMsg
   | BrainGetMsg
   | BrainApplyMsg
   | BrainVerdictMsg
@@ -112,6 +113,7 @@ export type ServerEvent =
   | ItemEvent
   | ItemListEvent
   | BrainListEvent
+  | BrainExpiredEvent
   | BrainNoteEvent
   | BrainAppliedEvent
   | TaskChangedEvent
@@ -504,6 +506,13 @@ export interface SeenNote {
  */
 export interface BrainListMsg {
   type: "brain_list";
+}
+/**
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "BrainExpiredMsg".
+ */
+export interface BrainExpiredMsg {
+  type: "brain_expired";
 }
 /**
  * This interface was referenced by `OrbProtocol`'s JSON-Schema
@@ -1598,8 +1607,9 @@ export interface AwayRecap {
   since: number;
 }
 /**
- * One thing that finished without the owner: a routine's latest ok Run (count: its Runs since they left), or Orb's
- * own "2 sessions finished" (opens Sessions) / "1 delegation Ready" (opens the Delegated strip); count: how many.
+ * One thing that finished without the owner: a routine's latest ok Run (count: its Runs since they left), the
+ * vault's "3 pages expired" (opens Brain's Expired view), or Orb's own "2 sessions finished" (opens Sessions) /
+ * "1 delegation Ready" (opens the Delegated strip); count: how many.
  *
  * This interface was referenced by `OrbProtocol`'s JSON-Schema
  * via the `definition` "AwayLine".
@@ -1607,7 +1617,7 @@ export interface AwayRecap {
 export interface AwayLine {
   count?: number;
   id: string;
-  kind: "routine" | "finished" | "ready";
+  kind: "routine" | "expired" | "finished" | "ready";
   summary?: string;
   title: string;
 }
@@ -1777,6 +1787,40 @@ export interface BrainListEvent {
  * via the `definition` "BrainNote".
  */
 export interface BrainNote {
+  expires?: string;
+  file: string;
+  kind: string;
+  lane: string;
+  mtime: number;
+  owner_read: string;
+  score: number | null;
+  suggest?: "approve" | "reject" | "";
+  title: string;
+  verdict: string;
+  waiting: boolean;
+  why: string;
+}
+/**
+ * Brain's Expired view (home.expired_notes): pages the vault archived in the last 30 days, newest first. Read
+ * only: Orb never writes `auto_archived`; Keep is the approve verdict. `error` when there is no notes folder.
+ *
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "BrainExpiredEvent".
+ */
+export interface BrainExpiredEvent {
+  error?: string | null;
+  folder?: string | null;
+  notes: ExpiredNote[];
+  replay?: boolean | null;
+  session?: string | null;
+  type: "brain_expired";
+}
+/**
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "ExpiredNote".
+ */
+export interface ExpiredNote {
+  archived: string;
   expires?: string;
   file: string;
   kind: string;

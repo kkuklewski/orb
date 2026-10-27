@@ -150,6 +150,20 @@ describe("away recap", () => {
     expect(useViews.getState().view).toBe("sessions");
   });
 
+  it("an expired line sits with Orb's lines and opens Brain's Expired view", () => {
+    render(<Home />);
+    const lines = [{ kind: "routine", id: "t1", title: "Curation", summary: "ok", count: 1 },
+      { kind: "expired", id: "expired", title: "2 pages expired", summary: "", count: 2 },
+      { kind: "finished", id: "finished", title: "1 session finished", summary: "", count: 1 }];
+    act(() => dispatch({ type: "away_recap", recap: { since: 0, back: 1, heading: "While you were away · 2 days", lines, more: 0 } } as ServerEvent));
+    const rows = within(within(card()!).getByLabelText("What ran and finished")).getAllByRole("button");
+    expect(rows.map((r) => r.textContent)).toEqual(["ROUTINECurationok", "EXPIRED2 pages expired", "FINISHED1 session finished"]);
+    fireEvent.click(rows[1]);
+    expect(sent).toContainEqual({ type: "away_seen" });
+    expect(useViews.getState().view).toBe("brain");
+    expect(useBrain.getState().showExpired).toBe(true);
+  });
+
   it("nothing needs you: says so", () => {
     useFeatures.setState({ folders: [] });
     render(<Home />);
