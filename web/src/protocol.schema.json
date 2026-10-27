@@ -5372,7 +5372,8 @@
               "start",
               "done",
               "later",
-              "delegate"
+              "delegate",
+              "make_task"
             ],
             "type": "string"
           },
@@ -6020,6 +6021,17 @@
           ],
           "type": "string"
         },
+        "streak": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RoutineStreak"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "urgent": {
           "default": false,
           "type": "boolean"
@@ -6116,6 +6128,31 @@
         "id"
       ],
       "title": "RoutineRun",
+      "type": "object"
+    },
+    "RoutineStreak": {
+      "additionalProperties": false,
+      "description": "A failure streak (routines.streak, GLOSSARY: Failure streak).",
+      "properties": {
+        "count": {
+          "type": "integer"
+        },
+        "since": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "count"
+      ],
+      "title": "RoutineStreak",
       "type": "object"
     },
     "RoutinesEvent": {

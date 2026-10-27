@@ -127,11 +127,14 @@ def needs_you(routines: list[dict] | None, tasks: list[dict] | None, today: str,
     for r in sorted(bad, key=lambda r: ROUTINE_RANK[r["needs"]]):
         last = r.get("last") or {}
         said = _clip(last.get("summary") or last.get("detail") or r.get("why"), REASON_MAX)
+        streak = r.get("streak")  # a failure streak (routines.streak): make it a task first
+        if streak:
+            said = f"{streak['count']} failed runs in a row since {dt.datetime.fromtimestamp(streak['since']).date().isoformat()}"
         out.append({"key": f"routine:{r['id']}", "kind": "routine", "id": r["id"], "title": f"Routine ‘{r['name']}’ {ROUTINE_SAYS[r['needs']]}",
                     "reason": said or f"Its last run {ROUTINE_SAYS[r['needs']]}.", "source": "routine", "due": None, "priority": None,
-                    "url": None, "actions": ["open"], "repo": None, "suggest": None, "urgent": bool(r.get("urgent")),
+                    "url": None, "actions": ["make_task", "open"] if streak else ["open"], "repo": None, "suggest": None, "urgent": bool(r.get("urgent")),
                     "facts": f"{'Urgent. ' if r.get('urgent') else ''}Scheduled job '{_clip(r['name'], 80)}': {r['needs']}. Judge: {_clip(r.get('why'), 120) or '-'}. "
-                             f"Last run: {_clip(last.get('summary') or last.get('detail'))}",
+                             f"Last run: {_clip(last.get('summary') or last.get('detail'))}{f'. {said}' if streak else ''}",
                     "stable": f"{last.get('id')}|{r['needs']}", "pin": "security" if r.get("security") else None})
     for r in sorted((r for r in reminders or [] if r.get("due") and r["due"] <= today), key=lambda r: r["due"]):
         out.append({"key": f"reminder:{r['due']}:{_clip(r['text'], 80)}", "kind": "reminder", "id": r["due"],

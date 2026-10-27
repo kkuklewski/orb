@@ -210,6 +210,25 @@ describe("home screen", () => {
     expect(sent).toContainEqual({ type: "item_get", source: "vikunja", id: "7" });
   });
 
+  it("a routine in a failure streak offers Make it a task first, which opens the routine with its card", () => {
+    const streak: PlanItem = { key: "routine:acme-sync", kind: "routine", id: "acme-sync", title: "Routine ‘acme-sync’ failed",
+      reason: "3 failed runs in a row since 2026-10-24", source: "routine", actions: ["make_task", "open"] };
+    const once: PlanItem = { ...failed, key: "routine:globex-digest", id: "globex-digest", title: "Routine ‘globex-digest’ failed" };
+    render(<Home />);
+    act(() => dispatch(plan([streak, once])));
+    const strip = screen.getByRole("article", { name: "3 things need you" });
+    const row = within(strip).getByRole("group", { name: "Routine ‘acme-sync’ failed" });
+    expect(row.textContent).toContain("3 failed runs in a row since 2026-10-24");
+    expect(within(row).getAllByRole("button").filter((b) => b.classList.contains("hbtn")).map((b) => b.textContent)).toEqual(["Make it a task"]);
+    expect(within(strip).queryByRole("group", { name: "Routine ‘globex-digest’ failed" })).toBeNull();  // no streak: a plain row
+    expect(within(strip).getAllByRole("button", { name: "Make it a task" })).toHaveLength(1);
+    sent.length = 0;
+    fireEvent.click(within(row).getByRole("button", { name: "Make it a task" }));
+    expect(useViews.getState().view).toBe("routine");
+    expect(useRoutineScreen.getState().id).toBe("acme-sync");
+    expect(sent).toContainEqual({ type: "make_task", routine: "acme-sync" });
+  });
+
   it("a broken setup opens Settings at its section; a reminder due opens its link, or is just a line without one", () => {
     const signedOut: PlanItem = { key: "setup:claude", kind: "setup", id: "claude", title: "Claude Code is signed out", reason: "No session can run until you sign in again.", source: "setup", actions: ["open"] };
     const renew: PlanItem = { key: "reminder:2026-10-25:Renew", kind: "reminder", id: "2026-10-25", title: "Renew acme.example", reason: "Due today.", source: "reminder", due: "2026-10-25", url: "https://registrar.example/acme", actions: ["open"] };

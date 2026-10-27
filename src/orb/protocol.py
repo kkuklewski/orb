@@ -337,6 +337,12 @@ class RoutineRun(_Msg):
     url: str = ""
 
 
+class RoutineStreak(_Msg):
+    """A failure streak (routines.streak, GLOSSARY: Failure streak)."""
+    count: int  # consecutive failed or judged-broken runs, newest first (at least routines.STREAK)
+    since: float | None = None  # the start of the oldest counted run
+
+
 class RoutineItem(_Msg):
     """One row of the Routines panel (routines.item)."""
     id: str
@@ -358,6 +364,7 @@ class RoutineItem(_Msg):
     urgent: bool = False  # failed / waiting / stuck, or a judged problem with a deadline within a week or a security risk
     resolved: bool = False  # you marked the last run's judged problem resolved; the next run is judged afresh
     security: bool = False  # its judged problem is a security risk: its Needs you row is pinned (docs/adr/0012)
+    streak: RoutineStreak | None = None  # a failure streak: its Needs you row offers Make it a task first
 
 
 class RoutinesEvent(_Event):
@@ -497,7 +504,7 @@ class PlanItem(_Msg):
     due: str | None = None  # YYYY-MM-DD
     priority: int | None = None
     url: str | None = None
-    actions: list[Literal["open", "start", "done", "later", "delegate"]] = []
+    actions: list[Literal["open", "start", "done", "later", "delegate", "make_task"]] = []
     repo: str | None = None  # a tracker task's repo from the repo map (label); None: Delegate asks for one
     suggest: Literal["take now", "delegate", "later"] | None = None  # tasks only: the rule's action (suggest.py), a hint
     urgent: bool = False  # Needs you only: a broken setup, an urgent routine (routines.urgent), or one past ESCALATE_H; shown red
