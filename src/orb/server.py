@@ -23,7 +23,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTex
 from fastapi.staticfiles import StaticFiles
 from starlette.datastructures import Headers, MutableHeaders
 
-from . import billing, chain, config, delegation, desk, folders, forget, handoff, home, intake, items, kokoro_setup, make_task, navigate, needs, parakeet, routines, settings, setup, slash, speech, tasks, tracker, triage, vault_write, vendor, vocab, worktree
+from . import away, billing, chain, config, delegation, desk, folders, forget, handoff, home, intake, items, kokoro_setup, make_task, navigate, needs, parakeet, routines, settings, setup, slash, speech, tasks, tracker, triage, vault_write, vendor, vocab, worktree
 from .agent import SCREEN_MAX, FolderSession, dumps, first_request
 from .brain import CaptureGuard
 from .sessions import SessionStore
@@ -86,6 +86,7 @@ class Hub:
         self.folders: list[dict] = []
         self.rate_limit: dict | None = None
         self.guard = CaptureGuard(config.STATE_DIR / "captures.json")  # shared: one daily limit
+        self.away = away.Clock(config.STATE_DIR / "away.json")  # the Away recap: when the owner last acted
         self.routines = routines.Watch(config.STATE_DIR / "routines.json", notify=self.routine_notice,
                                        push=self.push_routines)
         self.needs = needs.Needs(config.STATE_DIR / "needs.json", ask=lambda p: routines.ask_haiku(p, needs.MODEL),
@@ -570,6 +571,7 @@ async def ws_endpoint(ws: WebSocket):
         while True:
             msg = await ws.receive_json()
             try:
+                await owner_acted(msg)
                 await handle(conn, msg)
             except Exception as e:  # noqa: BLE001
                 log.exception("ws message %s", msg.get("type"))
@@ -716,6 +718,13 @@ async def item_get(conn: "Conn", source: str, item_id: str, start: bool) -> None
         await hub.start_task(conn, str(where), got["brief"])
         return
     await conn.send({"type": "item", "source": source, "id": item_id, **got, "repo": repo[1] if repo else None})
+
+
+async def owner_acted(msg: dict) -> None:
+    """Every page message passes here first: a click or a message moves the Away recap's clock (away.ACTIONS), a page
+    that only opens or reads does not. Back after 24 hours: every page's Home freezes the recap."""
+    if msg.get("type") in away.ACTIONS and hub.away.acted():
+        await hub.push_all(hub.away.event())
 
 
 async def delegate(conn: Conn, task_id: int, path: str | None) -> None:
@@ -1030,6 +1039,7 @@ async def handle(conn: Conn, msg: dict) -> None:
         await hub.push_folders()
         return
     if t == "home":
+        await conn.send(hub.away.event())
         await conn.send(hub.delegator.event())
         notes = await asyncio.to_thread(home.summary, settings.settings.vault())
         await conn.send(notes)
@@ -1048,6 +1058,10 @@ async def handle(conn: Conn, msg: dict) -> None:
                           for x in open_], routines=hub.live_routines(),
                    notes=notes["tasks"], awaiting=notes["awaiting_count"], prs=w.get("prs") or [], results=hub.results(),
                    force=bool(msg.get("rerank")))
+        return
+    if t == "away_seen":  # the Away recap was closed, or Home left: gone on every page
+        if hub.away.seen():
+            await hub.push_all(hub.away.event())
         return
     if t == "plan_start":
         await hub.needs.mark("started", str(msg["key"]), dt.date.today().isoformat())

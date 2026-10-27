@@ -190,6 +190,108 @@
       "title": "AuthStatus",
       "type": "object"
     },
+    "AwayRecap": {
+      "additionalProperties": false,
+      "properties": {
+        "back": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "heading": {
+          "type": "string"
+        },
+        "since": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "since",
+        "heading"
+      ],
+      "title": "AwayRecap",
+      "type": "object"
+    },
+    "AwayRecapEvent": {
+      "additionalProperties": false,
+      "description": "Home's Away recap (away.Clock): the one-shot card after 24 hours or more without the owner acting, or None.",
+      "properties": {
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "recap": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AwayRecap"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "away_recap",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "recap"
+      ],
+      "title": "AwayRecapEvent",
+      "type": "object"
+    },
+    "AwaySeenMsg": {
+      "additionalProperties": false,
+      "description": "The Away recap was closed, or Home left while it showed: it goes on every page.",
+      "properties": {
+        "type": {
+          "const": "away_seen",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "AwaySeenMsg",
+      "type": "object"
+    },
     "BargeInMsg": {
       "additionalProperties": false,
       "properties": {
@@ -874,6 +976,7 @@
         "mapping": {
           "add_folder": "#/$defs/AddFolderMsg",
           "archive_session": "#/$defs/ArchiveSessionMsg",
+          "away_seen": "#/$defs/AwaySeenMsg",
           "barge_in": "#/$defs/BargeInMsg",
           "brain_apply": "#/$defs/BrainApplyMsg",
           "brain_get": "#/$defs/BrainGetMsg",
@@ -1023,6 +1126,9 @@
         },
         {
           "$ref": "#/$defs/HomeMsg"
+        },
+        {
+          "$ref": "#/$defs/AwaySeenMsg"
         },
         {
           "$ref": "#/$defs/PlanStartMsg"
@@ -6215,6 +6321,7 @@
       "discriminator": {
         "mapping": {
           "audio": "#/$defs/AudioEvent",
+          "away_recap": "#/$defs/AwayRecapEvent",
           "bg_notice": "#/$defs/BgNoticeEvent",
           "brain_applied": "#/$defs/BrainAppliedEvent",
           "brain_list": "#/$defs/BrainListEvent",
@@ -6353,6 +6460,9 @@
         },
         {
           "$ref": "#/$defs/HomeTasksEvent"
+        },
+        {
+          "$ref": "#/$defs/AwayRecapEvent"
         },
         {
           "$ref": "#/$defs/PlanEvent"

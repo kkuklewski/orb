@@ -14,7 +14,7 @@ import { Actions } from "./HomeDelegated";
 // that fixes it, a reminder its link); an approval opens its session, where the Allow / Deny card lives. Home itself
 // never allows or denies. Hidden when nothing needs you.
 
-type Row = { key: string; tag: string; title: string; reason: string; quote?: string | null; side: string; open?: () => void; href?: string | null;
+export type Row = { key: string; tag: string; title: string; reason: string; quote?: string | null; side: string; open?: () => void; href?: string | null;
   resolve?: () => void; urgent?: boolean };
 
 const ago = (ts?: number | null) => (ts ? (relTime(ts) === "now" ? "just now" : `${relTime(ts)} ago`) : "just now");
@@ -51,6 +51,13 @@ function planRow(p: PlanItem, canResolve: (id: string) => boolean): Row {
   if (p.kind === "reminder") return { ...row, href: p.url && /^https?:\/\//.test(p.url) ? p.url : null };
   if (p.kind === "routine") return { ...row, open: () => openRoutine(p.id), resolve: canResolve(p.id) ? () => resolveRun(p.id) : undefined };
   return { ...row, open: () => openItem("vikunja", p.id) };
+}
+
+/** Every Needs you row in the strip's order, as one line each (the Away recap shows the first few). */
+export function needsLines(n: NeedsYou, canResolve: (id: string) => boolean = () => false): Row[] {
+  const deleg = (d: DelegationItem): Row => ({ key: d.id, tag: DELEG_TAG[d.needs!], title: `Delegated #${d.task} ${d.title}`, reason: `${d.repo} · ${d.line}`,
+    side: "", open: d.needs === "stopped" ? undefined : () => openFolder(d.folder, d.session) });
+  return [...n.waiting.map(approval), ...n.delegations.map(deleg), ...n.items.map((p) => planRow(p, canResolve))];
 }
 
 /** Grey by default; bold red only when a rule says urgent (needs.py), so the few that are stand out. */
@@ -107,7 +114,7 @@ const resolveRow = (r: Row) => (
   </div>
 );
 
-const row = (r: Row) => r.resolve ? resolveRow(r) : r.open ? <button key={r.key} type="button" className="needs-row" onClick={r.open}><RowBody r={r} /></button>
+export const row = (r: Row) => r.resolve ? resolveRow(r) : r.open ? <button key={r.key} type="button" className="needs-row" onClick={r.open}><RowBody r={r} /></button>
   : r.href ? <a key={r.key} className="needs-row" href={r.href} target="_blank" rel="noopener noreferrer"><RowBody r={r} /></a>
   : <div key={r.key} className="needs-row still"><RowBody r={r} /></div>;
 
