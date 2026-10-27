@@ -44,8 +44,9 @@ from claude_agent_sdk.types import TERMINAL_TASK_STATUSES
 
 from . import billing, chain, config, desk, grant, handoff, navigate, settings, slash, speech, trust
 from .brain import (BRAIN_READ_TOOLS, CAPTURE_TOOL, CONNECTOR_PREFIX, NOTE_REQUEST, CaptureGuard, brain_prompt,
-                    connector_allowed, connector_env, deny, split_note, vault_rule)
-from .fence import Fence, strictest
+                    connector_env, split_note)
+from .fence import Fence
+from .gate import Decision, Gate, hook_output
 from .replies import NO, YES, classify_reply, match_option
 from .spoken import VOICE_PROMPT, TextBlockRouter, TurnState, read_all_sentences, split_spoken
 from .timing import TurnTiming
@@ -414,8 +415,7 @@ class FolderSession:
         self.notify = notify  # background news: "done" / "approval"
         self.unseen = False  # finished while nobody was looking
         self.guard = guard or CaptureGuard(config.STATE_DIR / "captures.json")
-        self.fence = Fence(path)
-        self.grant: grant.Cover | None = None  # a delegation's or a drop's grant (ADR 0005, 0009): never stored or carried over
+        self.gate = Gate(Fence(path), key, path, self.guard, self._task_title)
         self.client: ClaudeSDKClient | None = None
         self.reader: asyncio.Task | None = None
         self.session_id: str | None = store.resume_id(path, key)
@@ -428,7 +428,7 @@ class FolderSession:
         self.history: list[dict] = []
         self.history_loaded = False
         self.lost: list[str] = []  # background tasks a restart stopped; told to the model on the next request
-        self.card_titles: dict[str, str] = {}  # tool_use_id -> task title the hook fetched, for the card that follows
+        self.decided: dict[str, Decision] = {}  # tool_use_id -> the hook's decision, for the card that may follow
         self.screen: tuple[str, str] | None = None  # (name, text) of the page the user is looking at, if not the chat
         self.pending: dict[str, tuple[asyncio.Future, dict]] = {}
         self.open_turns = 0
@@ -458,6 +458,23 @@ class FolderSession:
         self.timing: TurnTiming | None = None  # the turn being measured
         self.timings: dict[str, TurnTiming] = {}  # recent turns, for the page's playback report
         self.speaker.on_clip = self._clip_ready
+
+    @property
+    def fence(self) -> Fence:
+        return self.gate.fence
+
+    @fence.setter
+    def fence(self, f: Fence) -> None:
+        self.gate.fence = f
+
+    @property
+    def grant(self) -> grant.Cover | None:
+        """A delegation's or a drop's grant (ADR 0005, 0009): never stored or carried over."""
+        return self.gate.cover
+
+    @grant.setter
+    def grant(self, g: grant.Cover | None) -> None:
+        self.gate.cover = g
 
     @property
     def busy(self) -> bool:
@@ -512,9 +529,10 @@ class FolderSession:
             + ([navigate.TOOL] if self.navigate else []),  # moving the page is read-only: never a card
             mcp_servers={handoff.SERVER: self._orb_server()} if self.handoff or self.is_desk or self.navigate else {},
             hooks={
-                "PreToolUse": [HookMatcher(matcher=f"Edit|Write|MultiEdit|NotebookEdit|Bash|Read|Glob|Grep|{CAPTURE_TOOL}|{handoff.TOOL}|{'|'.join(desk.WRITE_TOOLS)}",
+                # one gate, two matchers that never match the same tool (Capture is a connector's)
+                "PreToolUse": [HookMatcher(matcher=f"Edit|Write|MultiEdit|NotebookEdit|Bash|Read|Glob|Grep|{handoff.TOOL}|{'|'.join(desk.WRITE_TOOLS)}",
                                            hooks=[self._pre_tool]),
-                               HookMatcher(matcher=f"{CONNECTOR_PREFIX}.*", hooks=[self._connector_tool])],
+                               HookMatcher(matcher=f"{CONNECTOR_PREFIX}.*", hooks=[self._pre_tool])],
                 "PostToolUse": [HookMatcher(matcher=CAPTURE_TOOL, hooks=[self._capture_done])],
                 "PostToolUseFailure": [HookMatcher(matcher=CAPTURE_TOOL, hooks=[self._capture_failed])],
             },
@@ -914,19 +932,20 @@ class FolderSession:
     # -- permissions ------------------------------------------------------------
 
     async def _can_use_tool(self, name: str, inp: dict[str, Any], ctx: ToolPermissionContext):
-        if self.grant is not None:  # the owner approved this on the Delegate card or by the drop; the fence still goes first
-            verdict = await asyncio.to_thread(grant.decide, self._rule(name, inp), self.grant, name, inp)
-            if verdict == "allow":
-                return PermissionResultAllow(updated_input=self.grant.safe_input(name, inp))
-            if verdict == "deny":
-                return PermissionResultDeny(message=self.fence.reason(name, inp) or "Blocked by the repo fence.")
+        d = self.decided.pop(ctx.tool_use_id or "", None)
+        if d is None and self.grant is not None:  # a tool the hook doesn't see (a drop's WebFetch)
+            d = await asyncio.to_thread(self.gate.decide, name, inp)
+        if d is not None and d.covered:  # the owner approved this on the Delegate card or by the drop
+            return PermissionResultAllow(updated_input=d.input)
+        if d is not None and d.kind == "deny":
+            return PermissionResultDeny(message=d.reason or "Blocked by the repo fence.")
         pid = uuid.uuid4().hex
         fut: asyncio.Future = asyncio.get_running_loop().create_future()
         ev = {"type": "permission", "id": pid, "tool": name, "input": inp,
               "summary": tool_summary(name, inp), "tool_use_id": ctx.tool_use_id,
               "title": ctx.title, "description": ctx.description, "blocked_path": ctx.blocked_path}
         if name in desk.WRITE_TOOLS:  # "Mark task 12 'Ship it' done", the title the hook already fetched
-            title = self.card_titles.pop(ctx.tool_use_id or "", "")
+            title = d.title if d else ""
             ev["summary"] = (lambda t: t[:1].upper() + t[1:])(desk.label(name, inp, title))
         else:
             title = ""
@@ -966,10 +985,9 @@ class FolderSession:
             asyncio.create_task(self.set_mode("default"))  # plan approved: the folder goes back to approval cards
         return PermissionResultAllow()
 
-    def _rule(self, name: str, inp: dict[str, Any]) -> dict:
-        """The repo fence and the vault rules for one tool call, strictest first."""
-        return strictest(self.fence.rule(name, inp), vault_rule(settings.settings.vault(), name, inp, cwd=self.path,
-                                                                protected=tuple(settings.settings["vault_protected"])))
+    def _task_title(self, raw_id: object) -> str:
+        """A tracker task's title for a write tool's card (the desk tools exist only in the notes-vault session)."""
+        return desk.card_title(self.sources, raw_id) if self.sources else ""
 
     async def attach_grant(self, g: grant.Grant) -> None:
         self.grant = g
@@ -990,36 +1008,18 @@ class FolderSession:
             if not fut.done():
                 fut.set_result((False, why))
 
-    # -- hooks: second-brain notes, vault rules, repo fence ---------------------------------------
+    # -- hooks: the tool gate, second-brain notes ---------------------------------------------------
 
     async def _pre_tool(self, data: dict, tool_use_id: str | None, context: Any) -> dict:
+        """The tool gate's decision for one call. A hook, so the user's own allow rules can't let a denied call
+        past; a covered call is still allowed in `_can_use_tool` (ADR 0011 moves it here)."""
         name, inp = data.get("tool_name", ""), data.get("tool_input") or {}
-        if name == CAPTURE_TOOL:
-            out = self.guard.pre_capture(self.key, inp)
-        elif name == handoff.TOOL:  # a card in every permission mode (auto included): it starts work in another repo
-            out = handoff.ask(inp)
-        elif name in desk.WRITE_TOOLS:  # a card in every mode: it changes a task in the tracker
-            title = await asyncio.to_thread(desk.card_title, self.sources, inp.get("id")) if self.sources else ""
-            if tool_use_id and title:
-                self.card_titles = {**dict(list(self.card_titles.items())[-8:]), tool_use_id: title}
-            out = desk.ask(name, inp, title)
-        else:
-            out = self._rule(name, inp)
-        decision = out.get("hookSpecificOutput", {}).get("permissionDecision")
-        if decision == "deny":
-            await self.emit({"type": "notice", "level": "warn",
-                             "text": out["hookSpecificOutput"].get("permissionDecisionReason", "Blocked.")})
-        return out
-
-    async def _connector_tool(self, data: dict, tool_use_id: str | None, context: Any) -> dict:
-        """A claude.ai connector's call: Brain's only, unless the owner turned the other connectors on. A hook,
-        so the user's own allow rules can't let one past."""
-        name = data.get("tool_name", "")
-        if connector_allowed(name, settings.settings):
-            return {}
-        reason = "claude.ai connectors other than Brain are off in Orb (settings: connectors)."
-        await self.emit({"type": "notice", "level": "warn", "text": reason})
-        return deny(reason)
+        d = await asyncio.to_thread(self.gate.decide, name, inp)
+        if d.kind == "deny":
+            await self.emit({"type": "notice", "level": "warn", "text": d.reason or "Blocked."})
+        elif tool_use_id:  # for the card that may follow
+            self.decided = {**dict(list(self.decided.items())[-15:]), tool_use_id: d}
+        return {} if d.covered else hook_output(d)
 
     async def _capture_done(self, data: dict, tool_use_id: str | None, context: Any) -> dict:
         self.guard.record()

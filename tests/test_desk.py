@@ -257,7 +257,7 @@ async def test_the_permission_card_for_a_write_tool_names_the_task(src, tmp_path
         await asyncio.sleep(0.01)
         ev = next(e for e in events if e["type"] == "permission")
         assert ev["summary"] == card and said == [spoken]
-        assert not s.card_titles  # used up by the card
+        assert not s.decided  # used up by the card
         await s._deny_pending("no")
         await decision
 
