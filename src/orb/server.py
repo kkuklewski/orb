@@ -1085,7 +1085,7 @@ async def handle(conn: Conn, msg: dict) -> None:
         clients = {pid for pid, path in paths.items() if fence.Fence(path, isolated=False).in_client()}  # pins an overdue task (needs.py)
         hub.replan(setup=await hub.setup_problems(src and src["error"]), reminders=forget.due_now(settings.settings.data),
                    tasks=[{**x, "suggested": (mine.get(x["id"]) or {}).get("p"), "repo": (repos.get(x.get("project_id")) or (None, None))[1],
-                           "client": x.get("project_id") in clients} for x in open_], routines=hub.live_routines(),
+                           "client": x.get("project_id") in clients, "money": needs.money(x.get("labels"), cfg.get("pin_labels"))} for x in open_], routines=hub.live_routines(),
                    notes=notes["tasks"], awaiting=notes["awaiting_count"], prs=w.get("prs") or [], results=hub.results(),
                    force=bool(msg.get("rerank")))
         return

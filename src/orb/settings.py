@@ -43,6 +43,7 @@ DEFAULTS = {
     "vikunja_url": config.env("VIKUNJA_URL", ""),  # open tasks from Vikunja (token: ORB_VIKUNJA_TOKEN, env only)
     "jira_url": config.env("JIRA_URL", ""),  # or from Jira Cloud, which wins when set (ORB_JIRA_EMAIL + ORB_JIRA_TOKEN, env only)
     "tasks_inbox": config.env("TASKS_INBOX", "Inbox"),  # the project a new task with no mapped repo goes to
+    "pin_labels": ["money"],  # tracker labels that pin an overdue task as money (needs.py); the default is a convention, not a tracker rule; [] = off
     "delegation_limit": 3,  # delegations working at once; the next ones wait as Queued
     "sandbox_read": [],  # extra home folders a delegation's test/build commands may read (toolchains); settings.json only
     "onboarded": False,

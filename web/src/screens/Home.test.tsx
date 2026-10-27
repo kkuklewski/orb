@@ -264,6 +264,14 @@ describe("home screen", () => {
     expect([...strip.querySelectorAll(".needs-tag")].map((t) => t.classList.contains("urgent"))).toEqual([false, true, false, false]);
   });
 
+  it("an overdue task with a pin label says money in the side column, pinned like client", () => {
+    render(<Home />);
+    act(() => dispatch(plan([{ ...overdue, pin: "money", urgent: true }, { ...overdue, key: "vikunja:9", id: "9", title: "Send invoice", source: "globex" }])));
+    const strip = screen.getByRole("article", { name: "3 things need you" });  // the waiting session's row first
+    expect([...strip.querySelectorAll(".needs-side")].map((x) => x.textContent)).toEqual(["now", "money", "2026-10-20"]);
+    expect([...strip.querySelectorAll(".needs-tag")].map((t) => t.classList.contains("urgent"))).toEqual([false, true, false]);  // red at 48h past due
+  });
+
   it("Needs you is hidden when nothing needs you, and says when ranking failed", () => {
     useFeatures.setState({ folders: [folder("web", [session("w3", "done", { label: "read the logs" })])] });
     render(<Home />);

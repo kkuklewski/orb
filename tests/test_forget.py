@@ -364,3 +364,18 @@ async def test_home_gives_the_plan_a_broken_setup_and_the_reminders_due(monkeypa
     assert [p["id"] for p in planned["setup"]] == ["claude", "vikunja", "speech"]
     assert [r["text"] for r in planned["reminders"]] == ["Renew"]
     assert [e for e in conn.sent if e["type"] == "home_tasks"][0]["error"].startswith("Vikunja not reachable: ")
+
+
+def test_open_tasks_carry_their_label_names_read_only(monkeypatch):
+    raw = [{"id": 1, "title": "Send the acme invoice", "project_id": 1, "labels": [{"id": 4, "title": "money"}, {"id": 5, "title": "Q4"}]},
+           {"id": 2, "title": "Fix globex login", "project_id": 1, "labels": None}]  # Vikunja sends null for no labels
+    calls = []
+
+    def fake(base, token, path, params):
+        calls.append(path)
+        return [{"id": 1, "title": "acme"}] if path == "/projects" else raw if params["page"] == 1 else []
+    monkeypatch.setattr(vikunja, "configured", lambda url: ("http://v", "tk"))
+    monkeypatch.setattr(vikunja, "_get", fake)
+    got = {t["id"]: t["labels"] for t in vikunja.open_tasks("http://v")["tasks"]}
+    assert got == {1: ["money", "Q4"], 2: []}
+    assert not any("label" in p for p in calls)  # labels come with the task list; no label endpoint is touched

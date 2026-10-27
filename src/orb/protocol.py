@@ -481,6 +481,7 @@ class TrackerTask(_Msg):
     priority: int
     updated: float
     url: str
+    labels: list[str] = []  # the tracker's label names, read only (a pin label pins an overdue task as money)
 
 
 ItemSource = Literal["vikunja", "prs", "repos", "notes", "tasks"]
@@ -508,7 +509,7 @@ class PlanItem(_Msg):
     repo: str | None = None  # a tracker task's repo from the repo map (label); None: Delegate asks for one
     suggest: Literal["take now", "delegate", "later"] | None = None  # tasks only: the rule's action (suggest.py), a hint
     urgent: bool = False  # Needs you only: a broken setup, an urgent routine (routines.urgent), or one past ESCALATE_H; shown red
-    pin: Literal["security", "client"] | None = None  # Needs you only: the class a rule pinned it in (docs/adr/0012); it leads
+    pin: Literal["security", "client", "money"] | None = None  # Needs you only: the class a rule pinned it in (docs/adr/0012); it leads
 
 
 class PlanEvent(_Event):

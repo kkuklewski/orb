@@ -1565,6 +1565,7 @@ export interface TrackerTask {
   created?: string;
   due?: string | null;
   id: number;
+  labels?: string[];
   priority: number;
   project: string;
   project_id?: number;
@@ -1644,7 +1645,7 @@ export interface PlanItem {
   id: string;
   key: string;
   kind: "approval" | "setup" | "routine" | "reminder" | "task" | "note_task" | "result" | "pr" | "notes_batch";
-  pin?: ("security" | "client") | null;
+  pin?: ("security" | "client" | "money") | null;
   priority?: number | null;
   reason: string;
   repo?: string | null;

@@ -430,3 +430,32 @@ def test_a_day_passing_keeps_the_fingerprint_and_the_reasons_and_the_model_reads
     aged = needs.aged(n.items, n.state["since"], TODAY, 1000.0 + 30 * H)
     assert [c["stable"] for c in aged] == [c["stable"] for c in n.items]
     assert "in Needs you for 1 day" in aged[0]["facts"] and "facts" not in sent[-1]["needs_you"][0]
+
+
+# -- pin labels: the money class (Vikunja orb #827) ---------------------------------------------------------------------
+
+def test_a_pin_label_matches_case_insensitively_and_an_empty_list_turns_the_class_off():
+    assert needs.money(["Money", "q4"], ["money"]) and needs.money(["billing "], ["Billing"])
+    assert not needs.money(["backend"], ["money"]) and not needs.money([], ["money"]) and not needs.money(None, ["money"])
+    assert not needs.money(["money"], []) and not needs.money(["money"], None) and not needs.money(["money"], [" "])
+    from orb import settings
+    assert settings.DEFAULTS["pin_labels"] == ["money"]
+
+
+def test_an_overdue_task_with_a_pin_label_pins_as_money_and_client_wins_the_class_word():
+    money = {**TASKS[0], "money": True}  # Fix checkout, overdue
+    both = {**TASKS[2], "client": True, "money": True}  # Send invoice, overdue, a client folder's repo too
+    soon = {**TASKS[1], "money": True}  # Due today: not overdue, not in Needs you at all
+    rows = needs.needs_you([SECURE], [money, both, soon], TODAY)
+    assert {r["key"]: r["pin"] for r in rows} == {"routine:r6": "security", "vikunja:7": "money", "vikunja:9": "client"}
+    plain = needs.needs_you([], [{**TASKS[0], "money": False}, TASKS[2]], TODAY)  # no pin label anywhere
+    assert [r["pin"] for r in plain] == [None, None] and all(r["kind"] == "task" for r in plain)  # no error row
+
+
+def test_money_rows_lead_the_plan_and_turn_red_only_48h_past_due():
+    late = {**TASKS[2], "money": True, "id": 19, "due": "2026-10-23"}  # 2 days late = 48h
+    items = needs.needs_you(ROUTINES[:1], [TASKS[0], {**TASKS[2], "money": True}, late], TODAY)
+    assert keys(needs.ordered(items, [], False))[:2] == ["vikunja:19", "vikunja:9"]  # pinned block first, oldest due first inside it
+    red = {c["key"]: c["urgent"] for c in needs.aged(items, {"routine:r1": 0.0}, TODAY, 0.0)}
+    assert red["vikunja:19"] is True and red["vikunja:9"] is False and red["vikunja:7"] is False
+    assert protocol.PlanItem.model_validate({k: items[2][k] for k in needs.SENT}).pin == "money"  # the page accepts the word
