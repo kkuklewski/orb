@@ -355,6 +355,13 @@ class Hub:
         await asyncio.gather(*(c.send(ev) for c in self.conns))
         self.replan(routines=self.live_routines())  # a routine that just failed needs you now, not at the next Home refresh
 
+    def away_event(self) -> dict:
+        """The Away recap with its lines from what Orb already keeps: the routines that ran ok (while the panel is on)."""
+        def lines(since: float) -> list[dict]:
+            st = self.routines.state
+            return routines.away_lines(self.routines.items(), st["runs"], st["logs"], since) if settings.settings["routines"] else []
+        return self.away.event(lines=lines)
+
     def live_routines(self) -> list[dict] | None:
         return self.routines.items() if settings.settings["routines"] else None
 
@@ -724,7 +731,7 @@ async def owner_acted(msg: dict) -> None:
     """Every page message passes here first: a click or a message moves the Away recap's clock (away.ACTIONS), a page
     that only opens or reads does not. Back after 24 hours: every page's Home freezes the recap."""
     if msg.get("type") in away.ACTIONS and hub.away.acted():
-        await hub.push_all(hub.away.event())
+        await hub.push_all(hub.away_event())
 
 
 async def delegate(conn: Conn, task_id: int, path: str | None) -> None:
@@ -1039,7 +1046,7 @@ async def handle(conn: Conn, msg: dict) -> None:
         await hub.push_folders()
         return
     if t == "home":
-        await conn.send(hub.away.event())
+        await conn.send(hub.away_event())
         await conn.send(hub.delegator.event())
         notes = await asyncio.to_thread(home.summary, settings.settings.vault())
         await conn.send(notes)
@@ -1061,7 +1068,7 @@ async def handle(conn: Conn, msg: dict) -> None:
         return
     if t == "away_seen":  # the Away recap was closed, or Home left: gone on every page
         if hub.away.seen():
-            await hub.push_all(hub.away.event())
+            await hub.push_all(hub.away_event())
         return
     if t == "plan_start":
         await hub.needs.mark("started", str(msg["key"]), dt.date.today().isoformat())

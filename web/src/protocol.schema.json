@@ -190,6 +190,37 @@
       "title": "AuthStatus",
       "type": "object"
     },
+    "AwayLine": {
+      "additionalProperties": false,
+      "description": "One thing that finished without the owner: a routine's latest ok Run (count: its Runs since they left).",
+      "properties": {
+        "count": {
+          "default": 1,
+          "type": "integer"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "const": "routine",
+          "type": "string"
+        },
+        "summary": {
+          "default": "",
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "title"
+      ],
+      "title": "AwayLine",
+      "type": "object"
+    },
     "AwayRecap": {
       "additionalProperties": false,
       "properties": {
@@ -206,6 +237,17 @@
         },
         "heading": {
           "type": "string"
+        },
+        "lines": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/AwayLine"
+          },
+          "type": "array"
+        },
+        "more": {
+          "default": 0,
+          "type": "integer"
         },
         "since": {
           "type": "number"

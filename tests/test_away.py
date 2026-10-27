@@ -19,7 +19,7 @@ def test_a_day_or_more_away_is_live_until_the_owner_acts(tmp_path):
     c = clock(tmp_path)
     c.acted(now=0)
     live = c.current(now=30 * H)
-    assert live == {"since": 0, "back": None, "heading": "While you were away · 30 hours"}
+    assert live == {"since": 0, "back": None, "heading": "While you were away · 30 hours", "lines": [], "more": 0}
     assert c.current(now=50 * H)["heading"] == "While you were away · 2 days"  # the span grows while away
 
 
@@ -35,7 +35,7 @@ def test_first_action_back_freezes_the_recap(tmp_path):
     c.acted(now=0)
     assert c.acted(now=50 * H) is True
     assert c.acted(now=51 * H) is False  # later actions leave it alone
-    assert c.current(now=52 * H) == {"since": 0, "back": 50 * H, "heading": "While you were away · 2 days"}
+    assert c.current(now=52 * H) == {"since": 0, "back": 50 * H, "heading": "While you were away · 2 days", "lines": [], "more": 0}
 
 
 def test_seen_is_one_shot_until_away_again(tmp_path):
@@ -123,3 +123,29 @@ async def test_closing_the_card_freezes_then_clears_it_on_every_page(tmp_path, m
     await server.handle(conn, msg)
     assert pushed[0]["recap"]["back"] is not None and pushed[1] == {"type": "away_recap", "recap": None}  # frozen, then seen
     assert c.recap is None and c.current() is None
+
+
+def test_the_card_keeps_eight_lines_and_counts_the_rest(tmp_path):
+    c = clock(tmp_path)
+    c.last_active = 0
+    lines = lambda since: [{"kind": "routine", "id": f"t{i}", "title": f"r{i}", "summary": "", "count": 1, "at": i} for i in range(11)]
+    r = c.current(now=30 * H, lines=lines)
+    assert [x["id"] for x in r["lines"]] == [f"t{i}" for i in range(8)] and r["more"] == 3
+    assert "at" not in r["lines"][0]
+    protocol.AwayRecapEvent.model_validate(c.event(now=30 * H, lines=lines))
+    assert c.current(now=30 * H)["lines"] == [] and c.current(now=30 * H)["more"] == 0
+
+
+def test_the_hub_gives_routine_lines_only_while_the_routines_panel_is_on(tmp_path, monkeypatch):
+    import time
+
+    c = clock(tmp_path)
+    c.last_active = time.time() - 30 * H
+    monkeypatch.setattr(server.hub, "away", c)
+    seen = []
+    monkeypatch.setattr(server.routines, "away_lines", lambda items, runs, logs, since: seen.append(since) or [
+        {"kind": "routine", "id": "t1", "title": "Curation", "summary": "ok", "count": 2, "at": 1.0}])
+    monkeypatch.setitem(server.settings.settings.data, "routines", True)
+    assert server.hub.away_event()["recap"]["lines"][0]["count"] == 2 and seen == [c.last_active]
+    monkeypatch.setitem(server.settings.settings.data, "routines", False)
+    assert server.hub.away_event()["recap"]["lines"] == []
