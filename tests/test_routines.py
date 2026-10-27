@@ -138,3 +138,27 @@ def test_resolve_marks_only_a_judged_problem_and_can_be_undone(tmp_path):
     assert Watch(tmp_path / "r.json", nothing, nothing).state["resolved"] == {"t1": "c1"}  # kept across a restart
     asyncio.run(w.resolve("t1", undo=True))
     assert {x["id"]: x["needs"] for x in w.items()} == {"t1": "action", "t2": "failed"}
+
+
+def test_away_lines_count_the_ok_runs_since_the_owner_left_and_keep_the_latest_summary():
+    from orb.routines import away_lines
+    now = time.time()
+    runs = {"t1": [run("a3", ago=60), run("a2", ago=3600), run("a1", ago=90000)],  # two after they left, one before
+            "t2": [run("b1", ago=60)], "t3": [run("c1", ago=60)], "t4": [run("d1", ago=90000)]}
+    logs = {"a3": {"outcome": "ok", "summary": "3 created, 1 merged"}, "a2": {"outcome": "ok", "summary": "older"},
+            "b1": {"outcome": "failed", "summary": "boom"}, "c1": {"outcome": "ok", "summary": "fine"},
+            "d1": {"outcome": "ok", "summary": "long ago"}}
+    names = {"t1": "Curation", "t2": "Verify", "t3": "Radar", "t4": "Weekly"}
+    items = [item(routine(id=i, name=n), runs[i], logs, {}, now) for i, n in names.items()]
+    got = away_lines(items, runs, logs, now - 86400)
+    assert [(x["title"], x["summary"], x["count"]) for x in got] == [("Curation", "3 created, 1 merged", 2), ("Radar", "fine", 1)]
+    assert {x["kind"] for x in got} == {"routine"} and got[0]["id"] == "t1"
+    # A failed latest run is in Needs you, never here, even with ok runs before it.
+    logs["c1"] = {"outcome": "failed"}
+    runs["t3"].append(run("c0", ago=3600))
+    logs["c0"] = {"outcome": "ok", "summary": "earlier"}
+    items = [item(routine(id=i, name=n), runs[i], logs, {}, now) for i, n in names.items()]
+    assert [x["title"] for x in away_lines(items, runs, logs, now - 86400)] == ["Curation"]
+    # A kept log that says an older run failed leaves it out of the count.
+    logs["a2"] = {"outcome": "failed"}
+    assert away_lines(items, runs, logs, now - 86400)[0]["count"] == 1

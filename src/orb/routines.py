@@ -317,6 +317,24 @@ async def ask_haiku(prompt: str, model: str) -> str:
     return text
 
 
+def away_lines(items: list[dict], runs: dict, logs: dict, since: float) -> list[dict]:
+    """The Away recap's routine lines (GLOSSARY: Away recap), newest first: one per routine whose latest Run ended ok and
+    that ran after `since`. The count is its Runs started since then (Orb keeps the last 5; a kept log that says one
+    didn't end ok leaves it out), the summary the latest one's. A routine that needs you (failed, stuck, missed, a judged
+    problem) has no line: it stays in Needs you."""
+    out = []
+    for x in items:
+        last = x["last"]
+        if x["needs"] or not last or last["outcome"] != "ok":
+            continue
+        times = [t for r in runs.get(x["id"], []) if (t := _ts(r.get("created_at"))) and t > since
+                 and logs.get(r["id"], {}).get("outcome", "ok") == "ok"]
+        if times:
+            out.append({"kind": "routine", "id": x["id"], "title": x["name"], "summary": last["summary"],
+                        "count": len(times), "at": max(times)})
+    return sorted(out, key=lambda line: -line["at"])
+
+
 class Watch:
     def __init__(self, state: Path, notify: Callable[[str], Awaitable[None]],
                  push: Callable[[], Awaitable[None]]) -> None:

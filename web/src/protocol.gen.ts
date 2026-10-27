@@ -1580,7 +1580,22 @@ export interface AwayRecapEvent {
 export interface AwayRecap {
   back?: number | null;
   heading: string;
+  lines?: AwayLine[];
+  more?: number;
   since: number;
+}
+/**
+ * One thing that finished without the owner: a routine's latest ok Run (count: its Runs since they left).
+ *
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "AwayLine".
+ */
+export interface AwayLine {
+  count?: number;
+  id: string;
+  kind: "routine";
+  summary?: string;
+  title: string;
 }
 /**
  * Home's plan. needs_you is decided by rules (docs/adr/0001): a broken setup, routines with a problem, reminders
