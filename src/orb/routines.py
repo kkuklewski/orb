@@ -289,6 +289,7 @@ def item(r: dict, runs: list[dict], logs: dict, seen: dict, now: float, verdicts
         "notify": override if override in NOTIFY else None, "quiet": quiet,
         "loud": loud, "state": state_word(bool(r.get("enabled")), needs, loud), "resolved": done,
         "urgent": urgent(needs, verdict, now),
+        "security": bool(needs in PROBLEMS and verdict and verdict.get("security")),  # pins its Needs you row (needs.py)
     }
 
 

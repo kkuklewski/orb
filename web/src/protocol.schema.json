@@ -5401,6 +5401,21 @@
           ],
           "type": "string"
         },
+        "pin": {
+          "anyOf": [
+            {
+              "enum": [
+                "security",
+                "client"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "priority": {
           "anyOf": [
             {
@@ -5978,6 +5993,10 @@
           "type": "string"
         },
         "resolved": {
+          "default": false,
+          "type": "boolean"
+        },
+        "security": {
           "default": false,
           "type": "boolean"
         },

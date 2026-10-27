@@ -345,3 +345,88 @@ def test_only_a_broken_setup_and_an_urgent_routine_are_urgent():
     assert {r["key"]: r["urgent"] for r in rows} == {
         "setup:claude": True, "routine:r4": True, "routine:r1": False, f"reminder:{TODAY}:Renew": False, "vikunja:7": False, "vikunja:9": False}
     assert rows[1]["facts"].startswith("Urgent. ")  # the ranking model sees it too
+
+
+# -- pinned rows, the since clock and red at ESCALATE_H (docs/adr/0012) ------------------------------------------------
+
+H = 3600.0
+SECURE = {"id": "r6", "name": "Login watch", "enabled": True, "needs": "action", "why": "account alert", "security": True,
+          "last": {"id": "run6", "outcome": "ok", "summary": "Someone signed in to acme from a new place"}}
+CLIENT = {**TASKS[2], "client": True}  # Send invoice, due 2026-10-24, in a client folder's repo
+
+
+def pinned_rules():
+    return needs.needs_you([*ROUTINES, SECURE], [TASKS[0], CLIENT, TASKS[1]], TODAY)
+
+
+def test_a_rule_pins_security_routines_setup_and_client_tasks_only():
+    setup = needs.setup_problems({"installed": True, "loggedIn": False}, None, "browser", "browser", UP, True)
+    rows = needs.needs_you([*ROUTINES, SECURE], [TASKS[0], CLIENT], TODAY, setup, [{"text": "Renew", "due": TODAY}])
+    assert {r["key"]: r["pin"] for r in rows} == {
+        "setup:claude": "security", "routine:r4": None, "routine:r1": None, "routine:r6": "security",
+        f"reminder:{TODAY}:Renew": None, "vikunja:7": None, "vikunja:9": "client"}
+
+
+def test_pinned_rows_lead_with_no_ranking_a_stale_one_and_a_fresh_one_ordering_inside_each_block(tmp_path):
+    items = pinned_rules()  # rule order: r4, r1, r6 (pinned), vikunja:7, vikunja:9 (pinned)
+    assert keys(needs.ordered(items, [], False)) == ["routine:r6", "vikunja:9", "routine:r4", "routine:r1", "vikunja:7"]
+    ranking = [{"key": k, "why": "", "stable": ""} for k in ("vikunja:7", "vikunja:9", "routine:r1", "routine:r6", "routine:r4")]
+    assert keys(needs.ordered(items, ranking, True)) == ["vikunja:9", "routine:r6", "vikunja:7", "routine:r1", "routine:r4"]
+    assert keys(needs.ordered(items, ranking, False)) == ["routine:r6", "vikunja:9", "routine:r4", "routine:r1", "vikunja:7"]
+    sent, asked, ask, push = ranker(['{"items": [{"id": "i5", "why": "a"}, {"id": "i1", "why": "b"}]}'])
+    n = needs.Needs(tmp_path / "n.json", ask, push)
+    asyncio.run(n.update(TODAY, routines=[*ROUTINES, SECURE], tasks=[TASKS[0], CLIENT], now=1000.0))
+    assert keys(sent[-1]["needs_you"]) == ["vikunja:9", "routine:r6", "routine:r4", "routine:r1", "vikunja:7"]
+    assert [r["pin"] for r in sent[-1]["needs_you"]] == ["client", "security", None, None, None]
+    assert keys(n.needs_rows()) == keys(sent[-1]["needs_you"])  # the Away recap's top 3 reads the same order
+
+
+def test_the_since_clock_starts_on_entry_drops_on_leaving_restarts_on_return_and_survives_a_restart(tmp_path):
+    sent, asked, ask, push = ranker([RuntimeError("down")])
+    path = tmp_path / "n.json"
+    n = needs.Needs(path, ask, push)
+    setup = [{"id": "vikunja", "title": "Vikunja isn't reachable", "reason": "timeout"}]
+    asyncio.run(n.update(TODAY, routines=ROUTINES, setup=setup, now=1000.0))
+    since = json.loads(path.read_text())["since"]
+    assert since == {"routine:r4": 1000.0, "routine:r1": 1000.0, "setup:vikunja": 1000.0}
+    assert "ranking" in json.loads(path.read_text())  # one file, saved with the ranking
+    asyncio.run(n.update(TODAY, routines=[ROUTINES[3]], now=2000.0))  # r1 left Needs you
+    assert json.loads(path.read_text())["since"] == {"routine:r4": 1000.0, "setup:vikunja": 1000.0}
+    asyncio.run(n.update(TODAY, routines=ROUTINES, now=3000.0))  # r1 is back: a new clock
+    assert json.loads(path.read_text())["since"]["routine:r1"] == 3000.0
+    again = needs.Needs(path, ask, push)  # a restart: routines and setup not sent yet, the clocks stay
+    asyncio.run(again.update(TODAY, tasks=TASKS, now=4000.0))
+    assert json.loads(path.read_text())["since"] == {"routine:r4": 1000.0, "routine:r1": 3000.0, "setup:vikunja": 1000.0}
+    asyncio.run(again.update(TODAY, routines=ROUTINES, setup=[], now=5000.0))  # setup fixed: its clock goes
+    assert json.loads(path.read_text())["since"] == {"routine:r4": 1000.0, "routine:r1": 3000.0}
+
+
+def test_red_at_48h_a_routine_by_its_clock_a_task_only_when_pinned_too():
+    items = needs.needs_you([ROUTINES[0]], [TASKS[0], CLIENT, {**TASKS[2], "id": 19, "client": True, "due": "2026-10-23"}], TODAY)
+    red = lambda hours: {c["key"]: c["urgent"] for c in needs.aged(items, {"routine:r1": 0.0}, TODAY, hours * H)}  # noqa: E731
+    assert red(47) == {"routine:r1": False, "vikunja:7": False, "vikunja:9": False, "vikunja:19": True}
+    assert red(48)["routine:r1"] is True
+    # Fix checkout is 5 days late and stays grey; Send invoice (pinned) is 1 day late; vikunja:19 (pinned) 2 days = 48h.
+    assert not red(10_000)["vikunja:7"] and not red(10_000)["vikunja:9"]
+    assert needs.ESCALATE_H == 48
+
+
+def test_the_badge_count_is_the_same_with_and_without_age_or_pins(tmp_path):
+    plain = needs.needs_you(ROUTINES, TASKS, TODAY)
+    pinned = needs.needs_you([*ROUTINES[:3], {**ROUTINES[3], "security": True}], [{**t, "client": True} for t in TASKS], TODAY)
+    old = needs.aged(pinned, {"routine:r1": 0.0, "routine:r4": 0.0}, TODAY, 1000 * H)
+    assert len(plain) == len(pinned) == len(old) == len(needs.ordered(old, [], False))
+
+
+def test_a_day_passing_keeps_the_fingerprint_and_the_reasons_and_the_model_reads_the_age(tmp_path):
+    sent, asked, ask, push = ranker([WILD, WILD])
+    n = needs.Needs(tmp_path / "n.json", ask, push)
+    asyncio.run(n.update(TODAY, routines=ROUTINES, tasks=TASKS, now=1000.0))
+    fp = n.state["fp"]
+    asyncio.run(n.update(TODAY, routines=ROUTINES, tasks=TASKS, now=1000.0 + 30 * H + needs.MIN_GAP))
+    assert len(asked) == 1 and n.state["fp"] == fp and not sent[-1]["stale"]
+    assert sent[-1]["needs_you"][0]["reason"] == "the client waits on checkout"
+    assert "in Needs you for 0 days" in asked[0] and "in Needs you for 5 days" in asked[0]  # r4 just entered; vikunja:7 was due 10-20
+    aged = needs.aged(n.items, n.state["since"], TODAY, 1000.0 + 30 * H)
+    assert [c["stable"] for c in aged] == [c["stable"] for c in n.items]
+    assert "in Needs you for 1 day" in aged[0]["facts"] and "facts" not in sent[-1]["needs_you"][0]

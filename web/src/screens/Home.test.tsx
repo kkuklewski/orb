@@ -234,6 +234,17 @@ describe("home screen", () => {
     expect(tags.map((t) => [t.textContent, t.classList.contains("urgent")])).toEqual([["OK?", false], ["ROUTINE", true], ["OVERDUE", false]]);
   });
 
+  it("a pinned row says its class word in the side column, lowercase and in the column's grey", () => {
+    const signedOut: PlanItem = { key: "setup:claude", kind: "setup", id: "claude", title: "Claude Code is signed out", reason: "Sign in again.", source: "setup", actions: ["open"], urgent: true, pin: "security" };
+    render(<Home />);
+    act(() => dispatch(plan([signedOut, { ...overdue, pin: "client" }, { ...overdue, key: "vikunja:9", id: "9", title: "Send invoice" }], { stale: true })));
+    const strip = screen.getByRole("article", { name: "4 things need you" });
+    const sides = [...strip.querySelectorAll(".needs-side")];
+    expect(sides.map((x) => x.textContent)).toEqual(["now", "security", "client", "2026-10-20"]);
+    expect(sides.map((x) => x.className)).toEqual(Array(4).fill("needs-side mono"));  // no colour of its own
+    expect([...strip.querySelectorAll(".needs-tag")].map((t) => t.classList.contains("urgent"))).toEqual([false, true, false, false]);
+  });
+
   it("Needs you is hidden when nothing needs you, and says when ranking failed", () => {
     useFeatures.setState({ folders: [folder("web", [session("w3", "done", { label: "read the logs" })])] });
     render(<Home />);

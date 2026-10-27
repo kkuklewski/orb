@@ -72,6 +72,11 @@ routine, a reminder due today or earlier, an overdue task, a broken setup (sign-
 chosen speech engine down, linking into Settings at the section that fixes it).
 _Avoid_: Urgent, waiting, important
 
+**Pinned**:
+A Needs you row a rule holds at the top until it leaves: security, client or money. It shows its class word, and turns
+red after 48 hours in Needs you (past due, for a task).
+_Avoid_: Sticky, escalated, priority
+
 **Next action**:
 The single item Home suggests the owner start now, after everything that needs them.
 _Avoid_: Lead, top item, today's plan

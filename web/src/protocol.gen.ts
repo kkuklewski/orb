@@ -1361,6 +1361,7 @@ export interface RoutineItem {
   quiet?: boolean;
   repo?: string;
   resolved?: boolean;
+  security?: boolean;
   state: "failed" | "stuck" | "missed" | "needs you" | "worth reading" | "nothing to report" | "off";
   urgent?: boolean;
   why?: string;
@@ -1632,6 +1633,7 @@ export interface PlanItem {
   id: string;
   key: string;
   kind: "approval" | "setup" | "routine" | "reminder" | "task" | "note_task" | "result" | "pr" | "notes_batch";
+  pin?: ("security" | "client") | null;
   priority?: number | null;
   reason: string;
   repo?: string | null;

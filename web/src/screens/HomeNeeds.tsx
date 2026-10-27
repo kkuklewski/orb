@@ -10,12 +10,12 @@ import { Actions } from "./HomeDelegated";
 // Home's "Needs you" strip: what is blocked or broken until you act, decided by rules (docs/adr/0001). Sessions
 // waiting for an OK first (live from the session list), then delegations that can't finish on their own (named by
 // task and repo, with their actions), then the plan's rows from the server: a broken setup, routines with a problem,
-// reminders due, then tasks past their due date. A tap opens the item (a broken setup opens Settings at the section
+// reminders due, then tasks past their due date, rows a rule pinned leading them. A tap opens the item (a broken setup opens Settings at the section
 // that fixes it, a reminder its link); an approval opens its session, where the Allow / Deny card lives. Home itself
 // never allows or denies. Hidden when nothing needs you.
 
 export type Row = { key: string; tag: string; title: string; reason: string; quote?: string | null; side: string; open?: () => void; href?: string | null;
-  resolve?: () => void; urgent?: boolean };
+  resolve?: () => void; urgent?: boolean; pin?: string | null };
 
 const ago = (ts?: number | null) => (ts ? (relTime(ts) === "now" ? "just now" : `${relTime(ts)} ago`) : "just now");
 
@@ -46,8 +46,9 @@ function DelegationRow({ d }: { d: DelegationItem }) {
 const TAG: Partial<Record<PlanItem["kind"], string>> = { setup: "SETUP", routine: "ROUTINE", reminder: "DUE", task: "OVERDUE" };
 
 function planRow(p: PlanItem, canResolve: (id: string) => boolean): Row {
-  const row = { key: p.key, tag: TAG[p.kind] ?? p.kind.toUpperCase(), title: p.title, reason: p.reason, side: p.due ?? p.source ?? "", urgent: !!p.urgent };
-  if (p.kind === "setup") return { ...row, side: "", open: () => openSettings(p.id) };
+  // A pinned row (docs/adr/0012) says its class in the side column, in the column's own grey: it leads, it isn't louder.
+  const row = { key: p.key, tag: TAG[p.kind] ?? p.kind.toUpperCase(), title: p.title, reason: p.reason, side: p.pin ?? p.due ?? p.source ?? "", urgent: !!p.urgent, pin: p.pin };
+  if (p.kind === "setup") return { ...row, side: p.pin ?? "", open: () => openSettings(p.id) };
   if (p.kind === "reminder") return { ...row, href: p.url && /^https?:\/\//.test(p.url) ? p.url : null };
   if (p.kind === "routine") return { ...row, open: () => openRoutine(p.id), resolve: canResolve(p.id) ? () => resolveRun(p.id) : undefined };
   return { ...row, open: () => openItem("vikunja", p.id) };
@@ -110,7 +111,7 @@ const resolveRow = (r: Row) => (
       <span className="needs-title">{r.title}</span>
       <span className="needs-reason">{r.reason}</span>
     </button>
-    <span className="deleg-actions"><button type="button" className="hbtn" onClick={r.resolve}>Mark resolved</button></span>
+    <span className="deleg-actions">{r.pin && <span className="needs-side mono">{r.pin}</span>}<button type="button" className="hbtn" onClick={r.resolve}>Mark resolved</button></span>
   </div>
 );
 
