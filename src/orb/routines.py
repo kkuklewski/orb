@@ -143,6 +143,7 @@ JUDGE_RULES = (
 URGENT_DAYS = 7  # a judged problem whose deadline is this close (or past) is urgent
 KINDS = ("broken", "action", "info", "none")
 PROBLEMS = ("broken", "action")  # judged kinds that count as "needs you"
+STREAK = 3  # this many failed or judged-broken runs in a row are a failure streak (GLOSSARY: Failure streak)
 
 
 def judge_prompt(runs: list[dict]) -> str:
@@ -247,6 +248,44 @@ def task_draft(x: dict) -> tuple[str, str]:
     return f'Look at the run of "{name}" ({when})', (f"Run: {url}" if _URL.match(url) else "")
 
 
+def _counts(run: dict, logs: dict, verdicts: dict, resolved: str | None, judge: bool) -> bool:
+    """Whether this kept run counts toward a failure streak: it failed, or it ended ok and the judge said broken. A run
+    you marked resolved, an unknown one (no log, or ok with no verdict) and every other outcome don't."""
+    if resolved == run["id"]:
+        return False
+    outcome = (logs.get(run["id"]) or {}).get("outcome")
+    return outcome == "failed" or (judge and outcome == "ok" and (verdicts.get(run["id"]) or {}).get("kind") == "broken")
+
+
+def streak(runs: list[dict], logs: dict, verdicts: dict | None = None, resolved: str | None = None,
+           judge: bool = True) -> dict | None:
+    """{count, since} of the failure streak ending at the newest kept run (since = the oldest counted run's start),
+    or None below STREAK. A rule, never a model's judgement: the judge only says whether one ok run is broken."""
+    n = 0
+    for run in runs:
+        if not _counts(run, logs, verdicts or {}, resolved, judge):
+            break
+        n += 1
+    return {"count": n, "since": _ts(runs[n - 1].get("created_at"))} if n >= STREAK else None
+
+
+def streak_window(runs: list[dict], logs: dict, verdicts: dict | None = None, resolved: str | None = None,
+                  judge: bool = True) -> list[dict]:
+    """The older runs a check looks at to see a failure streak: only when the newest run counts, the next newest of the
+    last STREAK runs, up to the first kept run that breaks it. Their missing logs are fetched and their unjudged ok
+    results judged; kept logs and verdicts aren't asked again."""
+    if not runs or not _counts(runs[0], logs, verdicts or {}, resolved, judge):
+        return []
+    out = []
+    for run in runs[1:STREAK]:
+        lg = logs.get(run["id"])
+        if lg and not _counts(run, logs, verdicts or {}, resolved, judge) and not (
+                judge and lg.get("outcome") == "ok" and "kind" not in (verdicts or {}).get(run["id"], {})):
+            break  # a known breaker: older runs can't make a streak
+        out.append(run)
+    return out
+
+
 def item(r: dict, runs: list[dict], logs: dict, seen: dict, now: float, verdicts: dict | None = None,
          override: str | None = None, judge: bool = True, resolved: str | None = None) -> dict:
     """One panel row (all text is shown as plain text on the page)."""
@@ -290,6 +329,8 @@ def item(r: dict, runs: list[dict], logs: dict, seen: dict, now: float, verdicts
         "loud": loud, "state": state_word(bool(r.get("enabled")), needs, loud), "resolved": done,
         "urgent": urgent(needs, verdict, now),
         "security": bool(needs in PROBLEMS and verdict and verdict.get("security")),  # pins its Needs you row (needs.py)
+        # A missed run is newer than the newest kept one, so it breaks the streak; so does an off routine.
+        "streak": streak(runs, logs, verdicts, resolved, judge) if needs in ("failed", "broken") and not missed else None,
     }
 
 
@@ -487,12 +528,7 @@ class Watch:
                 if (not lg or lg.get("outcome") in ("running", "waiting") or lg.get("last_event_at") != last.get("last_event_at")
                         or "detail" not in lg):  # logs kept before the result screen existed: fetch once more for the full text
                     need.append(last)
-        if need:
-            for inp, resp in await self._calls([{"action": "get_run_log", "session_id": x["id"]} for x in need]):
-                text = resp.get("summary", "") if isinstance(resp, dict) else str(resp)
-                sid = inp["session_id"]
-                last_event = next((x.get("last_event_at") for x in need if x["id"] == sid), None)
-                st["logs"][sid] = {**parse_log(text), "detail": result_detail(text), "last_event_at": last_event}
+        await self._fetch_logs(need)
         keep = {x["id"] for runs in st["runs"].values() for x in runs}
         st["logs"] = {k: v for k, v in st["logs"].items() if k in keep}
         st["verdicts"] = {k: v for k, v in st["verdicts"].items() if k in keep}
@@ -502,7 +538,40 @@ class Watch:
             await self._judge(shown)
         except Exception as e:  # noqa: BLE001 - no verdict means nothing is hidden or announced for that run
             log.warning("routines judge failed: %s", e)
+        try:
+            await self._streak(shown)
+        except Exception as e:  # noqa: BLE001 - an unknown run breaks the streak; asked again at the next check
+            log.warning("routines streak check failed: %s", e)
         await self._announce()
+
+    async def _fetch_logs(self, need: list[dict]) -> None:
+        if not need:
+            return
+        st = self.state
+        for inp, resp in await self._calls([{"action": "get_run_log", "session_id": x["id"]} for x in need]):
+            text = resp.get("summary", "") if isinstance(resp, dict) else str(resp)
+            sid = inp["session_id"]
+            last_event = next((x.get("last_event_at") for x in need if x["id"] == sid), None)
+            st["logs"][sid] = {**parse_log(text), "detail": result_detail(text), "last_event_at": last_event}
+
+    async def _streak(self, shown: list[dict]) -> None:
+        """A routine whose newest run counts toward a failure streak: fetch the missing logs of its next newest runs
+        (with the newest, at most STREAK per routine per check; read-only like every check) and judge their ok
+        results, one call per run. The streak itself is the rule in `streak`."""
+        st = self.state
+        judge = settings.settings["routines_judge"]
+        windows = [(r, streak_window(st["runs"].get(r["id"]) or [], st["logs"], st["verdicts"], st["resolved"].get(r["id"]), judge))
+                   for r in shown if r.get("enabled")]
+        await self._fetch_logs([x for _r, w in windows for x in w if x["id"] not in st["logs"]])
+        if not judge:
+            return
+        todo = []
+        for r, w in windows:
+            for x in w:
+                lg = st["logs"].get(x["id"])
+                if lg and lg.get("outcome") == "ok" and "kind" not in st["verdicts"].get(x["id"], {}):
+                    todo.append({"id": x["id"], "name": r.get("name") or r["id"], "text": (lg.get("detail") or lg.get("summary") or "")[:JUDGE_READS]})
+        await self._judge_runs(todo)
 
     async def _judge(self, shown: list[dict]) -> None:
         """Haiku reads each new finished result once and says whether it is worth the owner's time."""
@@ -518,6 +587,10 @@ class Watch:
             v = st["verdicts"].get(runs[0]["id"], {}) if runs else {}
             if lg and lg.get("outcome") == "ok" and ("kind" not in v or (v["kind"] in PROBLEMS and "security" not in v)):
                 todo.append({"id": runs[0]["id"], "name": r.get("name") or r["id"], "text": (lg.get("detail") or lg.get("summary") or "")[:JUDGE_READS]})
+        await self._judge_runs(todo)
+
+    async def _judge_runs(self, todo: list[dict]) -> None:
+        st = self.state
         gate = asyncio.Semaphore(JUDGE_PARALLEL)
 
         async def one(run: dict) -> None:

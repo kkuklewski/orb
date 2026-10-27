@@ -1363,6 +1363,7 @@ export interface RoutineItem {
   resolved?: boolean;
   security?: boolean;
   state: "failed" | "stuck" | "missed" | "needs you" | "worth reading" | "nothing to report" | "off";
+  streak?: RoutineStreak | null;
   urgent?: boolean;
   why?: string;
   worth?: ("read" | "skip") | null;
@@ -1379,6 +1380,16 @@ export interface RoutineRun {
   outcome?: ("ok" | "failed" | "waiting" | "running" | "stuck") | null;
   summary?: string;
   url?: string;
+}
+/**
+ * A failure streak (routines.streak, GLOSSARY: Failure streak).
+ *
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "RoutineStreak".
+ */
+export interface RoutineStreak {
+  count: number;
+  since?: number | null;
 }
 /**
  * This interface was referenced by `OrbProtocol`'s JSON-Schema
@@ -1628,7 +1639,7 @@ export interface PlanEvent {
  * via the `definition` "PlanItem".
  */
 export interface PlanItem {
-  actions?: ("open" | "start" | "done" | "later" | "delegate")[];
+  actions?: ("open" | "start" | "done" | "later" | "delegate" | "make_task")[];
   due?: string | null;
   id: string;
   key: string;

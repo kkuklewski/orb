@@ -1,7 +1,7 @@
 import { useFeatures } from "../stores/features";
 import { askIn, folderName, openFolder } from "../stores/session";
 import { openSettings, relTime, useViews, type SessionRow } from "../stores/views";
-import { openRoutine, resolvable, resolveRun } from "../stores/routine";
+import { makeTask, openRoutine, resolvable, resolveRun } from "../stores/routine";
 import { openItem } from "../stores/items";
 import { delegText, rerank, useHome, type NeedsYou } from "../stores/home";
 import type { DelegationItem, PlanItem } from "../protocol.gen";
@@ -11,11 +11,12 @@ import { Actions } from "./HomeDelegated";
 // waiting for an OK first (live from the session list), then delegations that can't finish on their own (named by
 // task and repo, with their actions), then the plan's rows from the server: a broken setup, routines with a problem,
 // reminders due, then tasks past their due date, rows a rule pinned leading them. A tap opens the item (a broken setup opens Settings at the section
-// that fixes it, a reminder its link); an approval opens its session, where the Allow / Deny card lives. Home itself
-// never allows or denies. Hidden when nothing needs you.
+// that fixes it, a reminder its link); an approval opens its session, where the Allow / Deny card lives. A routine in
+// a failure streak offers Make it a task first (the server's actions), which opens the routine with its card. Home
+// itself never allows or denies. Hidden when nothing needs you.
 
 export type Row = { key: string; tag: string; title: string; reason: string; quote?: string | null; side: string; open?: () => void; href?: string | null;
-  resolve?: () => void; urgent?: boolean; pin?: string | null };
+  resolve?: () => void; task?: () => void; urgent?: boolean; pin?: string | null };
 
 const ago = (ts?: number | null) => (ts ? (relTime(ts) === "now" ? "just now" : `${relTime(ts)} ago`) : "just now");
 
@@ -50,7 +51,8 @@ function planRow(p: PlanItem, canResolve: (id: string) => boolean): Row {
   const row = { key: p.key, tag: TAG[p.kind] ?? p.kind.toUpperCase(), title: p.title, reason: p.reason, side: p.pin ?? p.due ?? p.source ?? "", urgent: !!p.urgent, pin: p.pin };
   if (p.kind === "setup") return { ...row, side: p.pin ?? "", open: () => openSettings(p.id) };
   if (p.kind === "reminder") return { ...row, href: p.url && /^https?:\/\//.test(p.url) ? p.url : null };
-  if (p.kind === "routine") return { ...row, open: () => openRoutine(p.id), resolve: canResolve(p.id) ? () => resolveRun(p.id) : undefined };
+  if (p.kind === "routine") return { ...row, open: () => openRoutine(p.id), resolve: canResolve(p.id) ? () => resolveRun(p.id) : undefined,
+    task: p.actions?.[0] === "make_task" ? () => { openRoutine(p.id); makeTask(p.id); } : undefined };
   return { ...row, open: () => openItem("vikunja", p.id) };
 }
 
@@ -103,19 +105,23 @@ export function NeedsStrip({ n }: { n: NeedsYou }) {
   );
 }
 
-/** A routine whose reported problem you can mark resolved: the text opens it, the button sits on the right. */
-const resolveRow = (r: Row) => (
+/** A routine with its own buttons on the right (Make it a task on a failure streak, Mark resolved on a reported
+ *  problem); the text opens it. */
+const actionRow = (r: Row) => (
   <div key={r.key} className="needs-row deleg-needs" role="group" aria-label={r.title}>
     <Tag r={r} />
     <button type="button" className="needs-text" onClick={r.open}>
       <span className="needs-title">{r.title}</span>
       <span className="needs-reason">{r.reason}</span>
     </button>
-    <span className="deleg-actions">{r.pin && <span className="needs-side mono">{r.pin}</span>}<button type="button" className="hbtn" onClick={r.resolve}>Mark resolved</button></span>
+    <span className="deleg-actions">{r.pin && <span className="needs-side mono">{r.pin}</span>}
+      {r.task && <button type="button" className="hbtn" onClick={r.task}>Make it a task</button>}
+      {r.resolve && <button type="button" className="hbtn" onClick={r.resolve}>Mark resolved</button>}
+    </span>
   </div>
 );
 
-export const row = (r: Row) => r.resolve ? resolveRow(r) : r.open ? <button key={r.key} type="button" className="needs-row" onClick={r.open}><RowBody r={r} /></button>
+export const row = (r: Row) => r.resolve || r.task ? actionRow(r) : r.open ? <button key={r.key} type="button" className="needs-row" onClick={r.open}><RowBody r={r} /></button>
   : r.href ? <a key={r.key} className="needs-row" href={r.href} target="_blank" rel="noopener noreferrer"><RowBody r={r} /></a>
   : <div key={r.key} className="needs-row still"><RowBody r={r} /></div>;
 

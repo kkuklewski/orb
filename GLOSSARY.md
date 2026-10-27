@@ -163,6 +163,11 @@ _Avoid_: Result, done, finished
 One run of a routine; the judge flags it worth reading or not. /r/<routine> shows its last run.
 _Avoid_: Result, report, output
 
+**Failure streak**:
+3 consecutive failed or judged-broken runs of one routine; a clean, resolved or unknown run breaks it. Counted from the
+newest of the 5 kept runs; its Needs you row says "3 failed runs in a row since <date>" and offers Make it a task first.
+_Avoid_: Repeat error, flapping
+
 **Don't forget**:
 The pane in Home's status card for things that wait quietly: dated reminders, pull requests going stale, repos with
 unsaved work. A reminder due today or overdue moves to Needs you by rule.

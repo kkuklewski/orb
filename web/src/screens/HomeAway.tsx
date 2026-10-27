@@ -27,7 +27,7 @@ export function AwayRecap({ n }: { n: NeedsYou }) {
   if (!away) return null;
   const lines = needsLines(n);
   // Opening a row is opening the recap: it goes at once, not only when the page leaves Home.
-  const top = lines.slice(0, AWAY_TOP).map((r) => row({ ...r, resolve: undefined, open: r.open && (() => { awaySeen(); r.open!(); }) }));
+  const top = lines.slice(0, AWAY_TOP).map((r) => row({ ...r, resolve: undefined, task: undefined, open: r.open && (() => { awaySeen(); r.open!(); }) }));
   return (
     <article className="hc away-recap" aria-label="Away recap">
       <div className="lead-top">
