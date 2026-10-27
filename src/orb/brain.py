@@ -23,6 +23,10 @@ CONNECTOR_PREFIX = "mcp__claude_ai_"  # every claude.ai connector's tools
 BRAIN_PREFIXES = ("mcp__claude_ai_Brain__", "mcp__claude_ai_Brain_Capture__")
 MAX_NOTE_BYTES = 4096
 DAILY_LIMIT = 20
+# Expiry (docs/adr/0013): the vault's curation decision of 2026-10-19 (amended 2026-10-25), skills/value.md "Expiry".
+# The vault's translate actor archives the page; Orb only repeats the rule to show the window, and when the two
+# disagree the vault wins (a page with `auto_archived` is expired whatever this says).
+EXPIRY_DAYS = 14
 
 _TRIGGER = re.compile(
     r"^\s*(?:zanotuj(?:\s+to)?|zapisz\s+(?:to\s+)?(?:do\s+mózgu|do\s+mozgu|w\s+notatkach|notatkę|notatke)"
@@ -35,6 +39,22 @@ NOTE_REQUEST = (
     "text exactly as below (the dashboard puts in the exact words anyway). Don't save anything else, "
     "then confirm in one short spoken line and write nothing after it.\n<note>\n{text}\n</note>"
 )
+
+
+def expiry(fm: dict[str, str]) -> str:
+    """The day (YYYY-MM-DD) the vault will archive this page: `curated_at` (or `created`) + EXPIRY_DAYS, for the vault
+    rule's own pages only (AI-curated, not reviewed, `value_score` 4 or lower, no `owner_read`, no `human_verdict`, not
+    already `auto_archived`); "" for every other page, or when the date can't be read."""
+    if (fm.get("curated_by") != "ai" or fm.get("human_reviewed", "").lower() != "false" or fm.get("owner_read")
+            or fm.get("human_verdict") or fm.get("auto_archived")):
+        return ""
+    try:
+        if int(float(fm.get("value_score") or "")) > 4:
+            return ""
+        start = dt.date.fromisoformat((fm.get("curated_at") or fm.get("created") or "")[:10])
+    except ValueError:
+        return ""
+    return (start + dt.timedelta(days=EXPIRY_DAYS)).isoformat()
 
 
 def split_note(text: str) -> str | None:

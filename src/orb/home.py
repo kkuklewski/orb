@@ -9,7 +9,7 @@ import re
 import time
 from pathlib import Path
 
-from . import folders, suggest
+from . import brain, folders, suggest
 from .tasks import SNOOZE, snoozed_until, split_lines
 from .vault_write import note_path, verdict_seen
 
@@ -103,13 +103,14 @@ def _out(fm: dict[str, str]) -> bool:
             or bool(fm.get("auto_archived")))
 
 
-def _waiting(fm: dict[str, str]) -> bool:
-    """The note waits for the owner's verdict (see _awaiting)."""
+def _waiting(fm: dict[str, str], file: str) -> bool:
+    """The note waits for the owner's verdict (see _awaiting). `file` is relative to the vault: the fact-checked rule
+    counts only notes under scrapers/ (docs/adr/0013), so fact-checked docs, forge pages or memory don't wait."""
     if not fm or _out(fm):
         return False
     ai = fm.get("curated_by") == "ai"
     return ((ai and fm.get("human_reviewed", "").lower() == "false")
-            or (bool(fm.get("fact_checked_at")) and not fm.get("human_verdict"))
+            or (bool(fm.get("fact_checked_at")) and not fm.get("human_verdict") and file.startswith("scrapers/"))
             or (_score(fm.get("value_score")) is not None and not ai and not fm.get("human_verdict") and not fm.get("promoted_to")))
 
 
@@ -124,14 +125,14 @@ def _lane(fm: dict[str, str]) -> str:
 
 
 def _awaiting(vault: Path, files: list[tuple[Path, float]], limit: int | None) -> tuple[list[dict], int]:
-    """Notes that wait for the owner: fact-checked with no human_verdict, AI-curated and not yet reviewed, or
+    """Notes that wait for the owner: fact-checked under scrapers/ with no human_verdict, AI-curated and not yet reviewed, or
     scored by the nightly run (`value_score`) and not judged. Vetoed, dismissed, expired (`auto_archived`) and
     review stubs are left out. Best first: highest `value_score`, unscored last, newest first within a score.
     Returns (the first `limit`, None = all; total)."""
     out: list[dict] = []
     for p, t in files:
         fm = _front(p, t)
-        if not _waiting(fm):
+        if not _waiting(fm, p.relative_to(vault).as_posix()):
             continue
         score = _score(fm.get("value_score"))
         tag = _tag(fm)
@@ -183,11 +184,12 @@ BODY_MAX = 100_000
 
 
 def _brain_row(vault: Path, p: Path, t: float, fm: dict[str, str], limits: tuple[int, int]) -> dict:
-    score, waiting = _score(fm.get("value_score")), _waiting(fm)
+    score, waiting = _score(fm.get("value_score")), _waiting(fm, p.relative_to(vault).as_posix())
     return {"file": str(p.relative_to(vault)), "title": _title(p)[:120], "kind": _tag(fm), "mtime": t,
             "score": score, "lane": _lane(fm), "why": fm.get("value_why", "")[:200],
             "waiting": waiting, "verdict": verdict_seen(fm.get("human_verdict"), fm.get("verdict_at")),
-            "owner_read": fm.get("owner_read", ""), "suggest": suggest.note(score, limits) if waiting else ""}
+            "owner_read": fm.get("owner_read", ""), "suggest": suggest.note(score, limits) if waiting else "",
+            "expires": brain.expiry(fm)}
 
 
 def brain_notes(vault: Path, limit: int = BRAIN_MAX) -> list[dict]:

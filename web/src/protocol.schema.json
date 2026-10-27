@@ -648,6 +648,10 @@
       "additionalProperties": false,
       "description": "One note on Brain's list (home.brain_notes).",
       "properties": {
+        "expires": {
+          "default": "",
+          "type": "string"
+        },
         "file": {
           "type": "string"
         },
@@ -715,6 +719,10 @@
       "description": "One note's page: the list fields and the body under the frontmatter, as plain text.",
       "properties": {
         "body": {
+          "type": "string"
+        },
+        "expires": {
+          "default": "",
           "type": "string"
         },
         "file": {

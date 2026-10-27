@@ -637,6 +637,7 @@ class BrainNote(_Msg):
     verdict: str  # "" or "reject 2026-10-24" (sent back as `seen`)
     owner_read: str  # "" or the day the owner read it
     suggest: Literal["approve", "reject", ""] = ""  # a waiting note's suggested verdict (suggest.note); never "drop"
+    expires: str = ""  # the day the vault will archive it (brain.expiry, docs/adr/0013), "" when the expiry rule doesn't cover it
 
 
 class BrainListEvent(_Event):

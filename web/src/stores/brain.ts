@@ -4,7 +4,9 @@
 // and the server sets owner_read only if it is still unset (ADR 0007). Notes waiting for a verdict are grouped by their
 // suggestion (ADR 0006: approve or reject by the vault's rubric, never drop): accept one, or select several and Apply
 // suggestions; each verdict is written on its own, a refused one keeps its reason, and every applied one keeps Restore
-// (and its place in the group) for the rest of the page's life.
+// (and its place in the group) for the rest of the page's life. Expiry (ADR 0013): the vault archives an unread AI page
+// scored 4 or lower 14 days after it was curated; the server sends that day (`expires`) and Orb only shows it, as a
+// chip, with the pages within SOON_DAYS in Expiring soon above Reject. Keep is the approve verdict, nothing else.
 import { create } from "zustand";
 import type { BrainListEvent, BrainNote, BrainNoteEvent, VerdictNote } from "../protocol.gen";
 import { on } from "../events";
@@ -25,10 +27,40 @@ export const useBrain = create<{
   applied: Record<string, Suggested>; // notes given their suggested verdict on this page: they keep their group and Restore
   refused: Record<string, string>; // the vault write module's reason, per note
   picked: string[]; // notes selected for Apply suggestions
-}>(() => ({ list: null, file: null, note: null, filter: NO_FILTER, snap: null, applied: {}, refused: {}, picked: [] }));
+  soon: string[]; // notes shown in Expiring soon on this visit: they stay there once kept or judged
+}>(() => ({ list: null, file: null, note: null, filter: NO_FILTER, snap: null, applied: {}, refused: {}, picked: [], soon: [] }));
 
 export type Suggested = "approve" | "reject";
 export const SUGGESTED: Suggested[] = ["approve", "reject"];
+export type Group = Suggested | "soon";
+/** Brain's groups, top to bottom: Expiring soon sits right above Reject. */
+export const GROUPS: Group[] = ["approve", "soon", "reject"];
+export const GROUP_NAME: Record<Group, string> = { approve: "Suggested: approve", soon: "Expiring soon", reject: "Suggested: reject" };
+
+/** A page this many days or fewer from its expiry day is Expiring soon. */
+export const SOON_DAYS = 3;
+
+/** Today as the vault writes it: the local calendar day. */
+export const localDay = (d = new Date()) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+/** Whole days from `today` to the expiry day (negative once it's past), null when the page doesn't expire. */
+export function daysLeft(n: Pick<BrainNote, "expires">, today = localDay()): number | null {
+  if (!n.expires) return null;
+  const t = (day: string) => Date.UTC(+day.slice(0, 4), +day.slice(5, 7) - 1, +day.slice(8, 10));
+  return Math.round((t(n.expires) - t(today)) / 86_400_000);
+}
+
+/** The chip: "expires in 5 days", "expires today" on the day, "expires tonight" once past it (the vault's nightly run
+ *  hasn't archived it yet); "" when the page doesn't expire. */
+export function expiryText(n: Pick<BrainNote, "expires">, today = localDay()): string {
+  const d = daysLeft(n, today);
+  return d == null ? "" : d < 0 ? "expires tonight" : d === 0 ? "expires today" : `expires in ${d} day${d === 1 ? "" : "s"}`;
+}
+
+/** The pages within SOON_DAYS of their expiry day. */
+export const expiringSoon = (rows: BrainNote[], today = localDay()) =>
+  rows.filter((n) => { const d = daysLeft(n, today); return d != null && d <= SOON_DAYS; });
 
 const IN_BRAIN: View[] = ["brain", "note"];
 
@@ -52,12 +84,13 @@ export function setVerdict(verdict: "approve" | "reject" | "restore") {
   if (n) send({ type: "brain_verdict", file: n.file, verdict, seen: n.verdict });
 }
 
-/** The notes that carry a suggestion (or got theirs on this page), by suggested verdict, in the list's order. */
-export function suggestionGroups(rows: BrainNote[], applied: Record<string, Suggested>): Record<Suggested, BrainNote[]> {
-  const g: Record<Suggested, BrainNote[]> = { approve: [], reject: [] };
+/** Brain's groups in the list's order: Expiring soon (`soon`: the pages shown there on this visit), then the notes that
+ *  carry a suggestion (or got theirs on this page), by suggested verdict. */
+export function suggestionGroups(rows: BrainNote[], applied: Record<string, Suggested>, soon: string[] = []): Record<Group, BrainNote[]> {
+  const g: Record<Group, BrainNote[]> = { approve: [], soon: [], reject: [] };
   for (const n of rows) {
-    const s = applied[n.file] ?? (n.waiting ? n.suggest : "");
-    if (s === "approve" || s === "reject") g[s].push(n);
+    const s = soon.includes(n.file) ? "soon" : applied[n.file] ?? (n.waiting ? n.suggest : "");
+    if (s === "approve" || s === "reject" || s === "soon") g[s].push(n);
   }
   return g;
 }
@@ -69,6 +102,9 @@ const verdicts = (notes: VerdictNote[]) => { if (notes.length) send({ type: "bra
 
 /** Accept one note's suggestion. */
 export const accept = (n: BrainNote) => { if (suggestable(n)) verdicts([{ file: n.file, seen: n.verdict, verdict: n.suggest as Suggested }]); };
+
+/** Keep an expiring page: the approve verdict (ADR 0013), written like any other, so a stale row is refused the same way. */
+export const keep = (n: BrainNote) => { if (!n.verdict) verdicts([{ file: n.file, seen: n.verdict, verdict: "approve" }]); };
 
 /** Undo the verdict a suggestion applied. */
 export const restore = (n: BrainNote) => verdicts([{ file: n.file, seen: n.verdict, verdict: "restore" }]);
@@ -134,7 +170,8 @@ export function wireBrain(): () => void {
   let inBrain = false;
   onPage = false;
   const offs = [
-    on("brain_list", (ev) => useBrain.setState((s) => ({ list: ev, snap: s.snap ?? ev.notes.map((n) => n.file) }))),
+    on("brain_list", (ev) => useBrain.setState((s) => ({ list: ev, snap: s.snap ?? ev.notes.map((n) => n.file),
+      soon: [...new Set([...s.soon, ...expiringSoon(ev.notes).map((n) => n.file)])] }))),
     on("brain_applied", (ev) => useBrain.setState((s) => {
       const applied = { ...s.applied }, refused = { ...s.refused };
       for (const a of ev.applied) {
@@ -148,7 +185,7 @@ export function wireBrain(): () => void {
     on("brain_note", (ev) => { if (ev.file === useBrain.getState().file) useBrain.setState({ note: ev }); }),
     useViews.subscribe((s) => {
       const v = s.view;
-      if (IN_BRAIN.includes(v) && !inBrain) { inBrain = true; useBrain.setState({ snap: null }); } // a new visit: a new order
+      if (IN_BRAIN.includes(v) && !inBrain) { inBrain = true; useBrain.setState({ snap: null, soon: [] }); } // a new visit: a new order
       else if (!IN_BRAIN.includes(v)) inBrain = false;
       if (v === "note") onPage = true;
       else if (onPage) { onPage = false; leave(useBrain.getState().note); }

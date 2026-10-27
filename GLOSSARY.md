@@ -134,6 +134,22 @@ The owner opened a note itself and left it without a verdict (`owner_read`). See
 not reading it.
 _Avoid_: Seen, viewed, opened
 
+**Expiry**:
+The vault's nightly archive of an unread AI page scored 4 or lower after 14 days; Orb shows it, never does it. Brain
+shows the day as a chip ("expires in N days"); a verdict, a read or a human review takes the page out of it
+(docs/adr/0013).
+_Avoid_: Timeout, TTL, auto-reject
+
+**Expiring soon**:
+Brain's group of pages within 3 days of their expiry day, right above Reject. Its button is Keep: the approve verdict,
+written like any other.
+_Avoid_: Urgent, last chance, about to drop
+
+**Expired**:
+A page the vault has archived (`auto_archived`). It leaves Brain's list and is no longer waiting; the vault's word wins
+over Orb's count of days ("expires tonight" is a page past its day the nightly run hasn't reached yet).
+_Avoid_: Deleted, dropped, rejected
+
 **Finished**:
 A session that ended a turn the owner hasn't looked at yet; opening it clears it. The same word on Home and in
 Sessions. A delegation's session is never Finished: it shows as Delegated, Needs you or Ready.
