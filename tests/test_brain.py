@@ -3,7 +3,8 @@ from pathlib import Path
 import pytest
 
 from orb import brain
-from orb.brain import CaptureGuard, split_note, vault_rule
+from orb.brain import CaptureGuard, split_note
+from orb.gate import vault_rule
 
 
 @pytest.mark.parametrize("text, note", [

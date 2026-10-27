@@ -8,7 +8,7 @@ carried to another session. Before the tool gate raises an approval card it asks
    delegation branch, and `git push` of that branch / `gh pr create` only when outward steps are allowed;
 3. everything else raises the normal card.
 A declared command runs in the sandbox (`sandbox.py`); where there is none, it is not covered.
-Bash is matched word by word; anything with a shell operator, substitution or redirection is not covered
+Bash is matched word by word (`shell.py` reads it); anything with a shell operator, substitution or redirection is not covered
 (the declared commands excepted: the owner typed those exactly), and git / gh flags are allowlisted. Edits
 under `.git` are never covered: its config and gitdir decide which code a covered git command runs. A
 covered `git commit` / `git push` runs with the repo's hooks off (`safe_input`): hooks are files the session
@@ -19,18 +19,14 @@ from __future__ import annotations
 
 import os
 import re
-import shlex
 import subprocess
 from dataclasses import dataclass
 from typing import Any, Literal, Protocol
 
-from . import sandbox
+from . import sandbox, shell
 from .fence import Fence
 
 _EDIT_TOOLS = {"Edit": "file_path", "Write": "file_path", "MultiEdit": "file_path", "NotebookEdit": "notebook_path"}
-_SHELL = re.compile(r"[;&|<>`$(){}\\\n\r*?\[\]~]")
-# `git commit -m "$(cat <<'EOF' … EOF)"`, the way Claude Code writes a commit: a quoted heredoc never expands.
-_HEREDOC_COMMIT = re.compile(r"git commit((?: -[A-Za-z-]+)*) -m \"\$\(cat <<'EOF'\n(.*)\nEOF\n\)\"", re.DOTALL)
 _PUSH_FLAGS = {"-u", "--set-upstream"}
 _NO_HOOKS = "-c core.hooksPath=/dev/null "
 # Flags a covered command may carry; the *_VALUES ones take the next word. Anything else raises a card
@@ -59,7 +55,7 @@ class Grant:
 
     def __post_init__(self) -> None:
         self.worktree = os.path.realpath(self.worktree)
-        self.commands = tuple(c for c in (_norm(c) for c in self.commands) if c)
+        self.commands = tuple(c for c in (shell.norm(c) for c in self.commands) if c)
 
     def covers(self, tool: str, inp: dict[str, Any]) -> bool:
         if tool in _EDIT_TOOLS:
@@ -71,13 +67,13 @@ class Grant:
             return _inside(path, self.worktree) and ".git" not in os.path.relpath(path, self.worktree).casefold().split(os.sep)
         if tool != "Bash":
             return False
-        cmd = _norm(str(inp.get("command", "")))
-        if cmd and cmd in self.commands:
+        read = shell.read(str(inp.get("command", "")))
+        if read.norm and read.norm in self.commands:
             return sandbox.available()  # it runs files the session edited: only in the sandbox
-        if m := _HEREDOC_COMMIT.fullmatch(cmd.strip()):
-            flags, body = m.group(1).split(), m.group(2)
+        if read.heredoc_commit:
+            flags, body = read.heredoc_commit
             return "EOF" not in body.split("\n") and all(_commit_flag(f) for f in flags) and self.on_branch()
-        words = _words(cmd)
+        words = list(read.words)
         if not words:
             return False
         if words[:2] == ["git", "add"]:
@@ -97,7 +93,7 @@ class Grant:
         """The input a covered call runs with: a declared command in the sandbox, git commit / push with the
         repo's hooks turned off."""
         cmd = str(inp.get("command", "")) if tool == "Bash" else ""
-        if cmd and _norm(cmd) in self.commands:
+        if cmd and shell.norm(cmd) in self.commands:
             return {**inp, "command": sandbox.wrap(self.worktree, cmd)}
         if re.match(r"git (commit|push)\b", cmd.strip()):
             return {**inp, "command": "git " + _NO_HOOKS + cmd.strip()[4:]}
@@ -146,24 +142,9 @@ def for_repo(fence: Fence, worktree: str, branch: str, outward: bool, commands: 
     return Grant(worktree, branch, tuple(commands), outward and not fence.in_client())
 
 
-def _norm(cmd: str) -> str:
-    return " ".join(cmd.split()) if "\n" not in cmd.strip() else cmd.strip()
-
-
 def _inside(p: str, root: str) -> bool:
     p, root = p.casefold(), root.casefold()  # macOS paths are case-insensitive
     return p == root or p.startswith(root.rstrip(os.sep) + os.sep)
-
-
-def _words(cmd: str) -> list[str]:
-    """The command's words, or [] when it has any shell operator, expansion or git global option."""
-    if not cmd or _SHELL.search(re.sub(r"'[^']*'|\"[^\"$`\\]*\"", "q", cmd)):
-        return []
-    try:
-        words = shlex.split(cmd)
-    except ValueError:
-        return []
-    return words
 
 
 def _args_ok(args: list[str], flags: set[str], values: set[str], positional: bool = True) -> bool:

@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from orb.fence import Fence, glob_may_hit_secret, is_secret_name, read_only_bash, strictest
+from orb.fence import Fence, glob_may_hit_secret, is_secret_name, strictest
 from orb.brain import ask, deny
 
 
@@ -87,23 +87,6 @@ def test_vault_session_reads_client_repos_with_a_card_but_never_changes_them(dev
     assert decision(hub.rule("Bash", {"command": f"cat {app}/a > /tmp/b"})) == "deny"
     assert decision(hub.rule("Read", {"file_path": str(dev / "secrets" / "x")})) == "deny"
     assert decision(hub.rule("Read", {"file_path": str(dev / "other" / "a.md")})) == "ask"
-
-
-def test_read_only_bash():
-    assert read_only_bash("git -C ../x log --oneline && ls -la | head")
-    assert read_only_bash("git branch -a; git remote -v; grep -rn foo src")
-    assert read_only_bash("git --no-pager log --oneline -20 --stat && find src -name '*.py' -type f | head -n 5")
-    assert read_only_bash('grep -rn --include="*.ts" "a b" src/*.ts && find . -name "*.py"')
-    for cmd in ("git branch new", "git -c core.pager=x log", "git diff --output=f", "find . -delete",
-                "ls #\nrm -rf x", "ls # x\nrm x", "ls\rrm x",
-                "sort -o f a", "echo x > f", "cat $(ls)", "npm test", "sed -i s/a/b/ f",
-                "cat a & rm b", "cat a &rm b", "rg --pre ./x foo", "find . -fls out", "sort -uo f a", "tree -o f",
-                "find . -name *", "git log --ou*", "cat *", "grep -rn --include=*.ts x .",
-                "git branch -D x", "git branch --unset-upstream", "git tag -d v1", "git diff --ext-diff",
-                "(rm a)", "cat a\\\nrm b", 'find . -"delete"', "rg foo", "uniq a b", "jq . a",
-                "git -c x=y log", "git --exec-path=/x log", "git log --outp=f", "git diff --ext", "git --git-dir=x log",
-                "ls --hostname-bin=x", "grep --pre=x foo", "cat a\nrm b"):
-        assert not read_only_bash(cmd), cmd
 
 
 def test_searches_cannot_reach_secrets(dev):
