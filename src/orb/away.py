@@ -4,7 +4,8 @@ after they were away 24 hours or more.
 Acting is a click or a message (ACTIONS); a page that is only open, polling Home or reconnecting, is not. The time
 lives in Orb's own state (`~/.orb/away.json`), never in the vault. While the owner is away the recap is live (its span
 grows); their first action back freezes it (`since` .. `back`) until a page says it was seen (`away_seen`: closed, or
-Home left), and a frozen recap nobody saw goes after RECAP_KEEP. The card never gets a Badge."""
+Home left), and a frozen recap nobody saw goes after RECAP_KEEP. The card never gets a Badge. The Home chat reads the
+pending recap, or the last one once it went (`peek`), without touching any of this."""
 
 from __future__ import annotations
 
@@ -39,6 +40,12 @@ def heading(seconds: float) -> str:
     return f"While you were away · {span}"
 
 
+def _shape(since: float, back: float | None, now: float, lines: Callable[[float], list[dict]] | None) -> dict:
+    got = [{k: v for k, v in x.items() if k != "at"} for x in (lines(since) if lines else [])]
+    return {"since": since, "back": back, "heading": heading((back or now) - since), "lines": got[:LINES],
+            "more": max(0, len(got) - LINES)}
+
+
 class Clock:
     def __init__(self, path: Path) -> None:
         self.path = path
@@ -48,10 +55,11 @@ class Clock:
             data = {}
         self.last_active: float | None = data.get("last_active")
         self.recap: dict | None = data.get("recap")  # {"since", "back"}: the owner is back, the card not seen yet
+        self.last: dict | None = data.get("last")  # the recap before, once it was seen or expired: for the Home chat
         self.saved: float | None = self.last_active  # None: nothing written yet, the first action is
 
     def save(self) -> None:
-        config.write_private(self.path, json.dumps({"last_active": self.last_active, "recap": self.recap}))
+        config.write_private(self.path, json.dumps({"last_active": self.last_active, "recap": self.recap, "last": self.last}))
         self.saved = self.last_active
 
     def acted(self, now: float | None = None) -> bool:
@@ -69,7 +77,7 @@ class Clock:
         """A page showed the card and the owner closed it or left Home: it is gone everywhere."""
         if self.recap is None:
             return False
-        self.recap = None
+        self.last, self.recap = self.recap, None
         self.save()
         return True
 
@@ -78,17 +86,28 @@ class Clock:
         `lines(since)` gives what finished without the owner; the card keeps the first LINES and counts the rest."""
         now = time.time() if now is None else now
         if self.recap and now - self.recap["back"] >= RECAP_KEEP:
-            self.recap = None
+            self.last, self.recap = self.recap, None
             self.save()
+        span = self._pending(now)
+        return _shape(*span, now, lines) if span else None
+
+    def peek(self, now: float | None = None, lines: Callable[[float], list[dict]] | None = None) -> dict | None:
+        """For the Home chat: the pending recap (seen False), else the last one (seen True), else None. Only reads: the
+        card's one-shot state stays as it is."""
+        now = time.time() if now is None else now
+        recap = self.recap if self.recap and now - self.recap["back"] < RECAP_KEEP else None
+        span = (recap["since"], recap["back"]) if recap else self._pending(now) if not self.recap else None
+        if span:
+            return {**_shape(*span, now, lines), "seen": False}
+        last = self.recap or self.last  # an expired recap nobody closed counts as the last one
+        return {**_shape(last["since"], last["back"], now, lines), "seen": True} if last else None
+
+    def _pending(self, now: float) -> tuple[float, float | None] | None:
         if self.recap:
-            since, back = self.recap["since"], self.recap["back"]
-        elif self.last_active is not None and now - self.last_active >= AWAY_SECONDS:
-            since, back = self.last_active, None
-        else:
-            return None
-        got = [{k: v for k, v in x.items() if k != "at"} for x in (lines(since) if lines else [])]
-        return {"since": since, "back": back, "heading": heading((back or now) - since), "lines": got[:LINES],
-                "more": max(0, len(got) - LINES)}
+            return self.recap["since"], self.recap["back"]
+        if self.last_active is not None and now - self.last_active >= AWAY_SECONDS:
+            return self.last_active, None
+        return None
 
     def event(self, now: float | None = None, lines: Callable[[float], list[dict]] | None = None) -> dict:
         return {"type": "away_recap", "recap": self.current(now, lines)}

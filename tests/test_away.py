@@ -149,3 +149,38 @@ def test_the_hub_gives_routine_lines_only_while_the_routines_panel_is_on(tmp_pat
     assert server.hub.away_event()["recap"]["lines"][0]["count"] == 2 and seen == [c.last_active]
     monkeypatch.setitem(server.settings.settings.data, "routines", False)
     assert server.hub.away_event()["recap"]["lines"] == []
+
+
+def test_peek_reads_the_pending_or_the_last_recap_and_changes_nothing(tmp_path):
+    c = clock(tmp_path)
+    assert c.peek(now=0) is None
+    c.acted(now=0)
+    assert c.peek(now=H) is None
+    assert c.peek(now=30 * H) == {**c.current(now=30 * H), "seen": False}  # live while still away
+    c.acted(now=50 * H)
+    before = (c.last_active, dict(c.recap), c.last, c.path.read_text())
+    got = c.peek(now=51 * H, lines=lambda since: [{"kind": "routine", "id": "t1", "title": "x", "summary": "", "count": 1, "at": 1}])
+    assert got["seen"] is False and got["back"] == 50 * H and got["lines"][0]["id"] == "t1"
+    assert (c.last_active, c.recap, c.last, c.path.read_text()) == before  # the card's one-shot state stays
+    c.seen()
+    assert c.current(now=52 * H) is None and c.peek(now=52 * H)["seen"] is True
+    assert clock(tmp_path).peek(now=52 * H)["since"] == 0  # the last one survives a restart
+    c.acted(now=200 * H)  # away again, not seen: the new one is pending, then expires into the last one
+    assert c.peek(now=202 * H)["seen"] is False and c.peek(now=202 * H)["back"] == 200 * H
+    assert c.peek(now=200 * H + away.RECAP_KEEP)["seen"] is True and c.recap is not None  # expired: shown as the last one, not cleared
+
+
+def test_the_hub_names_needs_you_for_the_home_chat(tmp_path, monkeypatch):
+    c = clock(tmp_path)
+    c.last_active = 0
+    monkeypatch.setattr(server.hub, "away", c)
+    monkeypatch.setattr(server.hub, "folder_list", lambda: [{"label": "acme/globex", "sessions": [
+        {"label": "Fix login", "status": "approval"}, {"label": "Other", "status": "idle"}]}])
+    monkeypatch.setattr(server.hub.delegator, "event", lambda: {"items": [
+        {"task": 12, "title": "Ship it", "repo": "globex", "line": "Tests failed", "needs": "failed"},
+        {"task": 13, "title": "Fine", "repo": "globex", "line": "Ready", "needs": None}]})
+    monkeypatch.setattr(server.hub.needs, "needs_rows", lambda: [{"title": "nightly", "reason": "Failed."}])
+    got = server.hub.away_brief()
+    assert got["seen"] is False and got["needs"] == [
+        "acme/globex: Fix login, waiting for your OK", "Delegated #12 Ship it (globex): Tests failed", "nightly: Failed."]
+    assert c.recap is None  # reading it opened nothing

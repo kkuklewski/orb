@@ -329,6 +329,11 @@ class Needs:
         self.items = needs_you(f["routines"], f["tasks"], self.today, f["setup"], f["reminders"])  # type: ignore[arg-type]
         self.queue = queue(f["tasks"], f["notes"], f["results"], f["prs"], int(f["awaiting"] or 0), self.today, hidden)  # type: ignore[arg-type]
 
+    def needs_rows(self) -> list[dict]:
+        """Needs you's plan rows in today's order (a read: the next action's pin stays as it is)."""
+        ranked = self._ranked()
+        return ordered(self.items, self.state["ranking"], bool(ranked) and self.state["fp"] == fingerprint(ranked, self.today))
+
     def event(self) -> dict:
         ranked = self._ranked()
         fresh = bool(ranked) and self.state["fp"] == fingerprint(ranked, self.today)
