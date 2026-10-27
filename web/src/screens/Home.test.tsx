@@ -124,7 +124,7 @@ describe("away recap", () => {
     const lines = [{ kind: "routine", id: "t1", title: "Curation", summary: "3 created, 1 merged", count: 2 },
       { kind: "routine", id: "t2", title: "Radar", summary: "5 drafts", count: 1 }];
     act(() => dispatch({ type: "away_recap", recap: { since: 0, back: 1, heading: "While you were away · 2 days", lines, more: 4 } } as ServerEvent));
-    const list = within(card()!).getByLabelText("Routines that ran");
+    const list = within(card()!).getByLabelText("What ran and finished");
     const rows = within(list).getAllByRole("button");
     expect(rows.map((r) => r.textContent)).toEqual(["ROUTINECuration3 created, 1 merged×2", "ROUTINERadar5 drafts"]);
     expect(within(list).getByText("4 more")).toBeTruthy();
@@ -132,6 +132,22 @@ describe("away recap", () => {
     expect(useViews.getState().view).toBe("routine");
     expect(useRoutineScreen.getState().id).toBe("t1");
     expect(sent).toContainEqual({ type: "away_seen" });
+  });
+
+  it("then Orb's own lines: Finished opens Sessions, Ready goes to the Delegated strip; no ×N on them", () => {
+    render(<Home />);
+    const lines = [{ kind: "routine", id: "t1", title: "Curation", summary: "ok", count: 1 },
+      { kind: "finished", id: "finished", title: "2 sessions finished", summary: "", count: 2 },
+      { kind: "ready", id: "ready", title: "1 delegation Ready", summary: "", count: 1 }];
+    act(() => dispatch({ type: "away_recap", recap: { since: 0, back: 1, heading: "While you were away · 2 days", lines, more: 0 } } as ServerEvent));
+    const rows = within(within(card()!).getByLabelText("What ran and finished")).getAllByRole("button");
+    expect(rows.map((r) => r.textContent)).toEqual(["ROUTINECurationok", "FINISHED2 sessions finished", "READY1 delegation Ready"]);
+    fireEvent.click(rows[2]);
+    expect(sent).toContainEqual({ type: "away_seen" });
+    expect(useViews.getState().view).toBe("home");
+    act(() => dispatch({ type: "away_recap", recap: { since: 0, back: 1, heading: "While you were away · 2 days", lines, more: 0 } } as ServerEvent));
+    fireEvent.click(within(card()!).getByText("2 sessions finished"));
+    expect(useViews.getState().view).toBe("sessions");
   });
 
   it("nothing needs you: says so", () => {

@@ -476,6 +476,10 @@ class Delegator:
                 r.update(stage="ready", tests="none", checked=head)
         except (DelegationError, worktree.WorktreeError, OSError, ValueError) as e:
             r.update(stage="failed", problem=str(e)[:LINE_MAX])
+        if r["stage"] == "ready":
+            r["ready_at"] = time.time()  # the Away recap counts the ones that became Ready while the owner was away
+        else:
+            r.pop("ready_at", None)
         await self.changed()
         await self._fill()
 

@@ -65,7 +65,7 @@ export function DelegatedStrip() {
   const { items, confirming, diff } = useDelegations();
   if (!items.length) return null;
   return (
-    <section className="hc deleg" aria-label="Delegated">
+    <section className="hc deleg" aria-label="Delegated" id="delegated">
       <div className="deleg-label mono">DELEGATED</div>
       {items.map((d) => (
         <div key={d.id} className={"deleg-row " + d.stage}>

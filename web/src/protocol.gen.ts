@@ -1585,7 +1585,8 @@ export interface AwayRecap {
   since: number;
 }
 /**
- * One thing that finished without the owner: a routine's latest ok Run (count: its Runs since they left).
+ * One thing that finished without the owner: a routine's latest ok Run (count: its Runs since they left), or Orb's
+ * own "2 sessions finished" (opens Sessions) / "1 delegation Ready" (opens the Delegated strip); count: how many.
  *
  * This interface was referenced by `OrbProtocol`'s JSON-Schema
  * via the `definition` "AwayLine".
@@ -1593,7 +1594,7 @@ export interface AwayRecap {
 export interface AwayLine {
   count?: number;
   id: string;
-  kind: "routine";
+  kind: "routine" | "finished" | "ready";
   summary?: string;
   title: string;
 }

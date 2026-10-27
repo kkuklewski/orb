@@ -192,7 +192,7 @@
     },
     "AwayLine": {
       "additionalProperties": false,
-      "description": "One thing that finished without the owner: a routine's latest ok Run (count: its Runs since they left).",
+      "description": "One thing that finished without the owner: a routine's latest ok Run (count: its Runs since they left), or Orb's\nown \"2 sessions finished\" (opens Sessions) / \"1 delegation Ready\" (opens the Delegated strip); count: how many.",
       "properties": {
         "count": {
           "default": 1,
@@ -202,7 +202,11 @@
           "type": "string"
         },
         "kind": {
-          "const": "routine",
+          "enum": [
+            "routine",
+            "finished",
+            "ready"
+          ],
           "type": "string"
         },
         "summary": {

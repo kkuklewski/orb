@@ -148,8 +148,8 @@ unsaved work. A reminder due today or overdue moves to Needs you by rule.
 _Avoid_: Watch, watchlist, reminders (for the whole pane)
 
 **Away recap**:
-Home's one-shot card after the owner was away 24 hours or more: what routines and Orb finished without them, then the
-top of Needs you. It goes once opened and never gets a Badge.
+Home's one-shot card after the owner was away 24 hours or more: the routines that ran ok, the sessions Finished and the
+delegations that became Ready without them, then the top of Needs you. It goes once opened and never gets a Badge.
 _Avoid_: Digest, summary, catch-up, brief
 
 **Routine state**:
