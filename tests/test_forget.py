@@ -323,14 +323,15 @@ async def test_home_sends_dont_forget_then_the_tasks_source(monkeypatch, onboard
     monkeypatch.setattr(vikunja, "open_tasks", lambda url: {"tasks": [TASK], "total": 1, "url": "http://v"})
     conn = _Conn()
     await server.handle(conn, {"type": "home"})
-    sent = [e for e in conn.sent if e["type"] != "delegations"]  # the Delegated strip's own event
+    assert conn.sent[0]["type"] == "away_recap"  # first: Home shows it on top
+    sent = [e for e in conn.sent if e["type"] not in ("delegations", "away_recap")]  # the Delegated strip's and the Away recap's own events
     assert [e["type"] for e in sent] == ["home", "home_forget", "home_tasks"]
     assert sent[2]["total"] == 1 and sent[2]["error"] is None and planned["tasks"][0]["id"] == 1
 
     monkeypatch.setattr(vikunja, "open_tasks", lambda url: (_ for _ in ()).throw(vikunja.VikunjaError("Vikunja didn't answer: down")))
     conn = _Conn()
     await server.handle(conn, {"type": "home"})
-    sent = [e for e in conn.sent if e["type"] != "delegations"]
+    sent = [e for e in conn.sent if e["type"] not in ("delegations", "away_recap")]
     assert sent[2]["error"] == "Vikunja not reachable: didn't answer: down" and planned["tasks"] == []
     assert not [e for e in conn.sent if e["type"] == "error"]
     assert [p["id"] for p in planned["setup"]] == ["vikunja"]

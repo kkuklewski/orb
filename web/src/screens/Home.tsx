@@ -9,11 +9,13 @@ import { usePinKey } from "./HomeCard";
 import { Links, useForgetPane } from "./HomeForget";
 import { HomeEmpty, LeadCard } from "./HomeLead";
 import { NeedsStrip } from "./HomeNeeds";
+import { AwayRecap } from "./HomeAway";
 import { DelegateCards, DelegatedStrip } from "./HomeDelegated";
 import { saveTab, savedTab, TabCard, useRoutinesPane } from "./HomeTabs";
 import { HomeDrop } from "./HomeDrop";
 
-// The start screen: a header bar (day, jump), then one column under 1180px: the Needs you strip (HomeNeeds: what is
+// The start screen: a header bar (day, jump), then one column under 1180px: the Away recap after 24 hours or more away
+// (HomeAway, once), the Needs you strip (HomeNeeds: what is
 // blocked until you act, by rule), the Next action with Up next under it (HomeLead: tasks, tasks in the notes,
 // results, pull requests, the notes batch; "All N" links reach the full lists), the Delegated strip (HomeDelegated),
 // the status card (HomeTabs: a tab each for routines and what not to forget, and how many notes changed this week).
@@ -101,6 +103,7 @@ export function Home() {
       <UsageWarning />
       <div className="home-cols">
         <div className="home-main">
+          <AwayRecap n={n} />
           <NeedsStrip n={n} />
           {queue.length ? <LeadCard n={n} queue={queue} lists={lists} title="Next action" />
             : <HomeEmpty n={n} lists={lists} hasRepos={hasRepos} needs={needs} />}

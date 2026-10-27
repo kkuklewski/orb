@@ -147,6 +147,11 @@ The pane in Home's status card for things that wait quietly: dated reminders, pu
 unsaved work. A reminder due today or overdue moves to Needs you by rule.
 _Avoid_: Watch, watchlist, reminders (for the whole pane)
 
+**Away recap**:
+Home's one-shot card after the owner was away 24 hours or more: what routines and Orb finished without them, then the
+top of Needs you. It goes once opened and never gets a Badge.
+_Avoid_: Digest, summary, catch-up, brief
+
 **Routine state**:
 The one word a routine's line shows: failed, stuck, missed, needs you (an ok run the judge found broken or wanting
 action), worth reading, nothing to report, off. Routines are grouped in that order, by name inside a group. "Mark runs

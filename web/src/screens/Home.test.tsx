@@ -51,7 +51,7 @@ beforeEach(() => {
   useSession.setState(initialSession());
   useViews.setState({ view: "home", settings: null, routines: routines({ items: [routine({ last: { id: "r", outcome: "ok" } })] }), routinesNew: new Set() });
   useFeatures.setState({ features: features(), folders: [folder("web", [session("w1", "approval", { label: "fix login" })])], services: {}, build: null });
-  useHome.setState({ notes: null, forget: null, tasks: null, plan: null });
+  useHome.setState({ notes: null, forget: null, tasks: null, plan: null, away: null });
   useSetup.setState(initialSetup);
 });
 afterEach(() => { cleanup(); offs.forEach((off) => off()); });
@@ -96,6 +96,55 @@ describe("home helpers", () => {
     const r = routines({ needs: 1, items: [routine({ last: { id: "1", outcome: "ok" }, next_run_at: 200 }), routine({ id: "b", name: "inbox", needs: "failed", next_run_at: 100 })] });
     expect(routinesLine(r, (ts) => `@${ts}`)).toBe("1 ok · 1 needs you · next: inbox @100");
     expect(routinesLine(null, String)).toBe("checking…");
+  });
+});
+
+describe("away recap", () => {
+  const recap = (heading = "While you were away · 2 days", back: number | null = 1) => ({ type: "away_recap", recap: { since: 0, back, heading } } as ServerEvent);
+  const card = () => screen.queryByRole("article", { name: "Away recap" });
+
+  it("shows only after the server says so, first on Home, with the top 3 of Needs you in today's order and the total", () => {
+    const due: PlanItem = { key: "rem:1", kind: "reminder", id: "1", title: "Renew the domain", reason: "Due in 2 days.", source: "notes", actions: ["open"] };
+    render(<Home />);
+    act(() => dispatch(plan([failed, overdue, due])));
+    expect(card()).toBeNull();
+    act(() => dispatch(recap()));
+    const c = card()!;
+    expect(within(c).getByText("While you were away · 2 days")).toBeTruthy();
+    const rows = within(c).getAllByRole("button").filter((b) => b.classList.contains("needs-row"));
+    expect(rows.map((r) => r.querySelector(".needs-title")!.textContent)).toEqual(["web: fix login", failed.title, overdue.title]);
+    expect(within(c).getByText("Needs you: 3 of 4")).toBeTruthy();
+    expect(document.querySelector(".home-main")!.firstElementChild).toBe(c);
+    expect(c.querySelector(".badge, [class*=badge]")).toBeNull();
+  });
+
+  it("nothing needs you: says so", () => {
+    useFeatures.setState({ folders: [] });
+    render(<Home />);
+    act(() => dispatch(recap("While you were away · 30 hours", null)));
+    expect(within(card()!).getByText("Nothing needs you.")).toBeTruthy();
+  });
+
+  it("one-shot: Close sends away_seen and hides it; another page's away_seen (a null recap) hides it too", () => {
+    render(<Home />);
+    act(() => dispatch(recap()));
+    fireEvent.click(within(card()!).getByRole("button", { name: "Close" }));
+    expect(sent).toContainEqual({ type: "away_seen" });
+    expect(card()).toBeNull();
+    act(() => dispatch(recap()));
+    act(() => dispatch({ type: "away_recap", recap: null }));
+    expect(card()).toBeNull();
+  });
+
+  it("leaving Home while it shows counts as seen; leaving without it sends nothing", () => {
+    render(<Home />);
+    act(() => useViews.setState({ view: "chat" }));
+    expect(sent).not.toContainEqual({ type: "away_seen" });
+    act(() => useViews.setState({ view: "home" }));
+    act(() => dispatch(recap()));
+    fireEvent.click(within(card()!).getAllByRole("button").find((b) => b.textContent?.includes("fix login"))!);  // opens the session
+    expect(sent).toContainEqual({ type: "away_seen" });
+    expect(useHome.getState().away).toBeNull();
   });
 });
 
