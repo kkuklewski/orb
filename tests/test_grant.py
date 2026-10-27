@@ -152,6 +152,7 @@ class Ctx:
     description = None
     blocked_path = None
     display_name = None
+    decision_reason = None
 
 
 def session(dev: Path, tmp_path: Path, monkeypatch, events: list, key: str = "k1"):
@@ -172,16 +173,22 @@ async def test_revoking_mid_session_makes_the_next_covered_call_ask(dev, tmp_pat
     s = session(dev, tmp_path, monkeypatch, events)
     edit = {"file_path": str(dev / "web" / "a.py")}
     await s.attach_grant(Grant(str(dev / "web"), "orb/fix-login", (TEST,)))
-    assert (await s._can_use_tool("Edit", edit, Ctx())).behavior == "allow"
-    assert (await s._can_use_tool("Bash", {"command": TEST}, Ctx())).behavior == "allow"
-    commit = await s._can_use_tool("Bash", {"command": "git commit -m fix"}, Ctx())
-    assert commit.behavior == "allow" and commit.updated_input["command"].startswith("git -c core.hooksPath=/dev/null")
-    assert not [e for e in events if e["type"] == "permission"]  # covered: no card
-    denied = await s._can_use_tool("Read", {"file_path": str(dev / "web" / ".env")}, Ctx())
-    assert denied.behavior == "deny" and "Secret" in denied.message
+
+    async def hook(tool, inp):
+        return (await s._pre_tool({"tool_name": tool, "tool_input": inp}, "toolu_1", None)).get("hookSpecificOutput", {})
+
+    assert (await hook("Edit", edit)) == {"hookEventName": "PreToolUse", "permissionDecision": "allow", "updatedInput": edit}
+    assert (await hook("Bash", {"command": TEST}))["permissionDecision"] == "allow"
+    commit = await hook("Bash", {"command": "git commit -m fix"})
+    assert commit["permissionDecision"] == "allow"
+    assert commit["updatedInput"]["command"].startswith("git -c core.hooksPath=/dev/null")
+    denied = await hook("Read", {"file_path": str(dev / "web" / ".env")})
+    assert denied["permissionDecision"] == "deny" and "Secret" in denied["permissionDecisionReason"]
+    assert not [e for e in events if e["type"] == "permission"]  # covered or denied in the hook: no card
 
     assert await s.revoke_grant() and s.grant is None
     assert events[-1]["text"] == "Grant revoked: every tool call asks again."
+    assert await hook("Edit", edit) == {}  # no objection: the mode and the card decide
     decision = asyncio.create_task(s._can_use_tool("Edit", edit, Ctx()))
     await asyncio.sleep(0.01)
     card = [e for e in events if e["type"] == "permission"]
@@ -189,6 +196,28 @@ async def test_revoking_mid_session_makes_the_next_covered_call_ask(dev, tmp_pat
     await s.answer_permission(card[0]["id"], False, None)
     assert (await asyncio.wait_for(decision, 1)).behavior == "deny"
     assert not await s.revoke_grant()  # nothing left to revoke
+
+
+async def test_the_cards_note_is_the_gates_reason(dev, tmp_path, monkeypatch):
+    import asyncio
+    events: list = []
+    s = session(dev, tmp_path, monkeypatch, events)
+    s.speaker.say = lambda lines: None
+    s.fence = fence(dev, "web")
+    edit = {"file_path": str(dev / "other" / "a.py")}
+    out = await s._pre_tool({"tool_name": "Edit", "tool_input": edit}, "toolu_1", None)
+    reason = out["hookSpecificOutput"]["permissionDecisionReason"]
+    assert out["hookSpecificOutput"]["permissionDecision"] == "ask" and reason.startswith("Other repo: other.")
+
+    class Asked(Ctx):
+        decision_reason = reason  # the SDK forwards the hook's reason
+
+    decision = asyncio.create_task(s._can_use_tool("Edit", edit, Asked()))
+    await asyncio.sleep(0.01)
+    card = [e for e in events if e["type"] == "permission"][0]
+    assert card["description"] == reason
+    await s.answer_permission(card["id"], False, None)
+    await asyncio.wait_for(decision, 1)
 
 
 async def test_the_grant_stays_with_its_session(dev, tmp_path, monkeypatch):

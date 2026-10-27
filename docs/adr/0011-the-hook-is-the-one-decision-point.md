@@ -35,3 +35,10 @@ Found while building it, kept on purpose:
 - `Decision` carries `covered` (the grant allowed it) and `title` (a tracker write's task, for the card).
 - Step 1 changed no behaviour: a covered call was still allowed from `can_use_tool` and the card's note still came
   from the fence, until the hook became the one decision point (step 3).
+- The push rule (`push_rule`) runs in every session, its ask included: a push that is not a plain `git push` (and
+  `docker push`) raises a card even where no notes vault is set up, and a grant never covers it.
+- A quoted heredoc commit (`git commit -m "$(cat <<'EOF' … EOF)"`) is a commit, not a push: its message is only text.
+  Before, with a vault set up, its `$(` made the push rule ask, so a grant's heredoc commit always raised a card. A
+  body with an `EOF` line of its own is not a heredoc commit (it could end the heredoc early).
+- The card's note is the gate's reason for every "ask" except the handoff and tracker-write cards, which say their
+  own; a protected vault file and an unusual push now say why on the card too. `Fence.reason` is gone.

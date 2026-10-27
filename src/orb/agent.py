@@ -530,7 +530,7 @@ class FolderSession:
             mcp_servers={handoff.SERVER: self._orb_server()} if self.handoff or self.is_desk or self.navigate else {},
             hooks={
                 # one gate, two matchers that never match the same tool (Capture is a connector's)
-                "PreToolUse": [HookMatcher(matcher=f"Edit|Write|MultiEdit|NotebookEdit|Bash|Read|Glob|Grep|{handoff.TOOL}|{'|'.join(desk.WRITE_TOOLS)}",
+                "PreToolUse": [HookMatcher(matcher=f"Edit|Write|MultiEdit|NotebookEdit|Bash|Read|Glob|Grep|WebFetch|{handoff.TOOL}|{'|'.join(desk.WRITE_TOOLS)}",
                                            hooks=[self._pre_tool]),
                                HookMatcher(matcher=f"{CONNECTOR_PREFIX}.*", hooks=[self._pre_tool])],
                 "PostToolUse": [HookMatcher(matcher=CAPTURE_TOOL, hooks=[self._capture_done])],
@@ -932,13 +932,8 @@ class FolderSession:
     # -- permissions ------------------------------------------------------------
 
     async def _can_use_tool(self, name: str, inp: dict[str, Any], ctx: ToolPermissionContext):
+        """The approval card. The hook has decided already (ADR 0011): a denied or covered call never gets here."""
         d = self.decided.pop(ctx.tool_use_id or "", None)
-        if d is None and self.grant is not None:  # a tool the hook doesn't see (a drop's WebFetch)
-            d = await asyncio.to_thread(self.gate.decide, name, inp)
-        if d is not None and d.covered:  # the owner approved this on the Delegate card or by the drop
-            return PermissionResultAllow(updated_input=d.input)
-        if d is not None and d.kind == "deny":
-            return PermissionResultDeny(message=d.reason or "Blocked by the repo fence.")
         pid = uuid.uuid4().hex
         fut: asyncio.Future = asyncio.get_running_loop().create_future()
         ev = {"type": "permission", "id": pid, "tool": name, "input": inp,
@@ -949,7 +944,9 @@ class FolderSession:
             ev["summary"] = (lambda t: t[:1].upper() + t[1:])(desk.label(name, inp, title))
         else:
             title = ""
-        if where := self.fence.reason(name, inp):  # "Other repo: brain. This session is in voicemode."
+        # the gate's reason ("Other repo: brain. This session is in voicemode."); handoff and tracker cards say their own
+        where = ctx.decision_reason if d is not None and d.kind == "ask" and name not in (handoff.TOOL, *desk.WRITE_TOOLS) else None
+        if where:
             ev["description"] = f"{where} {ev['description'] or ''}".strip()
         self.pending[pid] = (fut, {**ev, "_created": time.monotonic()})
         await self.drop_undo_card("an approval card opened")
@@ -1011,15 +1008,15 @@ class FolderSession:
     # -- hooks: the tool gate, second-brain notes ---------------------------------------------------
 
     async def _pre_tool(self, data: dict, tool_use_id: str | None, context: Any) -> dict:
-        """The tool gate's decision for one call. A hook, so the user's own allow rules can't let a denied call
-        past; a covered call is still allowed in `_can_use_tool` (ADR 0011 moves it here)."""
+        """The tool gate's decision for one call, the only one (ADR 0011). A hook, so the user's own allow rules can't
+        let a denied call past; a covered call is allowed here with its safe input and never raises a card."""
         name, inp = data.get("tool_name", ""), data.get("tool_input") or {}
         d = await asyncio.to_thread(self.gate.decide, name, inp)
         if d.kind == "deny":
             await self.emit({"type": "notice", "level": "warn", "text": d.reason or "Blocked."})
         elif tool_use_id:  # for the card that may follow
             self.decided = {**dict(list(self.decided.items())[-15:]), tool_use_id: d}
-        return {} if d.covered else hook_output(d)
+        return hook_output(d)
 
     async def _capture_done(self, data: dict, tool_use_id: str | None, context: Any) -> dict:
         self.guard.record()

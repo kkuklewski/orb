@@ -87,6 +87,21 @@ def test_a_covered_call_is_allowed_with_its_safe_input(dev, tmp_path):
     assert g.decide("Bash", {"command": "npm install left-pad"}).kind == "pass"
 
 
+def test_force_push_is_denied_in_every_session_even_with_a_grant(dev, tmp_path):
+    g = make(dev, tmp_path)
+    g.cover = Grant(str(dev / "web"), "orb/fix-login", (), outward=True)
+    d = g.decide("Bash", {"command": "git push --force origin orb/fix-login"})
+    assert d.kind == "deny" and d.reason.startswith("Force-push is blocked in Orb")
+    assert g.decide("Bash", {"command": "git push --mirror"}).kind == "ask"
+
+
+def test_a_heredoc_commit_is_covered_whatever_its_message_says(dev, tmp_path):
+    g = make(dev, tmp_path)
+    g.cover = Grant(str(dev / "web"), "orb/fix-login", (), outward=False)
+    cmd = "git commit -m \"$(cat <<'EOF'\nfix: never git push --force\nEOF\n)\""
+    assert g.decide("Bash", {"command": cmd}).covered
+
+
 def test_a_drop_covers_only_its_own_link(dev, tmp_path):
     g = make(dev, tmp_path)
     g.cover = DropGrant(url="https://example.com/post")

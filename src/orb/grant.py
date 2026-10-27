@@ -72,7 +72,7 @@ class Grant:
             return sandbox.available()  # it runs files the session edited: only in the sandbox
         if read.heredoc_commit:
             flags, body = read.heredoc_commit
-            return "EOF" not in body.split("\n") and all(_commit_flag(f) for f in flags) and self.on_branch()
+            return all(_commit_flag(f) for f in flags) and self.on_branch()
         words = list(read.words)
         if not words:
             return False

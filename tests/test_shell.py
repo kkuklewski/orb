@@ -51,6 +51,14 @@ def test_heredoc_commit():
     assert read(cmd).words == ()  # never a plain command
     assert read(cmd + " && rm x").heredoc_commit is None
     assert read(cmd.replace("'EOF'", "EOF")).heredoc_commit is None  # an unquoted heredoc expands
+    early = cmd.replace("fix: login", "fix\nEOF\n)\"; rm -rf ~; echo \"$(cat <<'EOF'\nx")
+    assert read(early).heredoc_commit is None  # its own EOF line would end the heredoc early
+
+
+def test_a_heredoc_commits_message_is_not_a_push():
+    cmd = "git commit -m \"$(cat <<'EOF'\nfix: block git push --force\nEOF\n)\""
+    assert read(cmd).push is None
+    assert read(cmd + " && git push -f").push == "deny"  # not a heredoc commit any more
 
 
 def test_args_paths_and_cd():

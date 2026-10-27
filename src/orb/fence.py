@@ -241,6 +241,3 @@ class Fence:
                 asked = verdict[1]
         return ask(asked) if asked else {}
 
-    def reason(self, tool: str, inp: dict[str, Any]) -> str | None:
-        """The fence's note for an approval card ("Other repo: … This session is in …"), if any."""
-        return self.rule(tool, inp).get("hookSpecificOutput", {}).get("permissionDecisionReason")

@@ -5,8 +5,9 @@
 - `args`: every word and whether it looks like a path or follows `cd` / `pushd` (the repo fence);
 - `recursive`: it may walk a folder tree (a search near secrets is denied);
 - `words`: the plain words, () when anything could chain, expand or redirect (a grant's git and gh commands);
-- `heredoc_commit`: Claude Code's `git commit -m "$(cat <<'EOF' … EOF)"` as (flags, body);
-- `push`: "deny" (force), "ask" (anything but a literal plain push) or None.
+- `heredoc_commit`: Claude Code's `git commit -m "$(cat <<'EOF' … EOF)"` as (flags, body); a body with an EOF line
+  of its own could end the heredoc early, so it is not one;
+- `push`: "deny" (force), "ask" (anything but a literal plain push) or None; a heredoc commit's body is only text.
 Every answer fails closed: quotes, comments, newlines, git global options and globs the shell could turn into flags
 make a command not read-only, not plain and not a plain push. It is not proof against a command built to hide what it
 does (variables, base64); the approval card stays the last line.
@@ -89,8 +90,9 @@ def read(cmd: str) -> Command:
     """The command, read once: the hook and every rule it runs ask the same reading."""
     n = norm(cmd)
     m = _HEREDOC_COMMIT.fullmatch(n.strip())
-    return Command(cmd, n, _read_only(cmd), _args(_lexed(cmd)), _recursive(cmd), _words(n),
-                   (tuple(m.group(1).split()), m.group(2)) if m else None, _push(cmd))
+    commit = (tuple(m.group(1).split()), m.group(2)) if m and "EOF" not in m.group(2).split("\n") else None
+    return Command(cmd, n, _read_only(cmd), _args(_lexed(cmd)), _recursive(cmd), _words(n), commit,
+                   None if commit else _push(cmd))
 
 
 def norm(cmd: str) -> str:

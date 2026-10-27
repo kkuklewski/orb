@@ -65,7 +65,7 @@ def test_other_repos_need_a_card_that_says_where(dev):
     f = fence(dev, "mine")
     out = f.rule("Edit", {"file_path": str(dev / "other" / "README.md")})
     assert decision(out) == "ask"
-    assert f.reason("Edit", {"file_path": str(dev / "other" / "README.md")}) == "Other repo: other. This session is in mine."
+    assert f.rule("Edit", {"file_path": str(dev / "other" / "README.md")})["hookSpecificOutput"]["permissionDecisionReason"] == "Other repo: other. This session is in mine."
     assert decision(f.rule("Bash", {"command": "cat ../other/README.md"})) == "ask"
     assert decision(f.rule("Bash", {"command": "cd .. && ls"})) == "ask"
 
@@ -79,7 +79,7 @@ def test_strictest():
 def test_vault_session_reads_client_repos_with_a_card_but_never_changes_them(dev):
     hub = fence(dev, "vault")
     app = dev / "acme" / "portal" / "app"
-    assert hub.reason("Read", {"file_path": str(app / "README.md")}) == "Client repo: app."
+    assert hub.rule("Read", {"file_path": str(app / "README.md")})["hookSpecificOutput"]["permissionDecisionReason"] == "Client repo: app."
     assert decision(hub.rule("Grep", {"pattern": "x", "path": str(app)})) == "ask"
     assert decision(hub.rule("Bash", {"command": f"git -C {app} log --oneline -20 && ls {app}"})) == "ask"
     assert decision(hub.rule("Edit", {"file_path": str(app / "README.md")})) == "deny"

@@ -4,7 +4,7 @@ import pytest
 
 from orb import brain
 from orb.brain import CaptureGuard, split_note
-from orb.gate import vault_rule
+from orb.gate import push_rule, vault_rule
 
 
 @pytest.mark.parametrize("text, note", [
@@ -71,9 +71,8 @@ def test_vault_rules(tmp_path):
     assert decision(vault_rule(vault, "Write", {"file_path": str(vault / "CLAUDE.md")})) == "ask"
     assert decision(vault_rule(vault, "Write", {"file_path": str(vault / "inbox" / "n.md")}, protected=kept)) is None
     assert decision(vault_rule(vault, "Edit", {"file_path": str(tmp_path / "other" / "context" / "x.md")}, protected=kept)) is None
-    assert vault_rule(None, "Bash", {"command": "git push --force"}) == {}  # no vault set up: no vault rules
-    assert decision(vault_rule(vault, "Bash", {"command": "git push --force origin main"}, cwd=str(vault))) == "deny"
-    assert decision(vault_rule(vault, "Bash", {"command": "git pull --rebase && git push"})) is None
+    assert vault_rule(None, "Write", {"file_path": str(vault / "CLAUDE.md")}) == {}  # no vault set up: no vault rules
+    assert vault_rule(vault, "Bash", {"command": "git push --force origin main"}, cwd=str(vault)) == {}  # push_rule's
 
 
 def test_vault_rules_resist_case_and_relative_paths(tmp_path):
@@ -91,13 +90,14 @@ def test_vault_rules_resist_case_and_relative_paths(tmp_path):
     "cd brain && git push --force", "git push origin main --force",
 ])
 def test_force_push_variants_are_denied(tmp_path, cmd):
-    assert decision(vault_rule(tmp_path, "Bash", {"command": cmd}, cwd=str(tmp_path))) == "deny"
+    assert decision(push_rule("Bash", {"command": cmd})) == "deny"
 
 
 @pytest.mark.parametrize("cmd", ["git push -f", "bash -c 'git push --force'", "eval \"git push -f origin main\"",
                                  "sh -c \"cd $V && git push origin +main\""])
-def test_force_push_is_denied_in_every_folder_and_through_wrappers(tmp_path, cmd):
-    assert decision(vault_rule(tmp_path / "brain", "Bash", {"command": cmd}, cwd=str(tmp_path / "other"))) == "deny"
+def test_force_push_is_denied_in_every_session_and_through_wrappers(tmp_path, cmd):
+    out = push_rule("Bash", {"command": cmd})  # no vault, no folder: every session
+    assert decision(out) == "deny" and out["hookSpecificOutput"]["permissionDecisionReason"].startswith("Force-push is blocked in Orb")
 
 
 @pytest.mark.parametrize("cmd", ["git push --mirror", "git push origin --delete old", "git push origin :old",
@@ -107,17 +107,17 @@ def test_force_push_is_denied_in_every_folder_and_through_wrappers(tmp_path, cmd
                                  "g=git; $g push origin x:y", "\\git push --mirror", "git pu\\sh origin main --prune",
                                  "docker push img:1"])
 def test_ref_deleting_pushes_need_a_card(tmp_path, cmd):
-    assert decision(vault_rule(tmp_path, "Bash", {"command": cmd})) == "ask"
+    assert decision(push_rule("Bash", {"command": cmd})) == "ask"
 
 
 @pytest.mark.parametrize("cmd", ["git push", "git push -u origin main", "git pull --rebase && git push", "git fetch -f",
                                  "git push --tags", "git push origin feature/x"])
 def test_normal_pushes_pass(tmp_path, cmd):
-    assert decision(vault_rule(tmp_path, "Bash", {"command": cmd}, cwd=str(tmp_path))) is None
+    assert decision(push_rule("Bash", {"command": cmd})) is None
 
 
 
 @pytest.mark.parametrize("cmd", ["G=git; $G push", "git push $REMOTE", "`which git` push", "git log | xargs git push",
                                  "git commit -m \"$(cat msg)\""])
 def test_git_with_shell_expansion_needs_a_card(tmp_path, cmd):
-    assert decision(vault_rule(tmp_path, "Bash", {"command": cmd})) in ("ask", "deny")
+    assert decision(push_rule("Bash", {"command": cmd})) in ("ask", "deny")

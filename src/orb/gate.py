@@ -4,11 +4,14 @@ A session has one Gate; `decide(tool, inp)` is all a caller needs, and the check
 1. a claude.ai connector that is off: deny (Brain's tools only, unless the owner turned the others on);
 2. Brain Capture: the Capture guard's verdict (a dictated thought runs with the user's own words);
 3. `continue_in_repo` and the tracker writes: always ask, whatever the permission mode;
-4. the repo fence and the vault rules (`vault_rule`), strictest first: a deny is final, an ask is never covered;
+4. the repo fence, the vault rules (`vault_rule`) and the push rule (`push_rule`), strictest first: a deny is final,
+   an ask is never covered;
 5. the session's grant (`cover`, set while a delegation or a drop owns the session): a call it covers is allowed
    with its safe input (a declared command in the sandbox, git with the repo's hooks off);
 6. anything else: no objection, the permission mode and the approval card decide.
-Cards, speech, notices and undo stay with the session. The SDK's hook dict is built only by `hook_output`.
+The session's PreToolUse hook is the one place it runs: a covered call is a hook "allow" and never reaches
+`can_use_tool`, which only raises cards (an "ask" brings its reason as the card's note). Cards, speech, notices and
+undo stay with the session. The SDK's hook dict is built only by `hook_output`.
 """
 
 from __future__ import annotations
@@ -64,7 +67,8 @@ class Gate:
             ask = _decision(desk.ask(tool, inp, title))
             return Decision("ask", ask.reason, title=title)
         verdict = _decision(strictest(self.fence.rule(tool, inp), vault_rule(
-            settings.settings.vault(), tool, inp, cwd=self.cwd, protected=tuple(settings.settings["vault_protected"]))))
+            settings.settings.vault(), tool, inp, cwd=self.cwd, protected=tuple(settings.settings["vault_protected"])),
+            push_rule(tool, inp)))
         return verdict if verdict.kind != "pass" else self._covered(tool, inp)
 
     def _covered(self, tool: str, inp: dict[str, Any]) -> Decision:
@@ -88,7 +92,7 @@ def hook_output(d: Decision) -> dict:
 def vault_rule(vault: Path | None, tool: str, tool_input: dict[str, Any], cwd: str | None = None,
                protected: tuple[str, ...] = ()) -> dict:
     """PreToolUse decision from the vault's rules ({} = no objection, also when there is no vault): edits to any
-    CLAUDE.md or to the folders in settings["vault_protected"] always need a card, and no force-push."""
+    CLAUDE.md or to the folders in settings["vault_protected"] always need a card."""
     if vault is None:
         return {}
     if tool in _FILE_TOOLS:
@@ -107,14 +111,18 @@ def vault_rule(vault: Path | None, tool: str, tool_input: dict[str, Any], cwd: s
         rel = Path(str(full)[len(str(root)):].lstrip(os.sep))
         if rel.name.casefold() == "claude.md" or (rel.parts and rel.parts[0].casefold() in {d.casefold() for d in protected}):
             return ask(f"{rel} is a protected part of the vault; you must approve this change.")
+    return {}
+
+
+def push_rule(tool: str, tool_input: dict[str, Any]) -> dict:
+    """PreToolUse decision on pushes, in every session: no force-push, and anything but a plain `git push` asks."""
+    if tool != "Bash":
         return {}
-    if tool == "Bash":
-        verdict = shell.read(str(tool_input.get("command", ""))).push
-        if verdict == "deny":
-            return deny("Force-pushing the notes vault is blocked in Orb. Do it from a terminal if you really mean it.")
-        if verdict == "ask":
-            return ask("This push is not a plain `git push` (unusual flag, refspec, wrapper or git config); "
-                       "you must approve it.")
+    verdict = shell.read(str(tool_input.get("command", ""))).push
+    if verdict == "deny":
+        return deny("Force-push is blocked in Orb. Do it from a terminal if you really mean it.")
+    if verdict == "ask":
+        return ask("Not a plain `git push` (an unusual flag, refspec, wrapper or git config): it needs your approval.")
     return {}
 
 
