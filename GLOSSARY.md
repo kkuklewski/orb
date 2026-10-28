@@ -156,6 +156,14 @@ Brain's Expired view lists the last 30 days, read only (Keep is the approve verd
 recap counts the pages archived after the owner's last-active day ("2 pages expired").
 _Avoid_: Deleted, dropped, rejected
 
+**No-topic capture**:
+A voice note in `inbox/`, or a thought / talk_summary / task capture, that the nightly matching left alone: no
+`promoted_to`, verdict, `owner_read`, `rag_dismissed` or `auto_archived`, and 7 or more days old (`kind: task` at
+once, since nothing matches it). A rule, not a model. Brain's No topic view lists them oldest first and the owner
+decides one at a time: Keep (as an idea, `owner_read`) or Drop (the reject verdict; Restore undoes it). Up next shows
+"N captures have no topic"; never Needs you, never red. They don't expire.
+_Avoid_: Orphan, unmatched
+
 **Finished**:
 A session that ended a turn the owner hasn't looked at yet; opening it clears it. The same word on Home and in
 Sessions. A delegation's session is never Finished: it shows as Delegated, Needs you or Ready.

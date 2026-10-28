@@ -8,9 +8,11 @@
 // scored 4 or lower 14 days after it was curated; the server sends that day (`expires`) and Orb only shows it, as a
 // chip, with the pages within SOON_DAYS in Expiring soon above Reject. Keep is the approve verdict, nothing else. The
 // Expired view lists the pages the vault already archived (last 30 days, newest first), read only: Keep there writes the
-// approve verdict and the row says "kept"; only the vault can bring a page back, so there is no Restore.
+// approve verdict and the row says "kept"; only the vault can bring a page back, so there is no Restore. The No topic
+// view (ticket 820) lists the No-topic captures, oldest first, one at a time: Keep (owner_read, the capture stays an idea)
+// or Drop (the reject verdict; Restore undoes it). A row acted on stays on the page with its state.
 import { create } from "zustand";
-import type { BrainExpiredEvent, BrainListEvent, BrainNote, BrainNoteEvent, VerdictNote } from "../protocol.gen";
+import type { BrainExpiredEvent, BrainListEvent, BrainNoTopicEvent, BrainNote, BrainNoteEvent, VerdictNote } from "../protocol.gen";
 import { on } from "../events";
 import { send } from "../ws";
 import { useViews, type View } from "./views";
@@ -26,16 +28,21 @@ export const useBrain = create<{
   note: BrainNoteEvent | null;
   filter: BrainFilter;
   snap: string[] | null; // the files in the order they had when Brain opened
-  applied: Record<string, Suggested>; // notes given their suggested verdict on this page: they keep their group and Restore
+  applied: Record<string, Applied>; // notes given their suggested verdict (or kept) on this page: they keep their group and Restore
   refused: Record<string, string>; // the vault write module's reason, per note
   picked: string[]; // notes selected for Apply suggestions
   soon: string[]; // notes shown in Expiring soon on this visit: they stay there once kept or judged
   expired: BrainExpiredEvent | null; // the Expired view's pages
   showExpired: boolean; // Brain shows the Expired view instead of the list
-}>(() => ({ list: null, file: null, note: null, filter: NO_FILTER, snap: null, applied: {}, refused: {}, picked: [], soon: [], expired: null, showExpired: false }));
+  notopic: BrainNoTopicEvent | null; // the No topic view's captures
+  showNoTopic: boolean; // Brain shows the No topic view
+  acted: string[]; // captures kept or dropped on this visit: listed again with their state
+}>(() => ({ list: null, file: null, note: null, filter: NO_FILTER, snap: null, applied: {}, refused: {}, picked: [], soon: [], expired: null,
+  showExpired: false, notopic: null, showNoTopic: false, acted: [] }));
 
 export type Suggested = "approve" | "reject";
 export const SUGGESTED: Suggested[] = ["approve", "reject"];
+export type Applied = Suggested | "keep";
 export type Group = Suggested | "soon";
 /** Brain's groups, top to bottom: Expiring soon sits right above Reject. */
 export const GROUPS: Group[] = ["approve", "soon", "reject"];
@@ -69,21 +76,52 @@ export const expiringSoon = (rows: BrainNote[], today = localDay()) =>
 const IN_BRAIN: View[] = ["brain", "note"];
 
 export function openBrain() {
-  useBrain.setState({ showExpired: false });
+  useBrain.setState({ showExpired: false, showNoTopic: false });
   useViews.setState({ view: "brain" });
   send({ type: "brain_list" });
 }
 
 /** Brain's Expired view (the Away recap's "N pages expired" opens it too). */
 export function openExpired() {
-  useBrain.setState({ showExpired: true });
+  useBrain.setState({ showExpired: true, showNoTopic: false });
   useViews.setState({ view: "brain" }); // the view asks for its rows when it shows
 }
 
 export const closeExpired = () => useBrain.setState({ showExpired: false });
 
+/** Brain's No topic view (Up next's "N captures have no topic" opens it). */
+export function openNoTopic() {
+  useBrain.setState({ showNoTopic: true, showExpired: false });
+  useViews.setState({ view: "brain" }); // the view asks for its rows when it shows
+}
+
+export const closeNoTopic = () => useBrain.setState({ showNoTopic: false });
+
+/** The No topic rows again, with the ones acted on this visit. */
+export const askNoTopic = () => send({ type: "brain_notopic", files: useBrain.getState().acted });
+
+const act = (file: string) => useBrain.setState((s) => ({ acted: s.acted.includes(file) ? s.acted : [...s.acted, file] }));
+
+/** Keep a capture as an idea: owner_read, refused like a verdict when the row is stale. */
+export function keepIdea(n: BrainNote) {
+  if (n.owner_read || n.verdict) return;
+  act(n.file);
+  send({ type: "brain_keep", file: n.file, seen: n.owner_read });
+}
+
+/** Drop a capture: the reject verdict (Restore undoes it). */
+export function drop(n: BrainNote) {
+  if (n.verdict) return;
+  act(n.file);
+  verdicts([{ file: n.file, seen: n.verdict, verdict: "reject" }]);
+}
+
+/** A No topic row's state: "kept as an idea", "dropped", or "" while it waits. */
+export const notopicState = (n: BrainNote, applied: Record<string, Applied>) =>
+  applied[n.file] === "keep" || n.owner_read ? "kept as an idea" : n.verdict.startsWith("reject") ? "dropped" : n.verdict ? verdictText(n.verdict) : "";
+
 /** An expired row's state: "kept" once it has the approve verdict (or got it on this page), else its verdict, else "". */
-export const expiredState = (n: BrainNote, applied: Record<string, Suggested>) =>
+export const expiredState = (n: BrainNote, applied: Record<string, Applied>) =>
   applied[n.file] === "approve" || n.verdict.startsWith("approve") ? "kept" : n.verdict ? verdictText(n.verdict) : "";
 
 export function openNote(file: string) {
@@ -103,10 +141,11 @@ export function setVerdict(verdict: "approve" | "reject" | "restore") {
 
 /** Brain's groups in the list's order: Expiring soon (`soon`: the pages shown there on this visit), then the notes that
  *  carry a suggestion (or got theirs on this page), by suggested verdict. */
-export function suggestionGroups(rows: BrainNote[], applied: Record<string, Suggested>, soon: string[] = []): Record<Group, BrainNote[]> {
+export function suggestionGroups(rows: BrainNote[], applied: Record<string, Applied>, soon: string[] = []): Record<Group, BrainNote[]> {
   const g: Record<Group, BrainNote[]> = { approve: [], soon: [], reject: [] };
   for (const n of rows) {
-    const s = soon.includes(n.file) ? "soon" : applied[n.file] ?? (n.waiting ? n.suggest : "");
+    const a = applied[n.file];
+    const s = soon.includes(n.file) ? "soon" : a === "approve" || a === "reject" ? a : n.waiting ? n.suggest : "";
     if (s === "approve" || s === "reject" || s === "soon") g[s].push(n);
   }
   return g;
@@ -201,13 +240,15 @@ export function wireBrain(): () => void {
         return { applied, refused, picked: s.picked.filter((f) => !done.has(f)) };
       });
       if (useBrain.getState().showExpired) send({ type: "brain_expired" }); // a Keep there: the rows again
+      if (useBrain.getState().showNoTopic) askNoTopic();
     }),
     on("brain_expired", (ev) => useBrain.setState({ expired: ev })),
+    on("brain_notopic", (ev) => useBrain.setState({ notopic: ev })),
     on("brain_note", (ev) => { if (ev.file === useBrain.getState().file) useBrain.setState({ note: ev }); }),
     useViews.subscribe((s) => {
       const v = s.view;
       if (IN_BRAIN.includes(v) && !inBrain) { inBrain = true; useBrain.setState({ snap: null, soon: [] }); } // a new visit: a new order
-      else if (!IN_BRAIN.includes(v)) { inBrain = false; useBrain.setState({ showExpired: false }); }
+      else if (!IN_BRAIN.includes(v)) { inBrain = false; useBrain.setState({ showExpired: false, showNoTopic: false, acted: [] }); }
       if (v === "note") onPage = true;
       else if (onPage) { onPage = false; leave(useBrain.getState().note); }
     }),

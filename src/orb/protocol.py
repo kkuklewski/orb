@@ -452,6 +452,7 @@ class HomeEvent(_Event):
     notes_week: int
     awaiting: list[HomeAwait] = []
     awaiting_count: int = 0
+    notopic_count: int = 0  # No-topic captures (home._no_topic): Up next's "N captures have no topic"
 
 
 class Reminder(_Msg):
@@ -513,7 +514,7 @@ class PlanItem(_Msg):
     unchanged (plain text, from untrusted data)."""
     key: str  # unique on the page: "routine:<id>", "vikunja:<id>", "setup:<section>", "reminder:<due>:<text>",
     # "vault:conflict" | "vault:diverged" | "vault:unchecked"
-    kind: Literal["approval", "setup", "vault", "routine", "reminder", "task", "note_task", "result", "pr", "notes_batch"]
+    kind: Literal["approval", "setup", "vault", "routine", "reminder", "task", "note_task", "result", "pr", "notes_batch", "notopic"]
     id: str  # what the page opens: routine id, tracker task id, the Settings section that fixes a broken setup
     title: str
     reason: str
@@ -677,6 +678,18 @@ class ExpiredNote(BrainNote):
     archived: str  # the day the vault archived it (`auto_archived`, its local day)
 
 
+class NoTopicNote(BrainNote):
+    created: str  # the capture's day (`created`, else its file's day)
+
+
+class BrainNoTopicEvent(_Event):
+    """Brain's No topic view (home.notopic_notes): No-topic captures, oldest first, plus the rows this page asked for
+    again (`files`) with their new state. `error` when there is no notes folder."""
+    type: Literal["brain_notopic"]
+    notes: list[NoTopicNote]
+    error: str | None = None
+
+
 class BrainExpiredEvent(_Event):
     """Brain's Expired view (home.expired_notes): pages the vault archived in the last 30 days, newest first. Read
     only: Orb never writes `auto_archived`; Keep is the approve verdict. `error` when there is no notes folder."""
@@ -693,7 +706,7 @@ class BrainNoteEvent(BrainNote, _Event):
 
 class BrainApplied(_Msg):
     file: str
-    verdict: Literal["approve", "reject", "restore"]
+    verdict: Literal["approve", "reject", "restore", "keep"]  # keep: owner_read from the No topic view (brain_keep)
 
 
 class BrainRefused(_Msg):
@@ -977,7 +990,7 @@ ServerEvent = Annotated[Union[
     HelloEvent, FeaturesEvent, FoldersEvent, SetupStatusEvent, BrowseEvent, PickedEvent, VoiceSampleEvent,
     SettingsEvent, ErrorEvent, NoticeEvent, OpenedEvent, HistoryEvent, StateEvent, SessionInfoEvent,
     ContextEvent, TaskEvent, CommandsEvent, McpEvent, RateLimitEvent, RoutinesEvent, BgNoticeEvent, NavigateEvent,
-    HomeEvent, HomeForgetEvent, HomeTasksEvent, AwayRecapEvent, PlanEvent, TaskDetailEvent, ItemEvent, ItemListEvent, BrainListEvent, BrainExpiredEvent, BrainNoteEvent, BrainAppliedEvent, TaskChangedEvent, UserEvent, TextStartEvent, TextEvent, SaidEvent, ToolStartEvent, ToolInputEvent, ToolResultEvent,
+    HomeEvent, HomeForgetEvent, HomeTasksEvent, AwayRecapEvent, PlanEvent, TaskDetailEvent, ItemEvent, ItemListEvent, BrainListEvent, BrainExpiredEvent, BrainNoTopicEvent, BrainNoteEvent, BrainAppliedEvent, TaskChangedEvent, UserEvent, TextStartEvent, TextEvent, SaidEvent, ToolStartEvent, ToolInputEvent, ToolResultEvent,
     ResultEvent, TimingEvent, PartialEvent, HeardNothingEvent, PinFocusedEvent, HeldEvent, PermissionEvent,
     PermissionDoneEvent, UndoAvailableEvent, UndoConfirmEvent, UndoDoneEvent, AudioEvent, SpeechResetEvent,
     DelegateCardEvent, DelegationsEvent, DelegationDiffEvent,
@@ -1213,6 +1226,20 @@ class BrainExpiredMsg(_Msg):
     type: Literal["brain_expired"]
 
 
+class BrainNoTopicMsg(_Msg):
+    """Brain's No topic rows. `files`: rows this page acted on (kept, dropped), listed again with their state though
+    they no longer count."""
+    type: Literal["brain_notopic"]
+    files: list[str] = Field(default_factory=list)  # the first 200 count
+
+
+class BrainKeepMsg(_Msg):
+    """Keep a No-topic capture as an idea: owner_read is set, only if it still reads `seen` ("")."""
+    type: Literal["brain_keep"]
+    file: str
+    seen: str = ""
+
+
 class BrainGetMsg(_Msg):
     type: Literal["brain_get"]
     file: str
@@ -1418,7 +1445,7 @@ ClientMessage = Annotated[Union[
     SetupStatusMsg, BrowseMsg, PickFolderMsg, OpenFolderMsg, AddFolderMsg, StartSessionMsg, PinFolderMsg,
     GetSettingsMsg, SetSettingsMsg, VoiceSampleMsg, KokoroSetupMsg, RescanMsg, RoutinesMsg, RoutinesSeenMsg, RoutinesResolveMsg, MuteMsg,
     NewSessionMsg, ArchiveSessionMsg, RemoveSessionMsg, UserTextMsg, SpeechStartMsg, BargeInMsg, SpeechCancelledMsg, UtteranceMsg, VoiceTextMsg,
-    HomeMsg, AwaySeenMsg, PlanStartMsg, PlanLaterMsg, PlanDoneMsg, ScreenMsg, TaskDetailMsg, ItemListMsg, ItemGetMsg, ItemDoneMsg, TasksBulkMsg, TasksSuggestMsg, NotesVerdictMsg, BrainListMsg, BrainExpiredMsg, BrainGetMsg, BrainApplyMsg, BrainVerdictMsg, BrainReadMsg, ItemStartMsg, TaskActionMsg, InterruptMsg, PlaybackMsg, PermissionMsg, ReadAllMsg, DictateNoteMsg, UndoRequestMsg, UndoConfirmMsg,
+    HomeMsg, AwaySeenMsg, PlanStartMsg, PlanLaterMsg, PlanDoneMsg, ScreenMsg, TaskDetailMsg, ItemListMsg, ItemGetMsg, ItemDoneMsg, TasksBulkMsg, TasksSuggestMsg, NotesVerdictMsg, BrainListMsg, BrainExpiredMsg, BrainNoTopicMsg, BrainKeepMsg, BrainGetMsg, BrainApplyMsg, BrainVerdictMsg, BrainReadMsg, ItemStartMsg, TaskActionMsg, InterruptMsg, PlaybackMsg, PermissionMsg, ReadAllMsg, DictateNoteMsg, UndoRequestMsg, UndoConfirmMsg,
     McpStatusMsg, McpReconnectMsg, SetModeMsg, SetModelMsg, RevokeGrantMsg, DelegateMsg, DelegateBulkMsg, DelegateConfirmMsg, MakeTaskMsg, MakeTaskConfirmMsg, MakeTaskUndoMsg,
     DelegationReviewMsg, DelegationApplyMsg, DelegationRevertMsg, DelegationDiscardMsg, DelegationRetryMsg,
     DelegationResumeMsg, DelegationOutwardMsg, DropMsg,

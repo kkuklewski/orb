@@ -259,7 +259,7 @@ VIKUNJA_ACTIONS = [*TASK_ACTIONS, "delegate"]  # `repo`: the mapped repo's label
 
 
 def queue(tasks: list[dict] | None, notes: list[dict] | None, results: list[dict] | None, prs: list[dict] | None,
-          awaiting: int, today: str, hidden: set[str] = frozenset()) -> list[dict]:
+          awaiting: int, today: str, hidden: set[str] = frozenset(), notopic: int = 0) -> list[dict]:
     """What doesn't need the owner but is worth doing, in rule order: due date (soonest first, undated last), then
     priority (Vikunja's, else the suggested one in `suggested`), then newest. Items in `hidden` are left out.
     Every item can be started or put off (Later); tasks (Vikunja's and the notes') can also be marked done, and
@@ -308,6 +308,11 @@ def queue(tasks: list[dict] | None, notes: list[dict] | None, results: list[dict
             title=f"{awaiting} note{'s wait' if awaiting != 1 else ' waits'} for a verdict", reason="Judge them in one pass, best first.",
             source="notes", ts=0.0, facts=f"{awaiting} notes in the second brain wait for the owner's verdict (approve or reject)",
             stable=str(awaiting))
+    if notopic:  # No-topic captures (ticket 820): a queue item only, never Needs you, no clock, no pin
+        add(key="notes:notopic", kind="notopic", id="notopic",
+            title=f"{notopic} capture{'s have' if notopic != 1 else ' has'} no topic", reason="Keep, drop or sort them one at a time.",
+            source="notes", ts=0.0, facts=f"{notopic} voice captures in the second brain matched no topic for a week",
+            stable=str(notopic))
     return sorted(out, key=lambda c: (c["due"] or "9999", -(c["priority"] or 0), -c["ts"]))
 
 
@@ -389,7 +394,7 @@ class Needs:
     notes and pull requests with a Home refresh, routines and session results whenever they change), so each part is
     kept until it is sent again."""
 
-    FACTS = ("setup", "vault", "routines", "reminders", "tasks", "notes", "results", "prs", "awaiting")
+    FACTS = ("setup", "vault", "routines", "reminders", "tasks", "notes", "results", "prs", "awaiting", "notopic")
     MARKS = ("started", "later", "done")  # queue keys hidden for the day they were set
 
     def __init__(self, path: Path, ask: Callable[[str], Awaitable[str]], push: Callable[[dict], Awaitable[None]]) -> None:
@@ -421,7 +426,8 @@ class Needs:
         f = self.facts
         hidden = {k for part in self.MARKS for k, day in (self.state.get(part) or {}).items() if day == self.today}
         self.items = needs_you(f["routines"], f["tasks"], self.today, f["setup"], f["reminders"], f["vault"])  # type: ignore[arg-type]
-        self.queue = queue(f["tasks"], f["notes"], f["results"], f["prs"], int(f["awaiting"] or 0), self.today, hidden)  # type: ignore[arg-type]
+        self.queue = queue(f["tasks"], f["notes"], f["results"], f["prs"], int(f["awaiting"] or 0), self.today, hidden,  # type: ignore[arg-type]
+                           int(f["notopic"] or 0))  # type: ignore[call-overload]
 
     def _aged(self, now: float | None = None) -> list[dict]:
         return aged(self.items, self.state.get("since") or {}, self.today, now or time.time())
@@ -473,7 +479,7 @@ class Needs:
         await self.push(self.event())
 
     async def update(self, today: str, force: bool = False, now: float | None = None, **facts: object) -> None:
-        """New facts (`setup=`, `vault=` ([Health] or []), `routines=`, `reminders=`, `tasks=`, `notes=`, `results=`, `prs=`, `awaiting=`): send the rule lists at once;
+        """New facts (`setup=`, `vault=` ([Health] or []), `routines=`, `reminders=`, `tasks=`, `notes=`, `results=`, `prs=`, `awaiting=`, `notopic=`): send the rule lists at once;
         ask for a ranking when they changed (or `force`)."""
         self.facts.update({k: v for k, v in facts.items() if k in self.facts})
         self.today = today

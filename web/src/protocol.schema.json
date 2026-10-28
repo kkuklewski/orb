@@ -451,7 +451,8 @@
           "enum": [
             "approve",
             "reject",
-            "restore"
+            "restore",
+            "keep"
           ],
           "type": "string"
         }
@@ -645,6 +646,29 @@
       "title": "BrainGetMsg",
       "type": "object"
     },
+    "BrainKeepMsg": {
+      "additionalProperties": false,
+      "description": "Keep a No-topic capture as an idea: owner_read is set, only if it still reads `seen` (\"\").",
+      "properties": {
+        "file": {
+          "type": "string"
+        },
+        "seen": {
+          "default": "",
+          "type": "string"
+        },
+        "type": {
+          "const": "brain_keep",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "file"
+      ],
+      "title": "BrainKeepMsg",
+      "type": "object"
+    },
     "BrainListEvent": {
       "additionalProperties": false,
       "description": "Brain's list: the newest notes, newest first. `error` when there is no notes folder.",
@@ -723,6 +747,93 @@
         "type"
       ],
       "title": "BrainListMsg",
+      "type": "object"
+    },
+    "BrainNoTopicEvent": {
+      "additionalProperties": false,
+      "description": "Brain's No topic view (home.notopic_notes): No-topic captures, oldest first, plus the rows this page asked for\nagain (`files`) with their new state. `error` when there is no notes folder.",
+      "properties": {
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "notes": {
+          "items": {
+            "$ref": "#/$defs/NoTopicNote"
+          },
+          "type": "array"
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "brain_notopic",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "notes"
+      ],
+      "title": "BrainNoTopicEvent",
+      "type": "object"
+    },
+    "BrainNoTopicMsg": {
+      "additionalProperties": false,
+      "description": "Brain's No topic rows. `files`: rows this page acted on (kept, dropped), listed again with their state though\nthey no longer count.",
+      "properties": {
+        "files": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "type": {
+          "const": "brain_notopic",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "BrainNoTopicMsg",
       "type": "object"
     },
     "BrainNote": {
@@ -1116,7 +1227,9 @@
           "brain_apply": "#/$defs/BrainApplyMsg",
           "brain_expired": "#/$defs/BrainExpiredMsg",
           "brain_get": "#/$defs/BrainGetMsg",
+          "brain_keep": "#/$defs/BrainKeepMsg",
           "brain_list": "#/$defs/BrainListMsg",
+          "brain_notopic": "#/$defs/BrainNoTopicMsg",
           "brain_read": "#/$defs/BrainReadMsg",
           "brain_verdict": "#/$defs/BrainVerdictMsg",
           "browse": "#/$defs/BrowseMsg",
@@ -1304,6 +1417,12 @@
         },
         {
           "$ref": "#/$defs/BrainExpiredMsg"
+        },
+        {
+          "$ref": "#/$defs/BrainNoTopicMsg"
+        },
+        {
+          "$ref": "#/$defs/BrainKeepMsg"
         },
         {
           "$ref": "#/$defs/BrainGetMsg"
@@ -3236,6 +3355,10 @@
         "notes_week": {
           "type": "integer"
         },
+        "notopic_count": {
+          "default": 0,
+          "type": "integer"
+        },
         "open_tasks": {
           "type": "integer"
         },
@@ -4669,6 +4792,79 @@
       "title": "NewSessionMsg",
       "type": "object"
     },
+    "NoTopicNote": {
+      "additionalProperties": false,
+      "properties": {
+        "created": {
+          "type": "string"
+        },
+        "expires": {
+          "default": "",
+          "type": "string"
+        },
+        "file": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "lane": {
+          "type": "string"
+        },
+        "mtime": {
+          "type": "number"
+        },
+        "owner_read": {
+          "type": "string"
+        },
+        "score": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "suggest": {
+          "default": "",
+          "enum": [
+            "approve",
+            "reject",
+            ""
+          ],
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "verdict": {
+          "type": "string"
+        },
+        "waiting": {
+          "type": "boolean"
+        },
+        "why": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "file",
+        "title",
+        "kind",
+        "mtime",
+        "score",
+        "lane",
+        "why",
+        "waiting",
+        "verdict",
+        "owner_read",
+        "created"
+      ],
+      "title": "NoTopicNote",
+      "type": "object"
+    },
     "NotesVerdictMsg": {
       "additionalProperties": false,
       "description": "Bulk verdict on notes: approve, reject, or restore (waits again). The page confirms with a count first; the\nvault write module writes only if every note's verdict still reads as `seen`, then the server answers with the new list.",
@@ -5569,7 +5765,8 @@
             "note_task",
             "result",
             "pr",
-            "notes_batch"
+            "notes_batch",
+            "notopic"
           ],
           "type": "string"
         },
@@ -6655,6 +6852,7 @@
           "brain_expired": "#/$defs/BrainExpiredEvent",
           "brain_list": "#/$defs/BrainListEvent",
           "brain_note": "#/$defs/BrainNoteEvent",
+          "brain_notopic": "#/$defs/BrainNoTopicEvent",
           "browse": "#/$defs/BrowseEvent",
           "commands": "#/$defs/CommandsEvent",
           "context": "#/$defs/ContextEvent",
@@ -6810,6 +7008,9 @@
         },
         {
           "$ref": "#/$defs/BrainExpiredEvent"
+        },
+        {
+          "$ref": "#/$defs/BrainNoTopicEvent"
         },
         {
           "$ref": "#/$defs/BrainNoteEvent"

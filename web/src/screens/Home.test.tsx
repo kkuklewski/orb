@@ -448,6 +448,17 @@ describe("home screen", () => {
     expect(useSession.getState().pendingAsk).toBe("Help me get this task from my note \"inbox/today.md\" done: Send the invoice");
   });
 
+  it("the no-topic item opens Brain's No topic view (ticket 820)", () => {
+    const qNt = q("notopic", "notes:notopic", "notopic", "3 captures have no topic", "Keep, drop or sort them one at a time.", { source: "notes" });
+    render(<Home />);
+    act(() => dispatch(plan([], { next: qNt })));
+    const lead = screen.getByRole("article", { name: "Next action" });
+    expect(lead.textContent).toContain("NEXT ACTION · NOTES");
+    fireEvent.click(within(lead).getByRole("button", { name: /^Sort them/ }));
+    expect(useViews.getState().view).toBe("brain");
+    expect(useBrain.getState().showNoTopic).toBe(true);
+  });
+
   it("the kind says what Start does: Review a pull request, Judge the notes", () => {
     render(<Home />);
     act(() => dispatch(plan([], { next: qPr, up_next: [qBatch] })));

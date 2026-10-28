@@ -45,6 +45,8 @@ export type ClientMessage =
   | NotesVerdictMsg
   | BrainListMsg
   | BrainExpiredMsg
+  | BrainNoTopicMsg
+  | BrainKeepMsg
   | BrainGetMsg
   | BrainApplyMsg
   | BrainVerdictMsg
@@ -114,6 +116,7 @@ export type ServerEvent =
   | ItemListEvent
   | BrainListEvent
   | BrainExpiredEvent
+  | BrainNoTopicEvent
   | BrainNoteEvent
   | BrainAppliedEvent
   | TaskChangedEvent
@@ -513,6 +516,28 @@ export interface BrainListMsg {
  */
 export interface BrainExpiredMsg {
   type: "brain_expired";
+}
+/**
+ * Brain's No topic rows. `files`: rows this page acted on (kept, dropped), listed again with their state though
+ * they no longer count.
+ *
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "BrainNoTopicMsg".
+ */
+export interface BrainNoTopicMsg {
+  files?: string[];
+  type: "brain_notopic";
+}
+/**
+ * Keep a No-topic capture as an idea: owner_read is set, only if it still reads `seen` ("").
+ *
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "BrainKeepMsg".
+ */
+export interface BrainKeepMsg {
+  file: string;
+  seen?: string;
+  type: "brain_keep";
 }
 /**
  * This interface was referenced by `OrbProtocol`'s JSON-Schema
@@ -1466,6 +1491,7 @@ export interface HomeEvent {
   folder?: string | null;
   notes: HomeNote[];
   notes_week: number;
+  notopic_count?: number;
   open_tasks: number;
   replay?: boolean | null;
   session?: string | null;
@@ -1678,7 +1704,17 @@ export interface PlanItem {
   id: string;
   key: string;
   kind:
-    "approval" | "setup" | "vault" | "routine" | "reminder" | "task" | "note_task" | "result" | "pr" | "notes_batch";
+    | "approval"
+    | "setup"
+    | "vault"
+    | "routine"
+    | "reminder"
+    | "task"
+    | "note_task"
+    | "result"
+    | "pr"
+    | "notes_batch"
+    | "notopic";
   pin?: ("security" | "client" | "money") | null;
   priority?: number | null;
   reason: string;
@@ -1860,6 +1896,40 @@ export interface ExpiredNote {
   why: string;
 }
 /**
+ * Brain's No topic view (home.notopic_notes): No-topic captures, oldest first, plus the rows this page asked for
+ * again (`files`) with their new state. `error` when there is no notes folder.
+ *
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "BrainNoTopicEvent".
+ */
+export interface BrainNoTopicEvent {
+  error?: string | null;
+  folder?: string | null;
+  notes: NoTopicNote[];
+  replay?: boolean | null;
+  session?: string | null;
+  type: "brain_notopic";
+}
+/**
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "NoTopicNote".
+ */
+export interface NoTopicNote {
+  created: string;
+  expires?: string;
+  file: string;
+  kind: string;
+  lane: string;
+  mtime: number;
+  owner_read: string;
+  score: number | null;
+  suggest?: "approve" | "reject" | "";
+  title: string;
+  verdict: string;
+  waiting: boolean;
+  why: string;
+}
+/**
  * One note's page: the list fields and the body under the frontmatter, as plain text.
  *
  * This interface was referenced by `OrbProtocol`'s JSON-Schema
@@ -1905,7 +1975,7 @@ export interface BrainAppliedEvent {
  */
 export interface BrainApplied {
   file: string;
-  verdict: "approve" | "reject" | "restore";
+  verdict: "approve" | "reject" | "restore" | "keep";
 }
 /**
  * This interface was referenced by `OrbProtocol`'s JSON-Schema

@@ -10,7 +10,7 @@ import time
 from pathlib import Path
 
 from . import brain, folders, suggest
-from .tasks import SNOOZE, snoozed_until, split_lines
+from .tasks import SNOOZE, TaskError, snoozed_until, split_lines
 from .vault_write import note_path, verdict_seen
 
 TASK = re.compile(r"^\s*[-*+] \[ \]\s+(.+?)\s*$")
@@ -239,6 +239,58 @@ def expired_since(vault: Path, since: float) -> int:
     return sum(1 for p, t in _notes(vault) if _archived(_front(p, t)) > day)
 
 
+NOTOPIC_DAYS = 7  # a week of nightly matching before a capture counts as having no topic
+NOTOPIC_KINDS = ("thought", "talk_summary", "task")
+
+
+def _no_topic(fm: dict[str, str], file: str, t: float, today: dt.date) -> str:
+    """The capture's day (YYYY-MM-DD) when it is a No-topic capture, else "": an inbox voice note, or a thought /
+    talk_summary / task capture, that no topic took (`promoted_to`) and the owner never judged or read, 7+ days old
+    (a `kind: task` capture at once: nothing ever matches it). By rule, never a model (ticket 820)."""
+    kind, source = fm.get("kind", ""), fm.get("source", "")
+    if not file.startswith("inbox/") or not ((source == "voice-capture" and kind in NOTOPIC_KINDS)
+                                             or (source == "codex-voice" and not kind)):
+        return ""
+    if any(fm.get(k) for k in ("promoted_to", "human_verdict", "owner_read", "auto_archived")) \
+            or fm.get("rag_dismissed", "").lower() == "true":
+        return ""
+    day = _day(fm.get("created")) or dt.date.fromtimestamp(t).isoformat()
+    if kind != "task" and day > (today - dt.timedelta(days=NOTOPIC_DAYS)).isoformat():
+        return ""
+    return day
+
+
+def _notopic(vault: Path, files: list[tuple[Path, float]], today: dt.date) -> list[tuple[Path, float, dict, str]]:
+    found = []
+    for p, t in files:
+        fm = _front(p, t)
+        if fm and (day := _no_topic(fm, p.relative_to(vault).as_posix(), t, today)):
+            found.append((p, t, fm, day))
+    return found
+
+
+def notopic_notes(vault: Path, today: dt.date | None = None, also: list[str] | tuple[str, ...] = ()) -> list[dict]:
+    """Brain's No topic view: every No-topic capture, oldest first, each a Brain row with its day (`created`). `also`:
+    files the page acted on (kept, dropped), listed again with their state though they no longer count; a file that
+    isn't a note is left out."""
+    limits = suggest.thresholds(vault)
+    rows = [{**_brain_row(vault, p, t, fm, limits), "created": day}
+            for p, t, fm, day in _notopic(vault, _notes(vault), today or dt.date.today())]
+    listed = {n["file"] for n in rows}
+    root = vault.resolve()
+    for file in list(dict.fromkeys(also))[:200]:
+        try:
+            p = note_path(vault, file)
+            t = p.stat().st_mtime
+        except (TaskError, OSError):
+            continue
+        fm = _front(p, t)
+        row = _brain_row(root, p, t, fm, limits)
+        if fm and row["file"] not in listed:
+            rows.append({**row, "created": _day(fm.get("created")) or dt.date.fromtimestamp(t).isoformat()})
+    return sorted(rows, key=lambda n: (n["created"], n["mtime"]))
+
+
 def brain_note(vault: Path | None, file: str) -> dict:
     """One note for its page: the row's fields and the body under the frontmatter (cut at BODY_MAX characters)."""
     p = note_path(vault, file)
@@ -286,14 +338,15 @@ def open_tasks(vault: Path) -> list[dict]:
 def summary(vault: Path | None, tasks: int = 40, notes: int = 6, now: float | None = None) -> dict:
     """{"type": "home", ...}: what the home screen shows about the notes (empty without a vault)."""
     if not vault or not vault.is_dir():
-        return {"type": "home", "vault": "", "tasks": [], "open_tasks": 0, "snoozed": 0, "notes": [], "notes_week": 0, "awaiting": [], "awaiting_count": 0}
+        return {"type": "home", "vault": "", "tasks": [], "open_tasks": 0, "snoozed": 0, "notes": [], "notes_week": 0, "awaiting": [], "awaiting_count": 0, "notopic_count": 0}
     now = time.time() if now is None else now
     files = _notes(vault)
     found, total, snoozed = _tasks(vault, files, tasks, dt.date.fromtimestamp(now).isoformat())
     recent = [{"title": _title(p)[:120], "file": str(p.relative_to(vault)), "mtime": t} for p, t in files[:notes]]
     waiting, waiting_total = _awaiting(vault, files, 6)
     return {"type": "home", "vault": str(vault), "tasks": found, "open_tasks": total, "snoozed": snoozed, "notes": recent,
-            "notes_week": sum(1 for _, t in files if now - t < WEEK), "awaiting": waiting, "awaiting_count": waiting_total}
+            "notes_week": sum(1 for _, t in files if now - t < WEEK), "awaiting": waiting, "awaiting_count": waiting_total,
+            "notopic_count": len(_notopic(vault, files, dt.date.fromtimestamp(now)))}
 
 
 def vault_info(vault: Path | None) -> dict | None:
