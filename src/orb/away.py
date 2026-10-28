@@ -19,7 +19,7 @@ from . import config
 AWAY_SECONDS = 24 * 3600
 RECAP_KEEP = 12 * 3600  # a recap the owner came back to but never closed is gone this long after
 SAVE_EVERY = 60  # last-active is written at most this often, a recap change at once
-LINES = 8  # the card's lines (routines, Expired, then Finished and Ready); past this one "N more"
+LINES = 8  # the card's lines (routines, Expired, then Finished, Ready and archived); past this one "N more"
 
 # Page messages that are the owner acting. Everything else (home, routines, screen, the lists and reads, open_folder on a
 # reload, settings reads, speech plumbing) can come from a page nobody is looking at.
@@ -47,12 +47,14 @@ def expired_line(count: int) -> list[dict]:
     return [{"kind": "expired", "id": "expired", "title": title, "summary": "", "count": count}] if count > 0 else []
 
 
-def own_lines(finished: list[float], ready: list[float], since: float) -> list[dict]:
-    """Orb's own lines, after the routines': sessions that finished (unopened) and delegations that became Ready since
-    the owner left, one line each, none when its count is 0. `finished` and `ready` are those times."""
+def own_lines(finished: list[float], ready: list[float], since: float, archived: list[float] = ()) -> list[dict]:
+    """Orb's own lines, after the routines': sessions that finished (unopened), delegations that became Ready and
+    Stale sessions Orb archived since the owner left, one line each, none when its count is 0. The lists are those
+    times."""
     out = []
     for kind, times, one, many in (("finished", finished, "1 session finished", "{} sessions finished"),
-                                   ("ready", ready, "1 delegation Ready", "{} delegations Ready")):
+                                   ("ready", ready, "1 delegation Ready", "{} delegations Ready"),
+                                   ("archived", archived, "1 old session archived", "{} old sessions archived")):
         got = [t for t in times if t > since]
         if got:
             out.append({"kind": kind, "id": kind, "title": one if len(got) == 1 else many.format(len(got)), "summary": "",

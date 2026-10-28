@@ -21,6 +21,7 @@ from . import config
 
 NEW_LABEL = "New session"
 LABEL_MAX = 60
+STALE_DAYS = 7  # a Stale session: no turn for this long (ticket 847)
 
 
 class SessionStore:
@@ -169,8 +170,45 @@ class SessionStore:
                 entry.pop("active", None)
         else:
             s.pop("archived", None)
+            s.pop("auto_archived", None)
         self._save()
         return True
+
+    def archive_stale(self, keep, now: float | None = None) -> int:
+        """Archive every Stale session: unarchived, its last turn (sent or finished) STALE_DAYS or more ago, and not
+        one `keep(key)` holds (running, an open card, a delegation's, on a page). Marked `auto_archived` with the time
+        for the Away recap; Restore on the sidebar undoes it. Returns how many."""
+        now = time.time() if now is None else now
+        cut = now - STALE_DAYS * 86400
+        count = 0
+        for entry in self.data.values():
+            for key, s in entry.get("sessions", {}).items():
+                last = max(s.get("last_used") or 0, s.get("finished_at") or 0)
+                if s.get("archived") or last > cut or keep(key):
+                    continue
+                s["archived"], s["auto_archived"] = True, now
+                if entry.get("active") == key:
+                    entry.pop("active", None)
+                count += 1
+        if count:
+            self._save()
+        return count
+
+    def auto_archived(self) -> list[float]:
+        """When each session Orb archived on its own was archived (Restore clears it), for the Away recap."""
+        return [s["auto_archived"] for e in self.data.values() for s in e.get("sessions", {}).values()
+                if s.get("archived") and s.get("auto_archived")]
+
+    def set_finished(self, folder: str, key: str, at: float | None) -> None:
+        """When the session became Finished (its answer unread), or None once it is opened. Kept so a restart keeps it."""
+        s = self.data.get(folder, {}).get("sessions", {}).get(key)
+        if s is None or s.get("finished_at") == at:
+            return
+        if at is None:
+            s.pop("finished_at", None)
+        else:
+            s["finished_at"] = at
+        self._save()
 
     def remove(self, folder: str, key: str) -> bool:
         """Forget a session in Orb. Claude Code's own transcript file is left alone."""
