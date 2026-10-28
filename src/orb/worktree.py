@@ -166,10 +166,16 @@ def current_branch(repo: str) -> str:
     return out.stdout.strip()
 
 
-def branch_name(task: int | str, title: str) -> str:
-    """'orb/762-worktree-apply-and-discard' for task #762."""
-    slug = re.sub(r"[^a-z0-9]+", "-", title.casefold()).strip("-")[:40].rstrip("-")
-    return f"orb/{task}-{slug}" if slug else f"orb/{task}"
+def _slug(text: str, cap: int) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", text.casefold()).strip("-")[:cap].rstrip("-")
+
+
+def branch_name(task: int | str, title: str, who: str = "") -> str:
+    """'orb/acme-dev/762-worktree-apply-and-discard' for task #762 delegated by tracker user acme-dev (#866 Q8), so two
+    people never push the same branch; 'orb/762-…' without one (records from before keep their stored branch)."""
+    slug, me = _slug(title, 40), _slug(who, 20)
+    name = f"{task}-{slug}" if slug else f"{task}"
+    return f"orb/{me}/{name}" if me else f"orb/{name}"
 
 
 # -- create -------------------------------------------------------------------------------------

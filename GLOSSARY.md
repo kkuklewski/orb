@@ -123,6 +123,15 @@ A delegation waiting for a free slot: at most three delegated sessions run at on
 finish.
 _Avoid_: Pending, waiting, backlog
 
+**Claim**:
+The task's assignee in the tracker, set to the owner by Delegate before its worktree exists. A task held by a
+teammate is not delegated; Discard takes back a claim Orb made, Apply and done leave it.
+_Avoid_: lock, reserve, take
+
+**Teammate**:
+Another person with their own Orb in the same repos and the same tracker. Orb never removes a teammate's claim.
+_Avoid_: user, colleague, other owner
+
 **Grant**:
 The owner's one approval for what a session may do without asking again, given by the act that started it: a
 delegation's grant (its own worktree, declared commands, its branch), a drop's grant (fetching its own link, reading its

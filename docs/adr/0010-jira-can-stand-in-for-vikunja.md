@@ -21,4 +21,6 @@ create, delete). Jira is used when a Jira address is set (`jira_url` or `ORB_JIR
   "Make it a task" with no mapped repo goes to the project named by `tasks_inbox` (name or key).
 - Internal names stay as they were (`vikunja:<id>` keys, the item source `vikunja`): they name Orb's Tasks source, not
   the product. The page shows the tracker's name from `features.tracker`.
+- The claim (#866) is the same rule on both: Vikunja adds the owner as one more assignee by user id (never the bulk
+  call); Jira has one assignee, so free means unassigned and is checked before the assign, which overwrites.
 - Not done: Jira Server / Data Center, OAuth, more than one tracker at once.

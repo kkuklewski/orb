@@ -33,6 +33,11 @@ The queue (#773): at most `limit()` delegations (settings `delegation_limit`, 3)
 not stuck. Allow past the limit still makes the worktree and the record, but the record waits as "queued" (its line
 "Queued · 2nd") with its first request kept, and no session starts. When a slot frees (Ready, failed, stuck,
 discarded) the oldest queued one starts. Retry and Resume take the same queue. A restart stops queued ones too.
+The claim (#866, `claim.py`): the card is refused when Orb can't tell who the owner is in the tracker or a teammate
+holds the task ("Task #N is held by <name>"); its branch is per person, orb/<tracker user>/<task>-<slug>. Allow claims
+each task before its worktree (one that can't be claimed is skipped with its reason, the others start; nothing is
+retried); a worktree that fails takes back the claim it just made. The record keeps `claimed` (Orb added the
+assignment), and only Discard takes that back.
 Bulk Delegate: one grant card per repo (the tasks of that repo in a list), shown one after another; Deny skips that
 repo's tasks and the next repo's card comes up either way.
 """
@@ -51,7 +56,7 @@ from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
 
-from . import config, grant, sandbox, worktree
+from . import claim, config, grant, sandbox, worktree
 from .brief import quoted
 from .fence import Fence
 
@@ -170,13 +175,15 @@ async def run_tests(path: str, cmd: str, timeout: float = TEST_TIMEOUT) -> tuple
 class Delegator:
     """The delegation records and their lifecycle. `session(path, key)` opens (or returns) a FolderSession,
     `push(ev)` sends to every page, `done(task, on)` writes the task done (or open) in Vikunja and the plan,
-    `waiting(key)` is the words of the card that session waits on ("" when none), `limit()` how many may hold a slot."""
+    `waiting(key)` is the words of the card that session waits on ("" when none), `limit()` how many may hold a slot,
+    `claims` the tracker side (None: no claim and the old branch names, for tests that don't need a tracker)."""
 
     def __init__(self, path: Path, *, store: Any, session: Callable[[str, str], Any],
                  push: Callable[[dict], Awaitable[None]], done: Callable[[int, bool], Awaitable[None]],
-                 waiting: Callable[[str], str] = lambda key: "", limit: Callable[[], int] = lambda: LIMIT) -> None:
+                 waiting: Callable[[str], str] = lambda key: "", limit: Callable[[], int] = lambda: LIMIT,
+                 claims: claim.Claims | None = None) -> None:
         self.path, self.store, self.session, self.push, self.done, self.waiting = path, store, session, push, done, waiting
-        self.limit = limit
+        self.limit, self.claims = limit, claims
         self.cards: dict[str, dict] = {}  # open grant cards, by id
         self.jobs: set[asyncio.Task] = set()
         self.seen: dict[str, float] = {}  # the last event of each running delegation's session (this run only)
@@ -310,11 +317,20 @@ class Delegator:
         """The grant card for `task` in `repo` (an allowed folder); nothing starts until it is allowed. Runs git."""
         if self._delegated(task["id"]):
             raise DelegationError(f"Task #{task['id']} is already delegated.")
-        return self._card([task], repo, label, [])
+        return self._card([task], repo, label, [], self._who(task))
 
-    def _card(self, tasks: list[dict], repo: str, label: str, then: list[tuple[list[dict], str, str]]) -> dict:
+    def _who(self, task: dict) -> str:
+        """The owner's tracker username for the branch, after checking no teammate holds the task ("" without claims)."""
+        if self.claims is None:
+            return ""
+        try:
+            return self.claims.check(task)["username"]
+        except claim.ClaimError as e:
+            raise DelegationError(str(e)) from e
+
+    def _card(self, tasks: list[dict], repo: str, label: str, then: list[tuple[list[dict], str, str]], who: str) -> dict:
         worktree.current_branch(worktree.toplevel(repo))  # a repo on a branch, or no card
-        rows = [{"task": t["id"], "title": t["title"], "branch": worktree.branch_name(t["id"], t["title"])} for t in tasks]
+        rows = [{"task": t["id"], "title": t["title"], "branch": worktree.branch_name(t["id"], t["title"], who)} for t in tasks]
         cid = uuid.uuid4().hex
         self.cards[cid] = {"tasks": tasks, "repo": repo, "label": label, "branches": [x["branch"] for x in rows], "then": then}
         one = rows[0]
@@ -329,12 +345,19 @@ class Delegator:
         skipped: list[str] = []
         while groups:
             (tasks, repo, label), groups = groups[0], groups[1:]
-            fresh = [t for t in tasks if not self._delegated(t["id"])]
-            skipped += [f"Task #{t['id']} is already delegated." for t in tasks if t not in fresh]
+            fresh, who = [], ""
+            for t in tasks:
+                try:
+                    if self._delegated(t["id"]):
+                        raise DelegationError(f"Task #{t['id']} is already delegated.")
+                    who = self._who(t)
+                    fresh.append(t)
+                except DelegationError as e:
+                    skipped.append(str(e))
             if not fresh:
                 continue
             try:
-                return self._card(fresh, repo, label, groups), skipped
+                return self._card(fresh, repo, label, groups, who), skipped
             except worktree.WorktreeError as e:
                 skipped.append(f"{label}: {e}")
         return None, skipped
@@ -352,17 +375,44 @@ class Delegator:
         if not ok:
             return None
         made: list[dict] = []
+        skipped: list[str] = []
         for task, branch in zip(c["tasks"], c["branches"]):
-            wt = await asyncio.to_thread(worktree.create, c["repo"], branch, None, never)
+            claimed = False
+            if self.claims is not None:
+                try:
+                    claimed = await asyncio.to_thread(self.claims.claim, task["id"])
+                except claim.ClaimError as e:
+                    skipped.append(str(e))
+                    continue
+            try:
+                wt = await asyncio.to_thread(worktree.create, c["repo"], branch, None, never)
+            except Exception:
+                if claimed:
+                    await self._release(task["id"])
+                raise
             key = self.store.new_session(wt.path)
             r = {"id": uuid.uuid4().hex, "task": task["id"], "title": task["title"], "url": task.get("url"),
                  "repo": wt.repo, "label": c["label"], "branch": branch, "worktree": wt.path, "base": wt.base,
-                 "session": key, "stage": "new", "created": time.time(), "started": False}  # _go: working or queued
+                 "session": key, "stage": "new", "created": time.time(), "started": False,  # _go: working or queued
+                 "claimed": claimed}
             self.items[r["id"]] = r
             await self._go(r, brief(task, branch, self.store.commands(c["repo"])["test"]))
             made.append(r)
+        if skipped and not made:
+            raise DelegationError(" ".join(skipped))
         await self.changed()
+        if skipped:
+            await self.push({"type": "notice", "level": "warn", "text": " ".join(skipped)})
         return made
+
+    async def _release(self, task_id: int) -> str | None:
+        """Take back the claim this server made; what went wrong, else None."""
+        try:
+            await asyncio.to_thread(self.claims.release, task_id)
+        except claim.ClaimError as e:
+            log.warning("%s", e)
+            return str(e)
+        return None
 
     async def _go(self, r: dict, text: str, interrupt: bool = False) -> None:
         """Start its next request now when a slot is free, else queue it (the request is kept for when it starts)."""
@@ -625,6 +675,8 @@ class Delegator:
             wt = worktree.get(r["worktree"])
             left = await asyncio.to_thread(worktree.remove, wt) if wt else []
             self.store.forget(r["worktree"])
+            if r.get("claimed") and self.claims is not None and (why := await self._release(r["task"])):
+                left.append(why)
         del self.items[rid]
         await self.changed()
         await self._fill()

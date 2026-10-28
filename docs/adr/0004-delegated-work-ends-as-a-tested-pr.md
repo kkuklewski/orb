@@ -41,3 +41,5 @@ do) and propose-only sessions (the work happens in two rounds and the edits stil
   first (git author or "you", when, subject). The model never picks between two people's edits.
 - A collision offers Update from main (a merge, never a rebase or force push) and Discard; Apply is refused. Discard
   is local: a pushed branch and its PR stay on the remote. The record keeps every collision.
+- Delegate claims the task in the tracker first; a task held by a teammate is refused, and Orb never takes it from
+  them (#866). Its branch is per person: orb/<tracker user>/<task>-<slug>.

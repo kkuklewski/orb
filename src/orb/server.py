@@ -23,7 +23,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTex
 from fastapi.staticfiles import StaticFiles
 from starlette.datastructures import Headers, MutableHeaders
 
-from . import away, billing, chain, config, delegation, desk, fence, folders, forget, handoff, home, intake, items, kokoro_setup, make_task, navigate, needs, parakeet, routines, settings, setup, slash, speech, tasks, timing, tracker, triage, vault_git, vault_write, vendor, vocab, worktree
+from . import away, billing, chain, claim, config, delegation, desk, fence, folders, forget, handoff, home, intake, items, kokoro_setup, make_task, navigate, needs, parakeet, routines, settings, setup, slash, speech, tasks, timing, tracker, triage, vault_git, vault_write, vendor, vocab, worktree
 from .agent import SCREEN_MAX, FolderSession, dumps, first_request
 from .brain import CaptureGuard
 from .sessions import SessionStore
@@ -114,7 +114,7 @@ class Hub:
         self.delegator = delegation.Delegator(
             config.STATE_DIR / "delegations.json", store=self.store, session=self.session, push=self.push_all,
             done=self.task_done, waiting=self.card_words,
-            limit=lambda: int(settings.settings["delegation_limit"]))
+            limit=lambda: int(settings.settings["delegation_limit"]), claims=claim.Claims(lambda: settings.settings.data))
         self.maker = make_task.Maker(cfg=lambda: settings.settings.data, vault=settings.settings.vault,
                                      inbox=lambda: settings.settings["tasks_inbox"])
 
