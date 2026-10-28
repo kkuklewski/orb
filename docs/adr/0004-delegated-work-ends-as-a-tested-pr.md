@@ -41,5 +41,32 @@ do) and propose-only sessions (the work happens in two rounds and the edits stil
   first (git author or "you", when, subject). The model never picks between two people's edits.
 - A collision offers Update from main (a merge, never a rebase or force push) and Discard; Apply is refused. Discard
   is local: a pushed branch and its PR stay on the remote. The record keeps every collision.
+
+## Amended (#869)
+
+- Update from main is the owner's tap, not the model's: Orb starts the merge itself (`git merge --no-commit`) and the
+  session only resolves the conflicted files and commits. It may not rebase, reset, abort or push.
+- Their lines stay exactly as they landed. Orb checks every hunk the Other side added is still in the merged branch,
+  whole and in order; if one is gone or changed (or nothing was committed) the update is refused ("Can't update without changing their lines in
+  …"), nothing is pushed and only Discard is left. The owner settles it by hand.
+- A kept update runs the declared test again, then the push asks again (or goes at once with outward steps on). The
+  PR updates; Apply stays a local merge.
+- Before any fetch, push or merge, Orb checks the repo's git config is unchanged since the delegation started, and
+  fetches with `protocol.ext.allow=never`: the session can write `.git/config`, so a filter, merge driver or ssh
+  command it adds must not run outside its sandbox.
+
+## Amended (#870)
+
+- While a Ready delegation's PR is open, Orb reads its mergeable state with `gh pr view` at most every 10 minutes
+  (the first read 10 minutes after the push), one call per PR on the existing minute tick. `UNKNOWN` is "not yet";
+  `CONFLICTING` runs the same fetch and in-memory merge as at Ready and raises the collision card only when that
+  finds conflicting files. A merged or closed PR is never read again, and a collision stops the reads until it's settled.
+- A first push refused because the branch already exists on the remote with other commits is not a push failure:
+  it raises "Branch X already exists on <remote> with someone else's commits; someone else may have delegated this
+  task." with Discard only (nothing to merge, Apply refused). Discard is local; their branch stays. Once Orb has
+  pushed the branch itself, a later refusal reads as a push failure (the session rewrote what it pushed; never forced).
+
+## Amended (#866)
+
 - Delegate claims the task in the tracker first; a task held by a teammate is refused, and Orb never takes it from
   them (#866). Its branch is per person: orb/<tracker user>/<task>-<slug>.
