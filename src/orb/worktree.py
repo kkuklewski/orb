@@ -81,10 +81,7 @@ def _load() -> dict[str, dict]:
         return {}
     if _cache and _cache[0] == str(path) and _cache[1] == mtime:
         return _cache[2]
-    try:
-        data = json.loads(path.read_text()).get("worktrees", {})
-    except (OSError, ValueError, AttributeError):
-        data = {}
+    data = (config.read_state(path) or {}).get("worktrees", {})
     _cache = (str(path), mtime, data)
     return data
 

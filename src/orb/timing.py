@@ -18,6 +18,7 @@ from . import config
 
 log = logging.getLogger("orb.timing")
 
+KEEP = 5000  # timing.jsonl keeps its newest lines (docs/adr/0014)
 HOPS = (("stt", "audio", "stt"), ("hold", "stt", "send"), ("conn", "send", "query"), ("ttft", "query", "token"),
         ("say", "token", "spoken"), ("tts", "spoken", "clip"))
 
@@ -63,3 +64,14 @@ class TurnTiming:
                  **self.hops(), **self.extra}) + "\n")
         except OSError as e:
             log.debug("timing.jsonl: %s", e)
+
+
+def trim(path=None, keep: int = KEEP) -> None:
+    """At start-up: rewrite timing.jsonl atomically with only its newest `keep` lines."""
+    path = path or config.STATE_DIR / "timing.jsonl"
+    try:
+        lines = path.read_text().splitlines(keepends=True)
+    except (OSError, ValueError):
+        return
+    if len(lines) > keep:
+        config.write_private(path, "".join(lines[-keep:]))

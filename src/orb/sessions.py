@@ -26,11 +26,8 @@ LABEL_MAX = 60
 class SessionStore:
     def __init__(self, path: Path) -> None:
         self.path = path
-        try:
-            raw = json.loads(path.read_text())
-        except (OSError, ValueError):
-            raw = {}
-        self.data: dict[str, dict] = raw.get("folders", {}) if isinstance(raw, dict) else {}
+        raw = config.read_state(path) or {}
+        self.data: dict[str, dict] = raw.get("folders", {})
         if raw.get("version") != 2:
             self._migrate()
 

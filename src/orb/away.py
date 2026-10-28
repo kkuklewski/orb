@@ -69,10 +69,7 @@ def _shape(since: float, back: float | None, now: float, lines: Callable[[float]
 class Clock:
     def __init__(self, path: Path) -> None:
         self.path = path
-        try:
-            data = json.loads(path.read_text())
-        except (OSError, ValueError):
-            data = {}
+        data = config.read_state(path) or {}
         self.last_active: float | None = data.get("last_active")
         self.recap: dict | None = data.get("recap")  # {"since", "back"}: the owner is back, the card not seen yet
         self.last: dict | None = data.get("last")  # the recap before, once it was seen or expired: for the Home chat

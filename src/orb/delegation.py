@@ -162,11 +162,8 @@ class Delegator:
         self.seen: dict[str, float] = {}  # the last event of each running delegation's session (this run only)
         self.stuck: set[str] = set()  # the ones the pages were last told are stuck
         self.skip: set[str] = set()  # Retry interrupted their turn: its result starts no check
-        try:
-            raw = json.loads(path.read_text())
-        except (OSError, ValueError):
-            raw = {}
-        self.items: dict[str, dict] = raw.get("delegations", {}) if isinstance(raw, dict) else {}
+        raw = config.read_state(path) or {}
+        self.items: dict[str, dict] = raw.get("delegations", {})
         stopped = [r for r in self.items.values() if r["stage"] in (*RUNNING, "queued")]
         for r in stopped:  # a restart never resumes or starts one by itself
             r["stage"] = "stopped"
