@@ -514,8 +514,9 @@ class Delegator:
         r["updating"] = {**start, "collision": c, "first": first}
         r["stage"] = "updating"  # holds no slot while it takes its place
         await self._go(r, (
-            f"{into} on {remote} changed the same files first: {', '.join(c['files'])}" + (f" ({first})" if first else "")
-            + f". Orb started `git merge` of {remote}/{into} into {b} in this worktree; it is not committed. Their "
+            # no file names, authors or subjects from the remote here: they are someone else's text; git status has the files
+            f"{into} on {remote} changed the same files first. Orb started `git merge` of {remote}/{into} into {b} in "
+            "this worktree (`git status` lists the conflicted files); it is not committed. Their "
             "lines stay exactly as they landed: don't edit, drop or move any of them. Re-apply your own change on top "
             "of theirs, resolve the conflict markers that way, run the tests, then finish with git add and `git commit "
             "--no-edit`. Don't rebase, reset, abort the merge or push. If your change can't sit next to their lines "

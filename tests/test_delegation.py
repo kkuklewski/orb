@@ -947,7 +947,8 @@ async def test_update_merges_main_keeps_their_lines_retests_and_asks_before_the_
     row = rig.row()
     assert (row["stage"], row["line"], row["update_from"]) == ("working", "Updating from main", None)
     text, _ = rig.sessions[r["session"]].sent[-1]
-    assert "Their lines stay exactly as they landed" in text and "c.txt changed first by Alice Acme" in text
+    assert "Their lines stay exactly as they landed" in text
+    assert "Alice" not in text and "c.txt" not in text  # someone else's text (names, files) stays out of the prompt
     assert "<<<<<<<" in (Path(r["worktree"]) / "c.txt").read_text()  # the merge is open, not committed
 
     resolve(r, {"c.txt": "one\n2\nTWO\nthree\n"})

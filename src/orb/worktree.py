@@ -127,9 +127,14 @@ def _git(cwd: str, *args: str, env: dict[str, str] | None = None, check: bool = 
         full.pop(k, None)
     out = subprocess.run(["git", "-C", cwd, *_SAFE, *args], capture_output=True, text=True, env=full, timeout=120)
     if check and out.returncode != 0:
-        last = (out.stderr or out.stdout).strip().splitlines()[-1:] or [""]
-        raise WorktreeError(f"git {args[0]} failed: {last[0]}"[:300])
+        raise WorktreeError(_failure(args[0], out))
     return out
+
+
+def _failure(cmd: str, out: subprocess.CompletedProcess) -> str:
+    """git's last line that says what went wrong; `hint:` lines are advice, never the reason."""
+    said = [l for l in (out.stderr or out.stdout).strip().splitlines() if not l.startswith("hint:")]
+    return f"git {cmd} failed: {(said[-1:] or [''])[0]}"[:300]
 
 
 def _line(cwd: str, *args: str) -> str:
@@ -315,7 +320,14 @@ def push(wt: Worktree, remote: str, commit: str) -> None:
         raise Moved(f"{wt.branch} changed after its check; re-run the check.")
     _same_config(wt)
     ref = f"refs/heads/{wt.branch}"
-    _git(wt.repo, *_NET, "push", "--quiet", remote, f"{commit}:{ref}")
+    out = _git(wt.repo, *_NET, "push", "--porcelain", remote, f"{commit}:{ref}", check=False)
+    if out.returncode == 0:
+        return
+    for line in out.stdout.splitlines():  # "!\t<from>:<to>\t[rejected] (fetch first)"
+        flag, _, rest = line.partition("\t")
+        if flag == "!" and (m := re.search(r"\[([^\]]+)\]\s*(?:\((.*)\))?$", rest)):
+            raise WorktreeError(f"Push of {wt.branch} to {remote}: {m[1]}" + (f" ({m[2]})" if m[2] else ""))
+    raise WorktreeError(_failure("push", out))
 
 
 # -- update from the target branch (#869) -------------------------------------------------------
@@ -337,28 +349,35 @@ def merging(wt: Worktree) -> bool:
     return _git(wt.path, "rev-parse", "-q", "--verify", "MERGE_HEAD", check=False).returncode == 0
 
 
-def _added(wt: Worktree, base: str, theirs: str) -> dict[str, list[str]]:
-    """Per file, the lines the other side added since base (text files; a deleted file has none)."""
+def _added(wt: Worktree, base: str, theirs: str) -> dict[str, list[list[str]]]:
+    """Per file, the blocks of lines the other side added since base, one per hunk (text files; a deleted file has
+    none)."""
     out = _git(wt.repo, "-c", "core.quotePath=false", "diff", "--no-color", "--no-ext-diff", "--no-textconv",
                "--unified=0", base, theirs).stdout
-    added: dict[str, list[str]] = {}
+    added: dict[str, list[list[str]]] = {}
     path, head = None, True
     for l in out.splitlines():
         if l.startswith("diff --git "):
             path, head = None, True
         elif head and l.startswith("+++ "):
             path = l[6:] if l.startswith("+++ b/") else None
-        elif l.startswith("@@"):
+        elif l.startswith("@@") and path:
             head = False
+            added.setdefault(path, []).append([])
         elif not head and path and l.startswith("+"):
-            added.setdefault(path, []).append(l[1:])
-    return added
+            added[path][-1].append(l[1:])
+    return {f: [x for x in blocks if x] for f, blocks in added.items() if any(blocks)}
+
+
+def _contains(lines: list[str], block: list[str]) -> bool:
+    n = len(block)
+    return any(lines[i:i + n] == block for i in range(len(lines) - n + 1))
 
 
 def kept(wt: Worktree, update: dict) -> list[str] | None:
-    """After the session's update turn: None when the branch has a new commit that contains theirs and every line
-    they added since base; else the files that lost lines ([] when there is no such merge at all). An open merge is
-    aborted (nothing of it is kept)."""
+    """After the session's update turn: None when the branch has a new commit that contains theirs and every block of
+    lines they added since base, unchanged and in order; else the files that lost lines ([] when there is no such
+    merge at all). An open merge is aborted (nothing of it is kept)."""
     if merging(wt):
         _git(wt.path, "merge", "--abort", check=False)
         return []
@@ -366,10 +385,10 @@ def kept(wt: Worktree, update: dict) -> list[str] | None:
     if now == update["head"] or _git(wt.repo, "merge-base", "--is-ancestor", update["theirs"], now, check=False).returncode:
         return []
     gone = []
-    for f, lines in _added(wt, update["base"], update["theirs"]).items():
+    for f, blocks in _added(wt, update["base"], update["theirs"]).items():
         have = _git(wt.repo, "show", f"{now}:{f}", check=False)
-        left = set(have.stdout.splitlines()) if have.returncode == 0 else set()
-        if any(l not in left for l in lines):
+        left = have.stdout.splitlines() if have.returncode == 0 else []
+        if not all(_contains(left, b) for b in blocks):  # each of their hunks intact, in order, byte for byte
             gone.append(f)
     return gone or None
 
