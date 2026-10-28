@@ -2,7 +2,9 @@
 
 import asyncio
 import hashlib
+import json
 import os
+import re
 import subprocess
 from pathlib import Path
 
@@ -631,21 +633,52 @@ def on_remote(bare: Path) -> list[str]:
 
 
 class FakeGh:
+    """`gh pr create` (PRs #12, #13, ... in order) and, for Apply on GitHub (#876), `gh pr view` (`view`, then the
+    merge commit) and `gh pr merge`, which really lands the PR's branch on main in the bare remote (squash or merge
+    commit) when its head is the `--match-head-commit` one; `refuse` makes it fail with that output."""
+
     def __init__(self, fail: str = "") -> None:
         self.calls: list[tuple] = []
         self.fail = fail
+        self.argv: list[tuple] = []  # every `gh <args>` run (view, merge)
+        self.view = {"state": "OPEN", "mergeable": "MERGEABLE", "mergeStateStatus": "CLEAN"}
+        self.refuse = ""
+        self.heads: dict[int, str] = {}
+        self.merged: str | None = None
 
     async def __call__(self, repo, branch, into, title, body):
         self.calls.append((branch, into, title, body))
         if self.fail:
             raise DelegationError(self.fail)
-        return 12, "https://git.example/acme/web/pull/12"
+        n = 11 + len(self.calls)
+        self.heads[n] = branch
+        return n, f"https://git.example/acme/web/pull/{n}"
+
+    async def run(self, repo, *args):
+        self.argv.append(args)
+        if args[:2] == ("pr", "view"):
+            return 0, json.dumps({"mergeCommit": {"oid": self.merged}} if args[-1] == "mergeCommit" else self.view)
+        assert args[:2] == ("pr", "merge"), args
+        if self.refuse:
+            return 1, self.refuse
+        n, bare = int(args[2]), git(repo, "remote", "get-url", "origin")
+        branch, head = self.heads[n], args[args.index("--match-head-commit") + 1]
+        if git(bare, "rev-parse", branch) != head:
+            return 1, f"X Pull request #{n} head branch was modified. Review and try the merge again."
+        out = subprocess.run(["git", "-C", bare, "merge-tree", "--write-tree", "main", branch], capture_output=True, text=True)
+        if out.returncode:
+            return 1, f"X Pull request #{n} is not mergeable: the merge commit cannot be cleanly created."
+        tree, parents = out.stdout.split()[0], ["-p", "main"] + (["-p", branch] if "--merge" in args else [])
+        self.merged = git(bare, "commit-tree", tree, *parents, "-m", f"Merge pull request #{n}")
+        git(bare, "update-ref", "refs/heads/main", self.merged)
+        return 0, f"✓ Merged pull request #{n}"
 
 
 @pytest.fixture
 def gh(monkeypatch):
     fake = FakeGh()
     monkeypatch.setattr(delegation, "open_pr", fake)
+    monkeypatch.setattr(delegation, "gh", fake.run)
     return fake
 
 
@@ -682,15 +715,7 @@ async def test_allow_pushes_the_branch_and_opens_a_pr_named_after_the_task(dev, 
     assert [ev["items"][0]["line"] for ev in rig.pushed[-2:]] == ["Opening PR", "Ready: PR #12, tests passed"]
     row = rig.row()
     assert (row["needs"], row["pr"], row["pr_url"]) == (None, 12, "https://git.example/acme/web/pull/12")
-    assert row["apply_text"] == "Apply merges PR #12 and marks task #7 done."
-
-    # Apply and Undo stay local; the PR stays as history
-    await rig.d.apply(r["id"], rig.store.apply_mode)
-    assert rig.row()["line"] == "Applied to main; task #7 done. PR #12 stays open." and rig.marked == [(7, True)]
-    assert on_remote(remote) == ["main", r["branch"]]
-    await rig.d.revert(r["id"])
-    assert not (Path(rig.web) / "d.txt").exists() and rig.marked[-1] == (7, False)
-    assert on_remote(remote) == ["main", r["branch"]]
+    assert row["apply_text"] == "Apply asks to merge PR #12 on origin into main, then marks task #7 done."  # (#876)
 
 
 async def test_a_later_passing_turn_asks_to_push_to_the_same_pr(dev, remote, gh):
@@ -1281,3 +1306,184 @@ async def test_our_own_pushed_branch_rewritten_is_a_push_failure_not_a_taken_nam
     await rig.d.outward(r["id"], True)
     row = rig.row()
     assert row["needs"] is None and "not pushed: Push of" in row["line"] and "already exists" not in row["line"]
+
+
+# -- Apply on GitHub (#876) -----------------------------------------------------------------------
+
+async def with_pr(rig: Rig) -> dict:
+    """A Ready delegation whose checked commit is pushed to PR #12."""
+    r = await rig.allow()
+    await rig.turn({"d.txt": "delegated\n"})
+    if rig.row()["needs"] == "outward":
+        await rig.d.outward(r["id"], True)
+    assert rig.row()["line"] == "Ready: PR #12, tests passed"
+    return r
+
+
+def merges(gh: FakeGh) -> list[tuple]:
+    return [a for a in gh.argv if a[:2] == ("pr", "merge")]
+
+
+async def test_apply_with_a_pr_asks_every_time_then_merges_the_checked_commit_on_the_remote(dev, remote, gh):
+    rig = Rig(dev, test="true")
+    rig.store.set_outward(rig.web, True)  # outward steps on: the push goes at once, the merge still asks
+    r = await with_pr(rig)
+    main = git(remote, "rev-parse", "main")
+    await rig.d.apply(r["id"], rig.store.apply_mode)
+    row = rig.row()
+    assert gh.argv == [("pr", "view", "12", "--json", "state,mergeable,mergeStateStatus")]
+    assert (row["stage"], row["needs"], row["ask"]) == ("ready", "merge", "Merge PR #12 on origin into main?")
+    assert git(remote, "rev-parse", "main") == main and rig.marked == []
+
+    await rig.d.outward(r["id"], True)
+    (argv,) = merges(gh)
+    assert argv == ("pr", "merge", "12", "--squash", "--match-head-commit", r["checked"]) and "--delete-branch" not in argv
+    assert git(remote, "show", "main:d.txt") == "delegated" and r["branch"] in on_remote(remote)  # the branch stays
+    row = rig.row()
+    assert (row["stage"], row["needs"]) == ("applied", None)
+    assert row["line"] == "Applied: PR #12 into main, merged on origin and pulled; task #7 done."
+    assert git(rig.web, "rev-parse", "HEAD") == git(remote, "rev-parse", "main")  # fast-forwarded: on main, clean, behind
+    assert r["merge_sha"] == gh.merged and rig.marked == [(7, True)] and not Path(r["worktree"]).exists()
+    assert rig.sessions[r["session"]].closed
+
+
+async def test_skip_on_the_merge_card_leaves_it_ready_and_merges_nothing(dev, remote, gh):
+    rig = Rig(dev, test="true")
+    r = await with_pr(rig)
+    await rig.d.apply(r["id"], rig.store.apply_mode)
+    await rig.d.outward(r["id"], False)
+    assert (rig.row()["needs"], rig.row()["line"]) == (None, "Ready: PR #12, tests passed") and merges(gh) == []
+
+
+@pytest.mark.parametrize("seen, said", [
+    ({"state": "MERGED"}, "PR #12 is MERGED on GitHub; nothing was merged."),
+    ({"state": "CLOSED"}, "PR #12 is CLOSED on GitHub; nothing was merged."),
+    ({"mergeStateStatus": "BLOCKED"}, "PR #12 is BLOCKED on GitHub (a required review or check is missing)"),
+    ({"mergeable": "CONFLICTING"}, "GitHub says PR #12 conflicts with main, but it merges cleanly here"),
+])
+async def test_a_stale_pr_state_merges_nothing(dev, remote, gh, seen, said):
+    rig = Rig(dev, test="true")
+    r = await with_pr(rig)
+    gh.view.update(seen)
+    with pytest.raises(DelegationError, match=re.escape(said)):
+        await rig.d.apply(r["id"], rig.store.apply_mode)
+    assert (rig.row()["stage"], rig.row()["needs"]) == ("ready", None) and merges(gh) == []
+
+
+async def test_conflicting_on_github_goes_to_the_collision_card(dev, remote, gh):
+    rig = Rig(dev, test="true")
+    r = await with_pr(rig)
+    land(dev, remote, {"d.txt": "theirs\n"}, "their d")
+    gh.view["mergeable"] = "CONFLICTING"
+    await rig.d.apply(r["id"], rig.store.apply_mode)
+    row = rig.row()
+    assert (row["needs"], row["update_from"]) == ("collision", "main") and row["line"].startswith("Conflict with main in d.txt.")
+    assert merges(gh) == []
+
+
+async def test_a_github_refusal_changes_nothing_here(dev, remote, gh):
+    rig = Rig(dev, test="true")
+    r = await with_pr(rig)
+    before, main = fingerprint(Path(rig.web)), git(remote, "rev-parse", "main")
+    gh.refuse = "X Pull request #12 is not mergeable: the base branch policy prohibits the merge.\n"
+    await rig.d.apply(r["id"], rig.store.apply_mode)
+    await rig.d.outward(r["id"], True)
+    row = rig.row()
+    assert (row["stage"], row["needs"]) == ("ready", "merge")  # the card stays: Merge again, Skip or Discard
+    assert row["line"] == ("Ready: PR #12, tests passed · not merged: Pull request #12 is not mergeable: the base branch "
+                           "policy prohibits the merge.")
+    assert fingerprint(Path(rig.web)) == before and git(remote, "rev-parse", "main") == main and rig.marked == []
+
+    gh.refuse = ""
+    land(dev, remote, {"d.txt": "theirs\n"}, "their d")  # GitHub refuses on a conflict: the collision card
+    await rig.d.outward(r["id"], True)
+    assert rig.row()["needs"] == "collision" and fingerprint(Path(rig.web)) == before and rig.marked == []
+
+
+async def test_a_restart_while_merging_says_to_check_the_pr(dev, remote, gh):
+    rig = Rig(dev, test="true")
+    r = await with_pr(rig)
+    rig.d.items[r["id"]]["merge"] = "merging"
+    with pytest.raises(DelegationError, match="being merged"):
+        await rig.d.discard(r["id"])
+    rig.d._save()
+    row = rig.make().event()["items"][0]
+    assert row["needs"] == "merge" and row["line"].endswith(" · not merged: Orb restarted while merging; check PR #12 on GitHub first")
+
+
+@pytest.mark.parametrize("owner", ["on another branch", "dirty", "ahead"])
+async def test_the_checkout_fast_forwards_only_when_on_main_clean_and_strictly_behind(dev, remote, gh, owner):
+    rig = Rig(dev, test="true")
+    r = await with_pr(rig)
+    web = Path(rig.web)
+    if owner == "on another branch":
+        git(web, "switch", "-q", "-c", "side")
+    elif owner == "dirty":
+        (web / "a.txt").write_text("my edit\n")
+    else:
+        commit(web, {"mine.txt": "mine\n"}, "mine, not pushed")
+    before = fingerprint(web)
+    await rig.d.apply(r["id"], rig.store.apply_mode)
+    await rig.d.outward(r["id"], True)
+    assert rig.row()["line"] == "Applied: PR #12 into main, merged on origin; pull to get it. Task #7 done."
+    assert fingerprint(web) == before and rig.marked == [(7, True)]
+
+
+async def test_undo_after_a_merge_on_the_remote_opens_a_revert_pr_once(dev, remote, gh):
+    rig = Rig(dev, test="true")
+    rig.store.set_apply_mode(rig.web, "merge")
+    r = await with_pr(rig)
+    await rig.d.apply(r["id"], rig.store.apply_mode)
+    await rig.d.outward(r["id"], True)
+    assert merges(gh)[0][3] == "--merge"
+    merged, before = git(remote, "rev-parse", "main"), fingerprint(Path(rig.web))
+
+    await rig.d.revert(r["id"])  # outward steps off: the push and the PR ask first
+    row = rig.row()
+    assert (row["stage"], row["needs"]) == ("applied", "outward") and "orb/revert-7" not in on_remote(remote)
+    assert row["ask"] == "Push branch orb/revert-7 and open a PR reverting PR #12?"
+    with pytest.raises(DelegationError, match="already under way"):
+        await rig.d.revert(r["id"])
+
+    await rig.d.outward(r["id"], True)
+    assert "orb/revert-7" in on_remote(remote) and git(remote, "rev-parse", "main") == merged  # main untouched
+    revert = git(remote, "rev-parse", "orb/revert-7")
+    assert git(remote, "rev-parse", f"{revert}^") == merged  # on the merged tip, one revert commit
+    assert git(remote, "rev-parse", f"{revert}^{{tree}}") == git(remote, "rev-parse", f"{merged}^1^{{tree}}")
+    assert git(remote, "log", "-1", "--format=%s", revert) == 'Revert "Merge pull request #12"'
+    assert gh.calls[-1][:3] == ("orb/revert-7", "main", "Revert #12")
+    row = rig.row()
+    assert (row["stage"], row["needs"]) == ("reverted", None)
+    assert row["line"] == "Reverted: PR #13 reverts PR #12 on origin; task #7 reopened."
+    assert rig.marked == [(7, True), (7, False)] and fingerprint(Path(rig.web)) == before  # the checkout untouched
+    with pytest.raises(DelegationError, match=re.escape("PR #13 already reverts PR #12; Undo is offered once per Apply.")):
+        await rig.d.revert(r["id"])
+    assert len(gh.calls) == 2
+
+
+async def test_undo_with_outward_steps_on_opens_the_revert_pr_at_once(dev, remote, gh):
+    rig = Rig(dev, test="true")
+    rig.store.set_outward(rig.web, True)
+    r = await with_pr(rig)
+    await rig.d.apply(r["id"], rig.store.apply_mode)
+    await rig.d.outward(r["id"], True)
+    await rig.d.revert(r["id"])
+    assert rig.row()["stage"] == "reverted" and "orb/revert-7" in on_remote(remote)
+    assert git(remote, "rev-parse", "orb/revert-7^{tree}") == git(remote, "rev-parse", f"{gh.merged}^^{{tree}}")
+
+
+def test_the_revert_branch_is_per_person_like_the_delegations():
+    assert wts.revert_name("orb/acme-dev/7-fix-the-login-button", 7) == "orb/acme-dev/revert-7"
+    assert wts.revert_name("orb/7-fix-the-login-button", 7) == "orb/revert-7"
+
+
+async def test_a_local_apply_and_its_undo_stay_local_when_the_pr_update_is_skipped(dev, remote, gh):
+    rig = Rig(dev, test="true")
+    r = await with_pr(rig)
+    await rig.turn({"d.txt": "delegated, again\n"})
+    await rig.d.outward(r["id"], False)  # Skip the update's push: the PR doesn't have the checked commit
+    await rig.d.apply(r["id"], rig.store.apply_mode)
+    assert rig.row()["line"] == "Applied to main; task #7 done. PR #12 stays open." and merges(gh) == []
+    await rig.d.revert(r["id"])
+    assert rig.row()["line"] == "Reverted; task #7 reopened." and not (Path(rig.web) / "d.txt").exists()
+    assert on_remote(remote) == ["main", r["branch"]]

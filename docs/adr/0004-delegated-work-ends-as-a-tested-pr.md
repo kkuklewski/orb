@@ -90,3 +90,23 @@ do) and propose-only sessions (the work happens in two rounds and the edits stil
 - A squash Apply lands only base..branch, so it works on a checkout that is still behind. A merge Apply is refused
   until the checkout has the commit the branch started from ("pull them into <into> first"): its merge commit would
   count the team's commits as merged while their files stay out.
+
+## Amended (#876)
+
+Amends #771: with a PR Orb opened, Apply merges it on the remote; without one, Apply and Undo stay local.
+
+- Apply first reads the PR afresh (`gh pr view`, after the git config check). MERGED, CLOSED or BLOCKED is refused with
+  that state and nothing is merged. CONFLICTING runs the collision check and raises the collision card only when it
+  finds real files; otherwise Apply is refused ("merges cleanly here; try Apply again in a minute").
+- The merge always asks, even with the repo's outward steps on or in a client folder: "Merge PR #N on <remote> into
+  <into>?" with Merge, Skip and Discard. Allow runs `gh pr merge <n>` with `--squash` or `--merge` (the repo's apply
+  mode) and `--match-head-commit <checked commit>`, so GitHub merges only what Orb tested. It never deletes the branch.
+- A refusal from GitHub changes nothing locally. A conflict goes to the collision card; any other refusal stays on the
+  merge card with GitHub's reason, trimmed (" · not merged: …").
+- On success Orb records the merge commit, marks the task done and removes the worktree and branch. It fast-forwards
+  the owner's checkout only when it is on the target branch, clean and strictly behind; otherwise the line says
+  "merged on <remote>; pull to get it".
+- Undo after a merge on the remote reverts that commit (`-m 1` for a merge commit) on a new branch
+  `orb/<me>/revert-<task>`, built from the fetched tip without touching the checkout, pushes it and opens a "Revert #N"
+  PR against the target: behind the outward card, or at once with outward steps on outside a client folder. The task
+  reopens once the PR is open. Undo is offered once; nothing is ever forced.

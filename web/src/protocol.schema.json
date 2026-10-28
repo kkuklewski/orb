@@ -2030,7 +2030,8 @@
                 "stuck",
                 "stopped",
                 "outward",
-                "collision"
+                "collision",
+                "merge"
               ],
               "type": "string"
             },
@@ -2117,7 +2118,7 @@
     },
     "DelegationOutwardMsg": {
       "additionalProperties": false,
-      "description": "The outward card (Needs you): Allow pushes the branch and opens its PR; Skip (allow false) keeps it local.",
+      "description": "The outward card (Needs you): Allow pushes the branch and opens its PR; Skip (allow false) keeps it local. The\nsame answer serves Apply's merge card (merges the PR on the remote, #876) and Undo's revert PR.",
       "properties": {
         "allow": {
           "type": "boolean"
@@ -2178,7 +2179,7 @@
     },
     "DelegationRevertMsg": {
       "additionalProperties": false,
-      "description": "Undo after Apply: revert the commit and reopen the task.",
+      "description": "Undo after Apply: revert the commit and reopen the task (after a merge on the remote: a revert PR, #876).",
       "properties": {
         "id": {
           "type": "string"
