@@ -20,9 +20,8 @@ class ClaimError(Exception):
 
 
 def holder(task: dict, me: dict) -> str | None:
-    """The teammate holding `task` (the first other assignee's name), or None when it is free or only the owner's."""
-    other = [a for a in task.get("assignees") or [] if a["id"] != me["id"]]
-    return (other[0]["name"] or "a teammate") if other else None
+    """The teammate holding `task`, or None when it is free or only the owner's (tracker.held_by, the one rule)."""
+    return tracker.held_by(task, me)
 
 
 class Claims:

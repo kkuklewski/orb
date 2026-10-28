@@ -110,6 +110,8 @@ Amends #771: with a PR Orb opened, Apply merges it on the remote; without one, A
   `orb/<me>/revert-<task>`, built from the fetched tip without touching the checkout, pushes it and opens a "Revert #N"
   PR against the target: behind the outward card, or at once with outward steps on outside a client folder. The task
   reopens once the PR is open. Undo is offered once; nothing is ever forced.
+- While the merge runs, Apply is off and Discard is refused. A restart mid-merge never merges again: Orb reads the PR;
+  merged ends as above, anything else goes back to Ready with "merge interrupted by a restart; not merged on <remote>" (#879).
 
 ## Amended (#877)
 

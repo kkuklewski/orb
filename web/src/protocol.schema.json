@@ -2068,6 +2068,10 @@
         "line": {
           "type": "string"
         },
+        "merging": {
+          "default": false,
+          "type": "boolean"
+        },
         "needs": {
           "anyOf": [
             {
