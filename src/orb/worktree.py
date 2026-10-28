@@ -50,6 +50,10 @@ class Moved(WorktreeError):
     """The branch has commits its check didn't see."""
 
 
+class Taken(WorktreeError):
+    """The push was refused because the remote branch has commits this one doesn't (no force, ever)."""
+
+
 class Conflict(WorktreeError):
     def __init__(self, files: list[str]) -> None:
         super().__init__("Conflict in " + ", ".join(files) + ". Nothing was merged." if files else
@@ -326,7 +330,8 @@ def push(wt: Worktree, remote: str, commit: str) -> None:
     for line in out.stdout.splitlines():  # "!\t<from>:<to>\t[rejected] (fetch first)"
         flag, _, rest = line.partition("\t")
         if flag == "!" and (m := re.search(r"\[([^\]]+)\]\s*(?:\((.*)\))?$", rest)):
-            raise WorktreeError(f"Push of {wt.branch} to {remote}: {m[1]}" + (f" ({m[2]})" if m[2] else ""))
+            said = f"Push of {wt.branch} to {remote}: {m[1]}" + (f" ({m[2]})" if m[2] else "")
+            raise (Taken if m[2] in ("fetch first", "non-fast-forward") else WorktreeError)(said)
     raise WorktreeError(_failure("push", out))
 
 

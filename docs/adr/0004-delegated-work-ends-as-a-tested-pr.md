@@ -54,3 +54,14 @@ do) and propose-only sessions (the work happens in two rounds and the edits stil
 - Before any fetch, push or merge, Orb checks the repo's git config is unchanged since the delegation started, and
   fetches with `protocol.ext.allow=never`: the session can write `.git/config`, so a filter, merge driver or ssh
   command it adds must not run outside its sandbox.
+
+## Amended (#870)
+
+- While a Ready delegation's PR is open, Orb reads its mergeable state with `gh pr view` at most every 10 minutes
+  (the first read 10 minutes after the push), one call per PR on the existing minute tick. `UNKNOWN` is "not yet";
+  `CONFLICTING` runs the same fetch and in-memory merge as at Ready and raises the collision card only when that
+  finds conflicting files. A merged or closed PR is never read again, and a collision stops the reads until it's settled.
+- A first push refused because the branch already exists on the remote with other commits is not a push failure:
+  it raises "Branch X already exists on <remote> with someone else's commits; someone else may have delegated this
+  task." with Discard only (nothing to merge, Apply refused). Discard is local; their branch stays. Once Orb has
+  pushed the branch itself, a later refusal reads as a push failure (the session rewrote what it pushed; never forced).
