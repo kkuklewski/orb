@@ -41,3 +41,16 @@ do) and propose-only sessions (the work happens in two rounds and the edits stil
   first (git author or "you", when, subject). The model never picks between two people's edits.
 - A collision offers Update from main (a merge, never a rebase or force push) and Discard; Apply is refused. Discard
   is local: a pushed branch and its PR stay on the remote. The record keeps every collision.
+
+## Amended (#869)
+
+- Update from main is the owner's tap, not the model's: Orb starts the merge itself (`git merge --no-commit`) and the
+  session only resolves the conflicted files and commits. It may not rebase, reset, abort or push.
+- Their lines stay exactly as they landed. Orb checks every hunk the Other side added is still in the merged branch,
+  whole and in order; if one is gone or changed (or nothing was committed) the update is refused ("Can't update without changing their lines in
+  …"), nothing is pushed and only Discard is left. The owner settles it by hand.
+- A kept update runs the declared test again, then the push asks again (or goes at once with outward steps on). The
+  PR updates; Apply stays a local merge.
+- Before any fetch, push or merge, Orb checks the repo's git config is unchanged since the delegation started, and
+  fetches with `protocol.ext.allow=never`: the session can write `.git/config`, so a filter, merge driver or ssh
+  command it adds must not run outside its sandbox.
