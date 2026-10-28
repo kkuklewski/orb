@@ -46,8 +46,8 @@ do) and propose-only sessions (the work happens in two rounds and the edits stil
 
 - Update from main is the owner's tap, not the model's: Orb starts the merge itself (`git merge --no-commit`) and the
   session only resolves the conflicted files and commits. It may not rebase, reset, abort or push.
-- Their lines stay exactly as they landed. Orb checks every line the Other side added is still in the merged branch;
-  if one is gone (or nothing was committed) the update is refused ("Can't update without changing their lines in
+- Their lines stay exactly as they landed. Orb checks every hunk the Other side added is still in the merged branch,
+  whole and in order; if one is gone or changed (or nothing was committed) the update is refused ("Can't update without changing their lines in
   …"), nothing is pushed and only Discard is left. The owner settles it by hand.
 - A kept update runs the declared test again, then the push asks again (or goes at once with outward steps on). The
   PR updates; Apply stays a local merge.
