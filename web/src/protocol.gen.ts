@@ -751,13 +751,15 @@ export interface DelegateConfirmMsg {
   type: "delegate_confirm";
 }
 /**
- * "Make it a task" on a routine's last run: the server answers with a card first.
+ * "Make it a task" on a routine's last run, or on a No-topic capture (`capture`, its file): the server answers
+ * with a card first.
  *
  * This interface was referenced by `OrbProtocol`'s JSON-Schema
  * via the `definition` "MakeTaskMsg".
  */
 export interface MakeTaskMsg {
-  routine: string;
+  capture?: string;
+  routine?: string;
   type: "make_task";
 }
 /**
@@ -1915,6 +1917,7 @@ export interface BrainNoTopicEvent {
  * via the `definition` "NoTopicNote".
  */
 export interface NoTopicNote {
+  capture?: string;
   created: string;
   expires?: string;
   file: string;
@@ -2370,11 +2373,12 @@ export interface DelegationDiffEvent {
  * via the `definition` "MakeTaskCardEvent".
  */
 export interface MakeTaskCardEvent {
+  capture?: string;
   folder?: string | null;
   id: string;
   project: string;
   replay?: boolean | null;
-  routine: string;
+  routine?: string;
   session?: string | null;
   title: string;
   type: "make_task_card";
@@ -2386,6 +2390,7 @@ export interface MakeTaskCardEvent {
  * via the `definition` "MakeTaskDoneEvent".
  */
 export interface MakeTaskDoneEvent {
+  capture?: string | null;
   error?: string | null;
   folder?: string | null;
   id: string;
@@ -2399,12 +2404,13 @@ export interface MakeTaskDoneEvent {
   url?: string | null;
 }
 /**
- * Undo of a created task: deleted, or why not.
+ * Undo of a created task: deleted (and a capture's owner_read taken off again), or why not.
  *
  * This interface was referenced by `OrbProtocol`'s JSON-Schema
  * via the `definition` "MakeTaskUndoneEvent".
  */
 export interface MakeTaskUndoneEvent {
+  capture?: string | null;
   error?: string | null;
   folder?: string | null;
   ok: boolean;

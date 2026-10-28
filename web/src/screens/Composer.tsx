@@ -20,6 +20,13 @@ export function Composer({ lead, placeholder = "Type, or / for commands" }: { le
   const [closed, setClosed] = useState(false); // Esc closes the menu until the text changes
   const box = useRef<HTMLTextAreaElement>(null);
   const menu = useRef<HTMLDivElement>(null);
+  const draft = useSession((s) => s.draft);
+  useEffect(() => { // a brief put here unsent (New topic on a capture): the owner reads it and sends it
+    if (draft === null) return;
+    setText(draft);
+    useSession.setState({ draft: null });
+    box.current?.focus();
+  }, [draft]);
 
   const q = slashQuery(text);
   const shown = q === null || closed ? [] : slashMatches(commands, q);

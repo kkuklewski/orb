@@ -183,6 +183,15 @@ describe("composer and slash menu", () => {
 
   const box = () => screen.getByRole("combobox", { name: "Message" }) as HTMLTextAreaElement;
 
+  it("a draft lands in the box, focused and unsent (New topic, ticket 820)", () => {
+    render(<Composer />);
+    act(() => useSession.setState({ draft: "Start a Topics page for the capture inbox/captures/acme.md" }));
+    expect(box().value).toBe("Start a Topics page for the capture inbox/captures/acme.md");
+    expect(document.activeElement).toBe(box());
+    expect(useSession.getState().draft).toBeNull();
+    expect(sent).toEqual([]);
+  });
+
   it("/ opens the menu; arrows move, Tab completes", () => {
     render(<Composer />);
     fireEvent.change(box(), { target: { value: "/c" } });

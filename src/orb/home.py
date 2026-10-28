@@ -271,10 +271,10 @@ def _notopic(vault: Path, files: list[tuple[Path, float]], today: dt.date) -> li
 
 def notopic_notes(vault: Path, today: dt.date | None = None, also: list[str] | tuple[str, ...] = ()) -> list[dict]:
     """Brain's No topic view: every No-topic capture, oldest first, each a Brain row with its day (`created`). `also`:
-    files the page acted on (kept, dropped), listed again with their state though they no longer count; a file that
-    isn't a note is left out."""
+    files the page acted on (kept, dropped, made a task), listed again with their state though they no longer count; a file that
+    isn't a note is left out. `capture` is the capture's own kind ("task" leads with Make it a task)."""
     limits = suggest.thresholds(vault)
-    rows = [{**_brain_row(vault, p, t, fm, limits), "created": day}
+    rows = [{**_brain_row(vault, p, t, fm, limits), "created": day, "capture": fm.get("kind", "")}
             for p, t, fm, day in _notopic(vault, _notes(vault), today or dt.date.today())]
     listed = {n["file"] for n in rows}
     root = vault.resolve()
@@ -287,7 +287,8 @@ def notopic_notes(vault: Path, today: dt.date | None = None, also: list[str] | t
         fm = _front(p, t)
         row = _brain_row(root, p, t, fm, limits)
         if fm and row["file"] not in listed:
-            rows.append({**row, "created": _day(fm.get("created")) or dt.date.fromtimestamp(t).isoformat()})
+            rows.append({**row, "created": _day(fm.get("created")) or dt.date.fromtimestamp(t).isoformat(),
+                         "capture": fm.get("kind", "")})
     return sorted(rows, key=lambda n: (n["created"], n["mtime"]))
 
 

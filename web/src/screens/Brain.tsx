@@ -2,8 +2,10 @@ import { useEffect } from "react";
 import type { BrainNote } from "../protocol.gen";
 import type { ExpiredNote, NoTopicNote } from "../protocol.gen";
 import { GROUPS, GROUP_NAME, KINDS, LANES, accept, applyPicked, askNoTopic, brainRows, closeExpired, closeNoTopic, drop, expiredState, expiryText, headerLine, keep,
-  keepIdea, notopicState, openExpired, openNoTopic, openNote, pickAll, restore, scoreDot, setFilter, setVerdict, suggestable, suggestionGroups, toggleIn, togglePick, useBrain, verdictText, type Group } from "../stores/brain";
+  keepIdea, newTopic, notopicState, openExpired, openNoTopic, openNote, pickAll, restore, scoreDot, setFilter, setVerdict, suggestable, suggestionGroups, toggleIn, togglePick, useBrain, verdictText, type Group } from "../stores/brain";
+import { makeCaptureTask } from "../stores/routine";
 import { openSettings, relTime } from "../stores/views";
+import { MakeTaskCard } from "./Routine";
 import { send } from "../ws";
 
 // Brain: the vault's newest notes, one line each ("title · kind · when") with the value-score dot; the panel holds the
@@ -75,6 +77,7 @@ function ExpiredLine({ n }: { n: ExpiredNote }) {
 function NoTopicLine({ n }: { n: NoTopicNote }) {
   const said = useBrain((s) => notopicState(n, s.applied));
   const refused = useBrain((s) => s.refused[n.file]);
+  const task = <button type="button" className="chip-btn sg-act" aria-label={`Make a task of ${n.title}`} onClick={() => makeCaptureTask(n.file)}>Make it a task</button>;
   return (
     <div className="rt-line sg-line nt-line" data-state={said === "dropped" ? "rejected" : said ? "approved" : "waiting"}>
       <span className={scoreDot(n.score)} />
@@ -83,11 +86,15 @@ function NoTopicLine({ n }: { n: NoTopicNote }) {
       {said === "dropped" ? <button type="button" className="chip-btn sg-act" aria-label={`Restore ${n.title}`} onClick={() => restore(n)}>Restore</button>
         : said ? <span />
         : <span className="nt-acts">
+          {n.capture === "task" && task}
           <button type="button" className="chip-btn sg-act" aria-label={`Keep ${n.title}`} onClick={() => keepIdea(n)}>Keep</button>
+          {n.capture !== "task" && task}
+          <button type="button" className="chip-btn sg-act" aria-label={`New topic for ${n.title}`} onClick={() => newTopic(n)}>New topic</button>
           <button type="button" className="chip-btn sg-act" aria-label={`Drop ${n.title}`} onClick={() => drop(n)}>Drop</button>
         </span>}
-      <span className="rt-tail mono">{[n.kind, n.created].filter(Boolean).join(" · ")}</span>
+      <span className="rt-tail mono">{[n.capture || n.kind, n.created].filter(Boolean).join(" · ")}</span>
       {refused && <span className="sg-refused" role="alert">{refused}</span>}
+      <div className="nt-card"><MakeTaskCard routine={`capture:${n.file}`} /></div>
     </div>
   );
 }
