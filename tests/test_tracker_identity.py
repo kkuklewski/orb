@@ -16,8 +16,7 @@ def tokens(monkeypatch):
     monkeypatch.setenv("ORB_VIKUNJA_TOKEN", "vt")
     monkeypatch.setenv("ORB_JIRA_EMAIL", "dev@acme.test")
     monkeypatch.setenv("ORB_JIRA_TOKEN", "jt")
-    vikunja._me_cache.clear()
-    jira._me_cache.clear()
+    tracker._me_cache.clear()
 
 
 class Calls:
@@ -73,7 +72,7 @@ def test_jira_me_reads_myself_once(monkeypatch):
     tracker.me(JCFG)
     assert got.n == 1
     monkeypatch.setattr(jira, "_call", lambda *a, **k: {"accountId": "x"})
-    jira._me_cache.clear()
+    tracker._me_cache.clear()
     with pytest.raises(tracker.ERRORS, match="who this account is"):
         tracker.me(JCFG)
 

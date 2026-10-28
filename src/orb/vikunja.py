@@ -9,7 +9,6 @@ environment (ORB_VIKUNJA_TOKEN), so it never lands in settings.json. Without bot
 from __future__ import annotations
 
 import datetime as dt
-import hashlib
 import html
 import json
 import re
@@ -27,7 +26,6 @@ MAX_PAGES = 20  # Vikunja caps a page at 50 whatever per_page says, so we read u
 TIMEOUT = 6
 NO_DATE = "0001-01-01"  # Vikunja's "no due date"
 HOME_SHOWN = 12  # tasks Home gets (it counts all of them)
-_me_cache: dict[tuple[str, str], dict] = {}  # (base, token digest) -> who the token is, for the server's life
 
 
 class VikunjaError(Exception):
@@ -130,17 +128,12 @@ def assignees(t: dict) -> list[dict]:
 
 
 def me(url: str) -> dict:
-    """Who the token is: {"id", "name" (display name, else the username), "username"}. Read once per token and kept in
-    memory; a failure isn't kept, so the next call asks again."""
+    """Who the token is: {"id", "name" (display name, else the username), "username"}. One read; `tracker.me` keeps it."""
     base, token = _cfg(url)
-    key = (base, hashlib.sha256(token.encode()).hexdigest())
-    if key not in _me_cache:
-        u = _fetch(base, token, "/user", {})
-        if not isinstance(u, dict) or not u.get("id") or not u.get("username"):
-            raise VikunjaError("Vikunja didn't say who this token is.")
-        _me_cache[key] = {"id": str(u["id"]), "name": str(u.get("name") or u["username"])[:80],
-                          "username": str(u["username"])[:80]}
-    return _me_cache[key]
+    u = _fetch(base, token, "/user", {})
+    if not isinstance(u, dict) or not u.get("id") or not u.get("username"):
+        raise VikunjaError("Vikunja didn't say who this token is.")
+    return {"id": str(u["id"]), "name": str(u.get("name") or u["username"])[:80], "username": str(u["username"])[:80]}
 
 
 def open_tasks(url: str, project: str | None = None) -> dict:

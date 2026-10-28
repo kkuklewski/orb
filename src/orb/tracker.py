@@ -8,6 +8,7 @@ the product.
 
 from __future__ import annotations
 
+import hashlib
 import re
 from pathlib import Path
 from types import ModuleType
@@ -17,6 +18,7 @@ from . import jira, vikunja
 ERRORS = (vikunja.VikunjaError, jira.JiraError)  # `except tracker.ERRORS` catches either backend's refusal
 NOT_FOUND = (vikunja.VikunjaNotFound, jira.JiraNotFound)  # the backend answered 404: catch it before ERRORS
 home_event = vikunja.home_event
+_me_cache: dict[tuple[str, str], dict] = {}  # (base, token digest) -> who the account is
 KEY = re.compile(r"[A-Za-z][A-Za-z0-9_]*-\d+")  # a Jira issue key (ACME-12); the task's title starts with it
 
 
@@ -77,10 +79,16 @@ def _held(cfg: dict, got: dict) -> dict:
 
 
 def me(cfg: dict) -> dict:
-    """Who Orb is in the tracker: {"id", "name", "username"}, from the token it already has (ADR 0010). Raises ERRORS
-    when the tracker can't say; a task's "assignees" use the same ids."""
+    """Who Orb is in the tracker: {"id", "name", "username"}, from the token it already has (ADR 0010). Read once per
+    account and kept for the server's life; a failure isn't kept, so the next call asks again. Raises ERRORS when the
+    tracker can't say; a task's "assignees" use the same ids."""
     m, url = _b(cfg)
-    return m.me(url)
+    if not (got := m.configured(url)):
+        return m.me(url)  # refuses: not set up
+    key = (got[0], hashlib.sha256(got[1].encode()).hexdigest())
+    if key not in _me_cache:
+        _me_cache[key] = m.me(url)
+    return _me_cache[key]
 
 
 def assign(cfg: dict, task_id: int, user_id: str) -> None:

@@ -133,11 +133,16 @@ def vault_row(h: vault_git.Health | None) -> dict | None:
         state, reason = ("conflict", "Orb writes no notes until it's resolved") if h.conflicted else ("diverged", "pull, then push")
     else:
         return None
-    return {"key": f"vault:{state}", "kind": "vault", "id": "vault", "title": title, "reason": reason, "source": "vault",
-            "due": None, "priority": None, "url": None, "actions": ["open"], "repo": None, "suggest": None,
-            "urgent": state == "conflict",
-            "facts": f"{'Urgent. ' if state == 'conflict' else ''}The notes vault's local git clone: {title.removeprefix('Vault: ')}. {reason}",
-            "stable": f"{state}|{h.unmerged}|{h.operation}", "pin": None, "repair": None, "held_by": None}
+    return _row(key=f"vault:{state}", kind="vault", id="vault", title=title, reason=reason, source="vault",
+                actions=["open"], urgent=state == "conflict",
+                facts=f"{'Urgent. ' if state == 'conflict' else ''}The notes vault's local git clone: {title.removeprefix('Vault: ')}. {reason}",
+                stable=f"{state}|{h.unmerged}|{h.operation}")
+
+
+def _row(**c: object) -> dict:
+    """A Needs you row: what its rule doesn't set is None."""
+    return {"due": None, "priority": None, "url": None, "repo": None, "suggest": None, "pin": None, "repair": None,
+            "held_by": None, **c}
 
 
 def _late(due: str, today: str) -> str:
@@ -155,10 +160,10 @@ def needs_you(routines: list[dict] | None, tasks: list[dict] | None, today: str,
     see `money`), else None; a task in both is client."""
     out: list[dict] = []
     for p in setup or []:
-        out.append({"key": f"setup:{p['id']}", "kind": "setup", "id": p["id"], "title": p["title"], "reason": p["reason"],
-                    "source": "setup", "due": None, "priority": None, "url": None, "actions": ["open"], "repo": None, "suggest": None,
-                    "urgent": True, "facts": f"Urgent. Broken setup: {p['title']}. {_clip(p['reason'])}", "stable": f"{p['title']}|{p['reason']}",
-                    "pin": "security", "repair": None, "held_by": None})
+        out.append(_row(key=f"setup:{p['id']}", kind="setup", id=p["id"], title=p["title"], reason=p["reason"],
+                        source="setup", actions=["open"], urgent=True,
+                        facts=f"Urgent. Broken setup: {p['title']}. {_clip(p['reason'])}", stable=f"{p['title']}|{p['reason']}",
+                        pin="security"))
     out += [row for h in vault or [] if (row := vault_row(h))]
     bad = [r for r in routines or [] if r.get("enabled") and r.get("needs") in ROUTINE_RANK]
     for r in sorted(bad, key=lambda r: ROUTINE_RANK[r["needs"]]):
@@ -173,30 +178,30 @@ def needs_you(routines: list[dict] | None, tasks: list[dict] | None, today: str,
         if repair:
             said = f"{(said or plain).rstrip('.')} · Task #{repair['task']}"
             stable += f"|{repair['task']}"
-        out.append({"key": f"routine:{r['id']}", "kind": "routine", "id": r["id"], "title": f"Routine ‘{r['name']}’ {ROUTINE_SAYS[r['needs']]}",
-                    "reason": said or plain, "source": "routine", "due": None, "priority": None,
-                    "url": repair.get("url") if repair else None, "actions": ["make_task", "open"] if streak and not repair else ["open"],
-                    "repo": None, "suggest": None, "urgent": bool(r.get("urgent")),
-                    "facts": f"{'Urgent. ' if r.get('urgent') else ''}Scheduled job '{_clip(r['name'], 80)}': {r['needs']}. Judge: {_clip(r.get('why'), 120) or '-'}. "
-                             f"Last run: {_clip(last.get('summary') or last.get('detail'))}{f'. {said}' if streak or repair else ''}",
-                    "stable": stable, "pin": "security" if r.get("security") else None,
-                    "repair": repair["task"] if repair else None, "held_by": None})
+        out.append(_row(key=f"routine:{r['id']}", kind="routine", id=r["id"], title=f"Routine ‘{r['name']}’ {ROUTINE_SAYS[r['needs']]}",
+                        reason=said or plain, source="routine",
+                        url=repair.get("url") if repair else None, actions=["make_task", "open"] if streak and not repair else ["open"],
+                        urgent=bool(r.get("urgent")),
+                        facts=f"{'Urgent. ' if r.get('urgent') else ''}Scheduled job '{_clip(r['name'], 80)}': {r['needs']}. Judge: {_clip(r.get('why'), 120) or '-'}. "
+                              f"Last run: {_clip(last.get('summary') or last.get('detail'))}{f'. {said}' if streak or repair else ''}",
+                        stable=stable, pin="security" if r.get("security") else None,
+                        repair=repair["task"] if repair else None))
     for r in sorted((r for r in reminders or [] if r.get("due") and r["due"] <= today), key=lambda r: r["due"]):
-        out.append({"key": f"reminder:{r['due']}:{_clip(r['text'], 80)}", "kind": "reminder", "id": r["due"],
-                    "title": _clip(r["text"], 120), "reason": _late(r["due"], today), "source": "reminder", "due": r["due"],
-                    "priority": None, "url": r.get("url"), "actions": ["open"] if r.get("url") else [], "repo": None, "suggest": None,
-                    "urgent": False, "facts": f"Reminder the owner set: {_clip(r['text'], 200)}; due {r['due']}", "stable": f"{r['text']}|{r['due']}",
-                    "pin": None, "repair": None, "held_by": None})
+        out.append(_row(key=f"reminder:{r['due']}:{_clip(r['text'], 80)}", kind="reminder", id=r["due"],
+                        title=_clip(r["text"], 120), reason=_late(r["due"], today), source="reminder", due=r["due"],
+                        url=r.get("url"), actions=["open"] if r.get("url") else [], urgent=False,
+                        facts=f"Reminder the owner set: {_clip(r['text'], 200)}; due {r['due']}", stable=f"{r['text']}|{r['due']}"))
     late = [t for t in tasks or [] if t.get("due") and t["due"] < today]
     for t in sorted(late, key=lambda t: (t["due"], -(t.get("priority") or 0))):
-        out.append({"key": f"vikunja:{t['id']}", "kind": "task", "id": str(t["id"]), "title": _clip(t["title"], 120),
-                    "reason": _ago(t["due"], today), "source": t.get("project") or None, "due": t["due"],
-                    "priority": t.get("priority") or None, "url": t.get("url"), "actions": ["open"], "repo": t.get("repo"),
-                    "suggest": suggest.task(t["due"], t.get("repo"), today, t.get("held_by")), "urgent": False,
-                    "held_by": t.get("held_by"),
-                    "facts": f"Tracker task: {_clip(t['title'], 200)}; project {t.get('project') or '-'}; was due {t['due']}; "
-                             f"priority {t.get('priority') or 'unset'}{_held(t)}",
-                    "stable": f"{t['title']}|{t['due']}|{t.get('priority')}{_held(t)}", "pin": "client" if t.get("client") else "money" if t.get("money") else None, "repair": None})
+        out.append(_row(key=f"vikunja:{t['id']}", kind="task", id=str(t["id"]), title=_clip(t["title"], 120),
+                        reason=_ago(t["due"], today), source=t.get("project") or None, due=t["due"],
+                        priority=t.get("priority") or None, url=t.get("url"), actions=["open"], repo=t.get("repo"),
+                        suggest=suggest.task(t["due"], t.get("repo"), today, t.get("held_by")), urgent=False,
+                        held_by=t.get("held_by"),
+                        facts=f"Tracker task: {_clip(t['title'], 200)}; project {t.get('project') or '-'}; was due {t['due']}; "
+                              f"priority {t.get('priority') or 'unset'}{_held(t)}",
+                        stable=f"{t['title']}|{t['due']}|{t.get('priority')}{_held(t)}",
+                        pin="client" if t.get("client") else "money" if t.get("money") else None))
     return out
 
 

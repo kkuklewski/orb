@@ -228,3 +228,19 @@ async def test_the_poll_keeps_out_of_a_merge_apply_is_running_or_has_done(dev, r
     rec["merged_on"] = "origin"
     await poll(rig, r)
     assert view.calls == [] and rig.row()["stage"] == "ready" and rig.marked == []
+
+
+async def test_the_outward_card_answers_by_the_kind_the_record_names(dev, remote, gh, view):
+    rig = Rig(dev, test="true")
+    r = await opened(rig)
+    rec = rig.d.items[r["id"]]
+    assert "outward_kind" not in rec  # the push card was answered
+    rec.update(merge="ask", merge_mode="squash")  # a record from before #881: no kind stored
+    rig.d._save()
+    rig.d = rig.make()
+    rec = rig.d.items[r["id"]]
+    assert rec["outward_kind"] == "merge" and rig.row()["needs"] == "merge"
+    await rig.d.outward(r["id"], False)  # Skip the merge: back to Ready
+    assert not {"merge", "merge_mode", "outward_kind"} & rec.keys() and rig.row()["needs"] is None
+    with pytest.raises(DelegationError, match="nothing waiting"):
+        await rig.d.outward(r["id"], True)
