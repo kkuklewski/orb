@@ -52,7 +52,28 @@ def configured(cfg: dict) -> bool:
 
 def open_tasks(cfg: dict, project: str | None = None) -> dict:
     m, url = _b(cfg)
-    return m.open_tasks(url, project)
+    return _held(cfg, m.open_tasks(url, project))
+
+
+def held_by(task: dict, me: dict) -> str | None:
+    """The teammate holding `task` (the first assignee who isn't `me`, by name), or None when it is free or only mine."""
+    other = [a for a in task.get("assignees") or [] if a["id"] != me["id"]]
+    return (other[0]["name"] or "a teammate") if other else None
+
+
+def _held(cfg: dict, got: dict) -> dict:
+    """Each row gets "held_by" (#866 Q7): a teammate's name, else None. me() is asked only when a row has an assignee;
+    when the tracker can't say who Orb is, nothing reads as held (Delegate refuses on its own then)."""
+    rows = got.get("tasks") or []
+    who = None
+    if any(t.get("assignees") for t in rows):
+        try:
+            who = me(cfg)
+        except ERRORS:
+            pass
+    for t in rows:
+        t["held_by"] = held_by(t, who) if who else None
+    return got
 
 
 def me(cfg: dict) -> dict:
@@ -80,7 +101,7 @@ def by_key(tasks: list[dict], key: str) -> dict | None:
 
 def source(cfg: dict) -> dict:
     m, url = _b(cfg)
-    return m.source(url)
+    return _held(cfg, m.source(url))
 
 
 def task(cfg: dict, task_id: int) -> dict:

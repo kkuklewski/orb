@@ -35,6 +35,8 @@ export function leadQueue(q: PlanItem[], front: string | null): PlanItem[] {
 }
 
 const side = (p: PlanItem) => [p.source, p.due].filter(Boolean).join(" · ");
+/** A teammate is the task's assignee in the tracker: Orb never delegates it or takes it from them. */
+const heldTitle = (who: string) => `Held by ${who} in the tracker: they have it, so Orb won't delegate it`;
 const canDelegate = (p: PlanItem) => p.kind === "task" && !!p.actions?.includes("delegate");
 /** A task Bulk Delegate can take: a Vikunja task whose project maps to a repo here. */
 export const bulkable = (p: PlanItem) => canDelegate(p) && !!p.repo;
@@ -111,6 +113,7 @@ export function LeadCard({ n, queue, lists, title }: { n: NeedsYou; queue: PlanI
         <div className="lead-body" key={lead.key}>
           <h2 className="lead-head">{lead.title}</h2>
           <p className="lead-sub">{lead.reason}</p>
+          {lead.held_by && <p className="lead-held mono">Held by {lead.held_by}</p>}
           <div className="lead-actions">
             <button type="button" className="hbtn dark big lead-go" onClick={() => startPlan(lead)}>{GO[lead.kind] ?? "Start"} <kbd className="kbd">⏎</kbd></button>
             {lead.actions?.includes("done") && <button type="button" className="hbtn big" onClick={done}>Done <kbd className="kbd">D</kbd></button>}
@@ -122,6 +125,9 @@ export function LeadCard({ n, queue, lists, title }: { n: NeedsYou; queue: PlanI
             {lead.kind === "task" && lead.actions?.includes("delegate") && (
               <button type="button" className="hbtn big" title="A background session does it in its own worktree; you review and apply"
                 onClick={() => (lead.repo ? delegate(lead.id) : pickRepo(lead.id))}>Delegate{lead.repo ? ` to ${lead.repo}` : ""}</button>
+            )}
+            {lead.kind === "task" && lead.held_by && (
+              <button type="button" className="hbtn big" disabled title={heldTitle(lead.held_by)}>Delegate</button>
             )}
           </div>
         </div>
@@ -149,6 +155,7 @@ export function LeadCard({ n, queue, lists, title }: { n: NeedsYou; queue: PlanI
                 onChange={(e) => setTicked(e.target.checked ? [...ticked, x.key] : ticked.filter((k) => k !== x.key))} />
               <span className="lead-row-tag mono">{TAG[x.kind] ?? x.kind.toUpperCase()}</span>
               <span className="lead-row-text">{x.title}</span>
+              {x.held_by && <span className="lead-held mono" title={heldTitle(x.held_by)}>Held by {x.held_by}</span>}
               {x.suggest && <span className="lead-sug mono" data-sug={x.suggest}>{x.suggest}</span>}
               <span className="mono">{x.repo ?? side(x)}</span>
             </label>
@@ -161,7 +168,9 @@ export function LeadCard({ n, queue, lists, title }: { n: NeedsYou; queue: PlanI
             <div key={x.key} className="lead-item">
               <button type="button" className={"lead-row" + (x.key === sel ? " sel" : "")} aria-current={x.key === sel || undefined} onClick={() => { setSel(null); setFront(x.key); }} title={x.reason}>
                 <span className="lead-row-tag mono">{TAG[x.kind] ?? x.kind.toUpperCase()}</span>
-                <span className="lead-row-text">{x.title}</span><span className="mono">{side(x)}</span>
+                <span className="lead-row-text">{x.title}</span>
+                {x.held_by && <span className="lead-held mono" title={heldTitle(x.held_by)}>Held by {x.held_by}</span>}
+                <span className="mono">{side(x)}</span>
               </button>
               {x.suggest && (
                 <button type="button" className="lead-sug mono" data-sug={x.suggest} aria-label={`${x.suggest}: ${x.title}`}

@@ -112,4 +112,4 @@ def test_jira_rows_and_task_carry_the_assignee(monkeypatch):
     got = {t["id"]: t["assignees"] for t in tracker.open_tasks(JCFG)["tasks"]}
     assert got == {11: [{"id": "a-1", "name": "Acme Dev"}], 12: []}
     assert tracker.task(JCFG, 11)["assignees"] == [{"id": "a-1", "name": "Acme Dev"}]
-    assert all("assignee" in f.split(",") for _, f in asked)
+    assert all("assignee" in f.split(",") for path, f in asked if path != "/myself")  # a row has an assignee: held_by asks who Orb is

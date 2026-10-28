@@ -40,9 +40,10 @@ def note_due(line: str) -> str | None:
     return m.group(1) if m else None
 
 
-def task(due: str | None, repo: str | None, today: str) -> str:
-    """A Vikunja task's suggestion; `repo` is its project's repo from the repo map (None when there is none)."""
-    return TAKE_NOW if _soon(due, today) else DELEGATE if repo else LATER
+def task(due: str | None, repo: str | None, today: str, held_by: str | None = None) -> str:
+    """A tracker task's suggestion; `repo` is its project's repo from the repo map (None when there is none). A task a
+    teammate holds (`held_by`) is theirs: never take now or delegate, only later."""
+    return LATER if held_by else TAKE_NOW if _soon(due, today) else DELEGATE if repo else LATER
 
 
 def note_task(line: str, today: str) -> str:

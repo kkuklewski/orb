@@ -490,6 +490,11 @@ class OpenPr(_Msg):
     draft: bool
 
 
+class Assignee(_Msg):
+    id: str  # Vikunja's user id, Jira's accountId
+    name: str
+
+
 class TrackerTask(_Msg):
     id: int
     title: str
@@ -501,6 +506,8 @@ class TrackerTask(_Msg):
     updated: float
     url: str
     labels: list[str] = []  # the tracker's label names, read only (a pin label pins an overdue task as money)
+    assignees: list[Assignee] = []  # Jira has at most one
+    held_by: str | None = None  # a teammate's name when one is assigned (tracker.held_by), else None
 
 
 ItemSource = Literal["vikunja", "prs", "repos", "notes", "tasks"]
@@ -531,6 +538,7 @@ class PlanItem(_Msg):
     urgent: bool = False  # Needs you only: a broken setup, an urgent routine (routines.urgent), or one past ESCALATE_H; shown red
     pin: Literal["security", "client", "money"] | None = None  # Needs you only: the class a rule pinned it in (docs/adr/0012); it leads
     repair: int | None = None  # a routine row: its open Repair task's id ("Task #N"); url is that task's link
+    held_by: str | None = None  # a tracker task a teammate is assigned to (#866): their name; no Delegate, suggestion later
 
 
 class PlanEvent(_Event):
