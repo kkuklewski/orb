@@ -1,3 +1,4 @@
+import { Markdown } from "./chat/Markdown";
 import { useEffect } from "react";
 import { useViews, NOTIFY_LABEL, dayTime, routineStatus, safeRunUrl, setNotify, whyLine, type NotifyMode } from "../stores/views";
 import { askAbout, confirmTask, makeTask, markRead, resolvable, resolveRun, undoTask, useMakeTask, useRoutineScreen } from "../stores/routine";
@@ -130,8 +131,8 @@ export function RoutineScreen() {
             <div className="hc-label mono">THE LAST RUN</div>
             <h2>{l ? (l.outcome === "ok" ? "What the run reported" : `The run ${l.outcome ?? "has no outcome"}`) : "No runs yet"}</h2>
           </div>
-          <pre className="routine-text">{text || "(the run left no text)"}</pre>
-          <div className="hc-foot mono"><span>shown as plain text</span>{url && <a href={url} target="_blank" rel="noopener noreferrer">Open run ↗</a>}</div>
+          <div className="routine-text"><Markdown text={text || "(the run left no text)"} /></div>
+          <div className="hc-foot mono"><span>sanitized markdown</span>{url && <a href={url} target="_blank" rel="noopener noreferrer">Open run ↗</a>}</div>
         </article>
 
         <article className="hc routine-thread" aria-label="Ask Claude about this run">

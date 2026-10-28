@@ -38,13 +38,13 @@ beforeEach(() => {
 afterEach(() => { cleanup(); offs.forEach((off) => off()); });
 
 describe("routine page", () => {
-  it("shows the whole run as plain text, the judge's reason, and where it sits in the list", () => {
+  it("shows the whole run as rendered markdown, the judge's reason, and where it sits in the list", () => {
     render(<RoutineScreen />);
     expect(screen.getByRole("heading", { level: 1, name: "Gmail morning cleanup" })).toBeTruthy();
     expect(screen.getByText("worth reading: urgent alert sent")).toBeTruthy();
     const result = document.querySelector(".routine-text")!;
-    expect(result.textContent).toBe(DETAIL);              // all of it, not the 240-char row
-    expect(result.querySelector("img")).toBeNull();       // text, never markup
+    expect(result.querySelector("strong")?.textContent).toBe("Inbox cleanup summary");  // rendered, not raw **
+    expect(result.querySelector("[onerror]")).toBeNull();  // sanitized
     expect(screen.getByText("1 OF 2")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Next routine" }));
     expect(useRoutineScreen.getState().id).toBe("t2");

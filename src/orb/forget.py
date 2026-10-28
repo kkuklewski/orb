@@ -10,9 +10,12 @@ import json
 import os
 import shutil
 import subprocess
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+
+from . import config
 
 SOON_DAYS = 30  # dated reminders show from this many days ahead
 STALE_DAYS = 3  # a pull request untouched this long is "going stale"
@@ -24,6 +27,7 @@ PR_CACHE_SECONDS = 300
 GIT_SAFE = ("-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null")
 
 _prs: dict = {"at": 0.0, "items": []}
+_refreshing = threading.Lock()  # held while a gh refresh runs: one at a time
 
 
 def _date(raw: object) -> dt.date | None:
@@ -135,24 +139,51 @@ def parse_prs(raw: str, now: float) -> list[dict]:
     return sorted(out, key=lambda p: p["updated"])
 
 
-def prs(now: float | None = None) -> list[dict]:
-    """Your open pull requests (gh search, cached a few minutes), oldest activity first; [] without gh."""
-    now = time.time() if now is None else now
-    if now - _prs["at"] < PR_CACHE_SECONDS:
-        return _prs["items"]
+def _fetch_prs(now: float) -> list[dict] | None:
+    """One `gh search prs` (about 1.5 s over the network); None when gh is missing or failed, so a good list isn't wiped."""
     gh = shutil.which("gh")
-    items: list[dict] = []
-    if gh:
+    if not gh:
+        return []
+    try:
+        r = subprocess.run([gh, "search", "prs", "--author=@me", "--state=open", "--limit", "30",
+                            "--json", "number,title,repository,url,updatedAt,isDraft"],
+                           capture_output=True, text=True, timeout=GH_TIMEOUT)
+        return parse_prs(r.stdout, now) if r.returncode == 0 else None
+    except (OSError, subprocess.TimeoutExpired, ValueError):
+        return None
+
+
+def _refresh_prs() -> None:
+    try:
+        items = _fetch_prs(time.time())
+        if items is not None:
+            _prs.update(at=time.time(), items=items)
+            try:
+                _pr_file().write_text(json.dumps(_prs), encoding="utf-8")
+                _pr_file().chmod(0o600)
+            except OSError:
+                pass
+    finally:
+        _refreshing.release()
+
+
+def _pr_file() -> Path:
+    return config.STATE_DIR / "prs.json"
+
+
+def prs(now: float | None = None) -> list[dict]:
+    """Your open pull requests, oldest activity first; [] without gh. Never waits on GitHub: the last list (kept on
+    disk across restarts) is returned at once and, once older than PR_CACHE_SECONDS, refreshed by `gh` in a
+    background thread. Only the very first call on a machine that never fetched returns [] until the refresh lands."""
+    now = time.time() if now is None else now
+    if not _prs["at"]:
         try:
-            r = subprocess.run([gh, "search", "prs", "--author=@me", "--state=open", "--limit", "30",
-                                "--json", "number,title,repository,url,updatedAt,isDraft"],
-                               capture_output=True, text=True, timeout=GH_TIMEOUT)
-            if r.returncode == 0:
-                items = parse_prs(r.stdout, now)
-        except (OSError, subprocess.TimeoutExpired, ValueError):
-            pass
-    _prs.update(at=now, items=items)
-    return items
+            _prs.update(json.loads(_pr_file().read_text(encoding="utf-8")))
+        except (OSError, ValueError):
+            _prs["at"] = -1.0  # no file: don't re-read it on every call
+    if now - _prs["at"] >= PR_CACHE_SECONDS and _refreshing.acquire(blocking=False):
+        threading.Thread(target=_refresh_prs, daemon=True, name="gh-prs").start()
+    return [{**p, "idle_days": (idle := int((now - p["updated"]) // 86400)), "stale": idle >= STALE_DAYS} for p in _prs["items"]]
 
 
 def due_now(cfg: dict, today: dt.date | None = None) -> list[dict]:

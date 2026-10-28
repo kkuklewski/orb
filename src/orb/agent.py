@@ -64,6 +64,7 @@ PING_TRIGGER = re.compile(r"^\s*(ping|pin\s+(this|that|it)(\s+one)?|take\s+this\
                           re.IGNORECASE)
 UNDO_NOTE = "Commands run in Bash and edits made by subagents are not undone."
 UNDO_CARD_TTL = 120  # seconds a spoken yes/no can still answer the undo card
+LATE_REPLY = 8  # seconds after a card closes in which a spoken yes/no was meant for it, not a new request
 MCP_PROBLEM = ("failed",)  # "needs-auth" / "disabled" are expected for unused connectors
 _LAUNCHED = re.compile(r"Async agent launched|Command running in background with ID")
 _NOTIFIED = re.compile(r"<tool-use-id>\s*([^<\s]+)\s*</tool-use-id>")
@@ -384,6 +385,11 @@ class VoiceInput:
             else:
                 await s.hold(text)
             return
+        if classify_reply(text) is not None and time.monotonic() - s.card_closed < LATE_REPLY:
+            # "Allow." said again, or just after a click: the card is gone, so it must not interrupt the turn.
+            await s.emit({"type": "notice", "text": f"Card already answered: \u201c{text}\u201d"})
+            await s.state("working" if s.busy else "idle")
+            return
         if s.busy:
             await s.interrupt()
         s.next_marks, self.marks = self.marks, {}
@@ -425,6 +431,7 @@ class FolderSession:
         self.tasks: dict[str, dict] = {}  # background tasks (opus-coder runs, background shells)
         self.coder_calls: set[str] = set()  # tool_use ids of Agent calls to opus-coder
         self.held: list[str] = []  # speech said while an approval card was open
+        self.card_closed = 0.0  # monotonic time the last approval card was answered
         self.history: list[dict] = []
         self.history_loaded = False
         self.lost: list[str] = []  # background tasks a restart stopped; told to the model on the next request
@@ -926,8 +933,10 @@ class FolderSession:
 
     async def _release_held(self) -> None:
         if self.held and not self.pending:
-            text, self.held = " ".join(self.held), []
-            await self.send(text, "voice")  # queued after the running turn; no interrupt
+            # A held yes/no was meant for the card (repeated while it was open): it is not a request.
+            parts, self.held = [h for h in self.held if classify_reply(h) is None], []
+            if parts:
+                await self.send(" ".join(parts), "voice")  # queued after the running turn; no interrupt
 
     # -- permissions ------------------------------------------------------------
 
@@ -962,6 +971,7 @@ class FolderSession:
             allow, answers = await fut
         finally:
             self.pending.pop(pid, None)
+            self.card_closed = time.monotonic()
         voice = answers if isinstance(answers, dict) and answers.get("via") == "voice" else None
         if isinstance(answers, dict) and "choice" in answers:
             answers = answers["choice"]

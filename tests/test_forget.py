@@ -4,6 +4,7 @@ import datetime as dt
 import json
 import os
 import subprocess
+import time
 
 import pytest
 
@@ -382,6 +383,30 @@ async def test_home_gives_the_plan_a_broken_setup_and_the_reminders_due(monkeypa
     await server.handle(conn, {"type": "home"})
     assert planned["vault"] == []
     assert [e for e in conn.sent if e["type"] == "home_tasks"][0]["error"].startswith("Vikunja not reachable: ")
+
+
+def test_prs_never_wait_on_github(monkeypatch, tmp_path):
+    import threading
+    monkeypatch.setattr(forget.config, "STATE_DIR", tmp_path)
+    monkeypatch.setattr(forget, "_prs", {"at": 0.0, "items": []})
+    gate, done = threading.Event(), threading.Event()
+    def slow(now):
+        gate.wait(5)
+        done.set()
+        return [{"repo": "acme/web", "number": 1, "title": "t", "url": "u", "updated": now, "idle_days": 0, "stale": False, "draft": False}]
+    monkeypatch.setattr(forget, "_fetch_prs", slow)
+    assert forget.prs() == []        # first ever call: nothing yet, and it didn't block on the fetch
+    gate.set()
+    assert done.wait(5)
+    for _ in range(100):             # the refresh lands and is written to disk
+        if forget._refreshing.acquire(blocking=False):
+            forget._refreshing.release()
+            break
+        time.sleep(0.02)
+    assert [p["number"] for p in forget.prs()] == [1]
+    monkeypatch.setattr(forget, "_prs", {"at": 0.0, "items": []})  # a restart: the list comes back from disk at once
+    monkeypatch.setattr(forget, "_fetch_prs", lambda now: None)
+    assert [p["number"] for p in forget.prs()] == [1]
 
 
 def test_open_tasks_carry_their_label_names_read_only(monkeypatch):

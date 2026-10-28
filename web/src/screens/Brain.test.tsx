@@ -112,8 +112,8 @@ describe("a note's page", () => {
     const view = render(<><NotePage /><BrainSiblings /></>);
     act(() => dispatch(page(NOTES[0], { body: "# Alpha\n\n<b>not html</b>" })));
     expect(screen.getByText("score 9 · news · new release")).toBeTruthy();
-    expect(view.container.querySelector(".note-body")?.textContent).toBe("# Alpha\n\n<b>not html</b>");
-    expect(view.container.querySelector(".note-body b")).toBeNull();
+    expect(view.container.querySelector(".note-body h1")?.textContent).toBe("Alpha");
+    expect(view.container.querySelector(".note-body script, .note-body [onerror]")).toBeNull();  // sanitized
     expect(view.container.querySelector("[aria-label=\"Brain's notes\"]")?.querySelector("[aria-current=page]")?.textContent).toContain("alpha");
   });
 
