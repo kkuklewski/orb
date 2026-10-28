@@ -258,6 +258,12 @@ def unassign(url: str, task_id: int, account_id: str) -> None:
     _call(base, auth, f"/issue/{int(task_id)}/assignee", body={"accountId": None}, method="PUT")
 
 
+def comment(url: str, task_id: int, text: str) -> None:
+    """A comment on the issue, as the account (ADF body)."""
+    base, auth = _cfg(url)
+    _call(base, auth, f"/issue/{int(task_id)}/comment", body={"body": adf(text)}, method="POST")
+
+
 def set_done(url: str, task_id: int, done: bool) -> None:
     """Done (or open again) through the issue's workflow: the first transition into the Done category (or To Do, else
     In Progress). Nothing happens when it is already there."""
