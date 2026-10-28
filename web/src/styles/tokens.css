@@ -1,4 +1,4 @@
-/* Base tokens (app.css), then the Studio overrides (studio.css). */
+/* Base tokens, then the Studio overrides. */
 :root {
   --bg: #121212;
   --bg-elev: #1a1a1b;
@@ -47,7 +47,7 @@
   --shadow: 0 8px 30px rgb(0 0 0 / .08);
   color-scheme: light;
 }
-/* Studio tokens, copied from src/orb/static/studio.css (moves here for good in step 7). */
+/* Studio tokens: this is their only home. */
 :root[data-skin="studio"] {
   --s-acc: #FE5B2A; --s-acc-txt: #FF7A4F; --s-ink: #18191B;
   --bg: #18191B; --bg-elev: #1F2023; --side: #151618; --side-row: #1F2023; --side-row-hover: #25262A;

@@ -1,11 +1,11 @@
 # Plan: Orb's page to React + TypeScript + Vite
 
-Status: plan only, nothing built. Checked 2026-10-23.
+Status: done. Step 7 (the old page deleted) landed 2026-10-28; the React page is the only page.
 
 ## Why, and what stays
 
-The page is one 1,500-line `app.js` that builds the DOM by hand and keeps state in globals
-(`S`, `Onb`, `Player`, `Mic`, `Rec`, `Slash`). It handles 41 server event types and sends 30 kinds
+The page was one 1,500-line `app.js` that built the DOM by hand and kept state in globals
+(`S`, `Onb`, `Player`, `Mic`, `Rec`, `Slash`). It handled 41 server event types and sent 30 kinds
 of messages. Bugs like the voice picker that didn't show loading, playing or errors come from that
 state drifting out of sync with what's on screen. Components with typed state fix that whole class
 of bug, and the app is going to grow.
@@ -41,7 +41,7 @@ web/                      # the new front end (TypeScript)
     stores/               # connection, folders, session (chat), speech, setup
     audio/                # Player, Mic, Rec as plain TS modules (no React inside)
     screens/              # Setup, Chat, Sidebar, Settings, Sessions, Routines, Picker
-    styles/studio.css     # today's tokens and rules, moved over
+    styles/               # tokens.css (the Studio tokens) and the screen rules
   vite.config.ts          # dev proxy: /ws (ws: true), /static/vendor, /api -> 127.0.0.1:8765
 src/orb/static/app/       # Vite's build output, COMMITTED (see packaging)
 ```
@@ -63,7 +63,7 @@ the committed tree, so users would need Node unless the built files are in git.
 - CI: `npm ci && npm run build && git diff --exit-code src/orb/static/app` fails a pull request whose
   built files don't match its source.
 - Later, optionally: publish wheels to PyPI or GitHub Releases and stop committing the build.
-- The old `app.js` / `app.css` / `studio.css` stay until the switch (step 7), then are deleted.
+- The old `app.js` / `app.css` / `studio.css` stayed until the switch (step 7) and are now deleted.
 
 ## Typed WebSocket messages
 
@@ -83,7 +83,7 @@ server without handling it on the page is a type error.
 
 ## Migration order (each step ships on its own)
 
-The new page runs at `/next` next to the old one until step 7.
+The new page ran at `/next` next to the old one until the switch; step 7 deleted the old page (`/next/...` links redirect).
 
 | Step | What | Done when |
 |---|---|---|
@@ -94,7 +94,7 @@ The new page runs at `/next` next to the old one until step 7.
 | 4 | Sidebar, repo picker, search, slash menu | Open, pin and start sessions; `/` menu with keyboard |
 | 5 | **Chat**: streamed text and `<spoken>` blocks, markdown, tools, approval / plan / undo cards, history replay, notices | A typed and an approved turn match the old page |
 | 6 | **Voice**: Player (audio queue, generations, browser voices), Mic (VAD), Rec (browser speech), voice pill, barge-in | `spikes/voice/run.mjs` passes: voice request, merge, barge-in |
-| 7 | Switch `/` to the new page, delete `app.js`, `app.css`, `studio.css`, the CDN scripts and their CSP entry | Old files gone; CSP `script-src 'self' 'wasm-unsafe-eval'` |
+| 7 ✓ | Switch `/` to the new page, delete `app.js`, `app.css`, `studio.css`, the CDN scripts and their CSP entry | Old files gone; CSP `script-src 'self' 'wasm-unsafe-eval'` |
 
 Voice goes last on purpose. It's timing-sensitive and is already isolated (Player, Mic and Rec
 don't touch the DOM much), so it moves as plain TypeScript modules with a small store bridge,
@@ -133,7 +133,7 @@ is empty). It adds no keyboard handler besides that one Esc listener; Space and 
   modules; E2E with the WAV-as-mic spike before the switch.
 - **Security:** the same-origin check, token and CSP stay server-side; the only change is a
   development-only origin setting, off by default.
-- **Two front ends for a while:** only `/next` is new, and nothing on `/` changes until step 7.
+- **Two front ends for a while:** only `/next` was new, and nothing on `/` changed until the switch (over since step 7).
 - **Repository size:** the build output is small; the VAD/ONNX files stay out of git (vendor.py).
 
 ## Rough size
