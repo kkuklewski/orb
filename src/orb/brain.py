@@ -79,10 +79,7 @@ class CaptureGuard:
         return dt.datetime.now(dt.UTC).date().isoformat()
 
     def count(self) -> int:
-        try:
-            d = json.loads(self.state.read_text())
-        except (OSError, ValueError):
-            return 0
+        d = config.read_state(self.state) or {}
         return int(d.get("count", 0)) if d.get("date") == self._today() else 0
 
     def record(self) -> None:

@@ -192,7 +192,7 @@
     },
     "AwayLine": {
       "additionalProperties": false,
-      "description": "One thing that finished without the owner: a routine's latest ok Run (count: its Runs since they left), the\nvault's \"3 pages expired\" (opens Brain's Expired view), or Orb's own \"2 sessions finished\" (opens Sessions) /\n\"1 delegation Ready\" (opens the Delegated strip) / \"4 old sessions archived\" (opens Sessions); count: how many.",
+      "description": "One thing that finished without the owner: a routine's latest ok Run (count: its Runs since they left), the\nvault's \"3 pages expired\" (opens Brain's Expired view), or Orb's own \"2 sessions finished\" (opens Sessions) /\n\"1 delegation Ready\" (opens the Delegated strip) / \"4 old sessions archived\" (opens Sessions) / \"2 sessions wait\nfor your OK\" (now, not since; opens Sessions); count: how many.",
       "properties": {
         "count": {
           "default": 1,
@@ -207,7 +207,8 @@
             "expired",
             "finished",
             "ready",
-            "archived"
+            "archived",
+            "waiting"
           ],
           "type": "string"
         },
@@ -7488,8 +7489,30 @@
           "default": 0,
           "type": "integer"
         },
+        "red_at": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "status": {
           "type": "string"
+        },
+        "waiting_since": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [

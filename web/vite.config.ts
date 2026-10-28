@@ -21,6 +21,7 @@ export default defineConfig({
       "/ws": { target: `ws://${server}`, ws: true }, // origin passes through as-is (no rewriteWsOrigin)
       "/api": `http://${server}`,
       "/static/vendor": `http://${server}`,
+      "/static/icons": `http://${server}`,
       "/manifest.webmanifest": `http://${server}`,
     },
   },

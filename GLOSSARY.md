@@ -203,6 +203,13 @@ The local vault clone against its remote: behind, ahead, conflicts; Orb reports 
 diverged clone is a Needs you row (counts only, Open only), and Orb's vault writes refuse while it is conflicted.
 _Avoid_: sync error, out of date
 
+**Set aside**:
+A state file in Orb's state folder that Orb could not read (not JSON, the wrong shape, unreadable): renamed
+`<name>.bad-<time>` next to it, never edited or repaired, and the store starts from its default. The newest three copies
+are kept. A precious file set aside (settings, sessions, delegations, worktrees) is a Needs you row; the others are a
+log line.
+_Avoid_: corrupt, reset, recovered
+
 **Away recap**:
 Home's one-shot card after the owner was away 24 hours or more: the routines that ran ok, the sessions Finished, the
 delegations that became Ready and the Stale sessions archived without them, then the top of Needs you. It goes once opened and never gets a Badge.

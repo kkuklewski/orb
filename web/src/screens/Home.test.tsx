@@ -139,11 +139,12 @@ describe("away recap", () => {
     const lines = [{ kind: "routine", id: "t1", title: "Curation", summary: "ok", count: 1 },
       { kind: "finished", id: "finished", title: "2 sessions finished", summary: "", count: 2 },
       { kind: "ready", id: "ready", title: "1 delegation Ready", summary: "", count: 1 },
-      { kind: "archived", id: "archived", title: "4 old sessions archived", summary: "", count: 4 }];
+      { kind: "archived", id: "archived", title: "4 old sessions archived", summary: "", count: 4 },
+      { kind: "waiting", id: "waiting", title: "2 sessions wait for your OK", summary: "", count: 2 }];
     act(() => dispatch({ type: "away_recap", recap: { since: 0, back: 1, heading: "While you were away · 2 days", lines, more: 0 } } as ServerEvent));
     const rows = within(within(card()!).getByLabelText("What ran and finished")).getAllByRole("button");
     expect(rows.map((r) => r.textContent)).toEqual(["ROUTINECurationok", "FINISHED2 sessions finished", "READY1 delegation Ready",
-      "ARCHIVED4 old sessions archived"]);
+      "ARCHIVED4 old sessions archived", "OK?2 sessions wait for your OK"]);
     fireEvent.click(rows[2]);
     expect(sent).toContainEqual({ type: "away_seen" });
     expect(useViews.getState().view).toBe("home");
@@ -303,6 +304,20 @@ describe("home screen", () => {
     const strip = screen.getByRole("article", { name: "3 things need you" });
     const tags = [...strip.querySelectorAll(".needs-tag")];
     expect(tags.map((t) => [t.textContent, t.classList.contains("urgent")])).toEqual([["OK?", false], ["ROUTINE", true], ["OVERDUE", false]]);
+  });
+
+  it("a session waiting for an OK counts from its card and turns red at the server's red_at, never on its own", () => {
+    const now = Date.now() / 1000;
+    act(() => useFeatures.setState({ folders: [folder("web", [
+      session("w1", "approval", { label: "fix login", last_used: now - 60, waiting_since: now - 25 * 3600, red_at: now - 3600 }),
+      session("w2", "approval", { label: "ship invoices", last_used: now - 60, waiting_since: now - 2 * 3600, red_at: now + 22 * 3600 })])] }));
+    render(<Home />);
+    const strip = screen.getByRole("article", { name: "2 things need you" });
+    const tags = [...strip.querySelectorAll(".needs-tag")];
+    expect(tags.map((t) => [t.textContent, t.classList.contains("urgent")])).toEqual([["OK?", true], ["OK?", false]]);
+    expect(within(strip).getByText("Paused 1d ago, waiting for your OK.")).toBeTruthy();
+    expect(within(strip).getByText("Paused 2h ago, waiting for your OK.")).toBeTruthy();
+    expect(sent.filter((m) => m.type === "permission")).toEqual([]);  // Home never answers the card
   });
 
   it("a pinned row says its class word in the side column, lowercase and in the column's grey", () => {

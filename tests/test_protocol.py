@@ -6,7 +6,6 @@ handle() reads from a page message, and every event / message the old page handl
 
 import ast
 import json
-import re
 from pathlib import Path
 
 from orb import protocol, server
@@ -81,14 +80,6 @@ def test_every_message_handle_reads_is_in_the_protocol_with_its_fields():
     for t, keys in handled.items():
         model = protocol.CLIENT_MESSAGES[t]
         assert keys <= fields(model), f"handle() reads {sorted(keys - fields(model))} from {t}, not in {model.__name__}"
-
-
-def test_the_old_page_only_handles_and_sends_described_messages():
-    js = (SRC / "static" / "app.js").read_text()
-    cases = set(re.findall(r'case "([a-z_]+)"', js))
-    sends = set(re.findall(r'send\(\{ type: "([a-z_]+)"', js))
-    assert cases <= set(protocol.SERVER_EVENTS), sorted(cases - set(protocol.SERVER_EVENTS))
-    assert sends <= set(protocol.CLIENT_MESSAGES), sorted(sends - set(protocol.CLIENT_MESSAGES))
 
 
 def test_the_committed_schema_is_current():

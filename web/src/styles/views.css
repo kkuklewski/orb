@@ -1,4 +1,4 @@
-/* Views (Settings, Activity, Routines): rules copied from src/orb/static/app.css + studio.css. */
+/* Views (Settings, Activity, Routines): rules ported from the old page. */
 .nav-badge { margin-left: auto; font: 10.5px var(--mono); padding: 1px 7px; border-radius: 999px; background: var(--side-row); color: var(--text-2); }
 .nav-badge.approval { color: #1a1300; background: var(--warn); }
 .nav-badge.busy { color: var(--accent); }

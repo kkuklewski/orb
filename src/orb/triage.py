@@ -67,11 +67,7 @@ def parse(reply: str, ids: list[int]) -> dict[int, dict]:
 
 
 def load(path: Path = PATH) -> dict[str, dict]:
-    try:
-        data = json.loads(path.read_text())
-    except (OSError, ValueError):
-        return {}
-    return data if isinstance(data, dict) else {}
+    return config.read_state(path) or {}
 
 
 def save(data: dict[str, dict], path: Path = PATH) -> None:
