@@ -1,8 +1,8 @@
 // Voice in + barge-in, end to end without a human: Chrome's fake capture device plays mic.wav
 // into the page as if it were the microphone (q1, 16 s of silence, q2 while she is answering).
 // Needs the server on :8765 (or ORB_PORT / ORB_STATE for a test instance).
-// Usage: node run.mjs [--next] <folder> [mic.wav] [listen ms]
-//   --next drives the React page at /next through its DOM only (the pill, data-state, New session).
+// Usage: node run.mjs <folder> [mic.wav] [listen ms]
+//   Drives the page through its DOM only (the pill, data-state, New session). --next is still accepted.
 import { createRequire } from "node:module";
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
@@ -14,8 +14,7 @@ const require = createRequire(import.meta.url);
 const { chromium } = require(join(execFileSync("npm", ["root", "-g"]).toString().trim(), "playwright"));
 const here = dirname(fileURLToPath(import.meta.url));
 const args = process.argv.slice(2);
-const next = args[0] === "--next";
-if (next) args.shift();
+if (args[0] === "--next") args.shift();
 const folder = args[0];
 const micFile = args[1] || "mic.wav";
 const listenMs = Number(args[2] || 62000);
@@ -60,34 +59,18 @@ await page.addInitScript(([f]) => {
   Object.assign(window.WebSocket, { OPEN: 1, CLOSED: 3 });
 }, [folder]);
 
-if (next) {
-  await page.goto(`http://127.0.0.1:${port}/next#t=${token}`);
-  // vd-folder makes the page reopen the folder; then a fresh session like the old path.
-  await page.waitForSelector(".top .new-session", { timeout: 20000 });
-  await page.click(".top .new-session");
-  await page.waitForTimeout(1500);
-  await page.evaluate(() => { let was = false; setInterval(() => { const p = !!document.querySelector('.orb[data-state="speaking"]'); if (p !== was) { was = p; __mark("page", p ? "playback_start" : "playback_stop"); } }, 50); });
-  await page.click("button.orb");
-  try { await page.waitForSelector('button.orb[aria-pressed="true"]', { timeout: 20000 }); }
-  catch (e) {
-    console.log("mic did not start. errors:", errors, await page.evaluate(() => [...document.querySelectorAll(".notice")].map((n) => n.textContent)), await page.textContent(".dock-state"));
-    await browser.close(); process.exit(1);
-  }
-} else {
-  await page.goto(`http://127.0.0.1:${port}/#t=${token}`);
-  await page.waitForFunction(() => typeof S !== "undefined" && S.ws?.readyState === 1, null, { timeout: 15000 });
-  await page.evaluate((f) => openFolder(f), folder);
-  await page.waitForFunction((f) => S.folder === f, folder, { timeout: 15000 });
-  await page.evaluate(() => send({ type: "new_session" }));
-  await page.waitForTimeout(1500);
-  // Poll playback so the log shows whether she was speaking when q2 arrived.
-  await page.evaluate(() => { let was = false; setInterval(() => { const p = Player.playing; if (p !== was) { was = p; __mark("page", p ? "playback_start" : "playback_stop"); } }, 50); });
-  await page.click("#orb"); // the gesture: starts the mic (and the fake capture file)
-  try { await page.waitForFunction(() => S.micOn, null, { timeout: 20000 }); }
-  catch (e) {
-    console.log("mic did not start. errors:", errors, await page.evaluate(() => [...document.querySelectorAll(".notice")].map((n) => n.textContent)), await page.textContent("#state-label"));
-    await browser.close(); process.exit(1);
-  }
+await page.goto(`http://127.0.0.1:${port}/#t=${token}`);
+// vd-folder makes the page reopen the folder; then a fresh session.
+await page.waitForSelector(".top .new-session", { timeout: 20000 });
+await page.click(".top .new-session");
+await page.waitForTimeout(1500);
+// Poll playback so the log shows whether she was speaking when q2 arrived.
+await page.evaluate(() => { let was = false; setInterval(() => { const p = !!document.querySelector('.orb[data-state="speaking"]'); if (p !== was) { was = p; __mark("page", p ? "playback_start" : "playback_stop"); } }, 50); });
+await page.click("button.orb"); // the gesture: starts the mic (and the fake capture file)
+try { await page.waitForSelector('button.orb[aria-pressed="true"]', { timeout: 20000 }); }
+catch (e) {
+  console.log("mic did not start. errors:", errors, await page.evaluate(() => [...document.querySelectorAll(".notice")].map((n) => n.textContent)), await page.textContent(".dock-state"));
+  await browser.close(); process.exit(1);
 }
 await page.evaluate(() => __mark("page", "mic_on"));
 await page.waitForTimeout(listenMs);

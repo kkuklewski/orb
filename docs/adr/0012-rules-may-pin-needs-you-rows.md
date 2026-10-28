@@ -18,6 +18,8 @@ routine run the judge flagged as a security risk), client (an overdue task whose
   rare.
 - The model sees each row's age in days, but age is not part of the fingerprint: a day passing never forces a new
   ranking. Age alone never moves an unpinned row.
+- A session waiting for the owner's OK (an open Allow card) uses the same clock from when its oldest card opened:
+  red after WAITING_H (24 hours), and Orb never answers or denies the card (ticket 848).
 - The Badge count never changes with age or pinning. A pinned row shows its class word, with no colour of its own.
 - Nothing reaches the owner outside the page: no email, push or sound. The Badge and the Away recap stay the only
   signals (decided 2026-10-27); a channel outside the page would need its own decision and its own approval story.

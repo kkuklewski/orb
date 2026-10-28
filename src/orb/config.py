@@ -3,11 +3,16 @@ VOICE_DASHBOARD_* names still work)."""
 
 from __future__ import annotations
 
+import json
+import logging
 import os
 import re
 import secrets
+import time
 import urllib.request
 from pathlib import Path
+
+log = logging.getLogger(__name__)
 
 
 def env(name: str, default: str) -> str:
@@ -114,3 +119,38 @@ def append_private(path: Path, text: str) -> None:
     os.fchmod(fd, 0o600)
     with os.fdopen(fd, "a") as f:
         f.write(text)
+
+
+# A state file Orb can't read is set aside, never reset silently (docs/adr/0014). Losing a precious one loses work
+# (session resume ids, delegations, worktrees, settings), so it becomes a Needs you row; the others only log.
+BAD_KEEP = 3  # set-aside copies kept per state file
+PRECIOUS = ("settings.json", "sessions.json", "delegations.json", "worktrees.json")
+set_aside: list[dict] = []  # this run's: {"name", "copy", "precious"}
+
+
+def read_state(path: Path, check=lambda data: isinstance(data, dict)):
+    """A JSON state file's data, or None when it is missing or bad. A bad one (not JSON, the wrong shape, unreadable)
+    is renamed `<name>.bad-<time>` in its folder (the newest BAD_KEEP kept), never edited, and noted in `set_aside`;
+    the store then starts from its own default and its next save writes a fresh file."""
+    try:
+        data = json.loads(path.read_text())
+        if check(data):
+            return data
+        why = "wrong shape"
+    except FileNotFoundError:
+        return None
+    except (OSError, ValueError) as e:
+        why = type(e).__name__
+    now = time.time()  # microseconds in the name, so copies sort by when they were set aside
+    copy = path.with_name(f"{path.name}.bad-{time.strftime('%Y%m%d-%H%M%S', time.localtime(now))}-{int(now % 1 * 1e6):06d}")
+    try:
+        os.replace(path, copy)
+    except OSError as e:
+        log.warning("state file %s is bad (%s) and could not be set aside: %s", path, why, e)
+        copy = None
+    else:
+        log.warning("state file %s is bad (%s): set aside as %s", path, why, copy.name)
+        for old in sorted(path.parent.glob(f"{path.name}.bad-*"))[:-BAD_KEEP]:
+            old.unlink(missing_ok=True)
+    set_aside.append({"name": path.name, "copy": str(copy) if copy else "", "precious": path.name in PRECIOUS})
+    return None

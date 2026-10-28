@@ -1,4 +1,4 @@
-/* Chat: messages, markdown, tool steps, approval / plan / undo cards, notices. Ported from app.css + studio.css. */
+/* Chat: messages, markdown, tool steps, approval / plan / undo cards, notices. Ported from the old page; the Studio look. */
 /* ---- Chat (Claude app) ---- */
 .chat { container-type: inline-size; overflow-y: auto; min-height: 0; position: relative; scroll-behavior: auto; }
 .column { max-width: 780px; margin: 0 auto; padding: 28px 24px 24px; }

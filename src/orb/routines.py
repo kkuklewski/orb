@@ -143,6 +143,7 @@ JUDGE_RULES = (
 URGENT_DAYS = 7  # a judged problem whose deadline is this close (or past) is urgent
 KINDS = ("broken", "action", "info", "none")
 PROBLEMS = ("broken", "action")  # judged kinds that count as "needs you"
+RUNS_KEPT = 5  # runs kept per routine: the failure streak counts from these, the result screen shows the newest
 STREAK = 3  # this many failed or judged-broken runs in a row are a failure streak (GLOSSARY: Failure streak)
 
 
@@ -395,6 +396,18 @@ def away_lines(items: list[dict], runs: dict, logs: dict, since: float) -> list[
     return sorted(out, key=lambda line: -line["at"])
 
 
+def trim(st: dict) -> None:
+    """Routines' state keeps only what the failure streak and the result screen read (docs/adr/0014): the newest
+    RUNS_KEPT runs of each listed routine, and those runs' logs, verdicts and marks."""
+    listed = st["routines"]
+    st["runs"] = {rid: runs[:RUNS_KEPT] for rid, runs in st["runs"].items() if rid in listed}
+    st["seen"] = {rid: v for rid, v in st["seen"].items() if rid in listed}
+    keep = {x["id"] for runs in st["runs"].values() for x in runs}
+    st["logs"] = {k: v for k, v in st["logs"].items() if k in keep}
+    st["verdicts"] = {k: v for k, v in st["verdicts"].items() if k in keep}
+    st["resolved"] = {k: v for k, v in st["resolved"].items() if v in keep}
+
+
 class Watch:
     def __init__(self, state: Path, notify: Callable[[str], Awaitable[None]],
                  push: Callable[[], Awaitable[None]]) -> None:
@@ -403,10 +416,7 @@ class Watch:
         self.lock = asyncio.Lock()
         self.checking = False
         self.error: str | None = None
-        try:
-            self.state = json.loads(state.read_text())
-        except (OSError, ValueError):
-            self.state = {}
+        self.state = config.read_state(state) or {}
         # repair: routine id -> its open Repair task's id (GLOSSARY: Repair task); repair_after: routine id -> when its
         # last one closed or went missing (a new failure streak counts only runs started after it).
         for k in ("routines", "runs", "logs", "seen", "verdicts", "resolved", "repair", "repair_after"):
@@ -418,6 +428,7 @@ class Watch:
     # -- state ------------------------------------------------------------------------
 
     def save(self) -> None:
+        trim(self.state)
         config.write_private(self.state_path, json.dumps(self.state))
 
     def items(self) -> list[dict]:
@@ -560,7 +571,7 @@ class Watch:
                 if isinstance(body.get("data"), list):
                     st["runs"][inp["trigger_id"]] = [
                         {k: x.get(k) for k in ("id", "created_at", "last_event_at", "url")}
-                        for x in body["data"][:5] if isinstance(x, dict) and x.get("id")]
+                        for x in body["data"][:RUNS_KEPT] if isinstance(x, dict) and x.get("id")]
         # A run's log is fetched again only while it may still change (no final outcome yet, or new events).
         need = []
         for r in shown:
@@ -572,10 +583,7 @@ class Watch:
                         or "detail" not in lg):  # logs kept before the result screen existed: fetch once more for the full text
                     need.append(last)
         await self._fetch_logs(need)
-        keep = {x["id"] for runs in st["runs"].values() for x in runs}
-        st["logs"] = {k: v for k, v in st["logs"].items() if k in keep}
-        st["verdicts"] = {k: v for k, v in st["verdicts"].items() if k in keep}
-        st["resolved"] = {k: v for k, v in st["resolved"].items() if v in keep}
+        trim(st)
         st["checked_at"] = time.time()
         try:
             await self._judge(shown)

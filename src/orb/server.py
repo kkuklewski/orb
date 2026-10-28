@@ -23,7 +23,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTex
 from fastapi.staticfiles import StaticFiles
 from starlette.datastructures import Headers, MutableHeaders
 
-from . import away, billing, chain, config, delegation, desk, fence, folders, forget, handoff, home, intake, items, kokoro_setup, make_task, navigate, needs, parakeet, routines, settings, setup, slash, speech, tasks, tracker, triage, vault_git, vault_write, vendor, vocab, worktree
+from . import away, billing, chain, config, delegation, desk, fence, folders, forget, handoff, home, intake, items, kokoro_setup, make_task, navigate, needs, parakeet, routines, settings, setup, slash, speech, tasks, timing, tracker, triage, vault_git, vault_write, vendor, vocab, worktree
 from .agent import SCREEN_MAX, FolderSession, dumps, first_request
 from .brain import CaptureGuard
 from .sessions import SessionStore
@@ -33,11 +33,9 @@ STATIC = Path(__file__).parent / "static"
 
 
 def build_id() -> str:
-    """Hash of the page's own files: a page from an older build reloads itself (no stale JS)."""
-    h = hashlib.sha256()
-    for name in ("index.html", "app.js", "app.css", "studio.css"):
-        h.update((STATIC / name).read_bytes())
-    return h.hexdigest()[:12]
+    """Hash of the built page's index.html; its asset names carry content hashes, so any rebuild changes it."""
+    built = STATIC / "app" / "index.html"
+    return hashlib.sha256(built.read_bytes() if built.is_file() else b"").hexdigest()[:12]
 
 
 BUILD = build_id()
@@ -76,6 +74,12 @@ async def notice_audio(text: str) -> str | None:
     except Exception as e:  # noqa: BLE001
         log.warning("notice speech failed: %s", e)
         return None
+
+
+def card_since(s: FolderSession | None) -> float | None:
+    """When the session's oldest open Allow card opened (wall time), or None without one."""
+    opened = [ev["_created"] for _, ev in s.pending.values() if "_created" in ev] if s else []
+    return time.time() - (time.monotonic() - min(opened)) if opened else None
 
 
 class Hub:
@@ -170,6 +174,7 @@ class Hub:
                         "status": live.status if live else ("done" if e.get("finished_at") else "idle"),
                         "live": bool(live and live.live),
                         "ask": next((ev["summary"] for _, ev in live.pending.values()), None) if live else None,
+                        **needs.waiting(card_since(live)),
                         "mcp_failed": live.info.get("mcp_failed", 0) if live else 0,
                         "opus": sum(1 for t in live.running_tasks() if t["coder"]) if live else 0})
         return out
@@ -363,7 +368,8 @@ class Hub:
     def away_lines(self, since: float) -> list[dict]:
         """The Away recap's lines from what Orb already keeps: the routines that ran ok (while the panel is on), the
         pages the vault archived (frontmatter only), then the sessions still Finished (unopened) and the delegations
-        that became Ready, each counted since `since`."""
+        that became Ready, each counted since `since`, then the sessions waiting for an OK now (a delegation's card is
+        its own Needs you row)."""
         st = self.routines.state
         ran = routines.away_lines(self.routines.items(), st["runs"], st["logs"], since) if settings.settings["routines"] else []
         finished = [x["finished_at"] for f in self.folder_list() for x in self.store.sessions(f["path"])
@@ -371,7 +377,8 @@ class Hub:
         ready = [r["ready_at"] for r in self.delegator.items.values() if r.get("ready_at")]
         vault = settings.settings.vault()
         expired = away.expired_line(home.expired_since(vault, since)) if vault and vault.is_dir() else []
-        return ran + expired + away.own_lines(finished, ready, since, self.store.auto_archived())
+        waiting = sum(1 for f in self.folder_list() for x in f["sessions"] if x["status"] == "approval" and not self.delegator.of_session(x.get("key", "")))
+        return ran + expired + away.own_lines(finished, ready, since, self.store.auto_archived()) + away.waiting_line(waiting)
 
     def away_event(self) -> dict:
         return self.away.event(lines=self.away_lines)
@@ -461,6 +468,7 @@ hub = Hub()
 async def lifespan(app: FastAPI):
     billing.assert_subscription_env()
     await asyncio.to_thread(vendor.ensure)
+    await asyncio.to_thread(timing.trim)
     await asyncio.to_thread(hub.store.backfill_labels, first_request)
     hub.scan()
     await hub.archive_stale()
@@ -515,17 +523,13 @@ app.add_middleware(Guard)
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
 
-CDN = "https://cdn.jsdelivr.net"
-
-
-def csp(host: str, secure: bool, cdn: bool = True) -> str:
+def csp(host: str, secure: bool) -> str:
     """The page's policy. The React page bundles everything, so it gets no CDN at all."""
     ws = f"{'wss' if secure else 'ws'}://{host}"
-    extra = f" {CDN}" if cdn else ""
     return "; ".join([
         "default-src 'self'",
-        f"script-src 'self'{extra} 'wasm-unsafe-eval'",  # CDN scripts carry SRI hashes
-        f"style-src 'self'{extra} https://fonts.googleapis.com",
+        "script-src 'self' 'wasm-unsafe-eval'",
+        "style-src 'self' https://fonts.googleapis.com",
         "font-src https://fonts.gstatic.com",
         "img-src 'self' data:",
         f"connect-src 'self' {ws}",
@@ -537,11 +541,11 @@ def csp(host: str, secure: bool, cdn: bool = True) -> str:
     ])
 
 
-def page(request: Request, html: str, cdn: bool) -> HTMLResponse:
+def page(request: Request, html: str) -> HTMLResponse:
     secure = request.headers.get("x-forwarded-proto") == "https" or request.url.scheme == "https"
     return HTMLResponse(html, headers={
         "Cache-Control": "no-store",
-        "Content-Security-Policy": csp(request.headers.get("host", ""), secure, cdn=cdn),
+        "Content-Security-Policy": csp(request.headers.get("host", ""), secure),
         "Referrer-Policy": "no-referrer",
     })
 
@@ -567,13 +571,7 @@ async def index(request: Request, route: str = ""):
     built = STATIC / "app" / "index.html"
     if not built.is_file():
         return PlainTextResponse("The page isn't built. Run: cd web && npm ci && npm run build", status_code=404)
-    return page(request, built.read_text(), cdn=False)
-
-
-@app.get("/old")
-async def old_page(request: Request):
-    """The previous page (plain JS), kept reachable until the React page has everything."""
-    return page(request, (STATIC / "index.html").read_text().replace("__BUILD__", BUILD), cdn=True)
+    return page(request, built.read_text())
 
 
 @app.get("/next")

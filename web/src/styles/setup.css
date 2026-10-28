@@ -1,4 +1,4 @@
-/* Setup assistant: base rules from src/orb/static/app.css + the Studio rules from studio.css. */
+/* Setup assistant: base rules + the Studio rules (ported from the old page). */
 /* ---- Setup assistant (first run): full screen, step rail · orb inside concentric rings · one card.
    Layout cues from award references (rings around a glowing core with numbered steps and a
    stage/progress readout; lime pill actions on a dark grid); motion is our own and minimal. */
