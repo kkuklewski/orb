@@ -80,7 +80,7 @@ def test_open_issues_read_every_page_in_vikunjas_shape_most_urgent_first(fake):
     assert fake.pages == 2 and got["total"] == 3 and got["url"] == BASE
     first = got["tasks"][0]
     assert first == {"id": 10001, "title": "ACME-1 Fix login", "project": "Acme", "project_id": 10000, "due": "2026-10-30",
-                     "created": "2026-10-01", "priority": 3, "updated": first["updated"], "url": f"{BASE}/browse/ACME-1", "labels": []}
+                     "created": "2026-10-01", "priority": 3, "updated": first["updated"], "url": f"{BASE}/browse/ACME-1", "labels": [], "assignees": []}
     assert first["updated"] > 0
     assert [t["id"] for t in got["tasks"]] == [10001, 10003, 10002]  # dated first, then Highest (4) before Lowest (1)
     assert [t["id"] for t in jira.open_tasks(BASE, "glob")["tasks"]] == [10003]  # a project by key...

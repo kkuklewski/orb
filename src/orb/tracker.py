@@ -55,6 +55,13 @@ def open_tasks(cfg: dict, project: str | None = None) -> dict:
     return m.open_tasks(url, project)
 
 
+def me(cfg: dict) -> dict:
+    """Who Orb is in the tracker: {"id", "name", "username"}, from the token it already has (ADR 0010). Raises ERRORS
+    when the tracker can't say; a task's "assignees" use the same ids."""
+    m, url = _b(cfg)
+    return m.me(url)
+
+
 def by_key(tasks: list[dict], key: str) -> dict | None:
     """The open task whose title starts with this issue key (ACME-12), else None."""
     want = key.strip().upper() + " "

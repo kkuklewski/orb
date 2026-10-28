@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import base64
 import datetime as dt
+import hashlib
 import json
 import re
 import time
@@ -27,13 +28,14 @@ PER_PAGE = 100
 MAX_PAGES = 20
 TIMEOUT = 8
 JQL = "assignee = currentUser() AND statusCategory != Done ORDER BY updated DESC"
-FIELDS = "summary,project,duedate,created,updated,priority,status,labels"  # labels: read only (needs.py pin labels)
+FIELDS = "summary,project,duedate,created,updated,priority,status,labels,assignee"  # labels: read only (needs.py pin labels)
 PROJECTS_TTL = 600  # project keys -> ids for the repo map; they rarely change
 # Jira's default priority names on Orb's (Vikunja's) 0-5 scale: 0 unset, 1 low, 2 medium, 3 high, 4 urgent, 5 do now.
 PRIORITY = {"lowest": 1, "low": 1, "medium": 2, "high": 3, "highest": 4}
 PRIORITY_NAME = {1: "Low", 2: "Medium", 3: "High", 4: "Highest", 5: "Highest"}  # 5 reads back as 4: Jira has no sixth name
 
 _projects_cache: dict[str, tuple[float, list[dict]]] = {}
+_me_cache: dict[tuple[str, str], dict] = {}  # (base, auth digest) -> who the account is, for the server's life
 
 
 class JiraError(Exception):
@@ -120,6 +122,26 @@ def _browse(base: str, key: str) -> str:
     return f"{base}/browse/{urllib.parse.quote(key)}"
 
 
+def _assignees(f: dict) -> list[dict]:
+    """Vikunja's assignee shape: Jira has one assignee (or none), [{"id": accountId, "name": displayName}]."""
+    a = f.get("assignee")
+    return [{"id": str(a["accountId"]), "name": str(a.get("displayName") or "")[:80]}] if isinstance(a, dict) and a.get("accountId") else []
+
+
+def me(url: str) -> dict:
+    """Who the account is, in `vikunja.me`'s shape: {"id": accountId, "name": displayName, "username": displayName}
+    (Jira Cloud shows no username). Kept in memory per account; a failure isn't kept."""
+    base, auth = _cfg(url)
+    key = (base, hashlib.sha256(auth.encode()).hexdigest())
+    if key not in _me_cache:
+        u = _call(base, auth, "/myself")
+        if not isinstance(u, dict) or not u.get("accountId") or not u.get("displayName"):
+            raise JiraError("Jira didn't say who this account is.")
+        name = str(u["displayName"])[:80]
+        _me_cache[key] = {"id": str(u["accountId"]), "name": name, "username": name}
+    return _me_cache[key]
+
+
 def _row(base: str, issue: dict) -> dict:
     f = issue.get("fields") or {}
     project = f.get("project") or {}
@@ -127,7 +149,7 @@ def _row(base: str, issue: dict) -> dict:
             "project_id": int(project.get("id") or 0), "due": f.get("duedate") or None,
             "created": str(f.get("created", ""))[:10], "priority": _priority(f.get("priority")),
             "updated": _updated(f.get("updated")), "url": _browse(base, str(issue.get("key", ""))),
-            "labels": [str(x)[:80] for x in f.get("labels") or [] if isinstance(x, str) and x]}
+            "labels": [str(x)[:80] for x in f.get("labels") or [] if isinstance(x, str) and x], "assignees": _assignees(f)}
 
 
 def open_tasks(url: str, project: str | None = None) -> dict:
@@ -212,11 +234,11 @@ def _done(issue: dict) -> bool:
 
 def task(url: str, task_id: int) -> dict:
     """One issue in full, in `vikunja.task`'s shape: {"id", "title", "description", "project", "project_id", "due",
-    "priority", "done", "done_at", "url"}; done_at is when it was resolved (None while open or unknown)."""
+    "priority", "done", "done_at", "url", "assignees"}; done_at is when it was resolved (None while open or unknown)."""
     base, auth = _cfg(url)
     i = _issue(base, auth, task_id, FIELDS + ",description,resolutiondate")
     row = _row(base, i)
-    return {**{k: row[k] for k in ("id", "title", "project", "project_id", "due", "priority", "url")},
+    return {**{k: row[k] for k in ("id", "title", "project", "project_id", "due", "priority", "url", "assignees")},
             "description": plain((i.get("fields") or {}).get("description"))[:8000], "done": _done(i),
             "done_at": (_updated((i.get("fields") or {}).get("resolutiondate")) or None) if _done(i) else None}
 
