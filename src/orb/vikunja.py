@@ -216,6 +216,17 @@ def task(url: str, task_id: int) -> dict:
             "assignees": assignees(t)}
 
 
+def assign(url: str, task_id: int, user_id: str) -> None:
+    """Add one assignee (by numeric user id), never the bulk call, which replaces the others."""
+    base, token = _cfg(url)
+    _write(base, token, f"/tasks/{int(task_id)}/assignees", {"user_id": int(user_id)}, "PUT")
+
+
+def unassign(url: str, task_id: int, user_id: str) -> None:
+    base, token = _cfg(url)
+    _write(base, token, f"/tasks/{int(task_id)}/assignees/{int(user_id)}", None, "DELETE")
+
+
 def _update(url: str, task_id: int, change: dict) -> None:
     """Change fields of a task. The whole task goes back with the change, because Vikunja's update resets the
     fields it isn't given."""

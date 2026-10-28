@@ -62,6 +62,16 @@ def me(cfg: dict) -> dict:
     return m.me(url)
 
 
+def assign(cfg: dict, task_id: int, user_id: str) -> None:
+    m, url = _b(cfg)
+    m.assign(url, task_id, user_id)
+
+
+def unassign(cfg: dict, task_id: int, user_id: str) -> None:
+    m, url = _b(cfg)
+    m.unassign(url, task_id, user_id)
+
+
 def by_key(tasks: list[dict], key: str) -> dict | None:
     """The open task whose title starts with this issue key (ACME-12), else None."""
     want = key.strip().upper() + " "

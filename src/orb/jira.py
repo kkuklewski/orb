@@ -243,6 +243,21 @@ def task(url: str, task_id: int) -> dict:
             "done_at": (_updated((i.get("fields") or {}).get("resolutiondate")) or None) if _done(i) else None}
 
 
+def assign(url: str, task_id: int, account_id: str) -> None:
+    """Make the account the issue's assignee. Jira has one, so this overwrites: callers check it is free first."""
+    base, auth = _cfg(url)
+    _call(base, auth, f"/issue/{int(task_id)}/assignee", body={"accountId": account_id}, method="PUT")
+
+
+def unassign(url: str, task_id: int, account_id: str) -> None:
+    """Take the account off the issue: only while it is still the assignee (Jira has one, so a teammate who took the
+    issue since keeps it). A read then a write: Jira has no compare-and-set, the window is the round trip."""
+    base, auth = _cfg(url)
+    if [a["id"] for a in _assignees(_issue(base, auth, task_id, "assignee").get("fields") or {})] != [str(account_id)]:
+        return
+    _call(base, auth, f"/issue/{int(task_id)}/assignee", body={"accountId": None}, method="PUT")
+
+
 def set_done(url: str, task_id: int, done: bool) -> None:
     """Done (or open again) through the issue's workflow: the first transition into the Done category (or To Do, else
     In Progress). Nothing happens when it is already there."""

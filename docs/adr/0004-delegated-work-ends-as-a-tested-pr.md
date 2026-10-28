@@ -65,3 +65,8 @@ do) and propose-only sessions (the work happens in two rounds and the edits stil
   it raises "Branch X already exists on <remote> with someone else's commits; someone else may have delegated this
   task." with Discard only (nothing to merge, Apply refused). Discard is local; their branch stays. Once Orb has
   pushed the branch itself, a later refusal reads as a push failure (the session rewrote what it pushed; never forced).
+
+## Amended (#866)
+
+- Delegate claims the task in the tracker first; a task held by a teammate is refused, and Orb never takes it from
+  them (#866). Its branch is per person: orb/<tracker user>/<task>-<slug>.
