@@ -34,6 +34,7 @@ export type ClientMessage =
   | AwaySeenMsg
   | PlanStartMsg
   | PlanLaterMsg
+  | PlanLeaveMsg
   | PlanDoneMsg
   | ScreenMsg
   | TaskDetailMsg
@@ -400,6 +401,17 @@ export interface PlanStartMsg {
 export interface PlanLaterMsg {
   key: string;
   type: "plan_later";
+}
+/**
+ * Leave it on a pull request idle 14+ days ("pr:<repo>#<n>"): hidden until the PR changes (its updatedAt), never
+ * written to GitHub (ticket 850).
+ *
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "PlanLeaveMsg".
+ */
+export interface PlanLeaveMsg {
+  key: string;
+  type: "plan_leave";
 }
 /**
  * Done on a queue task ("vikunja:<id>" or "note:<file>:<line>"): written at once; undo=True reopens the tracker's task.
@@ -916,13 +928,16 @@ export interface SessionItem {
   ask?: string | null;
   created?: number | null;
   empty: boolean;
+  finished_at?: number | null;
   key: string;
   label?: string | null;
   last_used?: number | null;
   live: boolean;
   mcp_failed?: number;
   opus?: number;
+  red_at?: number | null;
   status: string;
+  waiting_since?: number | null;
 }
 /**
  * This interface was referenced by `OrbProtocol`'s JSON-Schema
@@ -1660,7 +1675,8 @@ export interface AwayRecap {
 /**
  * One thing that finished without the owner: a routine's latest ok Run (count: its Runs since they left), the
  * vault's "3 pages expired" (opens Brain's Expired view), or Orb's own "2 sessions finished" (opens Sessions) /
- * "1 delegation Ready" (opens the Delegated strip); count: how many.
+ * "1 delegation Ready" (opens the Delegated strip) / "4 old sessions archived" (opens Sessions) / "2 sessions wait
+ * for your OK" (now, not since; opens Sessions); count: how many.
  *
  * This interface was referenced by `OrbProtocol`'s JSON-Schema
  * via the `definition` "AwayLine".
@@ -1668,7 +1684,7 @@ export interface AwayRecap {
 export interface AwayLine {
   count?: number;
   id: string;
-  kind: "routine" | "expired" | "finished" | "ready";
+  kind: "routine" | "expired" | "finished" | "ready" | "archived" | "waiting";
   summary?: string;
   title: string;
 }
@@ -1701,7 +1717,7 @@ export interface PlanEvent {
  * via the `definition` "PlanItem".
  */
 export interface PlanItem {
-  actions?: ("open" | "start" | "done" | "later" | "delegate" | "make_task")[];
+  actions?: ("open" | "start" | "done" | "later" | "delegate" | "make_task" | "leave")[];
   due?: string | null;
   id: string;
   key: string;
@@ -1716,7 +1732,8 @@ export interface PlanItem {
     | "result"
     | "pr"
     | "notes_batch"
-    | "notopic";
+    | "notopic"
+    | "results_old";
   pin?: ("security" | "client" | "money") | null;
   priority?: number | null;
   reason: string;

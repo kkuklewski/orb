@@ -131,8 +131,11 @@ def test_the_hub_puts_expired_after_the_routines_and_before_finished_and_ready(v
     monkeypatch.setitem(settings.settings.data, "routines", True)
     monkeypatch.setattr(server.routines, "away_lines", lambda items, runs, logs, since: [
         {"kind": "routine", "id": f"t{i}", "title": f"R{i}", "summary": "", "count": 1, "at": 1.0} for i in range(6)])
-    monkeypatch.setattr(hub, "folder_list", lambda: [{"label": "acme", "sessions": [{"key": "a", "status": "done", "archived": False}]}])
-    monkeypatch.setattr(hub, "finished", {"a": now - 10})
+    from orb.sessions import SessionStore
+    st = SessionStore(tmp_path / "s.json")
+    st.set_finished("/r", st.new_session("/r"), now - 10)
+    monkeypatch.setattr(hub, "store", st)
+    monkeypatch.setattr(hub, "folder_list", lambda: [{"label": "acme", "path": "/r", "sessions": []}])
     monkeypatch.setattr(hub.delegator, "items", {"1": {"session": "x", "stage": "ready", "ready_at": now - 20}})
     since = now - 30 * H
     got = hub.away_lines(since)

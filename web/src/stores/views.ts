@@ -13,12 +13,13 @@ export const useViews = create<{
   routines: RoutinesEvent | null;
   routinesNew: Set<string>; // "new" dots stay for this visit; the server forgets them at once
   running: boolean; // Sessions shows only the sessions running or waiting (Home's "Running now", the old /activity)
+  finished: boolean; // Sessions shows only the Finished ones not opened (Up next's "N finished sessions not opened")
   settingsAt?: string | null; // the Settings section to scroll to once it shows (a broken setup on Home names it)
-}>(() => ({ view: "home", settings: null, routines: null, routinesNew: new Set(), running: false }));
+}>(() => ({ view: "home", settings: null, routines: null, routinesNew: new Set(), running: false, finished: false }));
 
-/** Sessions, all of them or (running) only those running or waiting for you. */
-export function openSessions(running = false) {
-  useViews.setState({ view: "sessions", running });
+/** Sessions, all of them, (running) only those running or waiting for you, or (finished) only the Finished ones. */
+export function openSessions(running = false, finished = false) {
+  useViews.setState({ view: "sessions", running, finished: finished && !running });
 }
 
 /** Settings, scrolled to one section ("claude", "vikunja", "speech", "voice"). */

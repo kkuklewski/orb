@@ -3,7 +3,7 @@ import { folderName, openPicker } from "../stores/session";
 import { openSessions, useViews } from "../stores/views";
 import { openItems } from "../stores/items";
 import { openSetup } from "../stores/setup";
-import { laterPlan, startPlan, type NeedsYou } from "../stores/home";
+import { laterPlan, leavePlan, startPlan, type NeedsYou } from "../stores/home";
 import { donePlan } from "../stores/tasks";
 import { delegate, delegateBulk, pickRepo } from "../stores/delegation";
 import { NOTES_STEP } from "./setup/Setup";
@@ -24,8 +24,8 @@ import type { PlanItem } from "../protocol.gen";
 // Keys (Home only, not while typing): J K select a row of Up next, Enter starts, S is Later, D is Done; they act on
 // the selected row, or on the lead when none is.
 
-const TAG: Record<string, string> = { task: "TASK", note_task: "NOTE", result: "RESULT", pr: "PR", notes_batch: "NOTES", notopic: "NOTES" };
-const GO: Record<string, string> = { result: "Read the answer", pr: "Review", notes_batch: "Judge them", notopic: "Sort them" };
+const TAG: Record<string, string> = { task: "TASK", note_task: "NOTE", result: "RESULT", pr: "PR", notes_batch: "NOTES", notopic: "NOTES", results_old: "RESULT" };
+const GO: Record<string, string> = { result: "Read the answer", pr: "Review", notes_batch: "Judge them", notopic: "Sort them", results_old: "Read them" };
 const SUG_TITLE: Record<string, string> = { "take now": "Suggested: start it now (due soon)", delegate: "Suggested: delegate it", later: "Suggested: later (hide it until tomorrow)" };
 
 /** The plan's queue with `front` (a row the owner clicked) brought up. */
@@ -115,6 +115,10 @@ export function LeadCard({ n, queue, lists, title }: { n: NeedsYou; queue: PlanI
             <button type="button" className="hbtn dark big lead-go" onClick={() => startPlan(lead)}>{GO[lead.kind] ?? "Start"} <kbd className="kbd">⏎</kbd></button>
             {lead.actions?.includes("done") && <button type="button" className="hbtn big" onClick={done}>Done <kbd className="kbd">D</kbd></button>}
             <button type="button" className="hbtn big" onClick={skip} title="Hide it until tomorrow">Later <kbd className="kbd">S</kbd></button>
+            {lead.actions?.includes("leave") && (
+              <button type="button" className="hbtn big" title="Hide it until the pull request changes; Orb never touches it"
+                onClick={() => { setFront(null); leavePlan(lead); }}>Leave it</button>
+            )}
             {lead.kind === "task" && lead.actions?.includes("delegate") && (
               <button type="button" className="hbtn big" title="A background session does it in its own worktree; you review and apply"
                 onClick={() => (lead.repo ? delegate(lead.id) : pickRepo(lead.id))}>Delegate{lead.repo ? ` to ${lead.repo}` : ""}</button>

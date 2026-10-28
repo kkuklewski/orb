@@ -172,16 +172,19 @@ def test_the_hub_counts_unopened_finished_sessions_and_ready_delegations(tmp_pat
     import time
 
     from orb import server
+    from orb.sessions import SessionStore
 
     hub = server.hub
     now = time.time()
-    rows = [{"key": "a", "status": "done", "archived": False}, {"key": "b", "status": "done", "archived": False},
-            {"key": "c", "status": "idle", "archived": False}, {"key": "d", "status": "done", "archived": True},
-            {"key": "deleg", "status": "done", "archived": False}]
-    monkeypatch.setattr(hub, "folder_list", lambda: [{"label": "acme", "sessions": rows}])
-    monkeypatch.setattr(hub, "finished", {"a": now - 10, "b": now - 50 * H, "c": now - 10, "d": now - 10, "deleg": now - 10})
+    st = SessionStore(tmp_path / "s.json")
+    keys = {n: st.new_session("/r") for n in ("a", "b", "c", "d", "deleg")}
+    for n, at in (("a", now - 10), ("b", now - 50 * H), ("d", now - 10), ("deleg", now - 10)):
+        st.set_finished("/r", keys[n], at)  # c was opened: no finished_at
+    st.set_archived("/r", keys["d"], True)
+    monkeypatch.setattr(hub, "store", st)
+    monkeypatch.setattr(hub, "folder_list", lambda: [{"label": "acme", "path": "/r", "sessions": []}])
     monkeypatch.setattr(hub.delegator, "items", {
-        "1": {"session": "deleg", "stage": "ready", "ready_at": now - 20},
+        "1": {"session": keys["deleg"], "stage": "ready", "ready_at": now - 20},
         "2": {"session": "x", "stage": "ready", "ready_at": now - 50 * H},
         "3": {"session": "y", "stage": "ready"}})  # Ready before this change: no time, not counted
     monkeypatch.setitem(server.settings.settings.data, "routines", False)
@@ -212,7 +215,7 @@ def test_the_hub_names_needs_you_for_the_home_chat(tmp_path, monkeypatch):
     c = clock(tmp_path)
     c.last_active = 0
     monkeypatch.setattr(server.hub, "away", c)
-    monkeypatch.setattr(server.hub, "folder_list", lambda: [{"label": "acme/globex", "sessions": [
+    monkeypatch.setattr(server.hub, "folder_list", lambda: [{"label": "acme/globex", "path": "/r", "sessions": [
         {"label": "Fix login", "status": "approval"}, {"label": "Other", "status": "idle"}]}])
     monkeypatch.setattr(server.hub.delegator, "event", lambda: {"items": [
         {"task": 12, "title": "Ship it", "repo": "globex", "line": "Tests failed", "needs": "failed"},

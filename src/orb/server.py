@@ -76,6 +76,12 @@ async def notice_audio(text: str) -> str | None:
         return None
 
 
+def card_since(s: FolderSession | None) -> float | None:
+    """When the session's oldest open Allow card opened (wall time), or None without one."""
+    opened = [ev["_created"] for _, ev in s.pending.values() if "_created" in ev] if s else []
+    return time.time() - (time.monotonic() - min(opened)) if opened else None
+
+
 class Hub:
     def __init__(self) -> None:
         self.conns: set[Conn] = set()
@@ -85,7 +91,7 @@ class Hub:
         self.rate_limit: dict | None = None
         self.guard = CaptureGuard(config.STATE_DIR / "captures.json")  # shared: one daily limit
         self.away = away.Clock(config.STATE_DIR / "away.json")  # the Away recap: when the owner last acted
-        self.finished: dict[str, float] = {}  # when each session last became Finished (this run only), for the Away recap
+        self.archived_at = 0.0  # when stale sessions were last archived (on start, then once a day)
         self.routines = routines.Watch(config.STATE_DIR / "routines.json", notify=self.routine_notice,
                                        push=self.push_routines)
         self.needs = needs.Needs(config.STATE_DIR / "needs.json", ask=lambda p: routines.ask_haiku(p, needs.MODEL),
@@ -163,10 +169,12 @@ class Hub:
         for e in self.store.sessions(path):
             live = self.sessions.get(e["key"])
             out.append({"key": e["key"], "label": e.get("label"), "created": e.get("created"), "last_used": e.get("last_used"),
-                        "archived": bool(e.get("archived")),
+                        "finished_at": e.get("finished_at"), "archived": bool(e.get("archived")),
                         "empty": not e.get("resume") and not (live and (live.busy or live.history)),
-                        "status": live.status if live else "idle", "live": bool(live and live.live),
+                        "status": live.status if live else ("done" if e.get("finished_at") else "idle"),
+                        "live": bool(live and live.live),
                         "ask": next((ev["summary"] for _, ev in live.pending.values()), None) if live else None,
+                        **needs.waiting(card_since(live)),
                         "mcp_failed": live.info.get("mcp_failed", 0) if live else 0,
                         "opus": sum(1 for t in live.running_tasks() if t["coder"]) if live else 0})
         return out
@@ -210,6 +218,7 @@ class Hub:
                 navigate=self.navigate,
             )
             self.sessions[key] = s
+            s.unseen = any(x["key"] == key and x.get("finished_at") for x in self.store.sessions(path))  # kept over a restart
         return s
 
     async def start_task(self, conn: "Conn", path: str, brief: str) -> None:
@@ -315,7 +324,7 @@ class Hub:
         targets = [c for c in self.conns if c.key != s.key]
         d = self.delegator.of_session(s.key)
         if kind == "done" and not d:
-            self.finished[s.key] = time.time()
+            self.store.set_finished(s.path, s.key, time.time())
         if not targets or (d and kind == "done"):  # a delegation is never Finished: its stage line says Ready
             await self.push_folders()
             return
@@ -359,15 +368,17 @@ class Hub:
     def away_lines(self, since: float) -> list[dict]:
         """The Away recap's lines from what Orb already keeps: the routines that ran ok (while the panel is on), the
         pages the vault archived (frontmatter only), then the sessions still Finished (unopened) and the delegations
-        that became Ready, each counted since `since`."""
+        that became Ready, each counted since `since`, then the sessions waiting for an OK now (a delegation's card is
+        its own Needs you row)."""
         st = self.routines.state
         ran = routines.away_lines(self.routines.items(), st["runs"], st["logs"], since) if settings.settings["routines"] else []
-        finished = [self.finished.get(x["key"], 0.0) for f in self.folder_list() for x in f["sessions"]
-                    if x["status"] == "done" and not x["archived"] and not self.delegator.of_session(x["key"])]
+        finished = [x["finished_at"] for f in self.folder_list() for x in self.store.sessions(f["path"])
+                    if x.get("finished_at") and not x.get("archived") and not self.delegator.of_session(x["key"])]
         ready = [r["ready_at"] for r in self.delegator.items.values() if r.get("ready_at")]
         vault = settings.settings.vault()
         expired = away.expired_line(home.expired_since(vault, since)) if vault and vault.is_dir() else []
-        return ran + expired + away.own_lines(finished, ready, since)
+        waiting = sum(1 for f in self.folder_list() for x in f["sessions"] if x["status"] == "approval" and not self.delegator.of_session(x.get("key", "")))
+        return ran + expired + away.own_lines(finished, ready, since, self.store.auto_archived()) + away.waiting_line(waiting)
 
     def away_event(self) -> dict:
         return self.away.event(lines=self.away_lines)
@@ -402,7 +413,8 @@ class Hub:
 
     def results(self, found: list[dict] | None = None) -> list[dict]:
         """Sessions that finished while nobody looked (their answer is unread), for the plan's queue."""
-        out = [{"key": x["key"], "label": x["label"], "repo": f["label"].split("/")[-1], "last_used": x["last_used"]}
+        out = [{"key": x["key"], "label": x["label"], "repo": f["label"].split("/")[-1], "last_used": x["last_used"],
+                "finished_at": x.get("finished_at")}
                for f in (found if found is not None else self.folder_list())
                for x in f["sessions"] if x["status"] == "done" and not x["archived"]]
         self.results_sent = out
@@ -420,11 +432,31 @@ class Hub:
                 log.info("closing idle session %s (%s)", s.path, s.key[:8])
                 await s.close()
 
+    async def archive_stale(self, now: float | None = None) -> int:
+        """Archive the Stale sessions (ticket 847): never one that is running, has an open card, is a delegation's or
+        is on a page."""
+        viewed = {c.key for c in self.conns}
+
+        def keep(key: str) -> bool:
+            s = self.sessions.get(key)
+            return (key in viewed or bool(self.delegator.of_session(key))
+                    or bool(s and (s.busy or s.pending or s.running_tasks())))
+        self.archived_at = time.time() if now is None else now
+        count = self.store.archive_stale(keep, now=now)
+        if count:
+            log.info("archived %d stale sessions", count)
+            if self.conns:
+                await self.push_folders()
+        return count
+
     async def janitor(self) -> None:
         while True:
             await asyncio.sleep(60)
             with contextlib.suppress(Exception):
                 await self.enforce_limits()
+            if time.time() - self.archived_at >= 86400:
+                with contextlib.suppress(Exception):
+                    await self.archive_stale()
             with contextlib.suppress(Exception):
                 await self.delegator.tick()  # "Stuck 20 min"
 
@@ -439,6 +471,7 @@ async def lifespan(app: FastAPI):
     await asyncio.to_thread(timing.trim)
     await asyncio.to_thread(hub.store.backfill_labels, first_request)
     hub.scan()
+    await hub.archive_stale()
     tasks = [asyncio.create_task(hub.janitor()), asyncio.create_task(hub.routines.loop()),
              asyncio.create_task(hub.check_auth())]
     yield
@@ -849,6 +882,7 @@ async def open_session(conn: Conn, path: str, key: str) -> None:
         await old.speaker.reset()  # nobody hears it any more; stop synthesizing
     s = hub.session(path, key)
     s.unseen = False
+    hub.store.set_finished(path, key, None)
     await asyncio.to_thread(s.load_history)
     desc = folders.describe(Path(path), folders.root_of(Path(path), settings.settings.roots()) or Path(path).parent)
     await conn.send({"type": "opened", "folder": path, "session": key, "label": desc.label, "branch": desc.branch,
@@ -1125,6 +1159,9 @@ async def handle(conn: Conn, msg: dict) -> None:
         return
     if t == "plan_later":
         await hub.needs.mark("later", str(msg["key"]), dt.date.today().isoformat())
+        return
+    if t == "plan_leave":  # a pull request quiet for two weeks: hidden until it changes, nothing written to GitHub
+        await hub.needs.leave(str(msg["key"]))
         return
     if t == "plan_done":
         # Done on a queue task: the tracker's is written there at once (Undo opens it again); a notes task gets its line

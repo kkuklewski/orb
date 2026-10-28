@@ -138,10 +138,13 @@ describe("away recap", () => {
     render(<Home />);
     const lines = [{ kind: "routine", id: "t1", title: "Curation", summary: "ok", count: 1 },
       { kind: "finished", id: "finished", title: "2 sessions finished", summary: "", count: 2 },
-      { kind: "ready", id: "ready", title: "1 delegation Ready", summary: "", count: 1 }];
+      { kind: "ready", id: "ready", title: "1 delegation Ready", summary: "", count: 1 },
+      { kind: "archived", id: "archived", title: "4 old sessions archived", summary: "", count: 4 },
+      { kind: "waiting", id: "waiting", title: "2 sessions wait for your OK", summary: "", count: 2 }];
     act(() => dispatch({ type: "away_recap", recap: { since: 0, back: 1, heading: "While you were away · 2 days", lines, more: 0 } } as ServerEvent));
     const rows = within(within(card()!).getByLabelText("What ran and finished")).getAllByRole("button");
-    expect(rows.map((r) => r.textContent)).toEqual(["ROUTINECurationok", "FINISHED2 sessions finished", "READY1 delegation Ready"]);
+    expect(rows.map((r) => r.textContent)).toEqual(["ROUTINECurationok", "FINISHED2 sessions finished", "READY1 delegation Ready",
+      "ARCHIVED4 old sessions archived", "OK?2 sessions wait for your OK"]);
     fireEvent.click(rows[2]);
     expect(sent).toContainEqual({ type: "away_seen" });
     expect(useViews.getState().view).toBe("home");
@@ -303,6 +306,20 @@ describe("home screen", () => {
     expect(tags.map((t) => [t.textContent, t.classList.contains("urgent")])).toEqual([["OK?", false], ["ROUTINE", true], ["OVERDUE", false]]);
   });
 
+  it("a session waiting for an OK counts from its card and turns red at the server's red_at, never on its own", () => {
+    const now = Date.now() / 1000;
+    act(() => useFeatures.setState({ folders: [folder("web", [
+      session("w1", "approval", { label: "fix login", last_used: now - 60, waiting_since: now - 25 * 3600, red_at: now - 3600 }),
+      session("w2", "approval", { label: "ship invoices", last_used: now - 60, waiting_since: now - 2 * 3600, red_at: now + 22 * 3600 })])] }));
+    render(<Home />);
+    const strip = screen.getByRole("article", { name: "2 things need you" });
+    const tags = [...strip.querySelectorAll(".needs-tag")];
+    expect(tags.map((t) => [t.textContent, t.classList.contains("urgent")])).toEqual([["OK?", true], ["OK?", false]]);
+    expect(within(strip).getByText("Paused 1d ago, waiting for your OK.")).toBeTruthy();
+    expect(within(strip).getByText("Paused 2h ago, waiting for your OK.")).toBeTruthy();
+    expect(sent.filter((m) => m.type === "permission")).toEqual([]);  // Home never answers the card
+  });
+
   it("a pinned row says its class word in the side column, lowercase and in the column's grey", () => {
     const signedOut: PlanItem = { key: "setup:claude", kind: "setup", id: "claude", title: "Claude Code is signed out", reason: "Sign in again.", source: "setup", actions: ["open"], urgent: true, pin: "security" };
     render(<Home />);
@@ -457,6 +474,27 @@ describe("home screen", () => {
     fireEvent.click(within(lead).getByRole("button", { name: /^Sort them/ }));
     expect(useViews.getState().view).toBe("brain");
     expect(useBrain.getState().showNoTopic).toBe(true);
+  });
+
+  it("Leave it shows only on a pull request the server marked quiet, and sends just the key (ticket 850)", () => {
+    const quiet = q("pr", "pr:acme/web#3", "acme/web#3", "Old refactor", "Open pull request, last activity 20 days ago.", { source: "web", actions: ["start", "later", "leave"] });
+    render(<Home />);
+    act(() => dispatch(plan([], { next: qPr })));
+    expect(within(screen.getByRole("article", { name: "Next action" })).queryByRole("button", { name: "Leave it" })).toBeNull();
+    act(() => dispatch(plan([], { next: quiet })));
+    sent.length = 0;
+    fireEvent.click(within(screen.getByRole("article", { name: "Next action" })).getByRole("button", { name: "Leave it" }));
+    expect(sent).toEqual([{ type: "plan_leave", key: "pr:acme/web#3" }]);
+  });
+
+  it("the old Finished item opens Sessions showing only Finished (ticket 849)", () => {
+    const qOld = q("results_old", "results:old", "old", "2 finished sessions not opened", "Read them or let them go; after a week they archive themselves.");
+    render(<Home />);
+    act(() => dispatch(plan([], { next: qOld })));
+    const lead = screen.getByRole("article", { name: "Next action" });
+    expect(lead.textContent).toContain("NEXT ACTION · RESULT");
+    fireEvent.click(within(lead).getByRole("button", { name: /^Read them/ }));
+    expect(useViews.getState()).toMatchObject({ view: "sessions", running: false, finished: true });
   });
 
   it("the kind says what Start does: Review a pull request, Judge the notes", () => {

@@ -40,6 +40,7 @@ class SessionItem(_Msg):
     label: str | None = None
     created: float | None = None
     last_used: float | None = None
+    finished_at: float | None = None  # when its last turn finished, unread (sessions.json; Up next's 3-day rule, ticket 849)
     empty: bool
     archived: bool = False
     status: str
@@ -47,6 +48,8 @@ class SessionItem(_Msg):
     mcp_failed: int = 0
     opus: int = 0
     ask: str | None = None  # one-line summary of the open approval card, e.g. Bash(psql ...)
+    waiting_since: float | None = None  # when its oldest open card opened (needs.waiting)
+    red_at: float | None = None  # from then its Needs you row is red (needs.WAITING_H after waiting_since)
 
 
 class FolderItem(_Msg):
@@ -514,7 +517,7 @@ class PlanItem(_Msg):
     unchanged (plain text, from untrusted data)."""
     key: str  # unique on the page: "routine:<id>", "vikunja:<id>", "setup:<section>", "reminder:<due>:<text>",
     # "vault:conflict" | "vault:diverged" | "vault:unchecked"
-    kind: Literal["approval", "setup", "vault", "routine", "reminder", "task", "note_task", "result", "pr", "notes_batch", "notopic"]
+    kind: Literal["approval", "setup", "vault", "routine", "reminder", "task", "note_task", "result", "pr", "notes_batch", "notopic", "results_old"]
     id: str  # what the page opens: routine id, tracker task id, the Settings section that fixes a broken setup
     title: str
     reason: str
@@ -522,7 +525,7 @@ class PlanItem(_Msg):
     due: str | None = None  # YYYY-MM-DD
     priority: int | None = None
     url: str | None = None
-    actions: list[Literal["open", "start", "done", "later", "delegate", "make_task"]] = []
+    actions: list[Literal["open", "start", "done", "later", "delegate", "make_task", "leave"]] = []
     repo: str | None = None  # a tracker task's repo from the repo map (label); None: Delegate asks for one
     suggest: Literal["take now", "delegate", "later"] | None = None  # tasks only: the rule's action (suggest.py), a hint
     urgent: bool = False  # Needs you only: a broken setup, an urgent routine (routines.urgent), or one past ESCALATE_H; shown red
@@ -595,8 +598,9 @@ class HomeTasksEvent(_Event):
 class AwayLine(_Msg):
     """One thing that finished without the owner: a routine's latest ok Run (count: its Runs since they left), the
     vault's "3 pages expired" (opens Brain's Expired view), or Orb's own "2 sessions finished" (opens Sessions) /
-    "1 delegation Ready" (opens the Delegated strip); count: how many."""
-    kind: Literal["routine", "expired", "finished", "ready"]
+    "1 delegation Ready" (opens the Delegated strip) / "4 old sessions archived" (opens Sessions) / "2 sessions wait
+    for your OK" (now, not since; opens Sessions); count: how many."""
+    kind: Literal["routine", "expired", "finished", "ready", "archived", "waiting"]
     id: str
     title: str
     summary: str = ""
@@ -1156,6 +1160,13 @@ class PlanLaterMsg(_Msg):
     key: str
 
 
+class PlanLeaveMsg(_Msg):
+    """Leave it on a pull request idle 14+ days ("pr:<repo>#<n>"): hidden until the PR changes (its updatedAt), never
+    written to GitHub (ticket 850)."""
+    type: Literal["plan_leave"]
+    key: str
+
+
 class PlanDoneMsg(_Msg):
     """Done on a queue task ("vikunja:<id>" or "note:<file>:<line>"): written at once; undo=True reopens the tracker's task."""
     type: Literal["plan_done"]
@@ -1451,7 +1462,7 @@ ClientMessage = Annotated[Union[
     SetupStatusMsg, BrowseMsg, PickFolderMsg, OpenFolderMsg, AddFolderMsg, StartSessionMsg, PinFolderMsg,
     GetSettingsMsg, SetSettingsMsg, VoiceSampleMsg, KokoroSetupMsg, RescanMsg, RoutinesMsg, RoutinesSeenMsg, RoutinesResolveMsg, MuteMsg,
     NewSessionMsg, ArchiveSessionMsg, RemoveSessionMsg, UserTextMsg, SpeechStartMsg, BargeInMsg, SpeechCancelledMsg, UtteranceMsg, VoiceTextMsg,
-    HomeMsg, AwaySeenMsg, PlanStartMsg, PlanLaterMsg, PlanDoneMsg, ScreenMsg, TaskDetailMsg, ItemListMsg, ItemGetMsg, ItemDoneMsg, TasksBulkMsg, TasksSuggestMsg, NotesVerdictMsg, BrainListMsg, BrainExpiredMsg, BrainNoTopicMsg, BrainKeepMsg, BrainGetMsg, BrainApplyMsg, BrainVerdictMsg, BrainReadMsg, ItemStartMsg, TaskActionMsg, InterruptMsg, PlaybackMsg, PermissionMsg, ReadAllMsg, DictateNoteMsg, UndoRequestMsg, UndoConfirmMsg,
+    HomeMsg, AwaySeenMsg, PlanStartMsg, PlanLaterMsg, PlanLeaveMsg, PlanDoneMsg, ScreenMsg, TaskDetailMsg, ItemListMsg, ItemGetMsg, ItemDoneMsg, TasksBulkMsg, TasksSuggestMsg, NotesVerdictMsg, BrainListMsg, BrainExpiredMsg, BrainNoTopicMsg, BrainKeepMsg, BrainGetMsg, BrainApplyMsg, BrainVerdictMsg, BrainReadMsg, ItemStartMsg, TaskActionMsg, InterruptMsg, PlaybackMsg, PermissionMsg, ReadAllMsg, DictateNoteMsg, UndoRequestMsg, UndoConfirmMsg,
     McpStatusMsg, McpReconnectMsg, SetModeMsg, SetModelMsg, RevokeGrantMsg, DelegateMsg, DelegateBulkMsg, DelegateConfirmMsg, MakeTaskMsg, MakeTaskConfirmMsg, MakeTaskUndoMsg,
     DelegationReviewMsg, DelegationApplyMsg, DelegationRevertMsg, DelegationDiscardMsg, DelegationRetryMsg,
     DelegationResumeMsg, DelegationOutwardMsg, DropMsg,

@@ -7,7 +7,8 @@ import { needsLines, row } from "./HomeNeeds";
 
 // Home's Away recap (GLOSSARY): after 24 hours or more without the owner acting, one card at the top of Home: how long
 // they were away, the routines that ran ok meanwhile (one line each, "×2" when it ran twice; each opens its Run), the
-// vault's "3 pages expired" (opens Brain's Expired view), then "2 sessions finished" (opens Sessions) and "1 delegation Ready" (the Delegated strip), at most 8 lines from the server,
+// vault's "3 pages expired" (opens Brain's Expired view), then "2 sessions finished" (opens Sessions), "1 delegation Ready" (the Delegated strip), "4 old sessions archived"
+// (Sessions) and "1 session waits for your OK" (now; opens Sessions), at most 8 lines from the server,
 // then "N more"; and the first few Needs you rows in today's order, with the total. One-shot: Close, opening a row or
 // leaving Home sends away_seen and it goes on every page until they are away again (server: away.py). No Badge.
 
@@ -17,8 +18,10 @@ export const AWAY_TOP = 3;
 const routineRow = (x: AwayLine) => ({ key: `away-${x.id}`, tag: "ROUTINE", title: x.title, reason: x.summary ?? "",
   side: (x.count ?? 1) > 1 ? `×${x.count}` : "", open: () => { awaySeen(); openRoutine(x.id); } });
 
-/** Orb's own line: the sessions Finished (opens Sessions) or the delegations Ready (scrolls to the Delegated strip). */
-const ownRow = (x: AwayLine) => ({ key: `away-${x.kind}`, tag: x.kind === "ready" ? "READY" : "FINISHED", title: x.title, reason: "", side: "",
+/** Orb's own line: the sessions Finished, archived or waiting for your OK (open Sessions) or the delegations Ready
+ *  (scrolls to the Delegated strip). */
+const OWN_TAG: Partial<Record<AwayLine["kind"], string>> = { ready: "READY", archived: "ARCHIVED", waiting: "OK?" };
+const ownRow = (x: AwayLine) => ({ key: `away-${x.kind}`, tag: OWN_TAG[x.kind] ?? "FINISHED", title: x.title, reason: "", side: "",
   open: () => { awaySeen(); if (x.kind === "ready") document.getElementById("delegated")?.scrollIntoView?.({ block: "start" }); else openSessions(); } });
 
 /** The pages the vault archived meanwhile: opens Brain's Expired view. */
