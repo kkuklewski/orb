@@ -5,7 +5,7 @@ const require = createRequire(import.meta.url);
 const { chromium } = require(execFileSync("npm", ["root", "-g"]).toString().trim() + "/playwright");
 const b = await chromium.launch({ channel: "chrome", headless: true, args: ["--use-fake-ui-for-media-stream"] });
 const p = await b.newPage();
-await p.goto("http://127.0.0.1:8765/static/app.css");
+await p.goto("http://127.0.0.1:8765/static/icons/icon.svg"); // any same-origin page for getUserMedia
 const r = await p.evaluate(async () => {
   (await navigator.mediaDevices.getUserMedia({ audio: true })).getTracks().forEach((t) => t.stop());
   const outs = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === "audiooutput");
