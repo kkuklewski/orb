@@ -945,6 +945,7 @@ class DelegationItem(_Msg):
     pr_url: str | None = None
     update_from: str | None = None  # a collision Update can merge in (#869): the target branch; None once refused
     checks: list[DelegationCheck] | None = None  # blocked: the failing checks (#877)
+    merging: bool = False  # Apply's merge of its PR is running on the remote: no Apply, no Discard (#879)
 
 
 class DelegationsEvent(_Event):

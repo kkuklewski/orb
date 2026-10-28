@@ -1013,6 +1013,16 @@ describe("delegation", () => {
       { type: "delegation_outward", id: "d2", allow: true }]);
     expect(within(item(9)).queryByRole("button", { name: "Undo" })).toBeNull();  // the revert PR is the Undo
   });
+  it("while its PR merges on the remote the row shows it: no Apply, no Discard (#879)", () => {
+    render(<><Sidebar /><Home /></>);
+    act(() => dispatch({ type: "delegations", items: [
+      row({ stage: "ready", merging: true, pr: 12, line: "Merging PR #12 on origin" }),
+    ] }));
+    const r = strip().querySelector(".deleg-row") as HTMLElement;
+    expect(r.textContent).toContain("Merging PR #12 on origin");
+    expect((within(r).getByRole("button", { name: "Merging PR #12…" }) as HTMLButtonElement).disabled).toBe(true);
+    for (const name of ["Apply", "Discard", "Merge PR #12"]) expect(within(r).queryByRole("button", { name })).toBeNull();
+  });
   it("a collision waits in Needs you with Update from main, Review and Discard: no Apply, no Open session", () => {
     render(<><Sidebar /><Home /></>);
     act(() => dispatch({ type: "delegations", items: [

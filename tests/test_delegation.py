@@ -1400,14 +1400,66 @@ async def test_a_github_refusal_changes_nothing_here(dev, remote, gh):
     assert rig.row()["needs"] == "collision" and fingerprint(Path(rig.web)) == before and rig.marked == []
 
 
-async def test_a_restart_while_merging_says_to_check_the_pr(dev, remote, gh):
+async def test_while_merging_apply_is_off_and_discard_is_refused(dev, remote, gh):
     rig = Rig(dev, test="true")
     r = await with_pr(rig)
     rig.d.items[r["id"]]["merge"] = "merging"
-    with pytest.raises(DelegationError, match="being merged"):
+    row = rig.row()
+    assert row["merging"] and row["needs"] is None and row["line"] == "Merging PR #12 on origin"
+    with pytest.raises(DelegationError, match=r"^Merging PR #12 on origin, wait for it\.$"):
         await rig.d.discard(r["id"])
+    with pytest.raises(DelegationError, match="being merged"):
+        await rig.d.apply(r["id"], rig.store.apply_mode)
+    assert r["id"] in rig.d.items and merges(gh) == []
+
+
+async def restarted_mid_merge(rig: Rig, r: dict) -> dict:
+    """The record as a restart finds it while `gh pr merge` ran: merging, then one tick reads the PR (#879)."""
+    rig.d.items[r["id"]]["merge"] = "merging"
     rig.d._save()
-    row = rig.make().event()["items"][0]
+    rig.d = rig.make()
+    assert rig.row()["line"] == "Checking PR #12 on origin: Orb restarted while merging it" and rig.row()["merging"]
+    await rig.d.tick()
+    await rig.settle()
+    return rig.d.items[r["id"]]
+
+
+async def test_a_restart_mid_merge_that_github_finished_ends_applied_and_done(dev, remote, gh):
+    rig = Rig(dev, test="true")
+    r = await with_pr(rig)
+    code, _ = await gh.run(rig.web, "pr", "merge", "12", "--squash", "--match-head-commit", r["checked"])
+    assert code == 0
+    gh.view = {"state": "MERGED", "mergeCommit": {"oid": gh.merged}}
+    got = await restarted_mid_merge(rig, r)
+    assert got["stage"] == "applied" and got["merged_on"] == "origin" and got["merge_sha"] == gh.merged
+    assert "merge" not in got and rig.marked == [(7, True)] and not Path(r["worktree"]).exists()
+    assert len(merges(gh)) == 1  # Orb never merges again after a restart
+
+
+async def test_a_restart_mid_merge_that_github_never_got_goes_back_to_ready(dev, remote, gh):
+    rig = Rig(dev, test="true")
+    r = await with_pr(rig)
+    main = git(remote, "rev-parse", "main")
+    got = await restarted_mid_merge(rig, r)
+    row = rig.row()
+    assert got["stage"] == "ready" and "merge" not in got and not row["merging"] and row["needs"] is None
+    assert row["line"] == "Ready: PR #12, tests passed · merge interrupted by a restart; not merged on origin"
+    assert merges(gh) == [] and git(remote, "rev-parse", "main") == main and rig.marked == []
+    await rig.d.apply(r["id"], rig.store.apply_mode)  # Apply asks again, and the word goes once it merges
+    await rig.d.outward(r["id"], True)
+    assert rig.d.items[r["id"]]["stage"] == "applied" and "merge_cut" not in rig.d.items[r["id"]]
+
+
+async def test_a_restart_mid_merge_with_the_worktree_gone_says_to_check_the_pr(dev, remote, gh):
+    rig = Rig(dev, test="true")
+    r = await with_pr(rig)
+    rig.d.items[r["id"]]["merge"] = "merging"
+    rig.d._save()
+    rig.d = rig.make()
+    rig.d.items[r["id"]]["worktree"] = str(dev / "gone")
+    await rig.d.tick()
+    await rig.settle()
+    row = rig.row()
     assert row["needs"] == "merge" and row["line"].endswith(" · not merged: Orb restarted while merging; check PR #12 on GitHub first")
 
 

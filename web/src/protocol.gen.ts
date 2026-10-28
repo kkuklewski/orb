@@ -2394,6 +2394,7 @@ export interface DelegationItem {
   folder: string;
   id: string;
   line: string;
+  merging?: boolean;
   needs?:
     | ("card" | "failed" | "stuck" | "stopped" | "outward" | "collision" | "merge" | "closed" | "blocked" | "update")
     | null;

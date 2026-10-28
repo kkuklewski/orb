@@ -359,13 +359,12 @@ class Delegator:
         cut = [r for r in self.items.values() if r["stage"] == "pushing"]
         for r in cut:  # cut while pushing: Ready, and the card asks again
             r.update(stage="ready", outward="ask")
-        merging = [r for r in self.items.values() if r.get("merge") == "merging" or r.get("undo") == "pushing"]
-        for r in merging:  # cut while GitHub merged or Undo pushed: it may have happened, so the card says so
-            if r.get("merge") == "merging":
-                r.update(merge="failed", merge_problem=f"Orb restarted while merging; check PR #{r['pr']} on GitHub first")
-            else:
-                r.update(undo="failed", undo_problem="Orb restarted while opening the revert PR")
-        if stopped or cut or merging:
+        # cut while GitHub merged: kept merging (no Apply, no Discard) until the next tick reads the PR (#879)
+        self.interrupted = {r["id"] for r in self.items.values() if r.get("merge") == "merging"}
+        pushed = [r for r in self.items.values() if r.get("undo") == "pushing"]
+        for r in pushed:  # cut while Undo pushed: it may have happened, so the card says so
+            r.update(undo="failed", undo_problem="Orb restarted while opening the revert PR")
+        if stopped or cut or pushed:
             self._save()
 
     # -- records ------------------------------------------------------------------------------
@@ -455,6 +454,8 @@ class Delegator:
         if s == "ready" and r.get("collision"):
             return collision_text(r["collision"], r.get("into") or "main")
         if s == "ready" and r.get("merge") == "merging":
+            if r["id"] in self.interrupted:
+                return f"Checking PR #{r['pr']} on {r.get('remote')}: Orb restarted while merging it"
             return f"Merging PR #{r['pr']} on {r.get('remote')}"
         if s == "ready" and "closed_by" in r:
             by = f" by {r['closed_by']}" if r["closed_by"] else ""
@@ -468,6 +469,8 @@ class Delegator:
                     "snapshot": " · not pushed: it starts from your uncommitted changes"}.get(r.get("outward") or "", "")
             if r.get("merge") == "failed":
                 tail += f" · not merged: {r.get('merge_problem')}"
+            elif r.get("merge_cut"):
+                tail += f" · merge interrupted by a restart; not merged on {r.get('remote')}"
             said = {"passed": "tests passed", "skipped": "tests not run (no sandbox here)"}.get(r.get("tests"), "no tests declared")
             if n := r.get("behind"):
                 tail = f" · {r.get('into')} moved {n} commit{'s' * (n != 1)}, merges cleanly" + tail
@@ -513,7 +516,7 @@ class Delegator:
              "stage": r["stage"], "line": self.line(r), "session": r["session"], "folder": r["worktree"],
              "conflict": r.get("conflict"), "apply_text": self.apply_text(r), "needs": self.needs(r), "ask": self.ask(r),
              "pr": r.get("pr"), "pr_url": r.get("pr_url"), "update_from": self.update_from(r),
-             "checks": r.get("blocked") or None}
+             "checks": r.get("blocked") or None, "merging": r.get("merge") == "merging"}
             for r in rows]}
 
     def update_from(self, r: dict) -> str | None:
@@ -768,6 +771,9 @@ class Delegator:
             self.stuck = now
             await self.push(self.event())
             await self._fill()  # a stuck one gave up its slot
+        for rid in self.interrupted - self.polling:
+            self.polling.add(rid)
+            self._spawn(self._resumed(self.items[rid]))
         for r in list(self.items.values()):
             if (r["stage"] == "ready" and r.get("pr") and r.get("outward") == "done" and not r.get("collision")
                     and not r.get("pr_closed") and not r.get("clean_update") and not self._landing(r)
@@ -1177,6 +1183,7 @@ class Delegator:
         pr, checked, how = r["pr"], r.get("checked") or "", "--merge" if r.get("merge_mode") == "merge" else "--squash"
         r["merge"] = "merging"
         r.pop("merge_problem", None)
+        r.pop("merge_cut", None)
         await self.changed()
         await self._stop(r)  # nothing writes to the branch while it lands
         try:
@@ -1193,21 +1200,59 @@ class Delegator:
             await self.changed()
             return
         try:
-            r["merge_sha"] = ((await pr_view(wt.repo, pr, "mergeCommit")).get("mergeCommit") or {}).get("oid")
+            sha = ((await pr_view(wt.repo, pr, "mergeCommit")).get("mergeCommit") or {}).get("oid")
         except DelegationError as e:  # merged all the same; Undo says it can't find the commit
             log.warning("PR #%s merged, its merge commit unread: %s", pr, e)
+            sha = None
+        await self._landed(r, wt, sha)
+
+    async def _landed(self, r: dict, wt: worktree.Worktree, sha: str | None) -> None:
+        """Orb's merge went through on the remote: keep the merge commit, fast-forward the checkout only when it is
+        safe, remove the worktree, mark the task done."""
+        pr = r["pr"]
+        r["merge_sha"] = sha
         try:
             pulled = await asyncio.to_thread(worktree.catch_up, wt, r["remote"], r["into"])
         except (worktree.WorktreeError, OSError) as e:
             log.info("PR #%s merged, %s not pulled: %s", pr, r["into"], e)
             pulled = False
         r.update(stage="applied", target=r["into"], merged_on=r["remote"], pulled=pulled, config=wt.config)
-        for k in ("merge", "merge_mode", "merge_problem", "conflict"):
+        for k in ("merge", "merge_mode", "merge_problem", "merge_cut", "conflict"):
             r.pop(k, None)
         r["leftovers"] = await asyncio.to_thread(worktree.remove, wt)
         self.store.forget(r["worktree"])
         await self.changed()
         await self.done(r["task"], True)
+
+    async def _resumed(self, r: dict) -> None:
+        """A merge Orb was running when it restarted (#879): read the PR. Merged: the same end as a merge that went
+        through. Not merged: the merge flag clears, back to Ready with a word on the line. A failed read tries again
+        on the next tick; with the worktree gone there is nothing to check from, so it says to look on GitHub."""
+        rid, pr = r["id"], r["pr"]
+        try:
+            wt = self._wt(r)
+            await asyncio.to_thread(worktree.same_config, wt)  # gh runs git here and resolves the repo from its remotes
+            seen = await pr_view(wt.repo, pr, "state,mergeCommit")
+        except (DelegationError, worktree.WorktreeError, OSError) as e:
+            if worktree.get(r["worktree"]) is None:
+                self.interrupted.discard(rid)
+                r.update(merge="failed", merge_problem=f"Orb restarted while merging; check PR #{pr} on GitHub first")
+                await self.changed()
+            else:
+                log.info("PR #%s after a restart: %s", pr, e)
+            return
+        finally:
+            self.polling.discard(rid)
+        if self.items.get(rid) is not r or r.get("merge") != "merging":
+            return
+        self.interrupted.discard(rid)
+        if seen.get("state") == "MERGED":
+            await self._landed(r, wt, (seen.get("mergeCommit") or {}).get("oid"))
+            return
+        for k in ("merge", "merge_mode", "merge_problem"):
+            r.pop(k, None)
+        r["merge_cut"] = True
+        await self.changed()
 
     async def _undo(self, r: dict) -> dict:
         """Undo after an Apply on the remote: a revert PR, once. Its push and PR ask unless outward steps are on."""
@@ -1270,7 +1315,7 @@ class Delegator:
         """Stop the session, drop the branch and worktree and the record; returns what could not be removed."""
         r = self._get(rid)
         if r.get("merge") == "merging":
-            raise DelegationError(f"PR #{r['pr']} is being merged on {r.get('remote')}; wait for it.")
+            raise DelegationError(f"Merging PR #{r['pr']} on {r.get('remote')}, wait for it.")
         left: list[str] = []
         if r["stage"] not in ("applied", "reverted"):
             merged = r["stage"] == "merged"  # merged on the remote: the session is stopped and the claim stays (done)
