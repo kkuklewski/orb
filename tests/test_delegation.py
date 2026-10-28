@@ -755,10 +755,24 @@ async def test_no_card_without_a_remote(dev, gh):
         "Push and a PR: Orb asks you after the tests pass"
 
 
-async def test_a_snapshot_branch_is_never_pushed(dev, remote, gh):
+def add_remote(dev: Path) -> Path:
+    """The `remote` fixture, after the fact: a bare origin/main as the checkout's upstream."""
+    bare = dev / "remote.git"
+    git(dev, "init", "-q", "--bare", "-b", "main", str(bare))
+    git(dev / "dev" / "web", "remote", "add", "origin", str(bare))
+    git(dev / "dev" / "web", "push", "-q", "-u", "origin", "main")
+    return bare
+
+
+async def test_a_snapshot_branch_is_never_pushed(dev, gh):
     (dev / "dev" / "web" / "a.txt").write_text("my uncommitted edit\n")
     rig = Rig(dev, test="true")
-    r = await rig.allow()
+    r = await rig.allow()  # no remote yet: the branch starts from a snapshot of the uncommitted edit
+    assert (Path(r["worktree"]) / "a.txt").read_text() == "my uncommitted edit\n"
+    remote = add_remote(dev)
+    data = dict(wts._load())  # the remote is new config: take it as the config the delegation ran under,
+    data[r["worktree"]]["config"] = wts._config_print(rig.web)  # so the snapshot guard is what stops the push
+    wts._save(data)
     await rig.turn({"d.txt": "delegated\n"})
     row = rig.row()
     assert row["needs"] is None and on_remote(remote) == ["main"] and gh.calls == []
@@ -830,6 +844,117 @@ async def test_a_branch_that_moved_after_its_check_is_not_pushed(dev, remote, gh
     await rig.d.outward(r["id"], True)
     assert on_remote(remote) == ["main"] and gh.calls == []
     assert rig.row()["line"].endswith(f"not pushed: {r['branch']} changed after its check; re-run the check.")
+
+
+# -- base from the remote tip (#864) -------------------------------------------------------------
+
+def rig_web(dev: Path) -> Path:
+    return dev / "dev" / "web"
+
+
+async def test_an_owner_only_behind_starts_from_the_remote_tip_and_review_and_apply_show_only_its_work(dev, remote, gh):
+    land(dev, remote, {"alice.txt": "alice\n"}, "alice adds a file")  # main on origin moved; the checkout didn't fetch
+    head, theirs = git(rig_web(dev), "rev-parse", "HEAD"), git(remote, "rev-parse", "main")
+    rig = Rig(dev, test="true")
+    r = await rig.allow()
+    assert r["base"] == theirs and (Path(r["worktree"]) / "alice.txt").read_text() == "alice\n"
+    assert git(rig.web, "rev-parse", "HEAD") == head and not (Path(rig.web) / "alice.txt").exists()
+    assert "unreached" not in r and rig.row()["line"] == "Working"
+
+    await rig.turn({"d.txt": "delegated\n"})
+    row = rig.row()
+    assert row["line"] == f"Ready: branch {r['branch']}, tests passed"  # not behind: it starts at their tip
+    assert row["ask"] == f"Push branch {r['branch']} and open a PR for task #7?"  # none of the owner's commits go along
+    sent: list = []
+
+    async def send(ev):
+        sent.append(ev)
+
+    await rig.d.diff(r["id"], send)
+    assert "+delegated" in sent[0]["diff"] and "alice" not in sent[0]["diff"]
+
+    await rig.d.apply(r["id"], rig.store.apply_mode)  # squash onto the checkout that is still behind
+    applied = git(rig.web, "rev-parse", "HEAD")
+    assert git(rig.web, "rev-parse", f"{applied}^") == head
+    assert git(rig.web, "show", "--name-only", "--format=", applied) == "d.txt"
+    assert not (Path(rig.web) / "alice.txt").exists() and rig.marked == [(7, True)]
+
+
+async def test_a_merge_apply_waits_until_the_owner_has_the_remote_tip_it_started_from(dev, remote, gh):
+    land(dev, remote, {"alice.txt": "alice\n"}, "alice adds a file")
+    rig = Rig(dev, test="true")
+    r = await rig.allow()
+    await rig.turn({"d.txt": "delegated\n"})
+    before = fingerprint(Path(rig.web))
+
+    with pytest.raises(wts.WorktreeError, match="starts from commits your main doesn't have yet: pull them into main"):
+        await rig.d.apply(r["id"], lambda repo: "merge")  # a merge would mark alice's commit merged, her file left out
+    assert fingerprint(Path(rig.web)) == before and rig.marked == [] and rig.row()["stage"] == "ready"
+
+    git(rig.web, "pull", "-q", "--ff-only")
+    await rig.d.apply(r["id"], lambda repo: "merge")
+    assert (Path(rig.web) / "alice.txt").read_text() == "alice\n" and (Path(rig.web) / "d.txt").read_text() == "delegated\n"
+    assert rig.marked == [(7, True)]
+
+
+async def test_an_owner_ahead_or_diverged_starts_from_head(dev, remote, gh):
+    mine = commit(rig_web(dev), {"mine.txt": "mine\n"}, "mine, not pushed")
+    land(dev, remote, {"alice.txt": "alice\n"}, "alice adds a file")
+    rig = Rig(dev, test="true")
+    r = await rig.allow()
+    assert r["base"] == mine and not (Path(r["worktree"]) / "alice.txt").exists() and "unreached" not in r
+    await rig.turn({"d.txt": "delegated\n"})
+    row = rig.row()
+    assert row["line"] == f"Ready: branch {r['branch']}, tests passed · main moved 1 commit, merges cleanly"
+    assert row["ask"] == (f"Push branch {r['branch']} and open a PR for task #7? 1 of your commits not on origin/main "
+                          "go along.")
+
+
+async def test_a_failed_fetch_branches_from_head_and_the_line_says_so(dev, remote, gh):
+    git(rig_web(dev), "remote", "set-url", "origin", str(dev / "gone.git"))
+    (rig_web(dev) / "a.txt").write_text("my uncommitted edit\n")
+    rig = Rig(dev, test="true")
+    r = await rig.allow()
+    assert r["base"] == git(rig.web, "rev-parse", "HEAD")
+    assert (Path(r["worktree"]) / "a.txt").read_text() == "a\n"  # a remote: uncommitted work stays out even so
+    assert rig.row()["line"] == "Working · could not reach origin, branched from your local main"
+    assert rig.make().items[r["id"]]["unreached"] == r["unreached"]  # kept in the record
+
+
+async def test_with_a_remote_uncommitted_work_stays_out_and_the_card_counts_it(dev, remote, gh):
+    web = rig_web(dev)
+    (web / "a.txt").write_text("a, mine\n")  # modified
+    (web / "new.txt").write_text("new\n")  # untracked
+    (web / ".env").write_text("TOKEN=x\n")  # a secret: never in a snapshot, so not counted
+    (web / "drafts").mkdir()
+    (web / "drafts" / "p.txt").write_text("p\n")  # a never-open name
+    before = fingerprint(web)
+    rig = Rig(dev, test="true")
+    rig.d.never = lambda: {"drafts"}
+    card = rig.d.card(TASK, rig.web, "web")
+    assert card["covers"][-1] == "Your uncommitted changes (2 files) stay out; commit them first to include them."
+    (r,) = await rig.d.confirm(card["id"], True, {"drafts"})
+    await rig.settle()
+    tree = Path(r["worktree"])
+    assert r["base"] == git(web, "rev-parse", "HEAD") == git(remote, "rev-parse", "main")  # equal: their tip
+    assert (tree / "a.txt").read_text() == "a\n" and not (tree / "new.txt").exists() and not (tree / ".env").exists()
+    assert fingerprint(web) == before
+
+    (web / "new.txt").unlink()
+    assert rig.d.card(task(9), rig.web, "web")["covers"][-1] == \
+        "Your uncommitted changes (1 file) stay out; commit them first to include them."
+    (web / "a.txt").write_text("a\n")
+    assert rig.d.card(task(10), rig.web, "web")["covers"][-1] == "Push and a PR: Orb asks you after the tests pass"
+
+
+async def test_without_a_remote_the_card_says_nothing_and_the_snapshot_takes_the_work(dev):
+    (rig_web(dev) / "a.txt").write_text("a, mine\n")
+    rig = Rig(dev)
+    assert rig.d.card(task(9), rig.web, "web")["covers"][-1] == "Push and a PR: Orb asks you after the tests pass"
+    rig.d.cards.clear()
+    r = await rig.allow()
+    assert (Path(r["worktree"]) / "a.txt").read_text() == "a, mine\n" and "unreached" not in r
+    assert git(rig.web, "log", "-1", "--format=%s", r["base"]).startswith("Orb snapshot:")
 
 
 # -- collisions (#863) ----------------------------------------------------------------------------

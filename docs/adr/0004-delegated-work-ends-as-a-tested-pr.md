@@ -71,3 +71,22 @@ do) and propose-only sessions (the work happens in two rounds and the edits stil
 
 - Delegate claims the task in the tracker first; a task held by a teammate is refused, and Orb never takes it from
   them (#866). Its branch is per person: orb/<tracker user>/<task>-<slug>.
+
+## Amended (#864)
+
+- With a remote for the target branch, a delegation no longer starts from a snapshot of the owner's checkout. On
+  Allow, Orb fetches `<remote>/<into>` (the same safety as the other fetches: Orb's git env, `protocol.ext.allow=never`,
+  the config fingerprint taken before it). This is a second remote read, at start, besides the one at Ready.
+- When the owner's HEAD is an ancestor of the fetched tip (only behind, or equal), the branch starts from that tip, so
+  the delegation works on what the team has, and Review and Apply show only its own commits (base..branch). When HEAD
+  is ahead or has diverged, the branch starts from HEAD, and the push card still names the owner's commits that go along.
+- A failed fetch is not an error: the branch starts from HEAD and the line says "could not reach <remote>, branched
+  from your local <into>".
+- Uncommitted and untracked changes stay out. The grant card says "Your uncommitted changes (N files) stay out;
+  commit them first to include them.", counting what a snapshot would have taken (secrets and never-open names aside),
+  and says nothing when there are none.
+- Without a remote nothing changes: the branch starts from a snapshot, uncommitted work included, and such a branch
+  is never pushed.
+- A squash Apply lands only base..branch, so it works on a checkout that is still behind. A merge Apply is refused
+  until the checkout has the commit the branch started from ("pull them into <into> first"): its merge commit would
+  count the team's commits as merged while their files stay out.
