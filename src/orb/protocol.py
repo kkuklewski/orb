@@ -926,6 +926,7 @@ class DelegationItem(_Msg):
     ask: str | None = None  # the card it waits on, in its words; or the outward question
     pr: int | None = None  # the PR Orb opened for its branch
     pr_url: str | None = None
+    update_from: str | None = None  # a collision Update can merge in (#869): the target branch; None once refused
 
 
 class DelegationsEvent(_Event):
@@ -1444,6 +1445,12 @@ class DelegationOutwardMsg(_Msg):
     allow: bool
 
 
+class DelegationUpdateMsg(_Msg):
+    """Update from <into> on a collision: merge the remote target into the branch, the same session finishes it."""
+    type: Literal["delegation_update"]
+    id: str
+
+
 class DelegationDiscardMsg(_Msg):
     """Discard: stop the session, drop the branch and worktree. On an applied or reverted one: dismiss the row."""
     type: Literal["delegation_discard"]
@@ -1465,7 +1472,7 @@ ClientMessage = Annotated[Union[
     HomeMsg, AwaySeenMsg, PlanStartMsg, PlanLaterMsg, PlanLeaveMsg, PlanDoneMsg, ScreenMsg, TaskDetailMsg, ItemListMsg, ItemGetMsg, ItemDoneMsg, TasksBulkMsg, TasksSuggestMsg, NotesVerdictMsg, BrainListMsg, BrainExpiredMsg, BrainNoTopicMsg, BrainKeepMsg, BrainGetMsg, BrainApplyMsg, BrainVerdictMsg, BrainReadMsg, ItemStartMsg, TaskActionMsg, InterruptMsg, PlaybackMsg, PermissionMsg, ReadAllMsg, DictateNoteMsg, UndoRequestMsg, UndoConfirmMsg,
     McpStatusMsg, McpReconnectMsg, SetModeMsg, SetModelMsg, RevokeGrantMsg, DelegateMsg, DelegateBulkMsg, DelegateConfirmMsg, MakeTaskMsg, MakeTaskConfirmMsg, MakeTaskUndoMsg,
     DelegationReviewMsg, DelegationApplyMsg, DelegationRevertMsg, DelegationDiscardMsg, DelegationRetryMsg,
-    DelegationResumeMsg, DelegationOutwardMsg, DropMsg,
+    DelegationResumeMsg, DelegationOutwardMsg, DelegationUpdateMsg, DropMsg,
 ], Field(discriminator="type")]
 
 

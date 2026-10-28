@@ -50,6 +50,10 @@ class Moved(WorktreeError):
     """The branch has commits its check didn't see."""
 
 
+class Taken(WorktreeError):
+    """The push was refused because the remote branch has commits this one doesn't (no force, ever)."""
+
+
 class Conflict(WorktreeError):
     def __init__(self, files: list[str]) -> None:
         super().__init__("Conflict in " + ", ".join(files) + ". Nothing was merged." if files else
@@ -274,12 +278,30 @@ def unpushed(wt: Worktree, remote: str, into: str) -> int:
     return int(out.stdout.strip() or 0) if out.returncode == 0 else 0
 
 
+def _same_config(wt: Worktree) -> None:
+    """Refuse when the git config changed since the delegation started: a remote's URL, ssh command, filter or merge
+    driver could run code or send the work elsewhere."""
+    if not wt.config or _config_print(wt.repo) != wt.config:
+        raise WorktreeError(f"The git config changed since {wt.branch} was delegated (a filter or merge driver "
+                            "could run code). Check git config --list --show-origin, then apply by hand.")
+
+
+# Never the transport that runs a local command (ext::), whatever the config says.
+_NET = ["-c", "protocol.ext.allow=never"]
+
+
+def _fetch(wt: Worktree, remote: str, into: str) -> str:
+    _same_config(wt)
+    theirs = f"refs/remotes/{remote}/{into}"
+    _git(wt.repo, *_NET, "fetch", "--quiet", "--no-tags", remote, f"+refs/heads/{into}:{theirs}")
+    return theirs
+
+
 def collide(wt: Worktree, remote: str, into: str, commit: str) -> dict:
     """Fetch `into` from `remote` and merge `commit` against its tip in memory (nothing is written): `behind` = commits
     the remote target has that the branch lacks, `files` = paths that conflict, `landed` = per file (first CAP) the
     newest commit that reached the remote first: author, whether it is the repo's own user.email, when, subject."""
-    theirs = f"refs/remotes/{remote}/{into}"
-    _git(wt.repo, "fetch", "--quiet", "--no-tags", remote, f"+refs/heads/{into}:{theirs}")
+    theirs = _fetch(wt, remote, into)
     behind = int(_line(wt.repo, "rev-list", "--count", f"{commit}..{theirs}"))
     out = _git(wt.repo, "merge-tree", "--write-tree", "--name-only", "--no-messages", theirs, commit, check=False)
     if out.returncode not in (0, 1):
@@ -300,15 +322,80 @@ def push(wt: Worktree, remote: str, commit: str) -> None:
     """`commit` (the one the check ran on) as the delegation branch on `remote`; no force, hooks off."""
     if tip(wt) != commit:
         raise Moved(f"{wt.branch} changed after its check; re-run the check.")
+    _same_config(wt)
     ref = f"refs/heads/{wt.branch}"
-    out = _git(wt.repo, "push", "--porcelain", remote, f"{commit}:{ref}", check=False)
+    out = _git(wt.repo, *_NET, "push", "--porcelain", remote, f"{commit}:{ref}", check=False)
     if out.returncode == 0:
         return
     for line in out.stdout.splitlines():  # "!\t<from>:<to>\t[rejected] (fetch first)"
         flag, _, rest = line.partition("\t")
         if flag == "!" and (m := re.search(r"\[([^\]]+)\]\s*(?:\((.*)\))?$", rest)):
-            raise WorktreeError(f"Push of {wt.branch} to {remote}: {m[1]}" + (f" ({m[2]})" if m[2] else ""))
+            said = f"Push of {wt.branch} to {remote}: {m[1]}" + (f" ({m[2]})" if m[2] else "")
+            raise (Taken if m[2] in ("fetch first", "non-fast-forward") else WorktreeError)(said)
     raise WorktreeError(_failure("push", out))
+
+
+# -- update from the target branch (#869) -------------------------------------------------------
+
+def merge_in(wt: Worktree, remote: str, into: str, message: str) -> dict:
+    """Start merging the fresh `remote`/`into` into the delegation branch in its worktree, uncommitted (conflicts stay
+    as markers for the session). Never a rebase. Returns {head: the branch before, theirs, base: their merge base}."""
+    if dirty(wt):
+        raise WorktreeError(f"Uncommitted changes on branch {wt.branch}.")
+    theirs = _line(wt.repo, "rev-parse", _fetch(wt, remote, into))
+    head = _line(wt.path, "rev-parse", "HEAD")
+    out = _git(wt.path, "merge", "--no-commit", "--no-ff", "-m", message, theirs, check=False)
+    if not merging(wt):  # a conflict exits 1 and leaves the merge open; anything else started nothing
+        raise WorktreeError(f"git merge failed: {' '.join((out.stderr or out.stdout).split())[:200]}")
+    return {"head": head, "theirs": theirs, "base": _line(wt.repo, "merge-base", head, theirs)}
+
+
+def merging(wt: Worktree) -> bool:
+    return _git(wt.path, "rev-parse", "-q", "--verify", "MERGE_HEAD", check=False).returncode == 0
+
+
+def _added(wt: Worktree, base: str, theirs: str) -> dict[str, list[list[str]]]:
+    """Per file, the blocks of lines the other side added since base, one per hunk (text files; a deleted file has
+    none)."""
+    out = _git(wt.repo, "-c", "core.quotePath=false", "diff", "--no-color", "--no-ext-diff", "--no-textconv",
+               "--unified=0", base, theirs).stdout
+    added: dict[str, list[list[str]]] = {}
+    path, head = None, True
+    for l in out.splitlines():
+        if l.startswith("diff --git "):
+            path, head = None, True
+        elif head and l.startswith("+++ "):
+            path = l[6:] if l.startswith("+++ b/") else None
+        elif l.startswith("@@") and path:
+            head = False
+            added.setdefault(path, []).append([])
+        elif not head and path and l.startswith("+"):
+            added[path][-1].append(l[1:])
+    return {f: [x for x in blocks if x] for f, blocks in added.items() if any(blocks)}
+
+
+def _contains(lines: list[str], block: list[str]) -> bool:
+    n = len(block)
+    return any(lines[i:i + n] == block for i in range(len(lines) - n + 1))
+
+
+def kept(wt: Worktree, update: dict) -> list[str] | None:
+    """After the session's update turn: None when the branch has a new commit that contains theirs and every block of
+    lines they added since base, unchanged and in order; else the files that lost lines ([] when there is no such
+    merge at all). An open merge is aborted (nothing of it is kept)."""
+    if merging(wt):
+        _git(wt.path, "merge", "--abort", check=False)
+        return []
+    now = tip(wt)
+    if now == update["head"] or _git(wt.repo, "merge-base", "--is-ancestor", update["theirs"], now, check=False).returncode:
+        return []
+    gone = []
+    for f, blocks in _added(wt, update["base"], update["theirs"]).items():
+        have = _git(wt.repo, "show", f"{now}:{f}", check=False)
+        left = have.stdout.splitlines() if have.returncode == 0 else []
+        if not all(_contains(left, b) for b in blocks):  # each of their hunks intact, in order, byte for byte
+            gone.append(f)
+    return gone or None
 
 
 # -- apply and revert ---------------------------------------------------------------------------
@@ -335,9 +422,7 @@ def apply(wt: Worktree, mode: str = "squash", message: str | None = None, expect
     when the branch is still that commit (the one its check ran on)."""
     if mode not in MODES:
         raise WorktreeError(f"Unknown apply mode {mode}: use squash or merge.")
-    if not wt.config or _config_print(wt.repo) != wt.config:
-        raise WorktreeError(f"The git config changed since {wt.branch} was delegated (a filter or merge driver "
-                            "could run code). Check git config --list --show-origin, then apply by hand.")
+    _same_config(wt)
     current = current_branch(wt.repo)
     if current == wt.branch:
         raise WorktreeError(f"The checkout is on {wt.branch} itself; switch back to your branch first.")

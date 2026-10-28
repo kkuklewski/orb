@@ -20,7 +20,13 @@ Collisions (#863): when the tests passed, before any push, Orb fetches the remot
 checked commit against its tip in memory. Clean but behind stays Ready ("main moved 3 commits, merges cleanly").
 A conflict pushes nothing and raises Needs you "collision": the files (CAP, then "and N more") and who landed first
 in each (git author, "you" when it is the repo's user.email, when, subject). Apply is refused; Review and Discard
-stay (Update from <into> is #869); Discard leaves a pushed branch and its PR on the remote. Every collision is kept in the record's `collisions`.
+stay; Discard leaves a pushed branch and its PR on the remote. Every collision is kept in the record's `collisions`.
+Update from <into> (#869): Orb starts `git merge` of the fresh remote target into the branch (never a rebase, never a
+force push) and the same session gets the request to re-apply its change on top of the other side's lines, which stay
+exactly as they landed, then commit the merge. After that turn Orb checks the merge commit holds every line they added;
+if not (or there is no merge commit) it is refused: "Can't update without changing their lines", Discard only. A kept
+update is checked like any turn (Ready only when Orb's own tests pass) and its push asks again ("Push the update to
+branch X (PR #N)?") unless outward steps are on.
 
 Needs you (#772): a delegation that can't finish on its own carries `needs`, and Home lists it with the task and the
 repo. "card": its session waits on a card the grant doesn't cover (the card's words come along). "failed": Orb's
@@ -101,6 +107,11 @@ def collision_text(c: dict, into: str) -> str:
     return f"Conflict with {into} in {named}." + (f" Landed first: {first}." if first else "")
 
 
+def first_text(landed: list[dict]) -> str:
+    """Who landed first, for the merge commit and the Ready line: "f.py changed first by Alice Acme"."""
+    return ", ".join(f"{x['file']} changed first by {'you' if x['mine'] else x['author']}" for x in landed)
+
+
 def covers(branch: str, commands: dict[str, str], outward: bool = False) -> list[str]:
     """What the grant lets the session do without asking, in the card's words."""
     out = ["Edit files in its own worktree"]
@@ -148,6 +159,35 @@ async def open_pr(repo: str, branch: str, into: str, title: str, body: str) -> t
     return int(m.group(1)), m.group(0)
 
 
+POLL = 600  # an open PR's mergeable state is read at most this often (#870)
+
+
+async def pr_state(repo: str, number: int) -> tuple[str, str]:
+    """`gh pr view <n> --json mergeable,state`: (state, mergeable), e.g. ("OPEN", "CONFLICTING"); "UNKNOWN" while
+    GitHub is still computing it."""
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "gh", "pr", "view", str(number), "--json", "mergeable,state", cwd=repo,
+            env={**os.environ, "GH_PROMPT_DISABLED": "1"}, stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT, stdin=asyncio.subprocess.DEVNULL)
+    except FileNotFoundError:
+        raise DelegationError("gh is not installed") from None
+    try:
+        out, _ = await asyncio.wait_for(proc.communicate(), PR_TIMEOUT)
+    except asyncio.TimeoutError:
+        proc.kill()
+        await proc.wait()
+        raise DelegationError("gh pr view timed out") from None
+    text = out.decode(errors="replace")
+    try:
+        seen = json.loads(text) if proc.returncode == 0 else None
+    except ValueError:
+        seen = None
+    if not isinstance(seen, dict):
+        raise DelegationError(f"gh pr view failed: {failing_line(text)}")
+    return str(seen.get("state") or ""), str(seen.get("mergeable") or "UNKNOWN")
+
+
 async def run_tests(path: str, cmd: str, timeout: float = TEST_TIMEOUT) -> tuple[bool, str]:
     """The repo's declared test command in the worktree, in the sandbox: it runs files the session edited.
     (passed, first failing line); a timeout kills the whole process group."""
@@ -182,6 +222,7 @@ class Delegator:
         self.seen: dict[str, float] = {}  # the last event of each running delegation's session (this run only)
         self.stuck: set[str] = set()  # the ones the pages were last told are stuck
         self.skip: set[str] = set()  # Retry interrupted their turn: its result starts no check
+        self.polling: set[str] = set()  # the ones whose PR is being read right now
         raw = config.read_state(path) or {}
         self.items: dict[str, dict] = raw.get("delegations", {})
         stopped = [r for r in self.items.values() if r["stage"] in (*RUNNING, "queued")]
@@ -247,11 +288,21 @@ class Delegator:
         if s == "queued":
             return f"Queued · {ordinal(self._queued().index(r) + 1)}"
         if s == "working":
-            return "Waiting for your OK" if self.waiting(r["session"]) else f"Stuck {STUCK // 60} min" if self._stuck(r) else "Working"
+            if self.waiting(r["session"]):
+                return "Waiting for your OK"
+            if self._stuck(r):
+                return f"Stuck {STUCK // 60} min"
+            return f"Updating from {r.get('into')}" if r.get("updating") else "Working"
         if s == "testing":
             return "Running tests"
         if s == "pushing":
             return f"Pushing to PR #{r['pr']}" if r.get("pr") else "Opening PR"
+        if s == "ready" and "taken" in r.get("collision", {}):
+            return (f"Branch {b} already exists on {r['collision']['taken']} with someone else's commits; someone else "
+                    "may have delegated this task.")
+        if s == "ready" and "refused" in r.get("collision", {}):
+            named = ", ".join(r["collision"]["refused"])
+            return "Can't update without changing their lines" + (f" in {named}." if named else ".")
         if s == "ready" and r.get("collision"):
             return collision_text(r["collision"], r.get("into") or "main")
         if s == "ready":
@@ -261,6 +312,8 @@ class Delegator:
             said = {"passed": "tests passed", "skipped": "tests not run (no sandbox here)"}.get(r.get("tests"), "no tests declared")
             if n := r.get("behind"):
                 tail = f" · {r.get('into')} moved {n} commit{'s' * (n != 1)}, merges cleanly" + tail
+            if (first := r.get("updated")) is not None:
+                head = f"Ready: updated from {r.get('into')}" + (f" ({first}), " if first else ", ")
             return head + said + tail
         if s == "failed":
             return r.get("problem") or "Tests failed"
@@ -278,8 +331,14 @@ class Delegator:
             {"id": r["id"], "task": r["task"], "title": r["title"], "repo": r["label"], "branch": r["branch"],
              "stage": r["stage"], "line": self.line(r), "session": r["session"], "folder": r["worktree"],
              "conflict": r.get("conflict"), "apply_text": self.apply_text(r), "needs": self.needs(r), "ask": self.ask(r),
-             "pr": r.get("pr"), "pr_url": r.get("pr_url")}
+             "pr": r.get("pr"), "pr_url": r.get("pr_url"), "update_from": self.update_from(r)}
             for r in rows]}
+
+    def update_from(self, r: dict) -> str | None:
+        """The target branch Update can merge in: Ready with a collision that wasn't refused (a taken branch has
+        nothing to merge: Discard only)."""
+        c = r.get("collision")
+        return r.get("into") if r["stage"] == "ready" and c and not {"refused", "taken"} & c.keys() else None
 
     def apply_text(self, r: dict) -> str:
         what = f"PR #{r['pr']}" if r.get("pr") else f"branch {r['branch']}"
@@ -291,6 +350,8 @@ class Delegator:
             return self.waiting(r["session"]) or None
         if self.needs(r) != "outward":
             return None
+        if r.get("pr") and r.get("updated") is not None:
+            return f"Push the update to branch {r['branch']} (PR #{r['pr']})?"
         if r.get("pr"):
             return f"Push branch {r['branch']} to PR #{r['pr']}?"
         extra = r.get("unpushed") or 0
@@ -424,7 +485,7 @@ class Delegator:
             self.skip.discard(r["id"])
         elif ev["type"] == "result" and not ev.get("replay") and r["stage"] in ("working", "ready", "failed", "stopped"):
             r["stage"] = "testing"
-            for k in ("conflict", "outward", "outward_problem", "collision", "behind"):
+            for k in ("conflict", "outward", "outward_problem", "collision", "behind", "updated"):
                 r.pop(k, None)
             await self.changed()
             self._spawn(self.check(r))
@@ -432,12 +493,47 @@ class Delegator:
             await self.push(self.event())
 
     async def tick(self) -> None:
-        """Every minute (and when a stuck one moves): tell the pages when a delegation became stuck or moved again."""
+        """Every minute (and when a stuck one moves): tell the pages when a delegation became stuck or moved again,
+        and read an open PR's mergeable state when its turn comes."""
         now = {r["id"] for r in self.items.values() if self._stuck(r)}
         if now != self.stuck:
             self.stuck = now
             await self.push(self.event())
             await self._fill()  # a stuck one gave up its slot
+        for r in list(self.items.values()):
+            if (r["stage"] == "ready" and r.get("pr") and r.get("outward") == "done" and not r.get("collision")
+                    and not r.get("pr_closed") and r["id"] not in self.polling
+                    and time.time() - r.get("polled", 0) >= POLL):
+                r["polled"] = time.time()
+                self.polling.add(r["id"])
+                self._spawn(self._poll(r))
+
+    async def _poll(self, r: dict) -> None:
+        """One read of the PR: CONFLICTING runs the same fetch + merge-tree as at Ready and raises the collision;
+        UNKNOWN is "not yet"; a closed or merged PR is never read again. A failed read waits for the next turn."""
+        rid, pr, checked = r["id"], r["pr"], r.get("checked") or ""
+        try:
+            wt = self._wt(r)
+            state, mergeable = await pr_state(wt.repo, pr)
+            if self.items.get(rid) is not r or r["stage"] != "ready" or r.get("pr") != pr or r.get("collision"):
+                return  # it moved on while gh answered
+            if state and state != "OPEN":
+                r["pr_closed"] = True
+                self._save()
+                return
+            if mergeable != "CONFLICTING":
+                return
+            seen = await asyncio.to_thread(worktree.collide, wt, r["remote"], r["into"], checked)
+            if self.items.get(rid) is not r or r["stage"] != "ready" or r.get("checked") != checked or r.get("collision"):
+                return
+            r["behind"] = seen["behind"]
+            if seen["files"]:
+                self._collided(r, seen)
+            await self.changed()
+        except (DelegationError, worktree.WorktreeError, OSError, ValueError) as e:
+            log.info("PR #%s of %s: %s", pr, r["branch"], e)
+        finally:
+            self.polling.discard(rid)
 
     # -- Retry, Resume ------------------------------------------------------------------------
 
@@ -474,11 +570,50 @@ class Delegator:
         await self.changed()
         return r
 
+    async def update(self, rid: str) -> dict:
+        """Update from <into>: merge the fresh remote target into the branch, uncommitted, and send the same session
+        the request to keep their lines as they landed, re-apply its own change on top and commit the merge."""
+        r = self._get(rid)
+        if self.update_from(r) is None:
+            raise DelegationError("Only a Ready delegation that collided can be updated.")
+        c, into, b, remote = r["collision"], r["into"], r["branch"], r["remote"]
+        first = first_text(c["landed"])
+        msg = f"Merge {remote}/{into} into {b}\n\nConflicts in {', '.join(c['files'])}" + (f"; {first}." if first else ".")
+        start = await asyncio.to_thread(worktree.merge_in, self._wt(r), remote, into, msg)
+        r["updating"] = {**start, "collision": c, "first": first}
+        r["stage"] = "updating"  # holds no slot while it takes its place
+        await self._go(r, (
+            # no file names, authors or subjects from the remote here: they are someone else's text; git status has the files
+            f"{into} on {remote} changed the same files first. Orb started `git merge` of {remote}/{into} into {b} in "
+            "this worktree (`git status` lists the conflicted files); it is not committed. Their "
+            "lines stay exactly as they landed: don't edit, drop or move any of them. Re-apply your own change on top "
+            "of theirs, resolve the conflict markers that way, run the tests, then finish with git add and `git commit "
+            "--no-edit`. Don't rebase, reset, abort the merge or push. If your change can't sit next to their lines "
+            "without changing them, make no commit and say why."))
+        await self.changed()
+        return r
+
+    async def _kept(self, r: dict, wt: worktree.Worktree) -> bool:
+        """After an update's turn: True when the merge commit kept every line they added; else refused, and the
+        collision comes back with Discard only."""
+        u = r.pop("updating")
+        gone = await asyncio.to_thread(worktree.kept, wt, u)
+        r["collisions"][-1]["outcome"] = "refused" if gone is not None else "updated"
+        if gone is None:
+            r["updated"] = u["first"]
+            return True
+        r.update(stage="ready", collision={**u["collision"], "refused": gone})
+        return False
+
     async def check(self, r: dict) -> None:
         """After a turn: committed work, a clean worktree and the declared tests passing make it Ready."""
         r.pop("checked", None)  # the commit Ready stands for: push and Apply take only that one
         try:
             wt = self._wt(r)
+            if r.get("updating") and not await self._kept(r, wt):
+                await self.changed()
+                await self._fill()
+                return
             head = await asyncio.to_thread(worktree.tip, wt)
             if await asyncio.to_thread(worktree.ahead, wt) == 0:
                 r.update(stage="failed", problem=f"No commits on branch {r['branch']}")
@@ -518,8 +653,7 @@ class Delegator:
             seen = await asyncio.to_thread(worktree.collide, wt, *where, r.get("checked") or "")
             r["behind"] = seen["behind"]
             if seen["files"]:  # the other side landed first: nothing goes out, the owner decides
-                r["collision"] = {"at": time.time(), "files": seen["files"], "landed": seen["landed"]}
-                r.setdefault("collisions", []).append({**r["collision"], "outcome": "open"})
+                self._collided(r, seen)
                 return
             if await asyncio.to_thread(worktree.from_snapshot, wt):
                 r["outward"] = "snapshot"
@@ -532,6 +666,12 @@ class Delegator:
             await self._publish(r, wt)
         else:
             r["outward"] = "ask"
+
+    @staticmethod
+    def _collided(r: dict, seen: dict) -> None:
+        """Raise the collision card; the record keeps every collision."""
+        r["collision"] = {"at": time.time(), "files": seen["files"], "landed": seen["landed"]}
+        r.setdefault("collisions", []).append({**r["collision"], "outcome": "open"})
 
     async def outward(self, rid: str, allow: bool) -> dict:
         """The outward card's answer: Allow pushes (and opens the PR); Skip leaves it Ready with the branch."""
@@ -551,11 +691,19 @@ class Delegator:
         await self.changed()
         try:
             await asyncio.to_thread(worktree.push, wt, r["remote"], r.get("checked") or "")
+            r["pushed"] = True
             if not r.get("pr"):
                 link = f": {r['url']}" if r.get("url") else ""
                 body = f"Task #{r['task']}{link}\n\nDelegated with Orb; the repo's tests passed in its worktree."
                 r["pr"], r["pr_url"] = await open_pr(wt.repo, r["branch"], r["into"], r["title"], body)
-            r["outward"] = "done"
+            r.update(outward="done", polled=time.time())  # GitHub needs a while: the first read waits a full POLL
+        except worktree.Taken as e:
+            if r.get("pushed"):  # it was ours before: the session rewrote what it had pushed (never forced)
+                r.update(outward="failed", outward_problem=str(e)[:LINE_MAX])
+            else:  # never ours: someone else's branch of the same name
+                r.pop("outward", None)
+                r["collision"] = {"at": time.time(), "files": [], "landed": [], "taken": r["remote"]}
+                r.setdefault("collisions", []).append({**r["collision"], "outcome": "taken"})
         except (DelegationError, worktree.WorktreeError, OSError) as e:
             r.update(outward="failed", outward_problem=str(e)[:LINE_MAX])
         if r["stage"] == "pushing":  # unless Discard came meanwhile
@@ -581,7 +729,8 @@ class Delegator:
         if r["stage"] != "ready":
             raise DelegationError("Only a Ready delegation can be applied.")
         if r.get("collision"):
-            raise DelegationError(f"{r.get('into')} changed the same files first: update from it or discard.")
+            raise DelegationError(self.line(r) + " Discard it." if "taken" in r["collision"] else
+                                  f"{r.get('into')} changed the same files first: update from it or discard.")
         await self._stop(r)  # nothing writes to the branch while it lands
         wt = self._wt(r)
         try:
