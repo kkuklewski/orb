@@ -1,16 +1,19 @@
 """The git side of a delegation (ADR 0004): worktree, push, Apply, revert and Discard.
 
-- `create` snapshots the owner's checkout, uncommitted and untracked (not ignored) files included, through a
-  throwaway index, so their working tree and index stay byte-identical. A clean checkout is used as it is;
-  otherwise the snapshot is one commit on top of HEAD. The delegation branch starts there, in a worktree
-  under Orb's state folder, registered in `worktrees.json` so the repo fence treats it as part of its repo.
-  Untracked secret files (.env, keys) and never-open names stay out of the snapshot.
-- `apply` lands the delegation's own work (snapshot..branch) on the checkout's current branch: one squash
+- `create` makes the delegation branch in a worktree under Orb's state folder, registered in `worktrees.json` so the
+  repo fence treats it as part of its repo; the owner's working tree and index stay byte-identical. With a remote
+  for the target branch (#864) it fetches that branch first and starts from the remote tip when HEAD is an ancestor
+  of it (the owner is only behind), else from HEAD; a failed fetch starts from HEAD and says so (`unreached`).
+  Uncommitted work stays out then (`uncommitted` counts it for the card). Without a remote it snapshots the
+  checkout, uncommitted and untracked (not ignored) files included, through a throwaway index: a clean checkout
+  is used as it is, otherwise the snapshot is one commit on top of HEAD. Untracked secret files (.env, keys) and
+  never-open names stay out of the snapshot.
+- `apply` lands the delegation's own work (base..branch) on the checkout's current branch: one squash
   commit or a merge commit, per repo. The result is computed with `git merge-tree` before anything moves,
   then the branch fast-forwards to it; a conflict touches nothing and raises `Conflict`.
-- `push` is the only call that writes to a remote; `collide`, `merge_in`, `merge_clean` and `fast_forward` fetch the
-  target branch (a read). `collide` merges the checked commit against its tip in memory: who landed first in the files
-  that conflict.
+- `create` (with a remote), `collide`, `merge_in`, `merge_clean` and `fast_forward` fetch the target branch (a read);
+  `push` is the only call that writes to a remote. `collide` merges the checked commit against its tip in memory: who
+  landed first in the files that conflict.
   `push` sends the delegation branch to the remote `remote_of` names (the checkout branch's upstream, else origin),
   never forced. The caller pushes only after the owner's Allow or the
   repo's outward steps setting, and never a branch that starts from a snapshot (`from_snapshot`): that commit holds
@@ -31,7 +34,7 @@ import os
 import re
 import subprocess
 import tempfile
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 from . import config
@@ -67,8 +70,9 @@ class Worktree:
     repo: str  # the owner's checkout (resolved top level)
     path: str  # the worktree (resolved)
     branch: str
-    base: str  # the commit the branch started from: HEAD, or the snapshot on top of it
+    base: str  # the commit the branch started from: the fetched remote tip, HEAD, or the snapshot on top of it
     config: str = ""  # fingerprint of the git config the checkout saw at create (Apply refuses on a change)
+    unreached: str = field(default="", compare=False)  # create only, not stored: the remote its fetch could not reach
 
 
 # -- the registry -------------------------------------------------------------------------------
@@ -185,11 +189,11 @@ def branch_name(task: int | str, title: str, who: str = "") -> str:
 
 # -- create -------------------------------------------------------------------------------------
 
-def _snapshot(repo: str, branch: str, never: set[str]) -> str:
-    """The commit the delegation starts from: HEAD, or HEAD plus the uncommitted changes."""
+def _pending(repo: str, never: set[str]) -> tuple[str, list[str]]:
+    """The checkout as `git add -A` would stage it, through a throwaway index (the owner's is never written), minus
+    new secret files and never-open names: (its tree, the paths where it differs from HEAD)."""
     from .fence import is_secret_name
 
-    head = _line(repo, "rev-parse", "--verify", "HEAD^{commit}")
     with tempfile.TemporaryDirectory() as tmp:
         env = {"GIT_INDEX_FILE": os.path.join(tmp, "index")}  # the owner's index is never written
         _git(repo, "read-tree", "HEAD", env=env)
@@ -200,14 +204,44 @@ def _snapshot(repo: str, branch: str, never: set[str]) -> str:
         if drop:
             _git(repo, "rm", "--cached", "-q", "--", *drop, env=env)
         tree = _git(repo, "write-tree", env=env).stdout.strip()
+        files = _git(repo, "diff", "--cached", "--name-only", "-z", "HEAD", env=env).stdout
+    return tree, [f for f in files.split("\0") if f]
+
+
+def uncommitted(repo: str, never: set[str] | None = None) -> int:
+    """How many files a snapshot would take: tracked changes and untracked (not ignored) files, minus new secret
+    files and never-open names. With a remote they stay out of the delegation (the grant card says how many)."""
+    return len(_pending(toplevel(repo), {n.casefold() for n in (never or ())})[1])
+
+
+def _snapshot(repo: str, branch: str, never: set[str]) -> str:
+    """The commit the delegation starts from without a remote: HEAD, or HEAD plus the uncommitted changes."""
+    head = _line(repo, "rev-parse", "--verify", "HEAD^{commit}")
+    tree, _ = _pending(repo, never)
     if tree == _line(repo, "rev-parse", "HEAD^{tree}"):
         return head
     return _git(repo, "commit-tree", tree, "-p", head, "-m",
                 f"Orb snapshot: uncommitted changes when {branch} was delegated", env=_ORB).stdout.strip()
 
 
-def create(repo: str, branch: str, dest: str | None = None, never: set[str] | None = None) -> Worktree:
-    """A worktree on a new branch from a snapshot of `repo`'s checkout; the checkout itself is not touched."""
+def _start(repo: str, remote: str, into: str) -> tuple[str, str]:
+    """The commit the delegation starts from with a remote (#864): the fetched `remote`/`into` tip when HEAD is an
+    ancestor of it (the owner is only behind, or equal), else HEAD. A fetch that fails (offline, no access) is not an
+    error: HEAD, and the remote it could not reach."""
+    head = _line(repo, "rev-parse", "--verify", "HEAD^{commit}")
+    try:
+        theirs = _line(repo, "rev-parse", "--verify", f"{_fetch_ref(repo, remote, into)}^{{commit}}")
+    except (WorktreeError, subprocess.TimeoutExpired):
+        return head, remote
+    behind = _git(repo, "merge-base", "--is-ancestor", head, theirs, check=False).returncode == 0
+    return (theirs if behind else head), ""
+
+
+def create(repo: str, branch: str, dest: str | None = None, never: set[str] | None = None,
+           upstream: tuple[str, str] | None = None) -> Worktree:
+    """A worktree on a new branch; the checkout itself is not touched. `upstream` is `remote_of`'s (remote, into):
+    the branch starts from the fetched remote tip or HEAD, uncommitted work left out. Without it (no remote) the
+    branch starts from a snapshot of the checkout, uncommitted work included."""
     repo = os.path.realpath(_line(repo, "rev-parse", "--show-toplevel"))
     if _git(repo, "check-ref-format", "--branch", branch, check=False).returncode != 0:
         raise WorktreeError(f"{branch} is not a valid branch name.")
@@ -216,12 +250,16 @@ def create(repo: str, branch: str, dest: str | None = None, never: set[str] | No
     path = dest or str(config.STATE_DIR / "worktrees" / f"{Path(repo).name}-{branch.replace('/', '-')}")
     if os.path.exists(path):
         raise WorktreeError(f"{path} already exists.")
-    base = _snapshot(repo, branch, {n.casefold() for n in (never or ())})
+    seen = _config_print(repo)  # before the fetch: later fetches and Apply compare against the config it ran under
+    if upstream is None:
+        base, unreached = _snapshot(repo, branch, {n.casefold() for n in (never or ())}), ""
+    else:
+        base, unreached = _start(repo, *upstream)
     Path(path).parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     _git(repo, "worktree", "add", "-q", "-b", branch, path, base)
-    wt = Worktree(repo, os.path.realpath(path), branch, base, _config_print(repo))
+    wt = Worktree(repo, os.path.realpath(path), branch, base, seen, unreached)
     data = dict(_load())
-    data[wt.path] = {k: v for k, v in asdict(wt).items() if k != "path"}
+    data[wt.path] = {k: v for k, v in asdict(wt).items() if k not in ("path", "unreached")}
     _save(data)
     return wt
 
@@ -252,7 +290,7 @@ def dirty(wt: Worktree) -> bool:
 
 
 def diff(wt: Worktree) -> str:
-    """The delegation's own work (snapshot..branch): stat, then the patch, capped. No external diff or textconv
+    """The delegation's own work (base..branch): stat, then the patch, capped. No external diff or textconv
     drivers: those come from git config and would run code."""
     rng = f"{wt.base}..refs/heads/{wt.branch}"
     flags = ["--no-color", "--no-ext-diff", "--no-textconv"]
@@ -297,11 +335,15 @@ def same_config(wt: Worktree) -> None:
 _NET = ["-c", "protocol.ext.allow=never"]
 
 
+def _fetch_ref(repo: str, remote: str, into: str) -> str:
+    theirs = f"refs/remotes/{remote}/{into}"
+    _git(repo, *_NET, "fetch", "--quiet", "--no-tags", remote, f"+refs/heads/{into}:{theirs}")
+    return theirs
+
+
 def _fetch(wt: Worktree, remote: str, into: str) -> str:
     same_config(wt)
-    theirs = f"refs/remotes/{remote}/{into}"
-    _git(wt.repo, *_NET, "fetch", "--quiet", "--no-tags", remote, f"+refs/heads/{into}:{theirs}")
-    return theirs
+    return _fetch_ref(wt.repo, remote, into)
 
 
 def collide(wt: Worktree, remote: str, into: str, commit: str) -> dict:
@@ -476,8 +518,13 @@ def apply(wt: Worktree, mode: str = "squash", message: str | None = None, expect
         raise WorktreeError(f"{wt.branch} has no commits to apply.")
     if expect is not None and tip != expect:
         raise Moved(f"{wt.branch} changed after its check.")
-    if mode == "squash":
+    if mode == "squash":  # only base..tip lands, as one commit on HEAD
         return _land(wt.repo, wt.base, head, tip, [head], message or f"Apply {wt.branch}")
+    # A merge commit makes all of tip's history part of HEAD's, but the tree takes only base..tip: when HEAD lacks
+    # the base (a remote tip it hasn't pulled, #864), those commits would count as merged with their files left out.
+    if not from_snapshot(wt) and _git(wt.repo, "merge-base", "--is-ancestor", wt.base, head, check=False).returncode:
+        raise WorktreeError(f"{wt.branch} starts from commits your {current} doesn't have yet: pull them into "
+                            f"{current} first, then Apply.")
     return _land(wt.repo, wt.base, head, tip, [head, tip], message or f"Merge branch '{wt.branch}' into {current}")
 
 

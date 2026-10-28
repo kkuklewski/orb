@@ -1,9 +1,13 @@
 """Delegations (ADR 0003, 0004, 0005): a Vikunja task handed to a background session in its own worktree.
 
 Delegate raises the grant card (repo, branch, what the session may do without asking); Deny starts nothing. Allow
-creates the worktree from a snapshot of the checkout, a record in `delegations.json` and a session at the worktree
-that carries the grant, and sends it the task as its first request. When a turn of that session ends, Orb runs the
-repo's declared test command in the worktree itself (what the session says is a claim): Ready when it passes or
+creates the worktree, a record in `delegations.json` and a session at the worktree that carries the grant, and sends
+it the task as its first request. Base from the remote tip (#864): with a remote for the target branch, Orb fetches it
+and the branch starts from its tip when the checkout is only behind it, else from HEAD; uncommitted changes stay out
+(the card says how many files: "commit them first to include them"). A fetch that fails is not an error: the branch
+starts from HEAD and the line says "could not reach <remote>, branched from your local <into>". Without a remote the
+branch starts from a snapshot of the checkout, uncommitted changes included. When a turn of that session ends, Orb
+runs the repo's declared test command in the worktree itself (what the session says is a claim): Ready when it passes or
 none is declared, failed otherwise. Ready offers Review (the diff) and Apply; Apply stops the session, lands the
 branch on the checkout's branch (a conflict changes nothing), marks the task done and removes the worktree; Undo
 reverts it and reopens the task. Discard stops the session and drops the branch and worktree.
@@ -12,7 +16,8 @@ The stage line is the only status word: a delegation is never Finished.
 Outward steps (#771, ADR 0004): when the tests passed and the repo has a remote, Orb (not the session) may push the
 branch and open a PR with gh. The repo's outward steps setting does it at once (never in a client folder); otherwise
 the delegation stays Ready and Needs you asks "Push branch X and open a PR for task #N?" (Allow, Skip, Discard). Skip
-and Deny never contact the remote. A branch that starts from Orb's snapshot of uncommitted changes is never pushed.
+and Deny never contact the remote. A branch that starts from Orb's snapshot of uncommitted changes (made only without
+a remote) is never pushed.
 Allow: "Opening PR", then "Ready: PR #M, tests passed"; a failure stays Ready with the branch and says why. Apply and
 Undo stay local (the owner's choice): Apply merges the branch into the checkout and leaves the PR open as history.
 
@@ -102,8 +107,8 @@ def brief(task: dict, branch: str, test: str) -> str:
                    ("Due", task.get("due")), ("Link", task.get("url"))],
                   task.get("description"),
                   f"What I want: do this task in this folder. It is a git worktree on branch {branch}, made for this "
-                  "task from a snapshot of my checkout; my checkout is elsewhere and not yours to touch. Edit files "
-                  f"here, {tests}then commit your work on {branch} with git add and git commit. Don't push, open a "
+                  "task; my checkout is elsewhere and not yours to touch. Edit files here, "
+                  f"{tests}then commit your work on {branch} with git add and git commit. Don't push, open a "
                   "pull request, merge or switch branches: I review and apply it myself. End with a few lines on what "
                   "you changed and anything I should check.")
 
@@ -285,14 +290,15 @@ class Delegator:
     """The delegation records and their lifecycle. `session(path, key)` opens (or returns) a FolderSession,
     `push(ev)` sends to every page, `done(task, on)` writes the task done (or open) in Vikunja and the plan,
     `waiting(key)` is the words of the card that session waits on ("" when none), `limit()` how many may hold a slot,
-    `claims` the tracker side (None: no claim and the old branch names, for tests that don't need a tracker)."""
+    `claims` the tracker side (None: no claim and the old branch names, for tests that don't need a tracker), `never()`
+    the never-open names (the card counts uncommitted files the way a snapshot would)."""
 
     def __init__(self, path: Path, *, store: Any, session: Callable[[str, str], Any],
                  push: Callable[[dict], Awaitable[None]], done: Callable[[int, bool], Awaitable[None]],
                  waiting: Callable[[str], str] = lambda key: "", limit: Callable[[], int] = lambda: LIMIT,
-                 claims: claim.Claims | None = None) -> None:
+                 claims: claim.Claims | None = None, never: Callable[[], set[str]] = lambda: set()) -> None:
         self.path, self.store, self.session, self.push, self.done, self.waiting = path, store, session, push, done, waiting
-        self.limit, self.claims = limit, claims
+        self.limit, self.claims, self.never = limit, claims, never
         self.cards: dict[str, dict] = {}  # open grant cards, by id
         self.jobs: set[asyncio.Task] = set()
         self.seen: dict[str, float] = {}  # the last event of each running delegation's session (this run only)
@@ -367,7 +373,8 @@ class Delegator:
         return self.limit() - sum(r["stage"] in RUNNING and not self._stuck(r) for r in self.items.values())
 
     def line(self, r: dict) -> str:
-        return self._line(r) + (" · tracker comment not posted" if r.get("uncommented") else "")
+        start = f" · {r['unreached']}" if r.get("unreached") and r["stage"] not in ("applied", "reverted") else ""
+        return self._line(r) + start + (" · tracker comment not posted" if r.get("uncommented") else "")
 
     def _line(self, r: dict) -> str:
         s, b = r["stage"], r["branch"]
@@ -495,15 +502,18 @@ class Delegator:
             raise DelegationError(str(e)) from e
 
     def _card(self, tasks: list[dict], repo: str, label: str, then: list[tuple[list[dict], str, str]], who: str) -> dict:
-        worktree.current_branch(worktree.toplevel(repo))  # a repo on a branch, or no card
+        top = worktree.toplevel(repo)
+        worktree.current_branch(top)  # a repo on a branch, or no card
         rows = [{"task": t["id"], "title": t["title"], "branch": worktree.branch_name(t["id"], t["title"], who)} for t in tasks]
         cid = uuid.uuid4().hex
         self.cards[cid] = {"tasks": tasks, "repo": repo, "label": label, "branches": [x["branch"] for x in rows], "then": then}
         one = rows[0]
+        said = covers(one["branch"] if len(rows) == 1 else "each task's own branch", self.store.commands(repo),
+                      self.store.outward(repo) and not Fence(repo).in_client())
+        if worktree.remote_of(top) is not None and (n := worktree.uncommitted(top, self.never())):
+            said.append(f"Your uncommitted changes ({n} file{'s' * (n != 1)}) stay out; commit them first to include them.")
         return {"type": "delegate_card", "id": cid, "task": one["task"], "title": one["title"], "repo": label,
-                "branch": one["branch"], "rows": rows, "more": len(then),
-                "covers": covers(one["branch"] if len(rows) == 1 else "each task's own branch", self.store.commands(repo),
-                                 self.store.outward(repo) and not Fence(repo).in_client())}
+                "branch": one["branch"], "rows": rows, "more": len(then), "covers": said}
 
     def bulk(self, groups: list[tuple[list[dict], str, str]]) -> tuple[dict | None, list[str]]:
         """Bulk Delegate: `groups` is (tasks, repo, label) per repo, in order. The first repo's card that can be made
@@ -551,7 +561,8 @@ class Delegator:
                     skipped.append(str(e))
                     continue
             try:
-                wt = await asyncio.to_thread(worktree.create, c["repo"], branch, None, never)
+                where = await asyncio.to_thread(worktree.remote_of, c["repo"])
+                wt = await asyncio.to_thread(worktree.create, c["repo"], branch, None, never, where)
             except Exception:
                 if claimed:
                     await self._release(task["id"])
@@ -561,6 +572,8 @@ class Delegator:
                  "repo": wt.repo, "label": c["label"], "branch": branch, "worktree": wt.path, "base": wt.base,
                  "session": key, "stage": "new", "created": time.time(), "started": False,  # _go: working or queued
                  "claimed": claimed}
+            if wt.unreached and where:  # the fetch failed: it starts from HEAD, and the line says so
+                r["unreached"] = f"could not reach {wt.unreached}, branched from your local {where[1]}"
             self.items[r["id"]] = r
             await self._go(r, brief(task, branch, self.store.commands(c["repo"])["test"]))
             self._note(r, f"Delegated with Orb on {socket.gethostname()}, branch {branch}.")

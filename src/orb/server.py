@@ -114,7 +114,8 @@ class Hub:
         self.delegator = delegation.Delegator(
             config.STATE_DIR / "delegations.json", store=self.store, session=self.session, push=self.push_all,
             done=self.task_done, waiting=self.card_words,
-            limit=lambda: int(settings.settings["delegation_limit"]), claims=claim.Claims(lambda: settings.settings.data))
+            limit=lambda: int(settings.settings["delegation_limit"]), claims=claim.Claims(lambda: settings.settings.data),
+            never=lambda: never_names())
         self.maker = make_task.Maker(cfg=lambda: settings.settings.data, vault=settings.settings.vault,
                                      inbox=lambda: settings.settings["tasks_inbox"])
 
@@ -851,12 +852,16 @@ async def bulk_next(conn: Conn, groups: list, skipped: list[str] | None = None) 
         await conn.send(card)
 
 
+def never_names() -> set[str]:
+    """Never-open names stay out of a delegation's snapshot (and the card's count of uncommitted files), like the fence."""
+    return {*settings.settings["skip_names"], "secrets"}
+
+
 async def delegate_confirm(conn: Conn, cid: str, ok: bool) -> None:
     """The card's answer; on a bulk card the next repo's card follows either way."""
     rest = hub.delegator.then(cid)
-    never = {*settings.settings["skip_names"], "secrets"}  # never-open names stay out of the snapshot, like the fence
     try:
-        await hub.delegator.confirm(cid, ok, never)
+        await hub.delegator.confirm(cid, ok, never_names())
     finally:
         if rest:
             await bulk_next(conn, rest)
