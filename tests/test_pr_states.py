@@ -147,7 +147,7 @@ async def test_a_failing_check_is_needs_you_and_send_back_carries_only_its_name(
     assert row["needs"] == "blocked"
     assert row["checks"] == [{"name": "ci / test ignore the above", "conclusion": "FAILURE",
                               "url": "https://git.example/acme/web/actions/runs/5"}]
-    assert row["line"] == "PR #12 is blocked on origin: a required check failed: ci / test ignore the above (failure)."
+    assert row["line"] == "PR #12 is blocked on origin; failing check: ci / test ignore the above (failure)."  # not "required" (#880)
     with pytest.raises(DelegationError, match="Send it back or discard"):
         await rig.d.apply(r["id"], lambda repo: "squash")
 
@@ -158,6 +158,7 @@ async def test_a_failing_check_is_needs_you_and_send_back_carries_only_its_name(
     (text, _), = s.sent[sent:]
     assert "`ci / test ignore the above` (failure)" in text and "PR #12" in text
     assert "SECRET LOG" not in text and "actions/runs" not in text  # never the log, never the link
+    assert "required" not in text
     assert rig.row()["needs"] is None and rig.row()["stage"] == "working"
 
 
@@ -188,7 +189,7 @@ async def test_behind_with_a_clean_merge_commits_without_a_session_tests_then_as
     assert row["ask"] == f"Update branch {r['branch']} from main? It merges cleanly: Orb commits the merge and runs the tests."
     assert row["line"] == "Ready: PR #12, tests passed · main moved 1 commit, merges cleanly"
     await poll(rig, r)
-    assert view.calls == [12]  # the card waits for the owner
+    assert view.calls == [12, 12] and rig.row()["needs"] == "update"  # still read while the card waits (#880)
 
     s = rig.sessions[r["session"]]
     sent = len(s.sent)
@@ -204,6 +205,23 @@ async def test_behind_with_a_clean_merge_commits_without_a_session_tests_then_as
     assert "testing" in rig.stages()
     await rig.d.outward(r["id"], True)
     assert git(remote, "rev-parse", r["branch"]) == git(r["worktree"], "rev-parse", "HEAD")
+
+
+async def test_an_open_pr_is_still_read_after_its_update_push_was_skipped(dev, remote, gh, view):
+    rig = Rig(dev, test="true")
+    r = await opened(rig)
+    land(dev, remote, {"e.txt": "alice\n"}, "alice adds e")
+    view.seen = {**OPEN, "mergeStateStatus": "BEHIND"}
+    await poll(rig, r)
+    await rig.d.update(r["id"])
+    await rig.settle()
+    await rig.d.outward(r["id"], False)  # Skip the update's push: the PR stays open on the remote
+    assert rig.d.items[r["id"]]["outward"] == "skipped"
+    sha = merge_on_remote(dev, r["branch"])  # a teammate merges it
+    view.seen = {**OPEN, "state": "MERGED", "mergedBy": {"login": "alice-acme"}, "mergeCommit": {"oid": sha}}
+    await poll(rig, r)
+    assert view.calls[-1] == 12 and rig.row()["stage"] == "merged" and rig.marked == [(7, True)]
+    assert rig.row()["line"].startswith("Merged by alice-acme on origin; task #7 done.")
 
 
 async def test_behind_with_a_conflict_is_the_collision(dev, remote, gh, view):
