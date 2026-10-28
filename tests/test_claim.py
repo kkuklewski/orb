@@ -154,10 +154,20 @@ def test_the_backends_assign_one_person_at_a_time(monkeypatch):
     monkeypatch.setenv("ORB_VIKUNJA_TOKEN", "vt")
     monkeypatch.setenv("ORB_JIRA_EMAIL", "dev@acme.test")
     monkeypatch.setenv("ORB_JIRA_TOKEN", "jt")
-    writes = []
+    writes, held = [], {"accountId": "a-1", "displayName": "Acme Dev"}
+
+    def jira_call(base, auth, path, params=None, body=None, method="GET"):
+        if method == "GET":
+            return {"id": "10001", "fields": {"assignee": held}}
+        writes.append((method, path, body))
+
     monkeypatch.setattr(tracker.vikunja, "_write", lambda base, token, path, body=None, method="POST": writes.append((method, path, body)))
-    monkeypatch.setattr(tracker.jira, "_call", lambda base, auth, path, params=None, body=None, method="GET": writes.append((method, path, body)))
+    monkeypatch.setattr(tracker.jira, "_call", jira_call)
     v, j = {"vikunja_url": "http://vikunja.test"}, {"jira_url": "https://acme.atlassian.net"}
     tracker.assign(v, 7, "3"), tracker.unassign(v, 7, "3"), tracker.assign(j, 10001, "a-1"), tracker.unassign(j, 10001, "a-1")
     assert writes == [("PUT", "/tasks/7/assignees", {"user_id": 3}), ("DELETE", "/tasks/7/assignees/3", None),
                       ("PUT", "/issue/10001/assignee", {"accountId": "a-1"}), ("PUT", "/issue/10001/assignee", {"accountId": None})]
+    held.update(accountId="g-2", displayName="Globex Dev")  # a teammate took it since: Discard leaves theirs
+    writes.clear()
+    tracker.unassign(j, 10001, "a-1")
+    assert writes == []

@@ -2,6 +2,10 @@
 worktree: read it, assign the owner when it is free (or already theirs), read it again; a task held by a teammate (any
 other assignee) is refused, and Orb never removes someone else's assignment. Discard takes back only an assignment
 this delegation added; Apply, Undo and done leave it. Nothing retries a claim by itself.
+
+Neither tracker has a compare-and-set for assignees, so a claim is best effort: the re-read catches a teammate who
+got in first, but on Jira (one assignee, a PUT overwrites) a write landing between our read and our PUT is lost to
+it. The per-person branch names (worktree.branch_name) keep the two sides apart in git when that happens.
 """
 
 from __future__ import annotations

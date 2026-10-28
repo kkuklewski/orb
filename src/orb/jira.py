@@ -250,8 +250,11 @@ def assign(url: str, task_id: int, account_id: str) -> None:
 
 
 def unassign(url: str, task_id: int, account_id: str) -> None:
-    """Leave the issue unassigned (account_id is for `vikunja.unassign`'s shape; Jira has only the one)."""
+    """Take the account off the issue: only while it is still the assignee (Jira has one, so a teammate who took the
+    issue since keeps it). A read then a write: Jira has no compare-and-set, the window is the round trip."""
     base, auth = _cfg(url)
+    if [a["id"] for a in _assignees(_issue(base, auth, task_id, "assignee").get("fields") or {})] != [str(account_id)]:
+        return
     _call(base, auth, f"/issue/{int(task_id)}/assignee", body={"accountId": None}, method="PUT")
 
 
