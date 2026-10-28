@@ -1,17 +1,27 @@
 """The git side of a delegation (ADR 0004): worktree, push, Apply, revert and Discard.
 
-- `create` snapshots the owner's checkout, uncommitted and untracked (not ignored) files included, through a
-  throwaway index, so their working tree and index stay byte-identical. A clean checkout is used as it is;
-  otherwise the snapshot is one commit on top of HEAD. The delegation branch starts there, in a worktree
-  under Orb's state folder, registered in `worktrees.json` so the repo fence treats it as part of its repo.
-  Untracked secret files (.env, keys) and never-open names stay out of the snapshot.
-- `apply` lands the delegation's own work (snapshot..branch) on the checkout's current branch: one squash
+- `create` makes the delegation branch in a worktree under Orb's state folder, registered in `worktrees.json` so the
+  repo fence treats it as part of its repo; the owner's working tree and index stay byte-identical. With a remote
+  for the target branch (#864) it fetches that branch first and starts from the remote tip when HEAD is an ancestor
+  of it (the owner is only behind), else from HEAD; a failed fetch starts from HEAD and says so (`unreached`).
+  Uncommitted work stays out then (`uncommitted` counts it for the card). Without a remote it snapshots the
+  checkout, uncommitted and untracked (not ignored) files included, through a throwaway index: a clean checkout
+  is used as it is, otherwise the snapshot is one commit on top of HEAD. Untracked secret files (.env, keys) and
+  never-open names stay out of the snapshot.
+- `apply` lands the delegation's own work (base..branch) on the checkout's current branch: one squash
   commit or a merge commit, per repo. The result is computed with `git merge-tree` before anything moves,
   then the branch fast-forwards to it; a conflict touches nothing and raises `Conflict`.
-- `push` is the only call that contacts a remote: the delegation branch to the remote `remote_of` names (the
-  checkout branch's upstream, else origin), never forced. The caller pushes only after the owner's Allow or the
+- `create` (with a remote), `collide`, `push`, `catch_up` and `revert_on` are the only calls that contact a remote.
+  `create`, `collide`, `merge_in`, `merge_clean` and `fast_forward` fetch the target branch (a read); `push` is the
+  only call that writes to a remote. `collide` merges the checked commit against its tip in memory: who landed first
+  in the files that conflict.
+  `push` sends the delegation branch to the remote `remote_of` names (the checkout branch's upstream, else origin),
+  never forced. The caller pushes only after the owner's Allow or the
   repo's outward steps setting, and never a branch that starts from a snapshot (`from_snapshot`): that commit holds
   the owner's uncommitted work.
+- After a PR merged on the remote (#876), `catch_up` fetches the target branch and fast-forwards the checkout only
+  when it is on that branch, clean and strictly behind; `revert_on` (Undo) fetches it, writes a revert of the merge
+  on its tip with plumbing (the checkout is never touched) and pushes it as a new branch, never forced.
 - `revert` undoes an applied commit the same way. `remove` drops the worktree and the branch (Discard, and
   the cleanup after Apply) and returns what it could not remove.
 Repo hooks and fsmonitor are off for every git call here. Filters and merge drivers come from git config, so
@@ -28,7 +38,7 @@ import os
 import re
 import subprocess
 import tempfile
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 from . import config
@@ -37,6 +47,7 @@ _SAFE = ["-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false"]
 _ORB = {"GIT_AUTHOR_NAME": "Orb", "GIT_AUTHOR_EMAIL": "orb@localhost",
         "GIT_COMMITTER_NAME": "Orb", "GIT_COMMITTER_EMAIL": "orb@localhost"}
 MODES = ("squash", "merge")
+CAP = 5  # conflicting files a collision names one by one
 
 
 class WorktreeError(Exception):
@@ -45,6 +56,10 @@ class WorktreeError(Exception):
 
 class Moved(WorktreeError):
     """The branch has commits its check didn't see."""
+
+
+class Taken(WorktreeError):
+    """The push was refused because the remote branch has commits this one doesn't (no force, ever)."""
 
 
 class Conflict(WorktreeError):
@@ -59,8 +74,9 @@ class Worktree:
     repo: str  # the owner's checkout (resolved top level)
     path: str  # the worktree (resolved)
     branch: str
-    base: str  # the commit the branch started from: HEAD, or the snapshot on top of it
+    base: str  # the commit the branch started from: the fetched remote tip, HEAD, or the snapshot on top of it
     config: str = ""  # fingerprint of the git config the checkout saw at create (Apply refuses on a change)
+    unreached: str = field(default="", compare=False)  # create only, not stored: the remote its fetch could not reach
 
 
 # -- the registry -------------------------------------------------------------------------------
@@ -81,10 +97,7 @@ def _load() -> dict[str, dict]:
         return {}
     if _cache and _cache[0] == str(path) and _cache[1] == mtime:
         return _cache[2]
-    try:
-        data = json.loads(path.read_text()).get("worktrees", {})
-    except (OSError, ValueError, AttributeError):
-        data = {}
+    data = (config.read_state(path) or {}).get("worktrees", {})
     _cache = (str(path), mtime, data)
     return data
 
@@ -127,13 +140,23 @@ def _git(cwd: str, *args: str, env: dict[str, str] | None = None, check: bool = 
         full.pop(k, None)
     out = subprocess.run(["git", "-C", cwd, *_SAFE, *args], capture_output=True, text=True, env=full, timeout=120)
     if check and out.returncode != 0:
-        last = (out.stderr or out.stdout).strip().splitlines()[-1:] or [""]
-        raise WorktreeError(f"git {args[0]} failed: {last[0]}"[:300])
+        raise WorktreeError(_failure(args[0], out))
     return out
+
+
+def _failure(cmd: str, out: subprocess.CompletedProcess) -> str:
+    """git's last line that says what went wrong; `hint:` lines are advice, never the reason."""
+    said = [l for l in (out.stderr or out.stdout).strip().splitlines() if not l.startswith("hint:")]
+    return f"git {cmd} failed: {(said[-1:] or [''])[0]}"[:300]
 
 
 def _line(cwd: str, *args: str) -> str:
     return _git(cwd, *args).stdout.strip()
+
+
+def _ancestor(repo: str, a: str, b: str) -> bool:
+    """`a` is `b` or in its history."""
+    return _git(repo, "merge-base", "--is-ancestor", a, b, check=False).returncode == 0
 
 
 def _config_print(repo: str) -> str:
@@ -161,19 +184,32 @@ def current_branch(repo: str) -> str:
     return out.stdout.strip()
 
 
-def branch_name(task: int | str, title: str) -> str:
-    """'orb/762-worktree-apply-and-discard' for task #762."""
-    slug = re.sub(r"[^a-z0-9]+", "-", title.casefold()).strip("-")[:40].rstrip("-")
-    return f"orb/{task}-{slug}" if slug else f"orb/{task}"
+def _slug(text: str, cap: int) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", text.casefold()).strip("-")[:cap].rstrip("-")
+
+
+def branch_name(task: int | str, title: str, who: str = "") -> str:
+    """'orb/acme-dev/762-worktree-apply-and-discard' for task #762 delegated by tracker user acme-dev (#866 Q8), so two
+    people never push the same branch; 'orb/762-…' without one (records from before keep their stored branch)."""
+    slug, me = _slug(title, 40), _slug(who, 20)
+    name = f"{task}-{slug}" if slug else f"{task}"
+    return f"orb/{me}/{name}" if me else f"orb/{name}"
+
+
+def revert_name(branch: str, task: int | str) -> str:
+    """Undo's branch after an Apply on the remote (#876), per person like the delegation's own: 'orb/acme-dev/revert-7'
+    for 'orb/acme-dev/7-…', 'orb/revert-7' for 'orb/7-…'."""
+    parts = branch.split("/")
+    return branch_name(f"revert-{task}", "", parts[1] if len(parts) == 3 else "")
 
 
 # -- create -------------------------------------------------------------------------------------
 
-def _snapshot(repo: str, branch: str, never: set[str]) -> str:
-    """The commit the delegation starts from: HEAD, or HEAD plus the uncommitted changes."""
+def _pending(repo: str, never: set[str]) -> tuple[str, list[str]]:
+    """The checkout as `git add -A` would stage it, through a throwaway index (the owner's is never written), minus
+    new secret files and never-open names: (its tree, the paths where it differs from HEAD)."""
     from .fence import is_secret_name
 
-    head = _line(repo, "rev-parse", "--verify", "HEAD^{commit}")
     with tempfile.TemporaryDirectory() as tmp:
         env = {"GIT_INDEX_FILE": os.path.join(tmp, "index")}  # the owner's index is never written
         _git(repo, "read-tree", "HEAD", env=env)
@@ -184,14 +220,43 @@ def _snapshot(repo: str, branch: str, never: set[str]) -> str:
         if drop:
             _git(repo, "rm", "--cached", "-q", "--", *drop, env=env)
         tree = _git(repo, "write-tree", env=env).stdout.strip()
+        files = _git(repo, "diff", "--cached", "--name-only", "-z", "HEAD", env=env).stdout
+    return tree, [f for f in files.split("\0") if f]
+
+
+def uncommitted(repo: str, never: set[str] | None = None) -> int:
+    """How many files a snapshot would take: tracked changes and untracked (not ignored) files, minus new secret
+    files and never-open names. With a remote they stay out of the delegation (the grant card says how many)."""
+    return len(_pending(toplevel(repo), {n.casefold() for n in (never or ())})[1])
+
+
+def _snapshot(repo: str, branch: str, never: set[str]) -> str:
+    """The commit the delegation starts from without a remote: HEAD, or HEAD plus the uncommitted changes."""
+    head = _line(repo, "rev-parse", "--verify", "HEAD^{commit}")
+    tree, _ = _pending(repo, never)
     if tree == _line(repo, "rev-parse", "HEAD^{tree}"):
         return head
     return _git(repo, "commit-tree", tree, "-p", head, "-m",
                 f"Orb snapshot: uncommitted changes when {branch} was delegated", env=_ORB).stdout.strip()
 
 
-def create(repo: str, branch: str, dest: str | None = None, never: set[str] | None = None) -> Worktree:
-    """A worktree on a new branch from a snapshot of `repo`'s checkout; the checkout itself is not touched."""
+def _start(repo: str, remote: str, into: str) -> tuple[str, str]:
+    """The commit the delegation starts from with a remote (#864): the fetched `remote`/`into` tip when HEAD is an
+    ancestor of it (the owner is only behind, or equal), else HEAD. A fetch that fails (offline, no access) is not an
+    error: HEAD, and the remote it could not reach."""
+    head = _line(repo, "rev-parse", "--verify", "HEAD^{commit}")
+    try:
+        theirs = _line(repo, "rev-parse", "--verify", f"{_fetch_ref(repo, remote, into)}^{{commit}}")
+    except (WorktreeError, subprocess.TimeoutExpired):
+        return head, remote
+    return (theirs if _ancestor(repo, head, theirs) else head), ""
+
+
+def create(repo: str, branch: str, dest: str | None = None, never: set[str] | None = None,
+           upstream: tuple[str, str] | None = None) -> Worktree:
+    """A worktree on a new branch; the checkout itself is not touched. `upstream` is `remote_of`'s (remote, into):
+    the branch starts from the fetched remote tip or HEAD, uncommitted work left out. Without it (no remote) the
+    branch starts from a snapshot of the checkout, uncommitted work included."""
     repo = os.path.realpath(_line(repo, "rev-parse", "--show-toplevel"))
     if _git(repo, "check-ref-format", "--branch", branch, check=False).returncode != 0:
         raise WorktreeError(f"{branch} is not a valid branch name.")
@@ -200,12 +265,16 @@ def create(repo: str, branch: str, dest: str | None = None, never: set[str] | No
     path = dest or str(config.STATE_DIR / "worktrees" / f"{Path(repo).name}-{branch.replace('/', '-')}")
     if os.path.exists(path):
         raise WorktreeError(f"{path} already exists.")
-    base = _snapshot(repo, branch, {n.casefold() for n in (never or ())})
+    seen = _config_print(repo)  # before the fetch: later fetches and Apply compare against the config it ran under
+    if upstream is None:
+        base, unreached = _snapshot(repo, branch, {n.casefold() for n in (never or ())}), ""
+    else:
+        base, unreached = _start(repo, *upstream)
     Path(path).parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     _git(repo, "worktree", "add", "-q", "-b", branch, path, base)
-    wt = Worktree(repo, os.path.realpath(path), branch, base, _config_print(repo))
+    wt = Worktree(repo, os.path.realpath(path), branch, base, seen, unreached)
     data = dict(_load())
-    data[wt.path] = {k: v for k, v in asdict(wt).items() if k != "path"}
+    data[wt.path] = {k: v for k, v in asdict(wt).items() if k not in ("path", "unreached")}
     _save(data)
     return wt
 
@@ -236,7 +305,7 @@ def dirty(wt: Worktree) -> bool:
 
 
 def diff(wt: Worktree) -> str:
-    """The delegation's own work (snapshot..branch): stat, then the patch, capped. No external diff or textconv
+    """The delegation's own work (base..branch): stat, then the patch, capped. No external diff or textconv
     drivers: those come from git config and would run code."""
     rng = f"{wt.base}..refs/heads/{wt.branch}"
     flags = ["--no-color", "--no-ext-diff", "--no-textconv"]
@@ -269,12 +338,226 @@ def unpushed(wt: Worktree, remote: str, into: str) -> int:
     return int(out.stdout.strip() or 0) if out.returncode == 0 else 0
 
 
+def same_config(wt: Worktree) -> None:
+    """Refuse when the git config changed since the delegation started: a remote's URL, ssh command, filter or merge
+    driver could run code or send the work elsewhere."""
+    check_config(wt.repo, wt.config, wt.branch)
+
+
+def check_config(repo: str, seen: str, branch: str) -> None:
+    """`same_config` once the worktree is gone (Undo after an Apply on the remote): `seen` is the fingerprint it kept."""
+    if not seen or _config_print(repo) != seen:
+        raise WorktreeError(f"The git config changed since {branch} was delegated (a filter or merge driver "
+                            "could run code). Check git config --list --show-origin, then apply by hand.")
+
+
+# Never the transport that runs a local command (ext::), whatever the config says.
+_NET = ["-c", "protocol.ext.allow=never"]
+
+
+def _fetch_ref(repo: str, remote: str, into: str) -> str:
+    theirs = f"refs/remotes/{remote}/{into}"
+    _git(repo, *_NET, "fetch", "--quiet", "--no-tags", remote, f"+refs/heads/{into}:{theirs}")
+    return theirs
+
+
+def _fetch(wt: Worktree, remote: str, into: str) -> str:
+    same_config(wt)
+    return _fetch_ref(wt.repo, remote, into)
+
+
+def collide(wt: Worktree, remote: str, into: str, commit: str) -> dict:
+    """Fetch `into` from `remote` and merge `commit` against its tip in memory (nothing is written): `behind` = commits
+    the remote target has that the branch lacks, `files` = paths that conflict, `landed` = per file (first CAP) the
+    newest commit that reached the remote first: author, whether it is the repo's own user.email, when, subject."""
+    theirs = _fetch(wt, remote, into)
+    behind = int(_line(wt.repo, "rev-list", "--count", f"{commit}..{theirs}"))
+    out = _git(wt.repo, "merge-tree", "--write-tree", "--name-only", "--no-messages", theirs, commit, check=False)
+    if out.returncode not in (0, 1):
+        raise WorktreeError(f"git merge-tree failed: {out.stderr.strip()[:200]}")
+    files = sorted({f for f in out.stdout.splitlines()[1:] if f}) if out.returncode == 1 else []
+    me = _git(wt.repo, "config", "user.email", check=False).stdout.strip().lower()
+    base = _line(wt.repo, "merge-base", theirs, commit) if files else ""
+    landed = []
+    for f in files[:CAP]:
+        if said := _line(wt.repo, "log", "-1", "--format=%an%x00%ae%x00%ct%x00%s", f"{base}..{theirs}", "--", f):
+            name, email, when, subject = said.split("\0", 3)
+            landed.append({"file": f, "author": name, "mine": bool(me) and email.lower() == me, "when": int(when),
+                           "subject": subject})
+    return {"behind": behind, "files": files, "landed": landed}
+
+
 def push(wt: Worktree, remote: str, commit: str) -> None:
     """`commit` (the one the check ran on) as the delegation branch on `remote`; no force, hooks off."""
     if tip(wt) != commit:
         raise Moved(f"{wt.branch} changed after its check; re-run the check.")
-    ref = f"refs/heads/{wt.branch}"
-    _git(wt.repo, "push", "--quiet", remote, f"{commit}:{ref}")
+    same_config(wt)
+    _push(wt.repo, remote, commit, wt.branch)
+
+
+def _push(repo: str, remote: str, commit: str, branch: str) -> None:
+    """`commit` as `branch` on `remote`, that ref only; never forced."""
+    out = _git(repo, *_NET, "push", "--porcelain", remote, f"{commit}:refs/heads/{branch}", check=False)
+    if out.returncode == 0:
+        return
+    for line in out.stdout.splitlines():  # "!\t<from>:<to>\t[rejected] (fetch first)"
+        flag, _, rest = line.partition("\t")
+        if flag == "!" and (m := re.search(r"\[([^\]]+)\]\s*(?:\((.*)\))?$", rest)):
+            said = f"Push of {branch} to {remote}: {m[1]}" + (f" ({m[2]})" if m[2] else "")
+            raise (Taken if m[2] in ("fetch first", "non-fast-forward") else WorktreeError)(said)
+    raise WorktreeError(_failure("push", out))
+
+
+# -- Apply on the remote (#876) -----------------------------------------------------------------
+
+def catch_up(wt: Worktree, remote: str, into: str) -> bool:
+    """After its PR merged into `into` on `remote`: fast-forward the owner's checkout to the fetched tip only when it is
+    on the branch that tracks `remote`/`into`, has no uncommitted tracked changes and is strictly behind. True when it
+    moved; anything else leaves the checkout as it is (the owner pulls)."""
+    same_config(wt)
+    try:
+        if remote_of(wt.repo) != (remote, into):
+            return False
+    except WorktreeError:  # detached HEAD
+        return False
+    if not _clean(wt.repo):
+        return False
+    return _ff(wt.repo, _line(wt.repo, "rev-parse", f"{_fetch_ref(wt.repo, remote, into)}^{{commit}}"))
+
+
+def _clean(repo: str) -> bool:
+    """The owner's checkout has no uncommitted changes to tracked files (status never rewrites its index)."""
+    out = _git(repo, "status", "--porcelain", "--untracked-files=no", env={"GIT_OPTIONAL_LOCKS": "0"}, check=False)
+    return out.returncode == 0 and not out.stdout.strip()
+
+
+def _ff(repo: str, target: str) -> bool:
+    """`merge --ff-only` of the owner's checkout to `target`, only when it is strictly behind it; the caller checked
+    the branch and `_clean`. True when it moved."""
+    head = _line(repo, "rev-parse", "HEAD")
+    if head == target or not _ancestor(repo, head, target):
+        return False
+    return _git(repo, "merge", "--ff-only", "-q", target, check=False).returncode == 0
+
+
+def revert_on(repo: str, *, remote: str, into: str, commit: str, branch: str, seen: str) -> str:
+    """Undo of an Apply on the remote: a commit on the fetched `remote`/`into` tip that reverts `commit` (a merge commit
+    against its first parent, as `git revert -m 1`), made with plumbing so the owner's checkout, index and branches stay
+    as they are, then pushed as the new `branch` (that ref only, never forced). `seen` is the config fingerprint the
+    delegation started under. Returns the revert commit."""
+    check_config(repo, seen, branch)
+    theirs = _line(repo, "rev-parse", f"{_fetch_ref(repo, remote, into)}^{{commit}}")
+    commit = _line(repo, "rev-parse", "--verify", f"{commit}^{{commit}}")
+    if not _ancestor(repo, commit, theirs):
+        raise WorktreeError(f"{commit[:12]} is not on {remote}/{into}; nothing was reverted.")
+    parents = _line(repo, "rev-list", "--parents", "-n", "1", commit).split()[1:]
+    out = _git(repo, "merge-tree", "--write-tree", "--name-only", "--no-messages", f"--merge-base={commit}",
+               theirs, parents[0], check=False)
+    lines = out.stdout.splitlines()
+    if out.returncode == 1:
+        raise WorktreeError(f"Can't revert cleanly: {into} changed the same lines since, in "
+                            f"{', '.join(sorted({f for f in lines[1:] if f}))}. Nothing was pushed.")
+    if out.returncode != 0 or not lines:
+        raise WorktreeError(f"git merge-tree failed: {out.stderr.strip()[:200]}")
+    subject = _line(repo, "log", "-1", "--format=%s", commit)
+    said = f", reversing\nchanges made to {parents[0]}" if len(parents) > 1 else ""
+    new = _git(repo, "commit-tree", lines[0], "-p", theirs, "-m",
+               f'Revert "{subject}"\n\nThis reverts commit {commit}{said}.').stdout.strip()
+    _push(repo, remote, new, branch)
+    return new
+
+
+# -- update from the target branch (#869) -------------------------------------------------------
+
+def merge_in(wt: Worktree, remote: str, into: str, message: str) -> dict:
+    """Start merging the fresh `remote`/`into` into the delegation branch in its worktree, uncommitted (conflicts stay
+    as markers for the session). Never a rebase. Returns {head: the branch before, theirs, base: their merge base}."""
+    if dirty(wt):
+        raise WorktreeError(f"Uncommitted changes on branch {wt.branch}.")
+    theirs = _line(wt.repo, "rev-parse", _fetch(wt, remote, into))
+    head = _line(wt.path, "rev-parse", "HEAD")
+    out = _git(wt.path, "merge", "--no-commit", "--no-ff", "-m", message, theirs, check=False)
+    if not merging(wt):  # a conflict exits 1 and leaves the merge open; anything else started nothing
+        raise WorktreeError(f"git merge failed: {' '.join((out.stderr or out.stdout).split())[:200]}")
+    return {"head": head, "theirs": theirs, "base": _line(wt.repo, "merge-base", head, theirs)}
+
+
+def merge_clean(wt: Worktree, remote: str, into: str, message: str) -> str:
+    """Update from `into` when it merges cleanly (#877): Orb's own merge commit of the fresh `remote`/`into` on the
+    delegation branch, no session turn. Never a rebase. A conflict aborts the merge (nothing changes) and raises
+    Conflict. Returns the merge commit."""
+    if dirty(wt):
+        raise WorktreeError(f"Uncommitted changes on branch {wt.branch}.")
+    theirs = _line(wt.repo, "rev-parse", _fetch(wt, remote, into))
+    out = _git(wt.path, "merge", "--no-ff", "--no-edit", "-m", message, theirs, check=False)
+    if out.returncode != 0:
+        files = _git(wt.path, "diff", "--name-only", "--diff-filter=U", check=False).stdout.split()
+        _git(wt.path, "merge", "--abort", check=False)
+        raise Conflict(sorted(files))
+    return _line(wt.path, "rev-parse", "HEAD")
+
+
+def fast_forward(wt: Worktree, remote: str, into: str, sha: str) -> bool:
+    """The PR merged on the remote (#877): move the owner's checkout to its merge commit, only when that commit is on
+    the fresh `remote`/`into`, the checkout is on `into` with no uncommitted changes to tracked files, and strictly
+    behind it. True when the checkout has the merge commit now."""
+    theirs = _fetch(wt, remote, into)
+    got = _git(wt.repo, "rev-parse", "--verify", "-q", f"{sha}^{{commit}}", check=False).stdout.strip()
+    if not got or not _ancestor(wt.repo, got, theirs):
+        return False
+    head = _line(wt.repo, "rev-parse", "HEAD")
+    if _ancestor(wt.repo, got, head):
+        return True
+    on = _git(wt.repo, "symbolic-ref", "-q", "--short", "HEAD", check=False).stdout.strip()
+    return on == into and _clean(wt.repo) and _ff(wt.repo, got)
+
+
+def merging(wt: Worktree) -> bool:
+    return _git(wt.path, "rev-parse", "-q", "--verify", "MERGE_HEAD", check=False).returncode == 0
+
+
+def _added(wt: Worktree, base: str, theirs: str) -> dict[str, list[list[str]]]:
+    """Per file, the blocks of lines the other side added since base, one per hunk (text files; a deleted file has
+    none)."""
+    out = _git(wt.repo, "-c", "core.quotePath=false", "diff", "--no-color", "--no-ext-diff", "--no-textconv",
+               "--unified=0", base, theirs).stdout
+    added: dict[str, list[list[str]]] = {}
+    path, head = None, True
+    for l in out.splitlines():
+        if l.startswith("diff --git "):
+            path, head = None, True
+        elif head and l.startswith("+++ "):
+            path = l[6:] if l.startswith("+++ b/") else None
+        elif l.startswith("@@") and path:
+            head = False
+            added.setdefault(path, []).append([])
+        elif not head and path and l.startswith("+"):
+            added[path][-1].append(l[1:])
+    return {f: [x for x in blocks if x] for f, blocks in added.items() if any(blocks)}
+
+
+def _contains(lines: list[str], block: list[str]) -> bool:
+    n = len(block)
+    return any(lines[i:i + n] == block for i in range(len(lines) - n + 1))
+
+
+def kept(wt: Worktree, update: dict) -> list[str] | None:
+    """After the session's update turn: None when the branch has a new commit that contains theirs and every block of
+    lines they added since base, unchanged and in order; else the files that lost lines ([] when there is no such
+    merge at all). An open merge is aborted (nothing of it is kept)."""
+    if merging(wt):
+        _git(wt.path, "merge", "--abort", check=False)
+        return []
+    now = tip(wt)
+    if now == update["head"] or not _ancestor(wt.repo, update["theirs"], now):
+        return []
+    gone = []
+    for f, blocks in _added(wt, update["base"], update["theirs"]).items():
+        have = _git(wt.repo, "show", f"{now}:{f}", check=False)
+        left = have.stdout.splitlines() if have.returncode == 0 else []
+        if not all(_contains(left, b) for b in blocks):  # each of their hunks intact, in order, byte for byte
+            gone.append(f)
+    return gone or None
 
 
 # -- apply and revert ---------------------------------------------------------------------------
@@ -301,9 +584,7 @@ def apply(wt: Worktree, mode: str = "squash", message: str | None = None, expect
     when the branch is still that commit (the one its check ran on)."""
     if mode not in MODES:
         raise WorktreeError(f"Unknown apply mode {mode}: use squash or merge.")
-    if not wt.config or _config_print(wt.repo) != wt.config:
-        raise WorktreeError(f"The git config changed since {wt.branch} was delegated (a filter or merge driver "
-                            "could run code). Check git config --list --show-origin, then apply by hand.")
+    same_config(wt)
     current = current_branch(wt.repo)
     if current == wt.branch:
         raise WorktreeError(f"The checkout is on {wt.branch} itself; switch back to your branch first.")
@@ -313,8 +594,13 @@ def apply(wt: Worktree, mode: str = "squash", message: str | None = None, expect
         raise WorktreeError(f"{wt.branch} has no commits to apply.")
     if expect is not None and tip != expect:
         raise Moved(f"{wt.branch} changed after its check.")
-    if mode == "squash":
+    if mode == "squash":  # only base..tip lands, as one commit on HEAD
         return _land(wt.repo, wt.base, head, tip, [head], message or f"Apply {wt.branch}")
+    # A merge commit makes all of tip's history part of HEAD's, but the tree takes only base..tip: when HEAD lacks
+    # the base (a remote tip it hasn't pulled, #864), those commits would count as merged with their files left out.
+    if not from_snapshot(wt) and not _ancestor(wt.repo, wt.base, head):
+        raise WorktreeError(f"{wt.branch} starts from commits your {current} doesn't have yet: pull them into "
+                            f"{current} first, then Apply.")
     return _land(wt.repo, wt.base, head, tip, [head, tip], message or f"Merge branch '{wt.branch}' into {current}")
 
 
@@ -324,7 +610,7 @@ def revert(repo: str, commit: str) -> str:
     current_branch(repo)
     head = _line(repo, "rev-parse", "HEAD")
     commit = _line(repo, "rev-parse", "--verify", f"{commit}^{{commit}}")
-    if _git(repo, "merge-base", "--is-ancestor", commit, head, check=False).returncode != 0:
+    if not _ancestor(repo, commit, head):
         raise WorktreeError(f"{commit[:12]} is not on the current branch.")
     parent = _line(repo, "rev-parse", f"{commit}^1")
     subject = _line(repo, "log", "-1", "--format=%s", commit)

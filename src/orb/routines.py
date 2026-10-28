@@ -53,7 +53,7 @@ from claude_agent_sdk import (
     query,
 )
 
-from . import billing, config, folders, settings
+from . import billing, config, folders, settings, tracker
 
 log = logging.getLogger("orb.routines")
 
@@ -143,6 +143,8 @@ JUDGE_RULES = (
 URGENT_DAYS = 7  # a judged problem whose deadline is this close (or past) is urgent
 KINDS = ("broken", "action", "info", "none")
 PROBLEMS = ("broken", "action")  # judged kinds that count as "needs you"
+RUNS_KEPT = 5  # runs kept per routine: the failure streak counts from these, the result screen shows the newest
+STREAK = 3  # this many failed or judged-broken runs in a row are a failure streak (GLOSSARY: Failure streak)
 
 
 def judge_prompt(runs: list[dict]) -> str:
@@ -237,19 +239,74 @@ def repo_of(r: dict) -> str:
     return ""
 
 
+def _day(ts: float | None) -> str:
+    return dt.datetime.fromtimestamp(ts or time.time()).date().isoformat()
+
+
 def task_draft(x: dict) -> tuple[str, str]:
-    """(title, description) of the Vikunja task "Make it a task" creates for a routine's last run. Only the
-    routine's name, the date and a checked claude.ai link: nothing from the run's own text."""
+    """(title, description) of the task "Make it a task" creates for a routine's last run, or its Repair task during a
+    failure streak (GLOSSARY: Repair task). Only the routine's name, dates and checked claude.ai links: nothing from
+    the runs' own text, nothing the judge said."""
     last = x["last"] or {}
     name = re.sub(r"[\[\]\n\r`|<>]+", " ", x["name"]).strip()[:80]
-    when = dt.datetime.fromtimestamp(last.get("ended") or last.get("at") or time.time()).date().isoformat()
+    s = x.get("streak")
+    if s:
+        runs = "\n".join(f"{_day(r.get('at'))} {r['url']}" for r in s.get("runs") or [] if _URL.match(r.get("url") or ""))
+        return f'Repair "{name}": {s["count"]} failed runs since {_day(s.get("since"))}', runs
     url = last.get("url") or ""
-    return f'Look at the run of "{name}" ({when})', (f"Run: {url}" if _URL.match(url) else "")
+    return f'Look at the run of "{name}" ({_day(last.get("ended") or last.get("at"))})', (f"Run: {url}" if _URL.match(url) else "")
+
+
+def _counts(run: dict, logs: dict, verdicts: dict, resolved: str | None, judge: bool, after: float | None = None) -> bool:
+    """Whether this kept run counts toward a failure streak: it failed, or it ended ok and the judge said broken. A run
+    you marked resolved, one started before `after` (the routine's last Repair task closed or went missing), an
+    unknown one (no log, or ok with no verdict) and every other outcome don't."""
+    if resolved == run["id"] or (after and (_ts(run.get("created_at")) or 0) <= after):
+        return False
+    outcome = (logs.get(run["id"]) or {}).get("outcome")
+    return outcome == "failed" or (judge and outcome == "ok" and (verdicts.get(run["id"]) or {}).get("kind") == "broken")
+
+
+def streak(runs: list[dict], logs: dict, verdicts: dict | None = None, resolved: str | None = None,
+           judge: bool = True, after: float | None = None) -> dict | None:
+    """{count, since, runs} of the failure streak ending at the newest kept run (since = the oldest counted run's start;
+    runs = the counted runs' start and checked claude.ai link, newest first), or None below STREAK. A rule, never a
+    model's judgement: the judge only says whether one ok run is broken."""
+    n = 0
+    for run in runs:
+        if not _counts(run, logs, verdicts or {}, resolved, judge, after):
+            break
+        n += 1
+    if n < STREAK:
+        return None
+    counted = [{"at": _ts(r.get("created_at")), "url": r.get("url") or ""} for r in runs[:n]]
+    return {"count": n, "since": _ts(runs[n - 1].get("created_at")), "runs": [r for r in counted if _URL.match(r["url"])]}
+
+
+def streak_window(runs: list[dict], logs: dict, verdicts: dict | None = None, resolved: str | None = None,
+                  judge: bool = True, after: float | None = None) -> list[dict]:
+    """The older runs a check looks at to see a failure streak: only when the newest run counts, the next newest of the
+    last STREAK runs, up to the first kept run that breaks it. Their missing logs are fetched and their unjudged ok
+    results judged; kept logs and verdicts aren't asked again."""
+    if not runs or not _counts(runs[0], logs, verdicts or {}, resolved, judge, after):
+        return []
+    out = []
+    for run in runs[1:STREAK]:
+        lg = logs.get(run["id"])
+        if after and (_ts(run.get("created_at")) or 0) <= after:
+            break  # started before the last Repair task closed: older runs can't count either
+        if lg and not _counts(run, logs, verdicts or {}, resolved, judge) and not (
+                judge and lg.get("outcome") == "ok" and "kind" not in (verdicts or {}).get(run["id"], {})):
+            break  # a known breaker: older runs can't make a streak
+        out.append(run)
+    return out
 
 
 def item(r: dict, runs: list[dict], logs: dict, seen: dict, now: float, verdicts: dict | None = None,
-         override: str | None = None, judge: bool = True, resolved: str | None = None) -> dict:
-    """One panel row (all text is shown as plain text on the page)."""
+         override: str | None = None, judge: bool = True, resolved: str | None = None, repair: dict | None = None,
+         after: float | None = None) -> dict:
+    """One panel row (all text is shown as plain text on the page). `repair`: the routine's open Repair task
+    ({task, url}); `after`: when its last one closed, so only later runs make a new failure streak."""
     last = runs[0] if runs else None
     lg = logs.get(last["id"], {}) if last else {}
     outcome = lg.get("outcome") if last else None
@@ -289,6 +346,10 @@ def item(r: dict, runs: list[dict], logs: dict, seen: dict, now: float, verdicts
         "notify": override if override in NOTIFY else None, "quiet": quiet,
         "loud": loud, "state": state_word(bool(r.get("enabled")), needs, loud), "resolved": done,
         "urgent": urgent(needs, verdict, now),
+        "security": bool(needs in PROBLEMS and verdict and verdict.get("security")),  # pins its Needs you row (needs.py)
+        # A missed run is newer than the newest kept one, so it breaks the streak; so does an off routine.
+        "streak": streak(runs, logs, verdicts, resolved, judge, after) if needs in ("failed", "broken") and not missed else None,
+        "repair": repair,
     }
 
 
@@ -317,6 +378,36 @@ async def ask_haiku(prompt: str, model: str) -> str:
     return text
 
 
+def away_lines(items: list[dict], runs: dict, logs: dict, since: float) -> list[dict]:
+    """The Away recap's routine lines (GLOSSARY: Away recap), newest first: one per routine whose latest Run ended ok and
+    that ran after `since`. The count is its Runs started since then (Orb keeps the last 5; a kept log that says one
+    didn't end ok leaves it out), the summary the latest one's. A routine that needs you (failed, stuck, missed, a judged
+    problem) has no line: it stays in Needs you."""
+    out = []
+    for x in items:
+        last = x["last"]
+        if x["needs"] or not last or last["outcome"] != "ok":
+            continue
+        times = [t for r in runs.get(x["id"], []) if (t := _ts(r.get("created_at"))) and t > since
+                 and logs.get(r["id"], {}).get("outcome", "ok") == "ok"]
+        if times:
+            out.append({"kind": "routine", "id": x["id"], "title": x["name"], "summary": last["summary"],
+                        "count": len(times), "at": max(times)})
+    return sorted(out, key=lambda line: -line["at"])
+
+
+def trim(st: dict) -> None:
+    """Routines' state keeps only what the failure streak and the result screen read (docs/adr/0014): the newest
+    RUNS_KEPT runs of each listed routine, and those runs' logs, verdicts and marks."""
+    listed = st["routines"]
+    st["runs"] = {rid: runs[:RUNS_KEPT] for rid, runs in st["runs"].items() if rid in listed}
+    st["seen"] = {rid: v for rid, v in st["seen"].items() if rid in listed}
+    keep = {x["id"] for runs in st["runs"].values() for x in runs}
+    st["logs"] = {k: v for k, v in st["logs"].items() if k in keep}
+    st["verdicts"] = {k: v for k, v in st["verdicts"].items() if k in keep}
+    st["resolved"] = {k: v for k, v in st["resolved"].items() if v in keep}
+
+
 class Watch:
     def __init__(self, state: Path, notify: Callable[[str], Awaitable[None]],
                  push: Callable[[], Awaitable[None]]) -> None:
@@ -325,18 +416,19 @@ class Watch:
         self.lock = asyncio.Lock()
         self.checking = False
         self.error: str | None = None
-        try:
-            self.state = json.loads(state.read_text())
-        except (OSError, ValueError):
-            self.state = {}
-        for k in ("routines", "runs", "logs", "seen", "verdicts", "resolved"):
+        self.state = config.read_state(state) or {}
+        # repair: routine id -> its open Repair task's id (GLOSSARY: Repair task); repair_after: routine id -> when its
+        # last one closed or went missing (a new failure streak counts only runs started after it).
+        for k in ("routines", "runs", "logs", "seen", "verdicts", "resolved", "repair", "repair_after"):
             self.state.setdefault(k, {})
+        self.repair_urls: dict[str, str] = {}  # routine id -> its Repair task's link, from the last re-read (memory only)
         self.state.setdefault("notified", [])
         self.state.setdefault("checked_at", 0)
 
     # -- state ------------------------------------------------------------------------
 
     def save(self) -> None:
+        trim(self.state)
         config.write_private(self.state_path, json.dumps(self.state))
 
     def items(self) -> list[dict]:
@@ -344,10 +436,32 @@ class Watch:
         st = self.state
         mine, judge = settings.settings["routines_notify"], settings.settings["routines_judge"]
         out = [item(r, st["runs"].get(r["id"], []), st["logs"], st["seen"], now, st["verdicts"], mine.get(r["id"]), judge,
-                    st["resolved"].get(r["id"]))
+                    st["resolved"].get(r["id"]), self._repair(r["id"]), st["repair_after"].get(r["id"]))
                for r in st["routines"].values() if not hidden(r.get("name") or "")]
         # The page's groups (problems, worth reading, nothing to report, off), by name inside: a routine keeps its place.
         return sorted(out, key=lambda x: (GROUP[x["state"]], x["name"].casefold(), x["id"]))
+
+    def _repair(self, rid: str) -> dict | None:
+        tid = self.state["repair"].get(rid)
+        return None if tid is None else {"task": tid, "url": self.repair_urls.get(rid)}
+
+    async def set_repair(self, rid: str, task: int, url: str) -> None:
+        """Allow on a failure streak's card created this routine's Repair task: kept with the rest of the state."""
+        self.state["repair"][rid] = int(task)
+        self.repair_urls[rid] = url
+        self.save()
+        await self.push()
+
+    async def drop_repair(self, task: int) -> None:
+        """Undo deleted a Repair task: forget it as if it was never made (the streak counts on as before)."""
+        gone = [k for k, v in self.state["repair"].items() if v == task]
+        if not gone:
+            return
+        for rid in gone:
+            del self.state["repair"][rid]
+            self.repair_urls.pop(rid, None)
+        self.save()
+        await self.push()
 
     def event(self) -> dict:
         items = self.items()
@@ -457,7 +571,7 @@ class Watch:
                 if isinstance(body.get("data"), list):
                     st["runs"][inp["trigger_id"]] = [
                         {k: x.get(k) for k in ("id", "created_at", "last_event_at", "url")}
-                        for x in body["data"][:5] if isinstance(x, dict) and x.get("id")]
+                        for x in body["data"][:RUNS_KEPT] if isinstance(x, dict) and x.get("id")]
         # A run's log is fetched again only while it may still change (no final outcome yet, or new events).
         need = []
         for r in shown:
@@ -468,22 +582,73 @@ class Watch:
                 if (not lg or lg.get("outcome") in ("running", "waiting") or lg.get("last_event_at") != last.get("last_event_at")
                         or "detail" not in lg):  # logs kept before the result screen existed: fetch once more for the full text
                     need.append(last)
-        if need:
-            for inp, resp in await self._calls([{"action": "get_run_log", "session_id": x["id"]} for x in need]):
-                text = resp.get("summary", "") if isinstance(resp, dict) else str(resp)
-                sid = inp["session_id"]
-                last_event = next((x.get("last_event_at") for x in need if x["id"] == sid), None)
-                st["logs"][sid] = {**parse_log(text), "detail": result_detail(text), "last_event_at": last_event}
-        keep = {x["id"] for runs in st["runs"].values() for x in runs}
-        st["logs"] = {k: v for k, v in st["logs"].items() if k in keep}
-        st["verdicts"] = {k: v for k, v in st["verdicts"].items() if k in keep}
-        st["resolved"] = {k: v for k, v in st["resolved"].items() if v in keep}
+        await self._fetch_logs(need)
+        trim(st)
         st["checked_at"] = time.time()
         try:
             await self._judge(shown)
         except Exception as e:  # noqa: BLE001 - no verdict means nothing is hidden or announced for that run
             log.warning("routines judge failed: %s", e)
+        try:
+            await self._repairs()
+        except Exception as e:  # noqa: BLE001 - every Repair task is kept as it was; read again at the next check
+            log.warning("routines repair re-read failed: %s", e)
+        try:
+            await self._streak(shown)
+        except Exception as e:  # noqa: BLE001 - an unknown run breaks the streak; asked again at the next check
+            log.warning("routines streak check failed: %s", e)
         await self._announce()
+
+    async def _repairs(self) -> None:
+        """Re-read each Repair task in the tracker before its row is offered again. Open: kept (with its link). Done or
+        gone (404): dropped, and a new streak counts only runs started after it closed (or after this check). Any other
+        tracker error (unreachable, 5xx, sign-in): kept as it is, asked again at the next check."""
+        st, cfg = self.state, settings.settings.data
+        for rid, tid in list(st["repair"].items()):
+            now = time.time()
+            try:
+                t = await asyncio.to_thread(tracker.task, cfg, tid)
+            except tracker.NOT_FOUND:
+                t = None
+            except tracker.ERRORS as e:
+                log.warning("repair task %s of a routine can't be read: %s", tid, e)
+                continue
+            if t is not None and not t.get("done"):
+                self.repair_urls[rid] = t.get("url") or ""
+                continue
+            del st["repair"][rid]
+            self.repair_urls.pop(rid, None)
+            st["repair_after"][rid] = min(t.get("done_at") or now, now) if t else now
+
+    async def _fetch_logs(self, need: list[dict]) -> None:
+        if not need:
+            return
+        st = self.state
+        for inp, resp in await self._calls([{"action": "get_run_log", "session_id": x["id"]} for x in need]):
+            text = resp.get("summary", "") if isinstance(resp, dict) else str(resp)
+            sid = inp["session_id"]
+            last_event = next((x.get("last_event_at") for x in need if x["id"] == sid), None)
+            st["logs"][sid] = {**parse_log(text), "detail": result_detail(text), "last_event_at": last_event}
+
+    async def _streak(self, shown: list[dict]) -> None:
+        """A routine whose newest run counts toward a failure streak: fetch the missing logs of its next newest runs
+        (with the newest, at most STREAK per routine per check; read-only like every check) and judge their ok
+        results, one call per run. The streak itself is the rule in `streak`."""
+        st = self.state
+        judge = settings.settings["routines_judge"]
+        windows = [(r, streak_window(st["runs"].get(r["id"]) or [], st["logs"], st["verdicts"], st["resolved"].get(r["id"]), judge,
+                                     st["repair_after"].get(r["id"])))
+                   for r in shown if r.get("enabled")]
+        await self._fetch_logs([x for _r, w in windows for x in w if x["id"] not in st["logs"]])
+        if not judge:
+            return
+        todo = []
+        for r, w in windows:
+            for x in w:
+                lg = st["logs"].get(x["id"])
+                if lg and lg.get("outcome") == "ok" and "kind" not in st["verdicts"].get(x["id"], {}):
+                    todo.append({"id": x["id"], "name": r.get("name") or r["id"], "text": (lg.get("detail") or lg.get("summary") or "")[:JUDGE_READS]})
+        await self._judge_runs(todo)
 
     async def _judge(self, shown: list[dict]) -> None:
         """Haiku reads each new finished result once and says whether it is worth the owner's time."""
@@ -499,6 +664,10 @@ class Watch:
             v = st["verdicts"].get(runs[0]["id"], {}) if runs else {}
             if lg and lg.get("outcome") == "ok" and ("kind" not in v or (v["kind"] in PROBLEMS and "security" not in v)):
                 todo.append({"id": runs[0]["id"], "name": r.get("name") or r["id"], "text": (lg.get("detail") or lg.get("summary") or "")[:JUDGE_READS]})
+        await self._judge_runs(todo)
+
+    async def _judge_runs(self, todo: list[dict]) -> None:
+        st = self.state
         gate = asyncio.Semaphore(JUDGE_PARALLEL)
 
         async def one(run: dict) -> None:

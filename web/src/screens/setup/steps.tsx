@@ -1,4 +1,4 @@
-// The five setup screens. Copy and behaviour match the old page (src/orb/static/app.js, Onb).
+// The five setup screens. Copy and behaviour carried over from the old page (Onb).
 import { useEffect, useState, type ReactNode } from "react";
 import { send } from "../../ws";
 import { useFeatures } from "../../stores/features";

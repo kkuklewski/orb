@@ -1,15 +1,26 @@
 import { Markdown } from "./chat/Markdown";
 import { useEffect } from "react";
 import type { BrainNote } from "../protocol.gen";
-import { KINDS, LANES, SUGGESTED, accept, applyPicked, brainRows, headerLine, openNote, pickAll, restore, scoreDot, setFilter, setVerdict, suggestable,
-  suggestionGroups, toggleIn, togglePick, useBrain, verdictText } from "../stores/brain";
+import type { ExpiredNote, NoTopicNote } from "../protocol.gen";
+import { GROUPS, GROUP_NAME, KINDS, LANES, accept, applyPicked, askNoTopic, brainRows, closeExpired, closeNoTopic, drop, expiredState, expiryText, headerLine, keep,
+  keepIdea, newTopic, notopicState, openExpired, openNoTopic, openNote, pickAll, restore, scoreDot, setFilter, setVerdict, suggestable, suggestionGroups, toggleIn, togglePick, useBrain, verdictText, type Group } from "../stores/brain";
+import { makeCaptureTask } from "../stores/routine";
 import { openSettings, relTime } from "../stores/views";
+import { MakeTaskCard } from "./Routine";
 import { send } from "../ws";
 
 // Brain: the vault's newest notes, one line each ("title · kind · when") with the value-score dot; the panel holds the
 // filters and search. Notes with a suggestion come first, grouped by it (ADR 0006): each row is the title, score, lane,
 // why and the suggested word, which accepts it; select several and Apply suggestions. A note's page shows the header
-// line (score, lane, why), the Verdict and the note's text. Note text is shown as plain text, never as HTML.
+// line (score, lane, why), the Verdict and the note's text. Note text is shown as plain text, never as HTML. A page the
+// vault will archive (ADR 0013) carries an "expires in N days" chip; within 3 days it moves to Expiring soon, above
+// Reject, where Keep (the approve verdict) stops it; Apply suggestions leaves those to Keep. Expired opens the pages the
+// vault archived in the last 30 days, newest first: title, score, why and the archive day; Keep there says "kept" after.
+// No topic lists the No-topic captures, oldest first, one at a time (no selection, no Apply): Keep or Drop, and Restore
+// after a Drop.
+
+/** The expiry chip, when the vault's rule covers the page. */
+const Expiry = ({ n }: { n: BrainNote }) => { const t = expiryText(n); return t ? <span className="exp-chip">{t}</span> : null; };
 
 function NoteLine({ n, current }: { n: BrainNote; current?: boolean }) {
   const state = n.verdict ? verdictText(n.verdict).split(" ")[0] : n.waiting ? "waiting" : n.kind;
@@ -20,35 +31,129 @@ function NoteLine({ n, current }: { n: BrainNote; current?: boolean }) {
       <span className="rt-name">{n.title}</span>
       <span className="rt-state mono">{n.kind}</span>
       <span className="rt-time mono">{relTime(n.mtime)}</span>
-      {(n.verdict || n.why) && <span className="rt-tail mono">{[n.verdict ? verdictText(n.verdict) : null, n.why || null].filter(Boolean).join(" · ")}</span>}
+      {(n.verdict || n.why || n.expires) && <span className="rt-tail mono"><Expiry n={n} />
+        {(n.verdict || n.why) && <span>{[n.verdict ? verdictText(n.verdict) : null, n.why || null].filter(Boolean).join(" · ")}</span>}</span>}
     </button>
   );
 }
 
-/** A note with a suggestion: select it, open it, accept the suggested word; once applied, its verdict and Restore. */
-function SuggestLine({ n }: { n: BrainNote }) {
+/** A note with a suggestion: select it, open it, accept the suggested word (in Expiring soon: Keep); once applied, its
+ *  verdict and Restore. */
+function SuggestLine({ n, group }: { n: BrainNote; group: Group }) {
   const picked = useBrain((s) => s.picked.includes(n.file));
   const refused = useBrain((s) => s.refused[n.file]);
   const can = suggestable(n);
+  const head = headerLine(n);
   return (
     <div className="rt-line sg-line" data-state={n.verdict ? verdictText(n.verdict).split(" ")[0] : "waiting"}>
-      <input type="checkbox" aria-label={`Select ${n.title}`} checked={picked} disabled={!can} onChange={() => togglePick(n.file)} />
+      <input type="checkbox" aria-label={`Select ${n.title}`} checked={picked} disabled={!can || group === "soon"} onChange={() => togglePick(n.file)} />
       <button type="button" className="rt-name sg-open" onClick={() => openNote(n.file)}>{n.title}</button>
       <span className="rt-state mono">{n.verdict ? verdictText(n.verdict) : ""}</span>
-      {can ? <button type="button" className="chip-btn sg-act" aria-label={`${n.suggest} ${n.title}`} onClick={() => accept(n)}>{n.suggest}</button>
-        : n.verdict ? <button type="button" className="chip-btn sg-act" aria-label={`Restore ${n.title}`} onClick={() => restore(n)}>Restore</button> : <span />}
-      {headerLine(n) && <span className="rt-tail mono">{headerLine(n)}</span>}
+      {n.verdict ? <button type="button" className="chip-btn sg-act" aria-label={`Restore ${n.title}`} onClick={() => restore(n)}>Restore</button>
+        : group === "soon" ? <button type="button" className="chip-btn sg-act" aria-label={`Keep ${n.title}`} onClick={() => keep(n)}>Keep</button>
+        : can ? <button type="button" className="chip-btn sg-act" aria-label={`${n.suggest} ${n.title}`} onClick={() => accept(n)}>{n.suggest}</button> : <span />}
+      {(head || n.expires) && <span className="rt-tail mono"><Expiry n={n} />{head && <span>{head}</span>}</span>}
       {refused && <span className="sg-refused" role="alert">{refused}</span>}
     </div>
   );
 }
 
+/** One archived page: open it, Keep it (the approve verdict); once kept it says so and stays: Orb can't un-archive. */
+function ExpiredLine({ n }: { n: ExpiredNote }) {
+  const said = useBrain((s) => expiredState(n, s.applied));
+  const refused = useBrain((s) => s.refused[n.file]);
+  return (
+    <div className="rt-line sg-line" data-state={said === "kept" ? "approved" : said ? said.split(" ")[0] : "expired"}>
+      <span className={scoreDot(n.score)} title={n.score != null ? `value score ${n.score}` : "not scored"} />
+      <button type="button" className="rt-name sg-open" onClick={() => openNote(n.file)}>{n.title}</button>
+      <span className="rt-state mono">{said}</span>
+      {said ? <span /> : <button type="button" className="chip-btn sg-act" aria-label={`Keep ${n.title}`} onClick={() => keep(n)}>Keep</button>}
+      <span className="rt-tail mono">{[n.score != null ? `score ${n.score}` : null, n.why || null, `archived ${n.archived}`].filter(Boolean).join(" · ")}</span>
+      {refused && <span className="sg-refused" role="alert">{refused}</span>}
+    </div>
+  );
+}
+
+/** One No-topic capture: open it, Keep it as an idea or Drop it; once dropped, Restore. */
+function NoTopicLine({ n }: { n: NoTopicNote }) {
+  const said = useBrain((s) => notopicState(n, s.applied));
+  const refused = useBrain((s) => s.refused[n.file]);
+  const task = <button type="button" className="chip-btn sg-act" aria-label={`Make a task of ${n.title}`} onClick={() => makeCaptureTask(n.file)}>Make it a task</button>;
+  return (
+    <div className="rt-line sg-line nt-line" data-state={said === "dropped" ? "rejected" : said ? "approved" : "waiting"}>
+      <span className={scoreDot(n.score)} />
+      <button type="button" className="rt-name sg-open" onClick={() => openNote(n.file)}>{n.title}</button>
+      <span className="rt-state mono">{said}</span>
+      {said === "dropped" ? <button type="button" className="chip-btn sg-act" aria-label={`Restore ${n.title}`} onClick={() => restore(n)}>Restore</button>
+        : said ? <span />
+        : <span className="nt-acts">
+          {n.capture === "task" && task}
+          <button type="button" className="chip-btn sg-act" aria-label={`Keep ${n.title}`} onClick={() => keepIdea(n)}>Keep</button>
+          {n.capture !== "task" && task}
+          <button type="button" className="chip-btn sg-act" aria-label={`New topic for ${n.title}`} onClick={() => newTopic(n)}>New topic</button>
+          <button type="button" className="chip-btn sg-act" aria-label={`Drop ${n.title}`} onClick={() => drop(n)}>Drop</button>
+        </span>}
+      <span className="rt-tail mono">{[n.capture || n.kind, n.created].filter(Boolean).join(" · ")}</span>
+      {refused && <span className="sg-refused" role="alert">{refused}</span>}
+      <div className="nt-card"><MakeTaskCard routine={`capture:${n.file}`} /></div>
+    </div>
+  );
+}
+
+/** Brain's No topic view: the captures no topic took, oldest first. */
+function NoTopicView() {
+  const ev = useBrain((s) => s.notopic);
+  useEffect(() => { askNoTopic(); }, []);
+  const notes = ev?.notes ?? [];
+  return (
+    <div className="view-col">
+      <div className="view-head">
+        <h2>No topic</h2>
+        <span className="mono view-sub">{!ev ? "loading…" : ev.error ? "no notes folder" : `${notes.length} capture${notes.length === 1 ? "" : "s"} no topic took`}</span>
+        <button type="button" className="chip-btn" onClick={closeNoTopic}>Back to notes</button>
+      </div>
+      <section className="rt-group" aria-label="No-topic captures">
+        {ev?.error ? <div className="side-hint">{ev.error}</div>
+          : ev && !notes.length ? <div className="side-hint">Every capture has a topic or your decision.</div>
+          : notes.map((n) => <NoTopicLine key={n.file} n={n} />)}
+      </section>
+    </div>
+  );
+}
+
+/** Brain's Expired view: read only, the vault's archive of the last 30 days. */
+function ExpiredView() {
+  const ev = useBrain((s) => s.expired);
+  useEffect(() => { send({ type: "brain_expired" }); }, []);
+  const notes = ev?.notes ?? [];
+  return (
+    <div className="view-col">
+      <div className="view-head">
+        <h2>Expired</h2>
+        <span className="mono view-sub">{!ev ? "loading…" : ev.error ? "no notes folder" : `${notes.length} archived by the vault in the last 30 days`}</span>
+        <button type="button" className="chip-btn" onClick={closeExpired}>Back to notes</button>
+      </div>
+      <section className="rt-group" aria-label="Expired pages">
+        {ev?.error ? <div className="side-hint">{ev.error}</div>
+          : ev && !notes.length ? <div className="side-hint">No page expired in the last 30 days.</div>
+          : notes.map((n) => <ExpiredLine key={n.file} n={n} />)}
+      </section>
+    </div>
+  );
+}
+
 export function Brain() {
-  const { list, filter, snap, applied, picked } = useBrain();
-  useEffect(() => { send({ type: "brain_list" }); }, []);
+  const { showExpired, showNoTopic } = useBrain();
+  return showNoTopic ? <NoTopicView /> : showExpired ? <ExpiredView /> : <NotesList />;
+}
+
+function NotesList() {
+  const { list, filter, snap, applied, picked, soon, notopic } = useBrain();
+  useEffect(() => { send({ type: "brain_list" }); send({ type: "brain_notopic", files: [] }); }, []);
+  const orphans = notopic && !notopic.error ? notopic.notes.filter((n) => !notopicState(n, applied)).length : 0;
   const all = brainRows(list?.notes ?? [], filter, snap);
-  const groups = suggestionGroups(all, applied);
-  const grouped = new Set(SUGGESTED.flatMap((k) => groups[k].map((n) => n.file)));
+  const groups = suggestionGroups(all, applied, soon);
+  const grouped = new Set(GROUPS.flatMap((k) => groups[k].map((n) => n.file)));
   const rows = all.filter((n) => !grouped.has(n.file));
   const waiting = (list?.notes ?? []).filter((n) => n.waiting).length;
   const sub = !list ? "loading…" : list.error ? "no notes folder" : `${list.notes.length} recent · ${waiting} waiting for a verdict`;
@@ -60,6 +165,8 @@ export function Brain() {
         <h2>Brain</h2>
         <span className="mono view-sub">{sub}</span>
         {picked.length > 0 && <button type="button" className="chip-btn" onClick={applyPicked}>Apply suggestions ({picked.length})</button>}
+        <button type="button" className="chip-btn" onClick={openNoTopic}>{orphans > 0 ? `No topic ${orphans}` : "No topic"}</button>
+        <button type="button" className="chip-btn" onClick={openExpired}>Expired</button>
         <button type="button" className="chip-btn" onClick={() => send({ type: "brain_list" })}>Check now</button>
       </div>
       <div id="brain-list">
@@ -69,11 +176,11 @@ export function Brain() {
             <button type="button" className="chip-btn" onClick={() => openSettings("notes")}>Set the folder</button>
           </div>
         ) : list && !all.length ? <div className="side-hint">{narrowed ? "Nothing matches." : "No notes yet."}</div> : null}
-        {SUGGESTED.map((k) => groups[k].length > 0 && (
-          <section key={k} className="rt-group" aria-label={`Suggested: ${k}`}>
-            <h3 className="chats-repo">Suggested: {k}<span className="mono">{groups[k].length}</span>
-              {groups[k].some(suggestable) && <button type="button" className="row-btn sg-all" onClick={() => pickAll(groups[k])}>Select all</button>}</h3>
-            {groups[k].map((n) => <SuggestLine key={n.file} n={n} />)}
+        {GROUPS.map((k) => groups[k].length > 0 && (
+          <section key={k} className="rt-group" aria-label={GROUP_NAME[k]}>
+            <h3 className="chats-repo">{GROUP_NAME[k]}<span className="mono">{groups[k].length}</span>
+              {k !== "soon" && groups[k].some(suggestable) && <button type="button" className="row-btn sg-all" onClick={() => pickAll(groups[k])}>Select all</button>}</h3>
+            {groups[k].map((n) => <SuggestLine key={n.file} n={n} group={k} />)}
           </section>
         ))}
         {rows.length > 0 && (

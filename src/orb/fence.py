@@ -13,7 +13,7 @@ A delegation's worktree (registered in worktrees.json, outside the roots) counts
 repo's own sessions work in it freely, other sessions see that repo, and a session opened in a worktree is
 in that repo (client folders included) but asks before reaching the owner's checkout or another worktree.
 
-Bash commands are read for path-like words, following `cd` / `pushd`. That stops a session that
+Bash commands are read by `shell.py` for path-like words, following `cd` / `pushd`. That stops a session that
 drifts; it is not proof against a command built to hide a path (variables, base64), and the
 approval card stays the last line.
 """
@@ -25,11 +25,10 @@ import glob
 import itertools
 import os
 import re
-import shlex
 from pathlib import Path
 from typing import Any
 
-from . import config, settings, trust, worktree
+from . import config, settings, shell, trust, worktree
 from .brain import ask, deny
 from .folders import _git_config_remote, remote_label
 
@@ -41,32 +40,7 @@ SECRET_DIRS = {".aws", ".ssh", ".gnupg"}
 _ENV_TEMPLATES = {"example", "sample", "template", "dist"}
 _SECRET_SAMPLES = (".env", ".env.local", "server.pem", "server.key", "id_rsa", "id_ed25519", "id_ecdsa", "credentials.json",
                    ".netrc", ".git-credentials")
-_RECURSIVE = re.compile(r"\b(?:rg|find|fd|ag|tar|zip|rsync|du|tree)\b|\s-[A-Za-z]*[rR]\b|--recursive")
-_GLOB_CHARS = re.compile(r"[*?\[]")
-_PATH_ARG_FLAGS = {"cd", "pushd", "-C", "--prefix", "--cwd", "--dir", "--directory", "--git-dir", "--work-tree"}
 _READ_TOOLS = {"Read", "Glob", "Grep"}
-# Read-only Bash for the vault hub: an allowlist of commands and of their flags. Anything not listed
-# (a command, a flag, a shell operator, a git global option) counts as a change.
-_SHORT_FLAGS = {  # command -> allowed letters in short-flag clusters ("-rn"), plus allowed long flags
-    "cat": ("nbsuvetAET", set()),
-    "ls": ("1aAdFGhlLRrStT", {"--all", "--color", "--color=never"}),
-    "head": ("nc", set()),
-    "tail": ("nc", set()),
-    "wc": ("lwcm", set()),
-    "grep": ("rRnilvcwoEFHhsxqLA BC0123456789e".replace(" ", ""),
-             {"--include", "--exclude", "--exclude-dir", "--color", "--line-number", "--ignore-case", "--recursive",
-              "--count", "--files-with-matches", "--fixed-strings", "--extended-regexp", "--word-regexp"}),
-    "stat": ("fLlsx", set()),
-    "echo": ("n", set()),
-    "cd": ("", set()), "pushd": ("", set()), "popd": ("", set()), "pwd": ("", set()),
-}
-_FIND_OK = {"-name", "-iname", "-type", "-maxdepth", "-mindepth", "-path", "-ipath", "-newer", "-mtime", "-size",
-            "-not", "-o", "-a", "-or", "-and", "-print", "-empty", "!"}
-_READ_ONLY_GIT = {"log", "show", "status", "diff", "rev-parse", "ls-files", "blame", "shortlog", "describe"}
-_LISTING_GIT = {"branch", "tag", "remote"}  # read-only only with listing flags and nothing else
-_LISTING_FLAGS = {"-a", "-r", "-v", "-vv", "-l", "--list", "--all", "--remotes", "--verbose", "--show-current"}
-_GIT_UNSAFE = ("--output", "--output-directory", "--ext-diff", "--textconv")  # git accepts abbreviations too
-_OPERATORS = {"&&", "||", ";", "|"}
 _PATH_TOOLS = {"Read": "file_path", "Edit": "file_path", "Write": "file_path", "MultiEdit": "file_path",
                "NotebookEdit": "notebook_path"}
 
@@ -80,64 +54,6 @@ def is_secret_name(name: str) -> bool:
     if n in (".netrc", "_netrc", ".git-credentials", ".pgpass"):
         return True
     return n.startswith(("id_rsa", "id_ed25519", "id_ecdsa", "id_dsa", "credentials"))
-
-
-def _flag_ok(cmd: str, tok: str) -> bool:
-    letters, longs = _SHORT_FLAGS[cmd]
-    if tok.startswith("--"):
-        return tok.split("=", 1)[0] in longs
-    return re.fullmatch(r"-\d+", tok) is not None or all(c in letters for c in tok[1:])
-
-
-def _segment_read_only(words: list[str]) -> bool:
-    cmd, args = words[0], words[1:]
-    if cmd == "git":
-        i = 0
-        while i < len(args) and args[i].startswith("-"):  # global options: only -C <path> and --no-pager
-            if args[i] == "-C" and i + 1 < len(args):
-                i += 2
-            elif args[i] == "--no-pager":
-                i += 1
-            else:
-                return False
-        sub, rest = (args[i], args[i + 1:]) if i < len(args) else ("", [])
-        flags = [w for w in rest if w.startswith("-")]
-        if sub in _LISTING_GIT:
-            return all(w in _LISTING_FLAGS for w in flags) and len(rest) == len(flags)
-        if sub not in _READ_ONLY_GIT:
-            return False
-        return not any(len(name := w.split("=", 1)[0]) > 3 and full.startswith(name) for w in flags for full in _GIT_UNSAFE)
-    if cmd == "find":
-        return all(w in _FIND_OK for w in args if w.startswith("-") or w == "!")
-    if cmd not in _SHORT_FLAGS:
-        return False
-    return all(_flag_ok(cmd, w) for w in args if w.startswith("-") and w != "-")
-
-
-def read_only_bash(cmd: str) -> bool:
-    """True when every segment is an allowlisted read-only command with allowlisted flags (fails closed)."""
-    if re.search(r"[`$(){}<>\\#\r]", cmd):  # "#" would end shlex's view at a newline bash still runs past
-        return False
-    for raw in re.findall(r"(?:'[^']*'|\"[^\"]*\"|[^\s'\"])+", cmd):
-        bare = re.sub(r"'[^']*'|\"[^\"]*\"", "q", raw)  # quoted parts don't expand
-        if _GLOB_CHARS.search(bare) and bare[0] in "-*?[":
-            return False  # the shell could expand it into a flag, e.g. a file named "-delete" or "--output=x"
-    try:
-        lex = shlex.shlex(cmd.replace("\n", " ; "), posix=True, punctuation_chars=True)  # a newline ends a command
-        lex.commenters = ""
-        lex.whitespace_split = True
-        tokens = list(lex)
-    except ValueError:
-        return False
-    words: list[str] = []
-    for tok in tokens + [";"]:
-        if re.fullmatch(r"[();<>|&]+", tok):
-            if tok not in _OPERATORS or (words and not _segment_read_only(words)):
-                return False
-            words = []
-        else:
-            words.append(tok)
-    return True
 
 
 def _braces(pattern: str) -> list[str]:
@@ -289,44 +205,26 @@ class Fence:
         return []
 
     def _bash_paths(self, cmd: str) -> list[str]:
-        try:
-            lex = shlex.shlex(cmd, posix=True, punctuation_chars=True)
-            lex.commenters = ""  # words after a comment still count as paths (fails closed)
-            lex.whitespace_split = True
-            tokens = list(lex)
-        except ValueError:  # unbalanced quotes (e.g. a heredoc with an apostrophe)
-            tokens = [t.strip("'\"") for t in cmd.split()]
-        base, out, prev = self.session, [], ""
-        for tok in tokens:
-            if re.fullmatch(r"[();<>|&]+", tok):
-                prev = tok
+        base, out = self.session, []
+        for a in shell.read(cmd).args:
+            if not (a.path or is_secret_name(os.path.basename(a.value))):
                 continue
-            value = tok.split("=", 1)[1] if re.match(r"^-{0,2}[\w.-]+=", tok) else tok
-            looks_like_path = (
-                prev in _PATH_ARG_FLAGS
-                or (value.startswith(("/", "~", ".", "$HOME", "${HOME}")) and not re.search(r"\s", value))
-                or ("/" in value and "://" not in value and not re.search(r"\s", value))
-                or (_GLOB_CHARS.search(value) and not re.search(r"\s", value))
-                or is_secret_name(os.path.basename(value))
-            )
-            if value and looks_like_path:
-                target = _resolve(value, base)
-                out.append(target)
-                if _GLOB_CHARS.search(value):  # what the shell would expand it to
-                    state = os.path.realpath(config.STATE_DIR)
-                    out += [m for m in itertools.islice(glob.iglob(target), 500)
-                            if is_secret_name(os.path.basename(m)) or _within(os.path.realpath(m), state)]
-                if prev in ("cd", "pushd"):
-                    base = target
-            prev = tok
+            target = _resolve(a.value, base)
+            out.append(target)
+            if shell.GLOB_CHARS.search(a.value):  # what the shell would expand it to
+                state = os.path.realpath(config.STATE_DIR)
+                out += [m for m in itertools.islice(glob.iglob(target), 500)
+                        if is_secret_name(os.path.basename(m)) or _within(os.path.realpath(m), state)]
+            if a.cd:
+                base = target
         return out
 
     def rule(self, tool: str, inp: dict[str, Any]) -> dict:
         """PreToolUse decision ({} = no objection)."""
         if tool == "Bash":
             cmd = str(inp.get("command", ""))
-            targets, write = self._bash_paths(cmd), not read_only_bash(cmd)
-            recursive = bool(_RECURSIVE.search(cmd))
+            read = shell.read(cmd)
+            targets, write, recursive = self._bash_paths(cmd), not read.read_only, read.recursive
         else:
             targets, write = self._paths(tool, inp, self.session), tool not in _READ_TOOLS
             recursive = tool in ("Grep", "Glob")
@@ -343,6 +241,3 @@ class Fence:
                 asked = verdict[1]
         return ask(asked) if asked else {}
 
-    def reason(self, tool: str, inp: dict[str, Any]) -> str | None:
-        """The fence's note for an approval card ("Other repo: … This session is in …"), if any."""
-        return self.rule(tool, inp).get("hookSpecificOutput", {}).get("permissionDecisionReason")

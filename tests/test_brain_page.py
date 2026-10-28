@@ -59,7 +59,8 @@ def test_the_list_is_newest_notes_with_kind_score_and_waiting_and_leaves_out_the
     rows = got[0]["notes"]
     assert [r["file"] for r in rows] == [a, b, c]
     assert rows[0] | {"mtime": 0} == {"file": a, "title": "Alpha", "kind": "capture", "mtime": 0, "score": 8, "lane": "news",
-                                      "why": "new release", "waiting": True, "verdict": "", "owner_read": "", "suggest": "approve"}
+                                      "why": "new release", "waiting": True, "verdict": "", "owner_read": "", "suggest": "approve",
+                                      "expires": ""}
     assert (rows[1]["kind"], rows[1]["waiting"], rows[1]["score"]) == ("your note", False, None)
     assert (rows[2]["kind"], rows[2]["waiting"]) == ("AI", True)
 

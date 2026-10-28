@@ -120,7 +120,7 @@ def test_the_fence_treats_a_registered_worktree_as_part_of_its_repo(dev):
     assert rule(web, "Edit", cwt / "a.txt") == "deny"  # a client repo's worktree is a client folder
     assert rule(portal, "Edit", cwt / "a.txt") == "ok"
     f = Fence(str(wt), root=dev, clients=("acme",), vault=None, never=set())
-    assert f.reason("Edit", {"file_path": str(web / "a.txt")}) == "Outside this worktree: the checkout of origin."  # labelled by remote
+    assert f.rule("Edit", {"file_path": str(web / "a.txt")})["hookSpecificOutput"]["permissionDecisionReason"] == "Outside this worktree: the checkout of origin."  # labelled by remote
     assert Fence(str(cwt), root=dev, clients=("acme",), vault=None, never=set()).in_client()
     assert not f.in_client()
 
@@ -241,3 +241,37 @@ def test_discard_removes_the_worktree_and_the_branch(dev):
     assert not Path(wt.path).exists() and wts.registered() == {}
     assert git(web, "branch", "--list", "orb/762-fix") == "" and git(web, "worktree", "list").count("\n") == 0
     assert remote(dev) == pushed
+
+
+def test_a_rejected_push_names_the_branch_and_gits_reason_not_a_hint(dev):
+    web = dev / "web"
+    wt = wts.create(str(web), "orb/762-fix")
+    first = commit(wt.path, {"a.txt": "ours\n"}, "ours")
+    wts.push(wt, "origin", first)
+    assert git(dev / "origin.git", "rev-parse", "orb/762-fix") == first
+
+    other = dev / "other"  # someone else pushes the same branch name with their own commit
+    git(dev, "clone", "-q", str(dev / "origin.git"), str(other))
+    git(other, "checkout", "-q", "orb/762-fix")
+    theirs = commit(other, {"b.txt": "theirs\n"}, "theirs")
+    git(other, "push", "-q", "origin", "orb/762-fix")
+
+    again = commit(wt.path, {"a.txt": "ours, again\n"}, "again")
+    with pytest.raises(wts.WorktreeError) as e:
+        wts.push(wt, "origin", again)
+    assert str(e.value) == "Push of orb/762-fix to origin: rejected (fetch first)"
+    assert git(dev / "origin.git", "rev-parse", "orb/762-fix") == theirs
+
+
+def test_other_git_failures_keep_the_last_line_that_is_not_a_hint():
+    out = subprocess.CompletedProcess([], 1, "", "error: failed to push some refs\nhint: Updates were rejected\nhint: See git help\n")
+    assert wts._failure("push", out) == "git push failed: error: failed to push some refs"
+    assert wts._failure("fetch", subprocess.CompletedProcess([], 1, "", "")) == "git fetch failed: "
+
+
+def test_their_lines_count_as_kept_only_as_whole_hunks_in_order():
+    block = ["a = 1", "b = 2"]
+    assert wts._contains(["x", "a = 1", "b = 2", "y"], block)
+    assert not wts._contains(["a = 1", "mine", "b = 2"], block)  # split by the session's own line
+    assert not wts._contains(["b = 2", "a = 1"], block)  # moved
+    assert not wts._contains(["a = 1 ", "b = 2"], block)  # whitespace counts

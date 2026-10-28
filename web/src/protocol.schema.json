@@ -44,6 +44,23 @@
       "title": "ArchiveSessionMsg",
       "type": "object"
     },
+    "Assignee": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "Assignee",
+      "type": "object"
+    },
     "AudioEvent": {
       "additionalProperties": false,
       "properties": {
@@ -190,6 +207,157 @@
       "title": "AuthStatus",
       "type": "object"
     },
+    "AwayLine": {
+      "additionalProperties": false,
+      "description": "One thing that finished without the owner: a routine's latest ok Run (count: its Runs since they left), the\nvault's \"3 pages expired\" (opens Brain's Expired view), or Orb's own \"2 sessions finished\" (opens Sessions) /\n\"1 delegation Ready\" (opens the Delegated strip) / \"4 old sessions archived\" (opens Sessions) / \"2 sessions wait\nfor your OK\" (now, not since; opens Sessions); count: how many.",
+      "properties": {
+        "count": {
+          "default": 1,
+          "type": "integer"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "routine",
+            "expired",
+            "finished",
+            "ready",
+            "archived",
+            "waiting"
+          ],
+          "type": "string"
+        },
+        "summary": {
+          "default": "",
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "title"
+      ],
+      "title": "AwayLine",
+      "type": "object"
+    },
+    "AwayRecap": {
+      "additionalProperties": false,
+      "properties": {
+        "back": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "heading": {
+          "type": "string"
+        },
+        "lines": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/AwayLine"
+          },
+          "type": "array"
+        },
+        "more": {
+          "default": 0,
+          "type": "integer"
+        },
+        "since": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "since",
+        "heading"
+      ],
+      "title": "AwayRecap",
+      "type": "object"
+    },
+    "AwayRecapEvent": {
+      "additionalProperties": false,
+      "description": "Home's Away recap (away.Clock): the one-shot card after 24 hours or more without the owner acting, or None.",
+      "properties": {
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "recap": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AwayRecap"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "away_recap",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "recap"
+      ],
+      "title": "AwayRecapEvent",
+      "type": "object"
+    },
+    "AwaySeenMsg": {
+      "additionalProperties": false,
+      "description": "The Away recap was closed, or Home left while it showed: it goes on every page.",
+      "properties": {
+        "type": {
+          "const": "away_seen",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "AwaySeenMsg",
+      "type": "object"
+    },
     "BargeInMsg": {
       "additionalProperties": false,
       "properties": {
@@ -302,7 +470,8 @@
           "enum": [
             "approve",
             "reject",
-            "restore"
+            "restore",
+            "keep"
           ],
           "type": "string"
         }
@@ -398,6 +567,86 @@
       "title": "BrainApplyMsg",
       "type": "object"
     },
+    "BrainExpiredEvent": {
+      "additionalProperties": false,
+      "description": "Brain's Expired view (home.expired_notes): pages the vault archived in the last 30 days, newest first. Read\nonly: Orb never writes `auto_archived`; Keep is the approve verdict. `error` when there is no notes folder.",
+      "properties": {
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "notes": {
+          "items": {
+            "$ref": "#/$defs/ExpiredNote"
+          },
+          "type": "array"
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "brain_expired",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "notes"
+      ],
+      "title": "BrainExpiredEvent",
+      "type": "object"
+    },
+    "BrainExpiredMsg": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "brain_expired",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "BrainExpiredMsg",
+      "type": "object"
+    },
     "BrainGetMsg": {
       "additionalProperties": false,
       "properties": {
@@ -414,6 +663,29 @@
         "file"
       ],
       "title": "BrainGetMsg",
+      "type": "object"
+    },
+    "BrainKeepMsg": {
+      "additionalProperties": false,
+      "description": "Keep a No-topic capture as an idea: owner_read is set, only if it still reads `seen` (\"\").",
+      "properties": {
+        "file": {
+          "type": "string"
+        },
+        "seen": {
+          "default": "",
+          "type": "string"
+        },
+        "type": {
+          "const": "brain_keep",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "file"
+      ],
+      "title": "BrainKeepMsg",
       "type": "object"
     },
     "BrainListEvent": {
@@ -496,10 +768,101 @@
       "title": "BrainListMsg",
       "type": "object"
     },
+    "BrainNoTopicEvent": {
+      "additionalProperties": false,
+      "description": "Brain's No topic view (home.notopic_notes): No-topic captures, oldest first, plus the rows this page asked for\nagain (`files`) with their new state. `error` when there is no notes folder.",
+      "properties": {
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "notes": {
+          "items": {
+            "$ref": "#/$defs/NoTopicNote"
+          },
+          "type": "array"
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "const": "brain_notopic",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "notes"
+      ],
+      "title": "BrainNoTopicEvent",
+      "type": "object"
+    },
+    "BrainNoTopicMsg": {
+      "additionalProperties": false,
+      "description": "Brain's No topic rows. `files`: rows this page acted on (kept, dropped), listed again with their state though\nthey no longer count.",
+      "properties": {
+        "files": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "type": {
+          "const": "brain_notopic",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "BrainNoTopicMsg",
+      "type": "object"
+    },
     "BrainNote": {
       "additionalProperties": false,
       "description": "One note on Brain's list (home.brain_notes).",
       "properties": {
+        "expires": {
+          "default": "",
+          "type": "string"
+        },
         "file": {
           "type": "string"
         },
@@ -567,6 +930,10 @@
       "description": "One note's page: the list fields and the body under the frontmatter, as plain text.",
       "properties": {
         "body": {
+          "type": "string"
+        },
+        "expires": {
+          "default": "",
           "type": "string"
         },
         "file": {
@@ -874,10 +1241,14 @@
         "mapping": {
           "add_folder": "#/$defs/AddFolderMsg",
           "archive_session": "#/$defs/ArchiveSessionMsg",
+          "away_seen": "#/$defs/AwaySeenMsg",
           "barge_in": "#/$defs/BargeInMsg",
           "brain_apply": "#/$defs/BrainApplyMsg",
+          "brain_expired": "#/$defs/BrainExpiredMsg",
           "brain_get": "#/$defs/BrainGetMsg",
+          "brain_keep": "#/$defs/BrainKeepMsg",
           "brain_list": "#/$defs/BrainListMsg",
+          "brain_notopic": "#/$defs/BrainNoTopicMsg",
           "brain_read": "#/$defs/BrainReadMsg",
           "brain_verdict": "#/$defs/BrainVerdictMsg",
           "browse": "#/$defs/BrowseMsg",
@@ -887,10 +1258,12 @@
           "delegation_apply": "#/$defs/DelegationApplyMsg",
           "delegation_discard": "#/$defs/DelegationDiscardMsg",
           "delegation_outward": "#/$defs/DelegationOutwardMsg",
+          "delegation_reopen": "#/$defs/DelegationReopenMsg",
           "delegation_resume": "#/$defs/DelegationResumeMsg",
           "delegation_retry": "#/$defs/DelegationRetryMsg",
           "delegation_revert": "#/$defs/DelegationRevertMsg",
           "delegation_review": "#/$defs/DelegationReviewMsg",
+          "delegation_update": "#/$defs/DelegationUpdateMsg",
           "dictate_note": "#/$defs/DictateNoteMsg",
           "drop": "#/$defs/DropMsg",
           "get_settings": "#/$defs/GetSettingsMsg",
@@ -915,6 +1288,7 @@
           "pin_folder": "#/$defs/PinFolderMsg",
           "plan_done": "#/$defs/PlanDoneMsg",
           "plan_later": "#/$defs/PlanLaterMsg",
+          "plan_leave": "#/$defs/PlanLeaveMsg",
           "plan_start": "#/$defs/PlanStartMsg",
           "playback": "#/$defs/PlaybackMsg",
           "read_all": "#/$defs/ReadAllMsg",
@@ -1025,10 +1399,16 @@
           "$ref": "#/$defs/HomeMsg"
         },
         {
+          "$ref": "#/$defs/AwaySeenMsg"
+        },
+        {
           "$ref": "#/$defs/PlanStartMsg"
         },
         {
           "$ref": "#/$defs/PlanLaterMsg"
+        },
+        {
+          "$ref": "#/$defs/PlanLeaveMsg"
         },
         {
           "$ref": "#/$defs/PlanDoneMsg"
@@ -1059,6 +1439,15 @@
         },
         {
           "$ref": "#/$defs/BrainListMsg"
+        },
+        {
+          "$ref": "#/$defs/BrainExpiredMsg"
+        },
+        {
+          "$ref": "#/$defs/BrainNoTopicMsg"
+        },
+        {
+          "$ref": "#/$defs/BrainKeepMsg"
         },
         {
           "$ref": "#/$defs/BrainGetMsg"
@@ -1152,6 +1541,12 @@
         },
         {
           "$ref": "#/$defs/DelegationOutwardMsg"
+        },
+        {
+          "$ref": "#/$defs/DelegationUpdateMsg"
+        },
+        {
+          "$ref": "#/$defs/DelegationReopenMsg"
         },
         {
           "$ref": "#/$defs/DropMsg"
@@ -1510,6 +1905,35 @@
       "title": "DelegationApplyMsg",
       "type": "object"
     },
+    "DelegationCheck": {
+      "additionalProperties": false,
+      "description": "A failing check on a delegation's PR: its name (safe charset), conclusion, and a link when it is https.",
+      "properties": {
+        "conclusion": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "name",
+        "conclusion"
+      ],
+      "title": "DelegationCheck",
+      "type": "object"
+    },
     "DelegationDiffEvent": {
       "additionalProperties": false,
       "description": "Review: the delegation's own work (snapshot..branch), stat then patch, capped.",
@@ -1610,6 +2034,20 @@
         "branch": {
           "type": "string"
         },
+        "checks": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/DelegationCheck"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "conflict": {
           "anyOf": [
             {
@@ -1630,6 +2068,10 @@
         "line": {
           "type": "string"
         },
+        "merging": {
+          "default": false,
+          "type": "boolean"
+        },
         "needs": {
           "anyOf": [
             {
@@ -1638,7 +2080,12 @@
                 "failed",
                 "stuck",
                 "stopped",
-                "outward"
+                "outward",
+                "collision",
+                "merge",
+                "closed",
+                "blocked",
+                "update"
               ],
               "type": "string"
             },
@@ -1686,7 +2133,8 @@
             "failed",
             "applied",
             "reverted",
-            "stopped"
+            "stopped",
+            "merged"
           ],
           "type": "string"
         },
@@ -1695,6 +2143,17 @@
         },
         "title": {
           "type": "string"
+        },
+        "update_from": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -1714,7 +2173,7 @@
     },
     "DelegationOutwardMsg": {
       "additionalProperties": false,
-      "description": "The outward card (Needs you): Allow pushes the branch and opens its PR; Skip (allow false) keeps it local.",
+      "description": "The outward card (Needs you): Allow pushes the branch and opens its PR; Skip (allow false) keeps it local. The\nsame answer serves Apply's merge card (merges the PR on the remote, #876) and Undo's revert PR.",
       "properties": {
         "allow": {
           "type": "boolean"
@@ -1733,6 +2192,25 @@
         "allow"
       ],
       "title": "DelegationOutwardMsg",
+      "type": "object"
+    },
+    "DelegationReopenMsg": {
+      "additionalProperties": false,
+      "description": "Reopen PR on a delegation whose PR was closed on the remote (#877): `gh pr reopen`, then polling resumes.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "type": {
+          "const": "delegation_reopen",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "id"
+      ],
+      "title": "DelegationReopenMsg",
       "type": "object"
     },
     "DelegationResumeMsg": {
@@ -1775,7 +2253,7 @@
     },
     "DelegationRevertMsg": {
       "additionalProperties": false,
-      "description": "Undo after Apply: revert the commit and reopen the task.",
+      "description": "Undo after Apply: revert the commit and reopen the task (after a merge on the remote: a revert PR, #876).",
       "properties": {
         "id": {
           "type": "string"
@@ -1808,6 +2286,25 @@
         "id"
       ],
       "title": "DelegationReviewMsg",
+      "type": "object"
+    },
+    "DelegationUpdateMsg": {
+      "additionalProperties": false,
+      "description": "Update from <into> on a collision: merge the remote target into the branch, the same session finishes it.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "type": {
+          "const": "delegation_update",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "id"
+      ],
+      "title": "DelegationUpdateMsg",
       "type": "object"
     },
     "DelegationsEvent": {
@@ -1891,6 +2388,10 @@
             }
           ],
           "default": null
+        },
+        "behind": {
+          "default": 0,
+          "type": "integer"
         },
         "branch": {
           "anyOf": [
@@ -2167,6 +2668,79 @@
         "text"
       ],
       "title": "ErrorEvent",
+      "type": "object"
+    },
+    "ExpiredNote": {
+      "additionalProperties": false,
+      "properties": {
+        "archived": {
+          "type": "string"
+        },
+        "expires": {
+          "default": "",
+          "type": "string"
+        },
+        "file": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "lane": {
+          "type": "string"
+        },
+        "mtime": {
+          "type": "number"
+        },
+        "owner_read": {
+          "type": "string"
+        },
+        "score": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "suggest": {
+          "default": "",
+          "enum": [
+            "approve",
+            "reject",
+            ""
+          ],
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "verdict": {
+          "type": "string"
+        },
+        "waiting": {
+          "type": "boolean"
+        },
+        "why": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "file",
+        "title",
+        "kind",
+        "mtime",
+        "score",
+        "lane",
+        "why",
+        "waiting",
+        "verdict",
+        "owner_read",
+        "archived"
+      ],
+      "title": "ExpiredNote",
       "type": "object"
     },
     "Features": {
@@ -2912,6 +3486,10 @@
           "type": "array"
         },
         "notes_week": {
+          "type": "integer"
+        },
+        "notopic_count": {
+          "default": 0,
           "type": "integer"
         },
         "open_tasks": {
@@ -3770,6 +4348,10 @@
       "additionalProperties": false,
       "description": "\"Make it a task\": the card to allow or deny before Orb creates a task in the tracker (ADR 0008, 0010).",
       "properties": {
+        "capture": {
+          "default": "",
+          "type": "string"
+        },
         "folder": {
           "anyOf": [
             {
@@ -3799,6 +4381,7 @@
           "default": null
         },
         "routine": {
+          "default": "",
           "type": "string"
         },
         "session": {
@@ -3823,7 +4406,6 @@
       "required": [
         "type",
         "id",
-        "routine",
         "title",
         "project"
       ],
@@ -3856,6 +4438,17 @@
       "additionalProperties": false,
       "description": "The card's outcome: created (`task`, `url`), denied (ok false, no error) or failed (`error`).",
       "properties": {
+        "capture": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "error": {
           "anyOf": [
             {
@@ -3965,9 +4558,14 @@
     },
     "MakeTaskMsg": {
       "additionalProperties": false,
-      "description": "\"Make it a task\" on a routine's last run: the server answers with a card first.",
+      "description": "\"Make it a task\" on a routine's last run, or on a No-topic capture (`capture`, its file): the server answers\nwith a card first.",
       "properties": {
+        "capture": {
+          "default": "",
+          "type": "string"
+        },
         "routine": {
+          "default": "",
           "type": "string"
         },
         "type": {
@@ -3976,8 +4574,7 @@
         }
       },
       "required": [
-        "type",
-        "routine"
+        "type"
       ],
       "title": "MakeTaskMsg",
       "type": "object"
@@ -4003,8 +4600,19 @@
     },
     "MakeTaskUndoneEvent": {
       "additionalProperties": false,
-      "description": "Undo of a created task: deleted, or why not.",
+      "description": "Undo of a created task: deleted (and a capture's owner_read taken off again), or why not.",
       "properties": {
+        "capture": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "error": {
           "anyOf": [
             {
@@ -4345,6 +4953,83 @@
         "type"
       ],
       "title": "NewSessionMsg",
+      "type": "object"
+    },
+    "NoTopicNote": {
+      "additionalProperties": false,
+      "properties": {
+        "capture": {
+          "default": "",
+          "type": "string"
+        },
+        "created": {
+          "type": "string"
+        },
+        "expires": {
+          "default": "",
+          "type": "string"
+        },
+        "file": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "lane": {
+          "type": "string"
+        },
+        "mtime": {
+          "type": "number"
+        },
+        "owner_read": {
+          "type": "string"
+        },
+        "score": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "suggest": {
+          "default": "",
+          "enum": [
+            "approve",
+            "reject",
+            ""
+          ],
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "verdict": {
+          "type": "string"
+        },
+        "waiting": {
+          "type": "boolean"
+        },
+        "why": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "file",
+        "title",
+        "kind",
+        "mtime",
+        "score",
+        "lane",
+        "why",
+        "waiting",
+        "verdict",
+        "owner_read",
+        "created"
+      ],
+      "title": "NoTopicNote",
       "type": "object"
     },
     "NotesVerdictMsg": {
@@ -5212,13 +5897,26 @@
               "start",
               "done",
               "later",
-              "delegate"
+              "delegate",
+              "make_task",
+              "leave"
             ],
             "type": "string"
           },
           "type": "array"
         },
         "due": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "held_by": {
           "anyOf": [
             {
               "type": "string"
@@ -5239,15 +5937,34 @@
           "enum": [
             "approval",
             "setup",
+            "vault",
             "routine",
             "reminder",
             "task",
             "note_task",
             "result",
             "pr",
-            "notes_batch"
+            "notes_batch",
+            "notopic",
+            "results_old"
           ],
           "type": "string"
+        },
+        "pin": {
+          "anyOf": [
+            {
+              "enum": [
+                "security",
+                "client",
+                "money"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "priority": {
           "anyOf": [
@@ -5262,6 +5979,17 @@
         },
         "reason": {
           "type": "string"
+        },
+        "repair": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "repo": {
           "anyOf": [
@@ -5347,6 +6075,25 @@
         "key"
       ],
       "title": "PlanLaterMsg",
+      "type": "object"
+    },
+    "PlanLeaveMsg": {
+      "additionalProperties": false,
+      "description": "Leave it on a pull request idle 14+ days (\"pr:<repo>#<n>\"): hidden until the PR changes (its updatedAt), never\nwritten to GitHub (ticket 850).",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "type": {
+          "const": "plan_leave",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "key"
+      ],
+      "title": "PlanLeaveMsg",
       "type": "object"
     },
     "PlanStartMsg": {
@@ -5821,11 +6568,26 @@
           "default": false,
           "type": "boolean"
         },
+        "repair": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RoutineRepair"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "repo": {
           "default": "",
           "type": "string"
         },
         "resolved": {
+          "default": false,
+          "type": "boolean"
+        },
+        "security": {
           "default": false,
           "type": "boolean"
         },
@@ -5840,6 +6602,17 @@
             "off"
           ],
           "type": "string"
+        },
+        "streak": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RoutineStreak"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "urgent": {
           "default": false,
@@ -5872,6 +6645,31 @@
         "state"
       ],
       "title": "RoutineItem",
+      "type": "object"
+    },
+    "RoutineRepair": {
+      "additionalProperties": false,
+      "description": "The routine's open Repair task (GLOSSARY: Repair task), as the last re-read in the tracker found it.",
+      "properties": {
+        "task": {
+          "type": "integer"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "task"
+      ],
+      "title": "RoutineRepair",
       "type": "object"
     },
     "RoutineRun": {
@@ -5937,6 +6735,38 @@
         "id"
       ],
       "title": "RoutineRun",
+      "type": "object"
+    },
+    "RoutineStreak": {
+      "additionalProperties": false,
+      "description": "A failure streak (routines.streak, GLOSSARY: Failure streak).",
+      "properties": {
+        "count": {
+          "type": "integer"
+        },
+        "runs": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/StreakRun"
+          },
+          "type": "array"
+        },
+        "since": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "count"
+      ],
+      "title": "RoutineStreak",
       "type": "object"
     },
     "RoutinesEvent": {
@@ -6215,10 +7045,13 @@
       "discriminator": {
         "mapping": {
           "audio": "#/$defs/AudioEvent",
+          "away_recap": "#/$defs/AwayRecapEvent",
           "bg_notice": "#/$defs/BgNoticeEvent",
           "brain_applied": "#/$defs/BrainAppliedEvent",
+          "brain_expired": "#/$defs/BrainExpiredEvent",
           "brain_list": "#/$defs/BrainListEvent",
           "brain_note": "#/$defs/BrainNoteEvent",
+          "brain_notopic": "#/$defs/BrainNoTopicEvent",
           "browse": "#/$defs/BrowseEvent",
           "commands": "#/$defs/CommandsEvent",
           "context": "#/$defs/ContextEvent",
@@ -6355,6 +7188,9 @@
           "$ref": "#/$defs/HomeTasksEvent"
         },
         {
+          "$ref": "#/$defs/AwayRecapEvent"
+        },
+        {
           "$ref": "#/$defs/PlanEvent"
         },
         {
@@ -6368,6 +7204,12 @@
         },
         {
           "$ref": "#/$defs/BrainListEvent"
+        },
+        {
+          "$ref": "#/$defs/BrainExpiredEvent"
+        },
+        {
+          "$ref": "#/$defs/BrainNoTopicEvent"
         },
         {
           "$ref": "#/$defs/BrainNoteEvent"
@@ -6738,6 +7580,17 @@
         "empty": {
           "type": "boolean"
         },
+        "finished_at": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "key": {
           "type": "string"
         },
@@ -6774,8 +7627,30 @@
           "default": 0,
           "type": "integer"
         },
+        "red_at": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "status": {
           "type": "string"
+        },
+        "waiting_since": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -7252,6 +8127,31 @@
         "busy"
       ],
       "title": "StateEvent",
+      "type": "object"
+    },
+    "StreakRun": {
+      "additionalProperties": false,
+      "description": "One counted run of a failure streak: its start and its checked claude.ai link.",
+      "properties": {
+        "at": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "url"
+      ],
+      "title": "StreakRun",
       "type": "object"
     },
     "Suggestion": {
@@ -8149,6 +9049,13 @@
     "TrackerTask": {
       "additionalProperties": false,
       "properties": {
+        "assignees": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Assignee"
+          },
+          "type": "array"
+        },
         "created": {
           "default": "",
           "type": "string"
@@ -8164,8 +9071,26 @@
           ],
           "default": null
         },
+        "held_by": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "id": {
           "type": "integer"
+        },
+        "labels": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
         },
         "priority": {
           "type": "integer"

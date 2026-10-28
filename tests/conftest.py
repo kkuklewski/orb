@@ -17,6 +17,13 @@ def personal_profile(monkeypatch):
     monkeypatch.setitem(settings.settings.data, "profile", "personal")
 
 
+@pytest.fixture(autouse=True)
+def no_set_aside(monkeypatch):
+    """A test that writes a bad state file on purpose must not leave a Needs you row for the next one."""
+    from orb import config
+    monkeypatch.setattr(config, "set_aside", [])
+
+
 @pytest.fixture
 def work(monkeypatch):
     from orb import settings

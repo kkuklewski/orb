@@ -40,6 +40,7 @@ class SessionItem(_Msg):
     label: str | None = None
     created: float | None = None
     last_used: float | None = None
+    finished_at: float | None = None  # when its last turn finished, unread (sessions.json; Up next's 3-day rule, ticket 849)
     empty: bool
     archived: bool = False
     status: str
@@ -47,6 +48,8 @@ class SessionItem(_Msg):
     mcp_failed: int = 0
     opus: int = 0
     ask: str | None = None  # one-line summary of the open approval card, e.g. Bash(psql ...)
+    waiting_since: float | None = None  # when its oldest open card opened (needs.waiting)
+    red_at: float | None = None  # from then its Needs you row is red (needs.WAITING_H after waiting_since)
 
 
 class FolderItem(_Msg):
@@ -337,6 +340,25 @@ class RoutineRun(_Msg):
     url: str = ""
 
 
+class StreakRun(_Msg):
+    """One counted run of a failure streak: its start and its checked claude.ai link."""
+    at: float | None = None
+    url: str
+
+
+class RoutineStreak(_Msg):
+    """A failure streak (routines.streak, GLOSSARY: Failure streak)."""
+    count: int  # consecutive failed or judged-broken runs, newest first (at least routines.STREAK)
+    since: float | None = None  # the start of the oldest counted run
+    runs: list[StreakRun] = []  # the counted runs with a checked link, newest first (a Repair task's description)
+
+
+class RoutineRepair(_Msg):
+    """The routine's open Repair task (GLOSSARY: Repair task), as the last re-read in the tracker found it."""
+    task: int
+    url: str | None = None  # None until a check read it (after a restart, or while the tracker can't be read)
+
+
 class RoutineItem(_Msg):
     """One row of the Routines panel (routines.item)."""
     id: str
@@ -357,6 +379,9 @@ class RoutineItem(_Msg):
     state: Literal["failed", "stuck", "missed", "needs you", "worth reading", "nothing to report", "off"]  # the line's one word
     urgent: bool = False  # failed / waiting / stuck, or a judged problem with a deadline within a week or a security risk
     resolved: bool = False  # you marked the last run's judged problem resolved; the next run is judged afresh
+    security: bool = False  # its judged problem is a security risk: its Needs you row is pinned (docs/adr/0012)
+    streak: RoutineStreak | None = None  # a failure streak: its Needs you row offers Make it a task first
+    repair: RoutineRepair | None = None  # its open Repair task: no second one is offered while it is open
 
 
 class RoutinesEvent(_Event):
@@ -430,6 +455,7 @@ class HomeEvent(_Event):
     notes_week: int
     awaiting: list[HomeAwait] = []
     awaiting_count: int = 0
+    notopic_count: int = 0  # No-topic captures (home._no_topic): Up next's "N captures have no topic"
 
 
 class Reminder(_Msg):
@@ -450,6 +476,7 @@ class DirtyRepo(_Msg):
     branch: str | None = None
     changed: int  # uncommitted files
     ahead: int | None = None  # commits not pushed; None = no upstream
+    behind: int = 0  # commits to pull, as of the last fetch
 
 
 class OpenPr(_Msg):
@@ -463,6 +490,11 @@ class OpenPr(_Msg):
     draft: bool
 
 
+class Assignee(_Msg):
+    id: str  # Vikunja's user id, Jira's accountId
+    name: str
+
+
 class TrackerTask(_Msg):
     id: int
     title: str
@@ -473,6 +505,9 @@ class TrackerTask(_Msg):
     priority: int
     updated: float
     url: str
+    labels: list[str] = []  # the tracker's label names, read only (a pin label pins an overdue task as money)
+    assignees: list[Assignee] = []  # Jira has at most one
+    held_by: str | None = None  # a teammate's name when one is assigned (tracker.held_by), else None
 
 
 ItemSource = Literal["vikunja", "prs", "repos", "notes", "tasks"]
@@ -487,8 +522,9 @@ class ItemColumn(_Msg):
 class PlanItem(_Msg):
     """One row of Home's plan (needs.py). title is ours; reason is the rule's, or the model's while that item's facts are
     unchanged (plain text, from untrusted data)."""
-    key: str  # unique on the page: "routine:<id>", "vikunja:<id>", "setup:<section>", "reminder:<due>:<text>"
-    kind: Literal["approval", "setup", "routine", "reminder", "task", "note_task", "result", "pr", "notes_batch"]
+    key: str  # unique on the page: "routine:<id>", "vikunja:<id>", "setup:<section>", "reminder:<due>:<text>",
+    # "vault:conflict" | "vault:diverged" | "vault:unchecked"
+    kind: Literal["approval", "setup", "vault", "routine", "reminder", "task", "note_task", "result", "pr", "notes_batch", "notopic", "results_old"]
     id: str  # what the page opens: routine id, tracker task id, the Settings section that fixes a broken setup
     title: str
     reason: str
@@ -496,10 +532,13 @@ class PlanItem(_Msg):
     due: str | None = None  # YYYY-MM-DD
     priority: int | None = None
     url: str | None = None
-    actions: list[Literal["open", "start", "done", "later", "delegate"]] = []
+    actions: list[Literal["open", "start", "done", "later", "delegate", "make_task", "leave"]] = []
     repo: str | None = None  # a tracker task's repo from the repo map (label); None: Delegate asks for one
     suggest: Literal["take now", "delegate", "later"] | None = None  # tasks only: the rule's action (suggest.py), a hint
-    urgent: bool = False  # Needs you only: a broken setup, or a routine that is urgent (routines.urgent); shown red
+    urgent: bool = False  # Needs you only: a broken setup, an urgent routine (routines.urgent), or one past ESCALATE_H; shown red
+    pin: Literal["security", "client", "money"] | None = None  # Needs you only: the class a rule pinned it in (docs/adr/0012); it leads
+    repair: int | None = None  # a routine row: its open Repair task's id ("Task #N"); url is that task's link
+    held_by: str | None = None  # a tracker task a teammate is assigned to (#866): their name; no Delegate, suggestion later
 
 
 class PlanEvent(_Event):
@@ -564,6 +603,32 @@ class HomeTasksEvent(_Event):
     error: str | None = None
 
 
+class AwayLine(_Msg):
+    """One thing that finished without the owner: a routine's latest ok Run (count: its Runs since they left), the
+    vault's "3 pages expired" (opens Brain's Expired view), or Orb's own "2 sessions finished" (opens Sessions) /
+    "1 delegation Ready" (opens the Delegated strip) / "4 old sessions archived" (opens Sessions) / "2 sessions wait
+    for your OK" (now, not since; opens Sessions); count: how many."""
+    kind: Literal["routine", "expired", "finished", "ready", "archived", "waiting"]
+    id: str
+    title: str
+    summary: str = ""
+    count: int = 1
+
+
+class AwayRecap(_Msg):
+    since: float  # the owner's last action before they were away
+    back: float | None = None  # their first action back; None while they are still away (the span still grows)
+    heading: str  # "While you were away · 2 days"
+    lines: list[AwayLine] = []  # at most away.LINES
+    more: int = 0  # lines past those: "N more"
+
+
+class AwayRecapEvent(_Event):
+    """Home's Away recap (away.Clock): the one-shot card after 24 hours or more without the owner acting, or None."""
+    type: Literal["away_recap"]
+    recap: AwayRecap | None
+
+
 class TaskLine(_Msg):
     n: int
     text: str
@@ -611,12 +676,38 @@ class BrainNote(_Msg):
     verdict: str  # "" or "reject 2026-10-24" (sent back as `seen`)
     owner_read: str  # "" or the day the owner read it
     suggest: Literal["approve", "reject", ""] = ""  # a waiting note's suggested verdict (suggest.note); never "drop"
+    expires: str = ""  # the day the vault will archive it (brain.expiry, docs/adr/0013), "" when the expiry rule doesn't cover it
 
 
 class BrainListEvent(_Event):
     """Brain's list: the newest notes, newest first. `error` when there is no notes folder."""
     type: Literal["brain_list"]
     notes: list[BrainNote]
+    error: str | None = None
+
+
+class ExpiredNote(BrainNote):
+    archived: str  # the day the vault archived it (`auto_archived`, its local day)
+
+
+class NoTopicNote(BrainNote):
+    created: str  # the capture's day (`created`, else its file's day)
+    capture: str = ""  # its own kind (thought, talk_summary, task; "" for an old voice note): a task leads with Make it a task
+
+
+class BrainNoTopicEvent(_Event):
+    """Brain's No topic view (home.notopic_notes): No-topic captures, oldest first, plus the rows this page asked for
+    again (`files`) with their new state. `error` when there is no notes folder."""
+    type: Literal["brain_notopic"]
+    notes: list[NoTopicNote]
+    error: str | None = None
+
+
+class BrainExpiredEvent(_Event):
+    """Brain's Expired view (home.expired_notes): pages the vault archived in the last 30 days, newest first. Read
+    only: Orb never writes `auto_archived`; Keep is the approve verdict. `error` when there is no notes folder."""
+    type: Literal["brain_expired"]
+    notes: list[ExpiredNote]
     error: str | None = None
 
 
@@ -628,7 +719,7 @@ class BrainNoteEvent(BrainNote, _Event):
 
 class BrainApplied(_Msg):
     file: str
-    verdict: Literal["approve", "reject", "restore"]
+    verdict: Literal["approve", "reject", "restore", "keep"]  # keep: owner_read from the No topic view (brain_keep)
 
 
 class BrainRefused(_Msg):
@@ -823,6 +914,13 @@ class DelegateCardEvent(_Event):
     more: int = 0
 
 
+class DelegationCheck(_Msg):
+    """A failing check on a delegation's PR: its name (safe charset), conclusion, and a link when it is https."""
+    name: str
+    conclusion: str
+    url: str | None = None
+
+
 class DelegationItem(_Msg):
     """One row of the Delegated strip, in the order they were delegated. `line` is the stage in plain words."""
     id: str
@@ -830,7 +928,7 @@ class DelegationItem(_Msg):
     title: str
     repo: str  # label
     branch: str
-    stage: Literal["queued", "working", "testing", "pushing", "ready", "failed", "applied", "reverted", "stopped"]
+    stage: Literal["queued", "working", "testing", "pushing", "ready", "failed", "applied", "reverted", "stopped", "merged"]
     line: str
     session: str
     folder: str  # the worktree, to open the session
@@ -838,11 +936,16 @@ class DelegationItem(_Msg):
     apply_text: str
     # Why it can't finish without you (Home's Needs you): a card the grant doesn't cover, the check failed after
     # its last turn, no event for 20 min while Working, the server restarted while it ran, or Ready with push and its
-    # PR waiting for your OK (#771). None while it can.
-    needs: Literal["card", "failed", "stuck", "stopped", "outward"] | None = None
+    # PR waiting for your OK (#771, Undo's revert PR too), a collision (#863), Apply's merge of the PR on the remote
+    # (#876), or its PR closed, blocked by a failing check or behind its target with a clean merge (#877). None while
+    # it can.
+    needs: Literal["card", "failed", "stuck", "stopped", "outward", "collision", "merge", "closed", "blocked", "update"] | None = None
     ask: str | None = None  # the card it waits on, in its words; or the outward question
     pr: int | None = None  # the PR Orb opened for its branch
     pr_url: str | None = None
+    update_from: str | None = None  # a collision Update can merge in (#869): the target branch; None once refused
+    checks: list[DelegationCheck] | None = None  # blocked: the failing checks (#877)
+    merging: bool = False  # Apply's merge of its PR is running on the remote: no Apply, no Discard (#879)
 
 
 class DelegationsEvent(_Event):
@@ -862,7 +965,8 @@ class MakeTaskCardEvent(_Event):
     """"Make it a task": the card to allow or deny before Orb creates a task in the tracker (ADR 0008, 0010)."""
     type: Literal["make_task_card"]
     id: str
-    routine: str
+    routine: str = ""
+    capture: str = ""  # a No-topic capture's file instead of a routine (ticket 820)
     title: str
     project: str
 
@@ -876,14 +980,16 @@ class MakeTaskDoneEvent(_Event):
     title: str | None = None
     url: str | None = None
     project: str | None = None
+    capture: str | None = None  # the capture it came from: Allow wrote its owner_read
     error: str | None = None
 
 
 class MakeTaskUndoneEvent(_Event):
-    """Undo of a created task: deleted, or why not."""
+    """Undo of a created task: deleted (and a capture's owner_read taken off again), or why not."""
     type: Literal["make_task_undone"]
     task: int
     ok: bool
+    capture: str | None = None
     error: str | None = None
 
 
@@ -912,7 +1018,7 @@ ServerEvent = Annotated[Union[
     HelloEvent, FeaturesEvent, FoldersEvent, SetupStatusEvent, BrowseEvent, PickedEvent, VoiceSampleEvent,
     SettingsEvent, ErrorEvent, NoticeEvent, OpenedEvent, HistoryEvent, StateEvent, SessionInfoEvent,
     ContextEvent, TaskEvent, CommandsEvent, McpEvent, RateLimitEvent, RoutinesEvent, BgNoticeEvent, NavigateEvent,
-    HomeEvent, HomeForgetEvent, HomeTasksEvent, PlanEvent, TaskDetailEvent, ItemEvent, ItemListEvent, BrainListEvent, BrainNoteEvent, BrainAppliedEvent, TaskChangedEvent, UserEvent, TextStartEvent, TextEvent, SaidEvent, ToolStartEvent, ToolInputEvent, ToolResultEvent,
+    HomeEvent, HomeForgetEvent, HomeTasksEvent, AwayRecapEvent, PlanEvent, TaskDetailEvent, ItemEvent, ItemListEvent, BrainListEvent, BrainExpiredEvent, BrainNoTopicEvent, BrainNoteEvent, BrainAppliedEvent, TaskChangedEvent, UserEvent, TextStartEvent, TextEvent, SaidEvent, ToolStartEvent, ToolInputEvent, ToolResultEvent,
     ResultEvent, TimingEvent, PartialEvent, HeardNothingEvent, PinFocusedEvent, HeldEvent, PermissionEvent,
     PermissionDoneEvent, UndoAvailableEvent, UndoConfirmEvent, UndoDoneEvent, AudioEvent, SpeechResetEvent,
     DelegateCardEvent, DelegationsEvent, DelegationDiffEvent,
@@ -1063,9 +1169,21 @@ class PlanStartMsg(_Msg):
     key: str
 
 
+class AwaySeenMsg(_Msg):
+    """The Away recap was closed, or Home left while it showed: it goes on every page."""
+    type: Literal["away_seen"]
+
+
 class PlanLaterMsg(_Msg):
     """Later on a queue item: hidden until the next day on every page (never written to a tracker)."""
     type: Literal["plan_later"]
+    key: str
+
+
+class PlanLeaveMsg(_Msg):
+    """Leave it on a pull request idle 14+ days ("pr:<repo>#<n>"): hidden until the PR changes (its updatedAt), never
+    written to GitHub (ticket 850)."""
+    type: Literal["plan_leave"]
     key: str
 
 
@@ -1139,6 +1257,24 @@ class BrainListMsg(_Msg):
     type: Literal["brain_list"]
 
 
+class BrainExpiredMsg(_Msg):
+    type: Literal["brain_expired"]
+
+
+class BrainNoTopicMsg(_Msg):
+    """Brain's No topic rows. `files`: rows this page acted on (kept, dropped), listed again with their state though
+    they no longer count."""
+    type: Literal["brain_notopic"]
+    files: list[str] = Field(default_factory=list)  # the first 200 count
+
+
+class BrainKeepMsg(_Msg):
+    """Keep a No-topic capture as an idea: owner_read is set, only if it still reads `seen` ("")."""
+    type: Literal["brain_keep"]
+    file: str
+    seen: str = ""
+
+
 class BrainGetMsg(_Msg):
     type: Literal["brain_get"]
     file: str
@@ -1190,9 +1326,11 @@ class TaskActionMsg(_Msg):
 
 
 class MakeTaskMsg(_Msg):
-    """"Make it a task" on a routine's last run: the server answers with a card first."""
+    """"Make it a task" on a routine's last run, or on a No-topic capture (`capture`, its file): the server answers
+    with a card first."""
     type: Literal["make_task"]
-    routine: str
+    routine: str = ""
+    capture: str = ""
 
 
 class MakeTaskConfirmMsg(_Msg):
@@ -1302,7 +1440,7 @@ class DelegationApplyMsg(_Msg):
 
 
 class DelegationRevertMsg(_Msg):
-    """Undo after Apply: revert the commit and reopen the task."""
+    """Undo after Apply: revert the commit and reopen the task (after a merge on the remote: a revert PR, #876)."""
     type: Literal["delegation_revert"]
     id: str
 
@@ -1320,10 +1458,23 @@ class DelegationResumeMsg(_Msg):
 
 
 class DelegationOutwardMsg(_Msg):
-    """The outward card (Needs you): Allow pushes the branch and opens its PR; Skip (allow false) keeps it local."""
+    """The outward card (Needs you): Allow pushes the branch and opens its PR; Skip (allow false) keeps it local. The
+    same answer serves Apply's merge card (merges the PR on the remote, #876) and Undo's revert PR."""
     type: Literal["delegation_outward"]
     id: str
     allow: bool
+
+
+class DelegationUpdateMsg(_Msg):
+    """Update from <into> on a collision: merge the remote target into the branch, the same session finishes it."""
+    type: Literal["delegation_update"]
+    id: str
+
+
+class DelegationReopenMsg(_Msg):
+    """Reopen PR on a delegation whose PR was closed on the remote (#877): `gh pr reopen`, then polling resumes."""
+    type: Literal["delegation_reopen"]
+    id: str
 
 
 class DelegationDiscardMsg(_Msg):
@@ -1344,10 +1495,10 @@ ClientMessage = Annotated[Union[
     SetupStatusMsg, BrowseMsg, PickFolderMsg, OpenFolderMsg, AddFolderMsg, StartSessionMsg, PinFolderMsg,
     GetSettingsMsg, SetSettingsMsg, VoiceSampleMsg, KokoroSetupMsg, RescanMsg, RoutinesMsg, RoutinesSeenMsg, RoutinesResolveMsg, MuteMsg,
     NewSessionMsg, ArchiveSessionMsg, RemoveSessionMsg, UserTextMsg, SpeechStartMsg, BargeInMsg, SpeechCancelledMsg, UtteranceMsg, VoiceTextMsg,
-    HomeMsg, PlanStartMsg, PlanLaterMsg, PlanDoneMsg, ScreenMsg, TaskDetailMsg, ItemListMsg, ItemGetMsg, ItemDoneMsg, TasksBulkMsg, TasksSuggestMsg, NotesVerdictMsg, BrainListMsg, BrainGetMsg, BrainApplyMsg, BrainVerdictMsg, BrainReadMsg, ItemStartMsg, TaskActionMsg, InterruptMsg, PlaybackMsg, PermissionMsg, ReadAllMsg, DictateNoteMsg, UndoRequestMsg, UndoConfirmMsg,
+    HomeMsg, AwaySeenMsg, PlanStartMsg, PlanLaterMsg, PlanLeaveMsg, PlanDoneMsg, ScreenMsg, TaskDetailMsg, ItemListMsg, ItemGetMsg, ItemDoneMsg, TasksBulkMsg, TasksSuggestMsg, NotesVerdictMsg, BrainListMsg, BrainExpiredMsg, BrainNoTopicMsg, BrainKeepMsg, BrainGetMsg, BrainApplyMsg, BrainVerdictMsg, BrainReadMsg, ItemStartMsg, TaskActionMsg, InterruptMsg, PlaybackMsg, PermissionMsg, ReadAllMsg, DictateNoteMsg, UndoRequestMsg, UndoConfirmMsg,
     McpStatusMsg, McpReconnectMsg, SetModeMsg, SetModelMsg, RevokeGrantMsg, DelegateMsg, DelegateBulkMsg, DelegateConfirmMsg, MakeTaskMsg, MakeTaskConfirmMsg, MakeTaskUndoMsg,
     DelegationReviewMsg, DelegationApplyMsg, DelegationRevertMsg, DelegationDiscardMsg, DelegationRetryMsg,
-    DelegationResumeMsg, DelegationOutwardMsg, DropMsg,
+    DelegationResumeMsg, DelegationOutwardMsg, DelegationUpdateMsg, DelegationReopenMsg, DropMsg,
 ], Field(discriminator="type")]
 
 

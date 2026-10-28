@@ -26,6 +26,8 @@ export interface SessionState {
   pendingAsk: string | null; // sent once the session it was asked in has opened
   pendingScreen: { name: string; text: string } | null; // and what to show Claude with it (untrusted text, fenced by the server)
   pendingStay: boolean; // the answer shows on the screen that asked (a routine's result), so don't switch to the chat
+  pendingDraft: string | null; // typed into the composer, not sent, once the session it was asked in has opened
+  draft: string | null; // for the composer to take (and clear)
 }
 
 const local = {
@@ -40,6 +42,7 @@ function savedExpanded(): string[] {
 export const initialSession = (): SessionState => ({
   folder: null, session: null, label: "", rel: "", branch: null, busy: false, commands: [],
   picker: null, expanded: savedExpanded(), drawer: false, quiet: false, pendingAsk: null, pendingScreen: null, pendingStay: false,
+  pendingDraft: null, draft: null,
 });
 
 /** Pure: the next state for one event. Session-scoped events for another session are ignored. */
@@ -63,9 +66,10 @@ export function wireSession(): () => void {
   const apply = (ev: ServerEvent) => useSession.setState((s) => reduce(s, ev));
   const offs = [
     on("opened", (ev) => {
-      const { quiet, pendingAsk, pendingScreen, pendingStay } = useSession.getState();
+      const { quiet, pendingAsk, pendingScreen, pendingStay, pendingDraft } = useSession.getState();
       apply(ev);
-      useSession.setState({ quiet: false, pendingAsk: null, pendingScreen: null, pendingStay: false });
+      useSession.setState({ quiet: false, pendingAsk: null, pendingScreen: null, pendingStay: false, pendingDraft: null,
+        ...(pendingDraft ? { draft: pendingDraft } : {}) });
       if (ev.folder) local.set("vd-folder", ev.folder);
       if (ev.session) local.set("vd-session", ev.session);
       if (!quiet && ev.folder) setExpanded(ev.folder, true); // an opened chat shows its repo's sessions in the sidebar
@@ -130,6 +134,13 @@ export function askIn(path: string, text: string, screen: { name: string; text: 
   useSession.setState({ pendingAsk: text, pendingScreen: screen, pendingStay: stay });
   const again = reusableSession(useFeatures.getState().folders, path, text);
   if (again) openFolder(path, again.key); else startSession(path);
+}
+
+/** A session in `path` (its unused one, else a new one) with `text` typed in the composer, not sent. */
+export function draftIn(path: string, text: string) {
+  useSession.setState({ pendingDraft: text });
+  const unused = (useFeatures.getState().folders.find((x) => x.path === path)?.sessions ?? []).find((s) => s.empty && !s.archived);
+  if (unused) openFolder(path, unused.key); else startSession(path);
 }
 
 /** The start page's Project menu: a fresh session in `path`, reusing its unused one so switching back and forth doesn't

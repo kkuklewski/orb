@@ -27,7 +27,7 @@ PER_PAGE = 100
 MAX_PAGES = 20
 TIMEOUT = 8
 JQL = "assignee = currentUser() AND statusCategory != Done ORDER BY updated DESC"
-FIELDS = "summary,project,duedate,created,updated,priority,status"
+FIELDS = "summary,project,duedate,created,updated,priority,status,labels,assignee"  # labels: read only (needs.py pin labels)
 PROJECTS_TTL = 600  # project keys -> ids for the repo map; they rarely change
 # Jira's default priority names on Orb's (Vikunja's) 0-5 scale: 0 unset, 1 low, 2 medium, 3 high, 4 urgent, 5 do now.
 PRIORITY = {"lowest": 1, "low": 1, "medium": 2, "high": 3, "highest": 4}
@@ -38,6 +38,10 @@ _projects_cache: dict[str, tuple[float, list[dict]]] = {}
 
 class JiraError(Exception):
     pass
+
+
+class JiraNotFound(JiraError):
+    """Jira answered 404: the issue isn't there, or this account may not see it."""
 
 
 def wanted(url: str) -> bool:
@@ -87,7 +91,7 @@ def _call(base: str, auth: str, path: str, params: dict | None = None, body: dic
         if e.code == 403:
             raise JiraError(f"Jira refused: this account may not do that{' (' + said + ')' if said else ''}.") from e
         if e.code == 404:
-            raise JiraError(f"Not found in Jira{' (' + said + ')' if said else ''}.") from e
+            raise JiraNotFound(f"Not found in Jira{' (' + said + ')' if said else ''}.") from e
         raise JiraError(f"Jira refused the change ({e.code}{': ' + said if said else ''}).") from e
     except OSError as e:
         raise JiraError(f"Jira didn't answer: {e}") from e
@@ -116,13 +120,31 @@ def _browse(base: str, key: str) -> str:
     return f"{base}/browse/{urllib.parse.quote(key)}"
 
 
+def _assignees(f: dict) -> list[dict]:
+    """Vikunja's assignee shape: Jira has one assignee (or none), [{"id": accountId, "name": displayName}]."""
+    a = f.get("assignee")
+    return [{"id": str(a["accountId"]), "name": str(a.get("displayName") or "")[:80]}] if isinstance(a, dict) and a.get("accountId") else []
+
+
+def me(url: str) -> dict:
+    """Who the account is, in `vikunja.me`'s shape: {"id": accountId, "name": displayName, "username": displayName}
+    (Jira Cloud shows no username). One read; `tracker.me` keeps it."""
+    base, auth = _cfg(url)
+    u = _call(base, auth, "/myself")
+    if not isinstance(u, dict) or not u.get("accountId") or not u.get("displayName"):
+        raise JiraError("Jira didn't say who this account is.")
+    name = str(u["displayName"])[:80]
+    return {"id": str(u["accountId"]), "name": name, "username": name}
+
+
 def _row(base: str, issue: dict) -> dict:
     f = issue.get("fields") or {}
     project = f.get("project") or {}
     return {"id": int(issue.get("id", 0)), "title": _title(issue), "project": str(project.get("name", "")),
             "project_id": int(project.get("id") or 0), "due": f.get("duedate") or None,
             "created": str(f.get("created", ""))[:10], "priority": _priority(f.get("priority")),
-            "updated": _updated(f.get("updated")), "url": _browse(base, str(issue.get("key", "")))}
+            "updated": _updated(f.get("updated")), "url": _browse(base, str(issue.get("key", ""))),
+            "labels": [str(x)[:80] for x in f.get("labels") or [] if isinstance(x, str) and x], "assignees": _assignees(f)}
 
 
 def open_tasks(url: str, project: str | None = None) -> dict:
@@ -197,7 +219,7 @@ def adf(text: str) -> dict:
 def _issue(base: str, auth: str, task_id: int, fields: str) -> dict:
     i = _call(base, auth, f"/issue/{int(task_id)}", {"fields": fields})
     if not isinstance(i, dict) or not str(i.get("id", "")).isdigit():
-        raise JiraError(f"Task {task_id} not found in Jira.")
+        raise JiraNotFound(f"Task {task_id} not found in Jira.")
     return i
 
 
@@ -207,12 +229,34 @@ def _done(issue: dict) -> bool:
 
 def task(url: str, task_id: int) -> dict:
     """One issue in full, in `vikunja.task`'s shape: {"id", "title", "description", "project", "project_id", "due",
-    "priority", "done", "url"}."""
+    "priority", "done", "done_at", "url", "assignees"}; done_at is when it was resolved (None while open or unknown)."""
     base, auth = _cfg(url)
-    i = _issue(base, auth, task_id, FIELDS + ",description")
+    i = _issue(base, auth, task_id, FIELDS + ",description,resolutiondate")
     row = _row(base, i)
-    return {**{k: row[k] for k in ("id", "title", "project", "project_id", "due", "priority", "url")},
-            "description": plain((i.get("fields") or {}).get("description"))[:8000], "done": _done(i)}
+    return {**{k: row[k] for k in ("id", "title", "project", "project_id", "due", "priority", "url", "assignees")},
+            "description": plain((i.get("fields") or {}).get("description"))[:8000], "done": _done(i),
+            "done_at": (_updated((i.get("fields") or {}).get("resolutiondate")) or None) if _done(i) else None}
+
+
+def assign(url: str, task_id: int, account_id: str) -> None:
+    """Make the account the issue's assignee. Jira has one, so this overwrites: callers check it is free first."""
+    base, auth = _cfg(url)
+    _call(base, auth, f"/issue/{int(task_id)}/assignee", body={"accountId": account_id}, method="PUT")
+
+
+def unassign(url: str, task_id: int, account_id: str) -> None:
+    """Take the account off the issue: only while it is still the assignee (Jira has one, so a teammate who took the
+    issue since keeps it). A read then a write: Jira has no compare-and-set, the window is the round trip."""
+    base, auth = _cfg(url)
+    if [a["id"] for a in _assignees(_issue(base, auth, task_id, "assignee").get("fields") or {})] != [str(account_id)]:
+        return
+    _call(base, auth, f"/issue/{int(task_id)}/assignee", body={"accountId": None}, method="PUT")
+
+
+def comment(url: str, task_id: int, text: str) -> None:
+    """A comment on the issue, as the account (ADF body)."""
+    base, auth = _cfg(url)
+    _call(base, auth, f"/issue/{int(task_id)}/comment", body={"body": adf(text)}, method="POST")
 
 
 def set_done(url: str, task_id: int, done: bool) -> None:

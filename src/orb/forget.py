@@ -60,18 +60,23 @@ def links(items: list) -> list[dict]:
 
 
 def parse_status(out: str) -> dict:
-    """`git status --porcelain=v1 -b`: branch, files changed, commits ahead of the upstream (None = no upstream)."""
+    """`git status --porcelain=v1 -b`: branch, files changed, commits ahead of the upstream (None = no upstream) and
+    behind it (as of the last fetch)."""
     lines = out.splitlines()
     head = lines[0][3:] if lines and lines[0].startswith("## ") else ""
     branch, _, rest = head.partition("...")
     ahead: int | None = None
+    behind = 0
     if rest:
         ahead = 0
         if "[" in rest and "ahead " in rest:
             ahead = int(rest.split("ahead ", 1)[1].split("]")[0].split(",")[0])
+        if "[" in rest and "behind " in rest:
+            behind = int(rest.split("behind ", 1)[1].split("]")[0])
     if branch.startswith("No commits yet on "):
         branch = branch.removeprefix("No commits yet on ")
-    return {"branch": branch.split(" ")[0] or None, "changed": sum(1 for x in lines[1:] if x.strip()), "ahead": ahead}
+    return {"branch": branch.split(" ")[0] or None, "changed": sum(1 for x in lines[1:] if x.strip()), "ahead": ahead,
+            "behind": behind}
 
 
 def repo_filters(out: str) -> list[str]:
@@ -99,7 +104,7 @@ def _repo(f: dict) -> dict | None:
                            capture_output=True, text=True, timeout=GIT_TIMEOUT)
         if c.returncode not in (0, 1) or (c.returncode == 1 and c.stdout):  # 1 = no filters; anything else: don't guess
             return None
-        r = subprocess.run(["git", "-C", f["path"], *GIT_SAFE, "status", "--porcelain=v1", "-b", "--ignore-submodules=all"],
+        r = subprocess.run(["git", "--no-optional-locks", "-C", f["path"], *GIT_SAFE, "status", "--porcelain=v1", "-b", "--ignore-submodules=all"],
                            capture_output=True, text=True, timeout=GIT_TIMEOUT,
                            env=os.environ | blank_env(repo_filters(c.stdout)))
     except (OSError, subprocess.TimeoutExpired):
@@ -113,7 +118,8 @@ def _repo(f: dict) -> dict | None:
 
 
 def repos(found: list[dict]) -> list[dict]:
-    """Repos (from the folder scan) with uncommitted files or unpushed commits, most changed first."""
+    """Repos (from the folder scan) with uncommitted files or unpushed commits, most changed first; `behind` is as of
+    the last fetch."""
     with ThreadPoolExecutor(max_workers=8) as pool:
         rows = [r for r in pool.map(_repo, [f for f in found if Path(f["path"], ".git").exists()]) if r]
     return sorted(rows, key=lambda r: (-(r["ahead"] or 0), -r["changed"]))

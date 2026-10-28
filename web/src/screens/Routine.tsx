@@ -11,7 +11,7 @@ import { ItemView } from "./chat/Chat";
 // why it did or didn't notify, and what to do with it. Orb's routine access is read-only, so there is
 // no "run again" here; "Open run" goes to claude.ai. "Make it a task" writes one task in the tracker, after a card.
 
-function MakeTaskCard({ routine }: { routine: string }) {
+export function MakeTaskCard({ routine }: { routine: string }) {
   const tracker = useTracker();
   const { routine: r, pending, card, done, undone } = useMakeTask();
   if (r !== routine) return null;

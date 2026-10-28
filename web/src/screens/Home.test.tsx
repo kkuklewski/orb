@@ -12,6 +12,7 @@ import { greeting, needsYou, routinesLine, useHome, wireHome } from "../stores/h
 import { useTasks, wireTasks } from "../stores/tasks";
 import { initialDelegations, useDelegations, wireDelegations } from "../stores/delegation";
 import { useBrain } from "../stores/brain";
+import { useRoutineScreen } from "../stores/routine";
 import { folder, routine, routines, session, status } from "../test/fixtures";
 
 const sent: Record<string, unknown>[] = [];
@@ -51,7 +52,7 @@ beforeEach(() => {
   useSession.setState(initialSession());
   useViews.setState({ view: "home", settings: null, routines: routines({ items: [routine({ last: { id: "r", outcome: "ok" } })] }), routinesNew: new Set() });
   useFeatures.setState({ features: features(), folders: [folder("web", [session("w1", "approval", { label: "fix login" })])], services: {}, build: null });
-  useHome.setState({ notes: null, forget: null, tasks: null, plan: null });
+  useHome.setState({ notes: null, forget: null, tasks: null, plan: null, away: null });
   useSetup.setState(initialSetup);
 });
 afterEach(() => { cleanup(); offs.forEach((off) => off()); });
@@ -99,6 +100,103 @@ describe("home helpers", () => {
   });
 });
 
+describe("away recap", () => {
+  const recap = (heading = "While you were away · 2 days", back: number | null = 1) => ({ type: "away_recap", recap: { since: 0, back, heading } } as ServerEvent);
+  const card = () => screen.queryByRole("article", { name: "Away recap" });
+
+  it("shows only after the server says so, first on Home, with the top 3 of Needs you in today's order and the total", () => {
+    const due: PlanItem = { key: "rem:1", kind: "reminder", id: "1", title: "Renew the domain", reason: "Due in 2 days.", source: "notes", actions: ["open"] };
+    render(<Home />);
+    act(() => dispatch(plan([failed, overdue, due])));
+    expect(card()).toBeNull();
+    act(() => dispatch(recap()));
+    const c = card()!;
+    expect(within(c).getByText("While you were away · 2 days")).toBeTruthy();
+    const rows = within(c).getAllByRole("button").filter((b) => b.classList.contains("needs-row"));
+    expect(rows.map((r) => r.querySelector(".needs-title")!.textContent)).toEqual(["web: fix login", failed.title, overdue.title]);
+    expect(within(c).getByText("Needs you: 3 of 4")).toBeTruthy();
+    expect(document.querySelector(".home-main")!.firstElementChild).toBe(c);
+    expect(c.querySelector(".badge, [class*=badge]")).toBeNull();
+  });
+
+  it("lists the routines that ran ok, ×N when more than once, then N more; a line opens that routine's Run", () => {
+    render(<Home />);
+    const lines = [{ kind: "routine", id: "t1", title: "Curation", summary: "3 created, 1 merged", count: 2 },
+      { kind: "routine", id: "t2", title: "Radar", summary: "5 drafts", count: 1 }];
+    act(() => dispatch({ type: "away_recap", recap: { since: 0, back: 1, heading: "While you were away · 2 days", lines, more: 4 } } as ServerEvent));
+    const list = within(card()!).getByLabelText("What ran and finished");
+    const rows = within(list).getAllByRole("button");
+    expect(rows.map((r) => r.textContent)).toEqual(["ROUTINECuration3 created, 1 merged×2", "ROUTINERadar5 drafts"]);
+    expect(within(list).getByText("4 more")).toBeTruthy();
+    fireEvent.click(rows[0]);
+    expect(useViews.getState().view).toBe("routine");
+    expect(useRoutineScreen.getState().id).toBe("t1");
+    expect(sent).toContainEqual({ type: "away_seen" });
+  });
+
+  it("then Orb's own lines: Finished opens Sessions, Ready goes to the Delegated strip; no ×N on them", () => {
+    render(<Home />);
+    const lines = [{ kind: "routine", id: "t1", title: "Curation", summary: "ok", count: 1 },
+      { kind: "finished", id: "finished", title: "2 sessions finished", summary: "", count: 2 },
+      { kind: "ready", id: "ready", title: "1 delegation Ready", summary: "", count: 1 },
+      { kind: "archived", id: "archived", title: "4 old sessions archived", summary: "", count: 4 },
+      { kind: "waiting", id: "waiting", title: "2 sessions wait for your OK", summary: "", count: 2 }];
+    act(() => dispatch({ type: "away_recap", recap: { since: 0, back: 1, heading: "While you were away · 2 days", lines, more: 0 } } as ServerEvent));
+    const rows = within(within(card()!).getByLabelText("What ran and finished")).getAllByRole("button");
+    expect(rows.map((r) => r.textContent)).toEqual(["ROUTINECurationok", "FINISHED2 sessions finished", "READY1 delegation Ready",
+      "ARCHIVED4 old sessions archived", "OK?2 sessions wait for your OK"]);
+    fireEvent.click(rows[2]);
+    expect(sent).toContainEqual({ type: "away_seen" });
+    expect(useViews.getState().view).toBe("home");
+    act(() => dispatch({ type: "away_recap", recap: { since: 0, back: 1, heading: "While you were away · 2 days", lines, more: 0 } } as ServerEvent));
+    fireEvent.click(within(card()!).getByText("2 sessions finished"));
+    expect(useViews.getState().view).toBe("sessions");
+  });
+
+  it("an expired line sits with Orb's lines and opens Brain's Expired view", () => {
+    render(<Home />);
+    const lines = [{ kind: "routine", id: "t1", title: "Curation", summary: "ok", count: 1 },
+      { kind: "expired", id: "expired", title: "2 pages expired", summary: "", count: 2 },
+      { kind: "finished", id: "finished", title: "1 session finished", summary: "", count: 1 }];
+    act(() => dispatch({ type: "away_recap", recap: { since: 0, back: 1, heading: "While you were away · 2 days", lines, more: 0 } } as ServerEvent));
+    const rows = within(within(card()!).getByLabelText("What ran and finished")).getAllByRole("button");
+    expect(rows.map((r) => r.textContent)).toEqual(["ROUTINECurationok", "EXPIRED2 pages expired", "FINISHED1 session finished"]);
+    fireEvent.click(rows[1]);
+    expect(sent).toContainEqual({ type: "away_seen" });
+    expect(useViews.getState().view).toBe("brain");
+    expect(useBrain.getState().showExpired).toBe(true);
+  });
+
+  it("nothing needs you: says so", () => {
+    useFeatures.setState({ folders: [] });
+    render(<Home />);
+    act(() => dispatch(recap("While you were away · 30 hours", null)));
+    expect(within(card()!).getByText("Nothing needs you.")).toBeTruthy();
+  });
+
+  it("one-shot: Close sends away_seen and hides it; another page's away_seen (a null recap) hides it too", () => {
+    render(<Home />);
+    act(() => dispatch(recap()));
+    fireEvent.click(within(card()!).getByRole("button", { name: "Close" }));
+    expect(sent).toContainEqual({ type: "away_seen" });
+    expect(card()).toBeNull();
+    act(() => dispatch(recap()));
+    act(() => dispatch({ type: "away_recap", recap: null }));
+    expect(card()).toBeNull();
+  });
+
+  it("leaving Home while it shows counts as seen; leaving without it sends nothing", () => {
+    render(<Home />);
+    act(() => useViews.setState({ view: "chat" }));
+    expect(sent).not.toContainEqual({ type: "away_seen" });
+    act(() => useViews.setState({ view: "home" }));
+    act(() => dispatch(recap()));
+    fireEvent.click(within(card()!).getAllByRole("button").find((b) => b.textContent?.includes("fix login"))!);  // opens the session
+    expect(sent).toContainEqual({ type: "away_seen" });
+    expect(useHome.getState().away).toBeNull();
+  });
+});
+
 describe("home screen", () => {
   it("Needs you lists the OK first, then the plan's rows with their reason, and can re-rank", () => {
     render(<Home />);
@@ -129,6 +227,48 @@ describe("home screen", () => {
     expect(sent).toContainEqual({ type: "item_get", source: "vikunja", id: "7" });
   });
 
+  it("a routine in a failure streak offers Make it a task first, which opens the routine with its card", () => {
+    const streak: PlanItem = { key: "routine:acme-sync", kind: "routine", id: "acme-sync", title: "Routine ‘acme-sync’ failed",
+      reason: "3 failed runs in a row since 2026-10-24", source: "routine", actions: ["make_task", "open"] };
+    const once: PlanItem = { ...failed, key: "routine:globex-digest", id: "globex-digest", title: "Routine ‘globex-digest’ failed" };
+    render(<Home />);
+    act(() => dispatch(plan([streak, once])));
+    const strip = screen.getByRole("article", { name: "3 things need you" });
+    const row = within(strip).getByRole("group", { name: "Routine ‘acme-sync’ failed" });
+    expect(row.textContent).toContain("3 failed runs in a row since 2026-10-24");
+    expect(within(row).getAllByRole("button").filter((b) => b.classList.contains("hbtn")).map((b) => b.textContent)).toEqual(["Make it a task"]);
+    expect(within(strip).queryByRole("group", { name: "Routine ‘globex-digest’ failed" })).toBeNull();  // no streak: a plain row
+    expect(within(strip).getAllByRole("button", { name: "Make it a task" })).toHaveLength(1);
+    sent.length = 0;
+    fireEvent.click(within(row).getByRole("button", { name: "Make it a task" }));
+    expect(useViews.getState().view).toBe("routine");
+    expect(useRoutineScreen.getState().id).toBe("acme-sync");
+    expect(sent).toContainEqual({ type: "make_task", routine: "acme-sync" });
+  });
+
+  it("a routine whose Repair task is open names Task #N with its link and opens the routine, with no Make it a task", () => {
+    const open: PlanItem = { key: "routine:acme-sync", kind: "routine", id: "acme-sync", title: "Routine ‘acme-sync’ failed",
+      reason: "3 failed runs in a row since 2026-10-24 · Task #42", source: "routine", actions: ["open"], repair: 42, url: "https://tasks.example/tasks/42" };
+    const unread: PlanItem = { ...open, key: "routine:globex-digest", id: "globex-digest", title: "Routine ‘globex-digest’ failed",
+      reason: "Its last run failed · Task #7", repair: 7, url: null };
+    render(<Home />);
+    act(() => dispatch(plan([open, unread])));
+    const strip = screen.getByRole("article", { name: "3 things need you" });
+    const row = within(strip).getByRole("group", { name: "Routine ‘acme-sync’ failed" });
+    expect(row.textContent).toContain("3 failed runs in a row since 2026-10-24 · Task #42");
+    const link = within(row).getByRole("link", { name: "Task #42" });
+    expect([link.getAttribute("href"), link.getAttribute("target"), link.getAttribute("rel")]).toEqual(["https://tasks.example/tasks/42", "_blank", "noopener noreferrer"]);
+    expect(within(strip).queryByRole("button", { name: "Make it a task" })).toBeNull();
+    const other = within(strip).getByRole("group", { name: "Routine ‘globex-digest’ failed" });
+    expect(within(other).queryByRole("link")).toBeNull();  // the tracker didn't answer: the number only
+    expect(other.textContent).toContain("Task #7");
+    sent.length = 0;
+    fireEvent.click(within(row).getByText("Routine ‘acme-sync’ failed"));
+    expect(useViews.getState().view).toBe("routine");
+    expect(useRoutineScreen.getState().id).toBe("acme-sync");
+    expect(sent).not.toContainEqual({ type: "make_task", routine: "acme-sync" });
+  });
+
   it("a broken setup opens Settings at its section; a reminder due opens its link, or is just a line without one", () => {
     const signedOut: PlanItem = { key: "setup:claude", kind: "setup", id: "claude", title: "Claude Code is signed out", reason: "No session can run until you sign in again.", source: "setup", actions: ["open"] };
     const renew: PlanItem = { key: "reminder:2026-10-25:Renew", kind: "reminder", id: "2026-10-25", title: "Renew acme.example", reason: "Due today.", source: "reminder", due: "2026-10-25", url: "https://registrar.example/acme", actions: ["open"] };
@@ -145,12 +285,58 @@ describe("home screen", () => {
     expect(useViews.getState()).toMatchObject({ view: "settings", settingsAt: "claude" });
   });
 
+  it("a vault conflict is a red VAULT row whose Open goes to the notes folder, with nothing typed", () => {
+    const vault: PlanItem = { key: "vault:conflict", kind: "vault", id: "vault", title: "Vault: behind 1, ahead 1, 1 conflict · fetched 28 Oct", reason: "Orb writes no notes until it's resolved", source: "vault", actions: ["open"], urgent: true };
+    render(<Home />);
+    act(() => dispatch(plan([vault], { stale: true })));
+    const strip = screen.getByRole("article", { name: "2 things need you" });
+    const tag = [...strip.querySelectorAll(".needs-tag")].at(-1)!;
+    expect([tag.textContent, tag.classList.contains("urgent")]).toEqual(["VAULT", true]);
+    expect(strip.textContent).toContain("Orb writes no notes until it's resolved");
+    fireEvent.click(within(strip).getByRole("button", { name: /Vault: behind 1, ahead 1, 1 conflict/ }));
+    expect(sent.at(-1)).toEqual({ type: "open_folder", path: "/Users/a/notes", session: undefined });
+    expect(useSession.getState().pendingAsk).toBeFalsy();
+  });
+
   it("only an urgent row's tag is red; the others stay grey", () => {
     render(<Home />);
     act(() => dispatch(plan([{ ...failed, urgent: true }, overdue], { stale: true })));
     const strip = screen.getByRole("article", { name: "3 things need you" });
     const tags = [...strip.querySelectorAll(".needs-tag")];
     expect(tags.map((t) => [t.textContent, t.classList.contains("urgent")])).toEqual([["OK?", false], ["ROUTINE", true], ["OVERDUE", false]]);
+  });
+
+  it("a session waiting for an OK counts from its card and turns red at the server's red_at, never on its own", () => {
+    const now = Date.now() / 1000;
+    act(() => useFeatures.setState({ folders: [folder("web", [
+      session("w1", "approval", { label: "fix login", last_used: now - 60, waiting_since: now - 25 * 3600, red_at: now - 3600 }),
+      session("w2", "approval", { label: "ship invoices", last_used: now - 60, waiting_since: now - 2 * 3600, red_at: now + 22 * 3600 })])] }));
+    render(<Home />);
+    const strip = screen.getByRole("article", { name: "2 things need you" });
+    const tags = [...strip.querySelectorAll(".needs-tag")];
+    expect(tags.map((t) => [t.textContent, t.classList.contains("urgent")])).toEqual([["OK?", true], ["OK?", false]]);
+    expect(within(strip).getByText("Paused 1d ago, waiting for your OK.")).toBeTruthy();
+    expect(within(strip).getByText("Paused 2h ago, waiting for your OK.")).toBeTruthy();
+    expect(sent.filter((m) => m.type === "permission")).toEqual([]);  // Home never answers the card
+  });
+
+  it("a pinned row says its class word in the side column, lowercase and in the column's grey", () => {
+    const signedOut: PlanItem = { key: "setup:claude", kind: "setup", id: "claude", title: "Claude Code is signed out", reason: "Sign in again.", source: "setup", actions: ["open"], urgent: true, pin: "security" };
+    render(<Home />);
+    act(() => dispatch(plan([signedOut, { ...overdue, pin: "client" }, { ...overdue, key: "vikunja:9", id: "9", title: "Send invoice" }], { stale: true })));
+    const strip = screen.getByRole("article", { name: "4 things need you" });
+    const sides = [...strip.querySelectorAll(".needs-side")];
+    expect(sides.map((x) => x.textContent)).toEqual(["now", "security", "client", "2026-10-20"]);
+    expect(sides.map((x) => x.className)).toEqual(Array(4).fill("needs-side mono"));  // no colour of its own
+    expect([...strip.querySelectorAll(".needs-tag")].map((t) => t.classList.contains("urgent"))).toEqual([false, true, false, false]);
+  });
+
+  it("an overdue task with a pin label says money in the side column, pinned like client", () => {
+    render(<Home />);
+    act(() => dispatch(plan([{ ...overdue, pin: "money", urgent: true }, { ...overdue, key: "vikunja:9", id: "9", title: "Send invoice", source: "globex" }])));
+    const strip = screen.getByRole("article", { name: "3 things need you" });  // the waiting session's row first
+    expect([...strip.querySelectorAll(".needs-side")].map((x) => x.textContent)).toEqual(["now", "money", "2026-10-20"]);
+    expect([...strip.querySelectorAll(".needs-tag")].map((t) => t.classList.contains("urgent"))).toEqual([false, true, false]);  // red at 48h past due
   });
 
   it("Needs you is hidden when nothing needs you, and says when ranking failed", () => {
@@ -277,6 +463,38 @@ describe("home screen", () => {
     expect(start(qResult)).toEqual([{ type: "open_folder", path: "/Users/a/code/web", session: "w2" }]);
     expect(start(qNote)).toEqual([{ type: "start_session", path: "/Users/a/notes" }, { type: "plan_start", key: "note:inbox/today.md:3" }]);
     expect(useSession.getState().pendingAsk).toBe("Help me get this task from my note \"inbox/today.md\" done: Send the invoice");
+  });
+
+  it("the no-topic item opens Brain's No topic view (ticket 820)", () => {
+    const qNt = q("notopic", "notes:notopic", "notopic", "3 captures have no topic", "Keep, drop or sort them one at a time.", { source: "notes" });
+    render(<Home />);
+    act(() => dispatch(plan([], { next: qNt })));
+    const lead = screen.getByRole("article", { name: "Next action" });
+    expect(lead.textContent).toContain("NEXT ACTION · NOTES");
+    fireEvent.click(within(lead).getByRole("button", { name: /^Sort them/ }));
+    expect(useViews.getState().view).toBe("brain");
+    expect(useBrain.getState().showNoTopic).toBe(true);
+  });
+
+  it("Leave it shows only on a pull request the server marked quiet, and sends just the key (ticket 850)", () => {
+    const quiet = q("pr", "pr:acme/web#3", "acme/web#3", "Old refactor", "Open pull request, last activity 20 days ago.", { source: "web", actions: ["start", "later", "leave"] });
+    render(<Home />);
+    act(() => dispatch(plan([], { next: qPr })));
+    expect(within(screen.getByRole("article", { name: "Next action" })).queryByRole("button", { name: "Leave it" })).toBeNull();
+    act(() => dispatch(plan([], { next: quiet })));
+    sent.length = 0;
+    fireEvent.click(within(screen.getByRole("article", { name: "Next action" })).getByRole("button", { name: "Leave it" }));
+    expect(sent).toEqual([{ type: "plan_leave", key: "pr:acme/web#3" }]);
+  });
+
+  it("the old Finished item opens Sessions showing only Finished (ticket 849)", () => {
+    const qOld = q("results_old", "results:old", "old", "2 finished sessions not opened", "Read them or let them go; after a week they archive themselves.");
+    render(<Home />);
+    act(() => dispatch(plan([], { next: qOld })));
+    const lead = screen.getByRole("article", { name: "Next action" });
+    expect(lead.textContent).toContain("NEXT ACTION · RESULT");
+    fireEvent.click(within(lead).getByRole("button", { name: /^Read them/ }));
+    expect(useViews.getState()).toMatchObject({ view: "sessions", running: false, finished: true });
   });
 
   it("the kind says what Start does: Review a pull request, Judge the notes", () => {
@@ -554,6 +772,21 @@ describe("delegation", () => {
     expect(within(lead).queryByRole("button", { name: /Delegate/ })).toBeNull();
   });
 
+  it("a teammate's task reads Held by, its Delegate is off with the reason, and its suggestion is later", () => {
+    const held: PlanItem = { ...mapped, actions: ["start", "done", "later"], held_by: "Globex Dev", suggest: "later" };
+    render(<Home />);
+    act(() => dispatch(plan([], { next: held, up_next: [qNote, { ...held, key: "vikunja:9", id: "9", title: "Tidy the footer" }] })));
+    const lead = screen.getByRole("article", { name: "Next action" });
+    expect(within(lead).getAllByText("Held by Globex Dev")).toHaveLength(2);  // the lead and its row in Up next
+    const off = within(lead).getByRole("button", { name: "Delegate" }) as HTMLButtonElement;
+    expect(off.disabled).toBe(true);
+    expect(off.title).toContain("Held by Globex Dev");
+    sent.length = 0;
+    fireEvent.click(off);
+    expect(sent).toEqual([]);
+    expect(within(lead).getByRole("button", { name: "later: Tidy the footer" })).toBeTruthy();
+  });
+
   it("an unmapped task asks for the repo first, then the grant card; Deny starts nothing", () => {
     render(<Home />);
     act(() => dispatch(plan([], { next: unmapped, up_next: [] })));
@@ -760,5 +993,92 @@ describe("delegation", () => {
     expect(within(ready).getByRole("link", { name: "PR #12" }).getAttribute("href")).toBe("https://git.example/acme/web/pull/12");
     fireEvent.click(within(ready).getByRole("button", { name: "Apply" }));
     expect(within(ready).getByText("Apply merges PR #12 and marks task #9 done.")).toBeTruthy();
+  });
+  it("merging a PR on the remote waits in Needs you: Merge PR #N or Skip, no Apply; a revert PR asks the same way", () => {
+    render(<><Sidebar /><Home /></>);
+    act(() => dispatch({ type: "delegations", items: [
+      row({ stage: "ready", needs: "merge", pr: 12, line: "Ready: PR #12, tests passed", ask: "Merge PR #12 on origin into main?" }),
+      row({ id: "d2", task: 9, stage: "applied", needs: "outward", pr: 13, line: "Applied: PR #13 into main, merged on origin; pull to get it. Task #9 done.", ask: "Push branch orb/revert-9 and open a PR reverting PR #13?" }),
+    ] }));
+    const needs = screen.getByRole("article", { name: "3 things need you" });  // the waiting session + the merge + the revert
+    const item = (task: number) => within(needs).getByRole("group", { name: `Delegation of task #${task}` });
+    expect(item(8).textContent).toContain("MERGE?");
+    expect(within(item(8)).getByLabelText("What it asks to do").textContent).toBe("Merge PR #12 on origin into main?");
+    expect(within(item(8)).queryByRole("button", { name: "Apply" })).toBeNull();
+    sent.length = 0;
+    fireEvent.click(within(item(8)).getByRole("button", { name: "Merge PR #12" }));
+    fireEvent.click(within(item(8)).getByRole("button", { name: "Skip" }));
+    fireEvent.click(within(item(9)).getByRole("button", { name: "Push and open revert PR" }));
+    expect(sent).toEqual([{ type: "delegation_outward", id: "d1", allow: true }, { type: "delegation_outward", id: "d1", allow: false },
+      { type: "delegation_outward", id: "d2", allow: true }]);
+    expect(within(item(9)).queryByRole("button", { name: "Undo" })).toBeNull();  // the revert PR is the Undo
+  });
+  it("while its PR merges on the remote the row shows it: no Apply, no Discard (#879)", () => {
+    render(<><Sidebar /><Home /></>);
+    act(() => dispatch({ type: "delegations", items: [
+      row({ stage: "ready", merging: true, pr: 12, line: "Merging PR #12 on origin" }),
+    ] }));
+    const r = strip().querySelector(".deleg-row") as HTMLElement;
+    expect(r.textContent).toContain("Merging PR #12 on origin");
+    expect((within(r).getByRole("button", { name: "Merging PR #12…" }) as HTMLButtonElement).disabled).toBe(true);
+    for (const name of ["Apply", "Discard", "Merge PR #12"]) expect(within(r).queryByRole("button", { name })).toBeNull();
+  });
+  it("a collision waits in Needs you with Update from main, Review and Discard: no Apply, no Open session", () => {
+    render(<><Sidebar /><Home /></>);
+    act(() => dispatch({ type: "delegations", items: [
+      row({ stage: "ready", needs: "collision", update_from: "main", line: "Conflict with main in a.txt. Landed first: a.txt by Alice Acme 2 h ago ('fix rounding')." }),
+    ] }));
+    const item = within(screen.getByRole("article", { name: "2 things need you" })).getByRole("group", { name: "Delegation of task #8" });  // the waiting session + the collision
+    expect(item.textContent).toContain("CONFLICT");
+    expect(item.textContent).toContain("Landed first: a.txt by Alice Acme");
+    const r = strip().querySelector(".deleg-row") as HTMLElement;
+    expect(within(r).getByRole("button", { name: "Review" })).toBeTruthy();
+    expect(within(r).getByRole("button", { name: "Discard" })).toBeTruthy();
+    expect(within(r).queryByRole("button", { name: "Apply" })).toBeNull();
+    expect(within(r).queryByRole("button", { name: "Open session" })).toBeNull();
+    sent.length = 0;
+    fireEvent.click(within(r).getByRole("button", { name: "Update from main" }));
+    expect(sent).toEqual([{ type: "delegation_update", id: "d1" }]);
+  });
+  it("an update that would change their lines is refused: Discard only", () => {
+    render(<><Sidebar /><Home /></>);
+    act(() => dispatch({ type: "delegations", items: [
+      row({ stage: "ready", needs: "collision", update_from: null, line: "Can't update without changing their lines in a.txt." }),
+    ] }));
+    const r = strip().querySelector(".deleg-row") as HTMLElement;
+    expect(r.textContent).toContain("Can't update without changing their lines in a.txt.");
+    expect(within(r).getByRole("button", { name: "Discard" })).toBeTruthy();
+    for (const name of ["Update from main", "Review", "Apply", "Open session"]) expect(within(r).queryByRole("button", { name })).toBeNull();
+  });
+  it("the PR's states: closed asks to reopen, a failed check sends it back with a link, behind updates, merged is done", () => {
+    render(<><Sidebar /><Home /></>);
+    act(() => dispatch({ type: "delegations", items: [
+      row({ stage: "ready", needs: "closed", pr: 12, line: "PR #12 was closed on origin by bob-globex.", ask: "Reopen PR #12 on origin?" }),
+      row({ id: "d2", task: 9, stage: "ready", needs: "blocked", pr: 13, line: "PR #13 is blocked on origin; failing check: ci (failure).",
+            checks: [{ name: "ci", conclusion: "FAILURE", url: "https://git.example/acme/web/actions/runs/5" }, { name: "lint", conclusion: "ERROR", url: "javascript:alert(1)" }] }),
+      row({ id: "d3", task: 10, stage: "ready", needs: "update", update_from: "main", line: "Ready: PR #14, tests passed · main moved 1 commit, merges cleanly" }),
+      row({ id: "d4", task: 11, stage: "merged", line: "Merged by alice-acme on origin; task #11 done. Your main has it." }),
+    ] }));
+    const needs = screen.getByRole("article", { name: "4 things need you" });  // the waiting session + three; merged is done
+    const item = (task: number) => within(needs).getByRole("group", { name: `Delegation of task #${task}` });
+    expect(item(8).textContent).toContain("CLOSED");
+    expect(item(9).textContent).toContain("CHECK");
+    expect(item(10).textContent).toContain("UPDATE");
+    expect(within(needs).queryByText(/Merged by/)).toBeNull();
+    for (const t of [8, 9]) expect(within(item(t)).queryByRole("button", { name: "Apply" })).toBeNull();
+    expect(within(item(9)).getByRole("link", { name: "ci" }).getAttribute("href")).toBe("https://git.example/acme/web/actions/runs/5");
+    expect(within(item(9)).queryByRole("link", { name: "lint" })).toBeNull();  // only an https link
+    sent.length = 0;
+    fireEvent.click(within(item(8)).getByRole("button", { name: "Reopen PR" }));
+    fireEvent.click(within(item(9)).getByRole("button", { name: "Send back" }));
+    fireEvent.click(within(item(10)).getByRole("button", { name: "Update from main" }));
+    expect(sent).toEqual([{ type: "delegation_reopen", id: "d1" }, { type: "delegation_retry", id: "d2" }, { type: "delegation_update", id: "d3" }]);
+
+    const merged = strip().querySelectorAll(".deleg-row")[3] as HTMLElement;
+    expect(merged.textContent).toContain("Merged by alice-acme on origin; task #11 done.");
+    for (const name of ["Apply", "Undo", "Open session", "Review"]) expect(within(merged).queryByRole("button", { name })).toBeNull();
+    sent.length = 0;
+    fireEvent.click(within(merged).getByRole("button", { name: "Dismiss" }));
+    expect(sent).toEqual([{ type: "delegation_discard", id: "d4" }]);
   });
 });

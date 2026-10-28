@@ -8,6 +8,7 @@ the product.
 
 from __future__ import annotations
 
+import hashlib
 import re
 from pathlib import Path
 from types import ModuleType
@@ -15,7 +16,9 @@ from types import ModuleType
 from . import jira, vikunja
 
 ERRORS = (vikunja.VikunjaError, jira.JiraError)  # `except tracker.ERRORS` catches either backend's refusal
+NOT_FOUND = (vikunja.VikunjaNotFound, jira.JiraNotFound)  # the backend answered 404: catch it before ERRORS
 home_event = vikunja.home_event
+_me_cache: dict[tuple[str, str], dict] = {}  # (base, token digest) -> who the account is
 KEY = re.compile(r"[A-Za-z][A-Za-z0-9_]*-\d+")  # a Jira issue key (ACME-12); the task's title starts with it
 
 
@@ -51,7 +54,56 @@ def configured(cfg: dict) -> bool:
 
 def open_tasks(cfg: dict, project: str | None = None) -> dict:
     m, url = _b(cfg)
-    return m.open_tasks(url, project)
+    return _held(cfg, m.open_tasks(url, project))
+
+
+def held_by(task: dict, me: dict) -> str | None:
+    """The teammate holding `task` (the first assignee who isn't `me`, by name), or None when it is free or only mine."""
+    other = [a for a in task.get("assignees") or [] if a["id"] != me["id"]]
+    return (other[0]["name"] or "a teammate") if other else None
+
+
+def _held(cfg: dict, got: dict) -> dict:
+    """Each row gets "held_by" (#866 Q7): a teammate's name, else None. me() is asked only when a row has an assignee;
+    when the tracker can't say who Orb is, nothing reads as held (Delegate refuses on its own then)."""
+    rows = got.get("tasks") or []
+    who = None
+    if any(t.get("assignees") for t in rows):
+        try:
+            who = me(cfg)
+        except ERRORS:
+            pass
+    for t in rows:
+        t["held_by"] = held_by(t, who) if who else None
+    return got
+
+
+def me(cfg: dict) -> dict:
+    """Who Orb is in the tracker: {"id", "name", "username"}, from the token it already has (ADR 0010). Read once per
+    account and kept for the server's life; a failure isn't kept, so the next call asks again. Raises ERRORS when the
+    tracker can't say; a task's "assignees" use the same ids."""
+    m, url = _b(cfg)
+    if not (got := m.configured(url)):
+        return m.me(url)  # refuses: not set up
+    key = (got[0], hashlib.sha256(got[1].encode()).hexdigest())
+    if key not in _me_cache:
+        _me_cache[key] = m.me(url)
+    return _me_cache[key]
+
+
+def assign(cfg: dict, task_id: int, user_id: str) -> None:
+    m, url = _b(cfg)
+    m.assign(url, task_id, user_id)
+
+
+def unassign(cfg: dict, task_id: int, user_id: str) -> None:
+    m, url = _b(cfg)
+    m.unassign(url, task_id, user_id)
+
+
+def comment(cfg: dict, task_id: int, text: str) -> None:
+    m, url = _b(cfg)
+    m.comment(url, task_id, text)
 
 
 def by_key(tasks: list[dict], key: str) -> dict | None:
@@ -62,7 +114,7 @@ def by_key(tasks: list[dict], key: str) -> dict | None:
 
 def source(cfg: dict) -> dict:
     m, url = _b(cfg)
-    return m.source(url)
+    return _held(cfg, m.source(url))
 
 
 def task(cfg: dict, task_id: int) -> dict:

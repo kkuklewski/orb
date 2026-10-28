@@ -32,6 +32,10 @@ class VikunjaError(Exception):
     pass
 
 
+class VikunjaNotFound(VikunjaError):
+    """Vikunja answered 404: the task (or project) isn't there, or not for this token."""
+
+
 def wanted(url: str) -> bool:
     """An address is set (settings or env): the owner wants the Tasks source, so a missing token is an error to show."""
     return (url or config.env("VIKUNJA_URL", "")).strip().startswith(("http://", "https://"))
@@ -50,6 +54,10 @@ def _fetch(base: str, token: str, path: str, params: dict) -> object:
     try:
         with config.urlopen(req, timeout=TIMEOUT) as r:
             data = json.load(r)
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            raise VikunjaNotFound("Not found in Vikunja.") from e
+        raise VikunjaError(f"Vikunja didn't answer: {e}") from e
     except (OSError, ValueError) as e:
         raise VikunjaError(f"Vikunja didn't answer: {e}") from e
     return data
@@ -89,6 +97,16 @@ def _get(base: str, token: str, path: str, params: dict) -> list[dict]:
     return data if isinstance(data, list) else []
 
 
+def _when(raw: str | None) -> float | None:
+    """A Vikunja time as a timestamp; its zero date ("no date") and anything unreadable are None."""
+    if not raw or raw.startswith(NO_DATE):
+        return None
+    try:
+        return dt.datetime.fromisoformat(raw).timestamp()
+    except ValueError:
+        return None
+
+
 def _due(raw: str | None) -> str | None:
     return raw[:10] if raw and not raw.startswith(NO_DATE) else None
 
@@ -96,6 +114,26 @@ def _due(raw: str | None) -> str | None:
 def order(tasks: list[dict]) -> list[dict]:
     """Dated tasks first (soonest), then by priority (highest), then the most recently changed."""
     return sorted(tasks, key=lambda t: (t["due"] is None, t["due"] or "", -t["priority"], -t["updated"]))
+
+
+def labels(t: dict) -> list[str]:
+    """A task's label names as Vikunja lists them (null when it has none). Orb only reads labels, never writes one."""
+    return [str(x["title"])[:80] for x in t.get("labels") or [] if isinstance(x, dict) and x.get("title")]
+
+
+def assignees(t: dict) -> list[dict]:
+    """A task's assignees as {"id", "name"} (null when it has none); id is a string, like Jira's accountId."""
+    return [{"id": str(u["id"]), "name": str(u.get("name") or u.get("username") or "")[:80]}
+            for u in t.get("assignees") or [] if isinstance(u, dict) and u.get("id")]
+
+
+def me(url: str) -> dict:
+    """Who the token is: {"id", "name" (display name, else the username), "username"}. One read; `tracker.me` keeps it."""
+    base, token = _cfg(url)
+    u = _fetch(base, token, "/user", {})
+    if not isinstance(u, dict) or not u.get("id") or not u.get("username"):
+        raise VikunjaError("Vikunja didn't say who this token is.")
+    return {"id": str(u["id"]), "name": str(u.get("name") or u["username"])[:80], "username": str(u["username"])[:80]}
 
 
 def open_tasks(url: str, project: str | None = None) -> dict:
@@ -123,7 +161,8 @@ def open_tasks(url: str, project: str | None = None) -> dict:
         out.append({"id": int(t.get("id", 0)), "title": str(t.get("title", ""))[:200], "project": name,
                     "project_id": int(t.get("project_id") or 0),
                     "due": _due(t.get("due_date")), "created": str(t.get("created", ""))[:10], "priority": int(t.get("priority") or 0), "updated": updated,
-                    "url": f"{base}/tasks/{t.get('id')}"})
+                    "url": f"{base}/tasks/{t.get('id')}", "labels": labels(t),
+                    "assignees": assignees(t)})
     return {"tasks": order(out), "total": len(out), "url": base}
 
 
@@ -152,20 +191,39 @@ def plain(text: str | None) -> str:
 
 
 def task(url: str, task_id: int) -> dict:
-    """One task in full: {"id", "title", "description" (plain text), "project", "project_id", "due", "priority", "done", "url"}."""
+    """One task in full: {"id", "title", "description" (plain text), "project", "project_id", "due", "priority", "done",
+    "done_at" (a timestamp, None while open), "url", "assignees"}."""
     cfg = configured(url)
     if not cfg:
         raise VikunjaError("Vikunja isn't set up (vikunja_url and ORB_VIKUNJA_TOKEN).")
     base, token = cfg
     t = _fetch(base, token, f"/tasks/{int(task_id)}", {})
     if not isinstance(t, dict) or not t.get("id"):
-        raise VikunjaError(f"Task {task_id} not found in Vikunja.")
+        raise VikunjaNotFound(f"Task {task_id} not found in Vikunja.")
     pid = int(t.get("project_id") or 0)
     project = _fetch(base, token, f"/projects/{pid}", {}) if pid else {}
     return {"id": int(t["id"]), "title": str(t.get("title", ""))[:200], "description": plain(t.get("description"))[:8000],
             "project": str(project.get("title", "")) if isinstance(project, dict) else "", "project_id": pid,
             "due": _due(t.get("due_date")), "priority": int(t.get("priority") or 0), "done": bool(t.get("done")),
-            "url": f"{base}/tasks/{t['id']}"}
+            "done_at": _when(t.get("done_at")) if t.get("done") else None, "url": f"{base}/tasks/{t['id']}",
+            "assignees": assignees(t)}
+
+
+def assign(url: str, task_id: int, user_id: str) -> None:
+    """Add one assignee (by numeric user id), never the bulk call, which replaces the others."""
+    base, token = _cfg(url)
+    _write(base, token, f"/tasks/{int(task_id)}/assignees", {"user_id": int(user_id)}, "PUT")
+
+
+def unassign(url: str, task_id: int, user_id: str) -> None:
+    base, token = _cfg(url)
+    _write(base, token, f"/tasks/{int(task_id)}/assignees/{int(user_id)}", None, "DELETE")
+
+
+def comment(url: str, task_id: int, text: str) -> None:
+    """A comment on the task, as the token's user (Vikunja creates with PUT)."""
+    base, token = _cfg(url)
+    _write(base, token, f"/tasks/{int(task_id)}/comments", {"comment": text}, "PUT")
 
 
 def _update(url: str, task_id: int, change: dict) -> None:

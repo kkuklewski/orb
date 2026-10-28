@@ -1,0 +1,40 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(uv run pytest:*)",
+      "Bash(env -u ANTHROPIC_BASE_URL uv run pytest:*)",
+      "Bash(scripts/check-public.sh)",
+      "Bash(npx vitest run:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npm run build:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git merge:*)",
+      "Bash(git push public main)",
+      "Bash(git push public HEAD)",
+      "Bash(git push -u public HEAD)",
+      "Bash(gh pr create:*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh pr checks:*)",
+      "Bash(gh pr merge:*)",
+      "mcp__vikunja__tasks_update",
+      "mcp__vikunja__tasks_create",
+      "mcp__vikunja__task_comments_add",
+      "mcp__vikunja__task_labels_add",
+      "mcp__vikunja__task_relations_add"
+    ],
+    "deny": [
+      "Bash(git push origin:*)",
+      "Bash(git -C * push:*)",
+      "Bash(git -c * push:*)",
+      "Bash(git push * --force*)",
+      "Bash(git push -f:*)",
+      "Bash(git push * +*)",
+      "Bash(git push * :*)",
+      "Bash(git push * --delete*)",
+      "Bash(git push * -d *)",
+      "Bash(git push * --mirror*)",
+      "Bash(git push * --no-verify*)"
+    ]
+  }
+}

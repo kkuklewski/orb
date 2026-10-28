@@ -31,8 +31,10 @@ export type ClientMessage =
   | UtteranceMsg
   | VoiceTextMsg
   | HomeMsg
+  | AwaySeenMsg
   | PlanStartMsg
   | PlanLaterMsg
+  | PlanLeaveMsg
   | PlanDoneMsg
   | ScreenMsg
   | TaskDetailMsg
@@ -43,6 +45,9 @@ export type ClientMessage =
   | TasksSuggestMsg
   | NotesVerdictMsg
   | BrainListMsg
+  | BrainExpiredMsg
+  | BrainNoTopicMsg
+  | BrainKeepMsg
   | BrainGetMsg
   | BrainApplyMsg
   | BrainVerdictMsg
@@ -74,6 +79,8 @@ export type ClientMessage =
   | DelegationRetryMsg
   | DelegationResumeMsg
   | DelegationOutwardMsg
+  | DelegationUpdateMsg
+  | DelegationReopenMsg
   | DropMsg;
 /**
  * This interface was referenced by `OrbProtocol`'s JSON-Schema
@@ -105,11 +112,14 @@ export type ServerEvent =
   | HomeEvent
   | HomeForgetEvent
   | HomeTasksEvent
+  | AwayRecapEvent
   | PlanEvent
   | TaskDetailEvent
   | ItemEvent
   | ItemListEvent
   | BrainListEvent
+  | BrainExpiredEvent
+  | BrainNoTopicEvent
   | BrainNoteEvent
   | BrainAppliedEvent
   | TaskChangedEvent
@@ -366,6 +376,15 @@ export interface HomeMsg {
   type: "home";
 }
 /**
+ * The Away recap was closed, or Home left while it showed: it goes on every page.
+ *
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "AwaySeenMsg".
+ */
+export interface AwaySeenMsg {
+  type: "away_seen";
+}
+/**
  * Home started a queue item (by its plan key): it leaves the queue for today, the next one moves up.
  *
  * This interface was referenced by `OrbProtocol`'s JSON-Schema
@@ -384,6 +403,17 @@ export interface PlanStartMsg {
 export interface PlanLaterMsg {
   key: string;
   type: "plan_later";
+}
+/**
+ * Leave it on a pull request idle 14+ days ("pr:<repo>#<n>"): hidden until the PR changes (its updatedAt), never
+ * written to GitHub (ticket 850).
+ *
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "PlanLeaveMsg".
+ */
+export interface PlanLeaveMsg {
+  key: string;
+  type: "plan_leave";
 }
 /**
  * Done on a queue task ("vikunja:<id>" or "note:<file>:<line>"): written at once; undo=True reopens the tracker's task.
@@ -493,6 +523,35 @@ export interface SeenNote {
  */
 export interface BrainListMsg {
   type: "brain_list";
+}
+/**
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "BrainExpiredMsg".
+ */
+export interface BrainExpiredMsg {
+  type: "brain_expired";
+}
+/**
+ * Brain's No topic rows. `files`: rows this page acted on (kept, dropped), listed again with their state though
+ * they no longer count.
+ *
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "BrainNoTopicMsg".
+ */
+export interface BrainNoTopicMsg {
+  files?: string[];
+  type: "brain_notopic";
+}
+/**
+ * Keep a No-topic capture as an idea: owner_read is set, only if it still reads `seen` ("").
+ *
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "BrainKeepMsg".
+ */
+export interface BrainKeepMsg {
+  file: string;
+  seen?: string;
+  type: "brain_keep";
 }
 /**
  * This interface was referenced by `OrbProtocol`'s JSON-Schema
@@ -706,13 +765,15 @@ export interface DelegateConfirmMsg {
   type: "delegate_confirm";
 }
 /**
- * "Make it a task" on a routine's last run: the server answers with a card first.
+ * "Make it a task" on a routine's last run, or on a No-topic capture (`capture`, its file): the server answers
+ * with a card first.
  *
  * This interface was referenced by `OrbProtocol`'s JSON-Schema
  * via the `definition` "MakeTaskMsg".
  */
 export interface MakeTaskMsg {
-  routine: string;
+  capture?: string;
+  routine?: string;
   type: "make_task";
 }
 /**
@@ -751,7 +812,7 @@ export interface DelegationApplyMsg {
   type: "delegation_apply";
 }
 /**
- * Undo after Apply: revert the commit and reopen the task.
+ * Undo after Apply: revert the commit and reopen the task (after a merge on the remote: a revert PR, #876).
  *
  * This interface was referenced by `OrbProtocol`'s JSON-Schema
  * via the `definition` "DelegationRevertMsg".
@@ -791,7 +852,8 @@ export interface DelegationResumeMsg {
   type: "delegation_resume";
 }
 /**
- * The outward card (Needs you): Allow pushes the branch and opens its PR; Skip (allow false) keeps it local.
+ * The outward card (Needs you): Allow pushes the branch and opens its PR; Skip (allow false) keeps it local. The
+ * same answer serves Apply's merge card (merges the PR on the remote, #876) and Undo's revert PR.
  *
  * This interface was referenced by `OrbProtocol`'s JSON-Schema
  * via the `definition` "DelegationOutwardMsg".
@@ -800,6 +862,26 @@ export interface DelegationOutwardMsg {
   allow: boolean;
   id: string;
   type: "delegation_outward";
+}
+/**
+ * Update from <into> on a collision: merge the remote target into the branch, the same session finishes it.
+ *
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "DelegationUpdateMsg".
+ */
+export interface DelegationUpdateMsg {
+  id: string;
+  type: "delegation_update";
+}
+/**
+ * Reopen PR on a delegation whose PR was closed on the remote (#877): `gh pr reopen`, then polling resumes.
+ *
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "DelegationReopenMsg".
+ */
+export interface DelegationReopenMsg {
+  id: string;
+  type: "delegation_reopen";
 }
 /**
  * Home's drop zone: one pasted link, or one file (name + base64 bytes).
@@ -869,13 +951,16 @@ export interface SessionItem {
   ask?: string | null;
   created?: number | null;
   empty: boolean;
+  finished_at?: number | null;
   key: string;
   label?: string | null;
   last_used?: number | null;
   live: boolean;
   mcp_failed?: number;
   opus?: number;
+  red_at?: number | null;
   status: string;
+  waiting_since?: number | null;
 }
 /**
  * This interface was referenced by `OrbProtocol`'s JSON-Schema
@@ -1348,9 +1433,12 @@ export interface RoutineItem {
   next_run_at?: number | null;
   notify?: ("always" | "never") | null;
   quiet?: boolean;
+  repair?: RoutineRepair | null;
   repo?: string;
   resolved?: boolean;
+  security?: boolean;
   state: "failed" | "stuck" | "missed" | "needs you" | "worth reading" | "nothing to report" | "off";
+  streak?: RoutineStreak | null;
   urgent?: boolean;
   why?: string;
   worth?: ("read" | "skip") | null;
@@ -1367,6 +1455,37 @@ export interface RoutineRun {
   outcome?: ("ok" | "failed" | "waiting" | "running" | "stuck") | null;
   summary?: string;
   url?: string;
+}
+/**
+ * The routine's open Repair task (GLOSSARY: Repair task), as the last re-read in the tracker found it.
+ *
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "RoutineRepair".
+ */
+export interface RoutineRepair {
+  task: number;
+  url?: string | null;
+}
+/**
+ * A failure streak (routines.streak, GLOSSARY: Failure streak).
+ *
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "RoutineStreak".
+ */
+export interface RoutineStreak {
+  count: number;
+  runs?: StreakRun[];
+  since?: number | null;
+}
+/**
+ * One counted run of a failure streak: its start and its checked claude.ai link.
+ *
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "StreakRun".
+ */
+export interface StreakRun {
+  at?: number | null;
+  url: string;
 }
 /**
  * This interface was referenced by `OrbProtocol`'s JSON-Schema
@@ -1412,6 +1531,7 @@ export interface HomeEvent {
   folder?: string | null;
   notes: HomeNote[];
   notes_week: number;
+  notopic_count?: number;
   open_tasks: number;
   replay?: boolean | null;
   session?: string | null;
@@ -1512,6 +1632,7 @@ export interface Reminder {
  */
 export interface DirtyRepo {
   ahead?: number | null;
+  behind?: number;
   branch?: string | null;
   changed: number;
   label: string;
@@ -1539,15 +1660,66 @@ export interface HomeTasksEvent {
  * via the `definition` "TrackerTask".
  */
 export interface TrackerTask {
+  assignees?: Assignee[];
   created?: string;
   due?: string | null;
+  held_by?: string | null;
   id: number;
+  labels?: string[];
   priority: number;
   project: string;
   project_id?: number;
   title: string;
   updated: number;
   url: string;
+}
+/**
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "Assignee".
+ */
+export interface Assignee {
+  id: string;
+  name: string;
+}
+/**
+ * Home's Away recap (away.Clock): the one-shot card after 24 hours or more without the owner acting, or None.
+ *
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "AwayRecapEvent".
+ */
+export interface AwayRecapEvent {
+  folder?: string | null;
+  recap: AwayRecap | null;
+  replay?: boolean | null;
+  session?: string | null;
+  type: "away_recap";
+}
+/**
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "AwayRecap".
+ */
+export interface AwayRecap {
+  back?: number | null;
+  heading: string;
+  lines?: AwayLine[];
+  more?: number;
+  since: number;
+}
+/**
+ * One thing that finished without the owner: a routine's latest ok Run (count: its Runs since they left), the
+ * vault's "3 pages expired" (opens Brain's Expired view), or Orb's own "2 sessions finished" (opens Sessions) /
+ * "1 delegation Ready" (opens the Delegated strip) / "4 old sessions archived" (opens Sessions) / "2 sessions wait
+ * for your OK" (now, not since; opens Sessions); count: how many.
+ *
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "AwayLine".
+ */
+export interface AwayLine {
+  count?: number;
+  id: string;
+  kind: "routine" | "expired" | "finished" | "ready" | "archived" | "waiting";
+  summary?: string;
+  title: string;
 }
 /**
  * Home's plan. needs_you is decided by rules (docs/adr/0001): a broken setup, routines with a problem, reminders
@@ -1578,13 +1750,28 @@ export interface PlanEvent {
  * via the `definition` "PlanItem".
  */
 export interface PlanItem {
-  actions?: ("open" | "start" | "done" | "later" | "delegate")[];
+  actions?: ("open" | "start" | "done" | "later" | "delegate" | "make_task" | "leave")[];
   due?: string | null;
+  held_by?: string | null;
   id: string;
   key: string;
-  kind: "approval" | "setup" | "routine" | "reminder" | "task" | "note_task" | "result" | "pr" | "notes_batch";
+  kind:
+    | "approval"
+    | "setup"
+    | "vault"
+    | "routine"
+    | "reminder"
+    | "task"
+    | "note_task"
+    | "result"
+    | "pr"
+    | "notes_batch"
+    | "notopic"
+    | "results_old";
+  pin?: ("security" | "client" | "money") | null;
   priority?: number | null;
   reason: string;
+  repair?: number | null;
   repo?: string | null;
   source?: string | null;
   suggest?: ("take now" | "delegate" | "later") | null;
@@ -1714,6 +1901,76 @@ export interface BrainListEvent {
  * via the `definition` "BrainNote".
  */
 export interface BrainNote {
+  expires?: string;
+  file: string;
+  kind: string;
+  lane: string;
+  mtime: number;
+  owner_read: string;
+  score: number | null;
+  suggest?: "approve" | "reject" | "";
+  title: string;
+  verdict: string;
+  waiting: boolean;
+  why: string;
+}
+/**
+ * Brain's Expired view (home.expired_notes): pages the vault archived in the last 30 days, newest first. Read
+ * only: Orb never writes `auto_archived`; Keep is the approve verdict. `error` when there is no notes folder.
+ *
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "BrainExpiredEvent".
+ */
+export interface BrainExpiredEvent {
+  error?: string | null;
+  folder?: string | null;
+  notes: ExpiredNote[];
+  replay?: boolean | null;
+  session?: string | null;
+  type: "brain_expired";
+}
+/**
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "ExpiredNote".
+ */
+export interface ExpiredNote {
+  archived: string;
+  expires?: string;
+  file: string;
+  kind: string;
+  lane: string;
+  mtime: number;
+  owner_read: string;
+  score: number | null;
+  suggest?: "approve" | "reject" | "";
+  title: string;
+  verdict: string;
+  waiting: boolean;
+  why: string;
+}
+/**
+ * Brain's No topic view (home.notopic_notes): No-topic captures, oldest first, plus the rows this page asked for
+ * again (`files`) with their new state. `error` when there is no notes folder.
+ *
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "BrainNoTopicEvent".
+ */
+export interface BrainNoTopicEvent {
+  error?: string | null;
+  folder?: string | null;
+  notes: NoTopicNote[];
+  replay?: boolean | null;
+  session?: string | null;
+  type: "brain_notopic";
+}
+/**
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "NoTopicNote".
+ */
+export interface NoTopicNote {
+  capture?: string;
+  created: string;
+  expires?: string;
   file: string;
   kind: string;
   lane: string;
@@ -1734,6 +1991,7 @@ export interface BrainNote {
  */
 export interface BrainNoteEvent {
   body: string;
+  expires?: string;
   file: string;
   folder?: string | null;
   kind: string;
@@ -1771,7 +2029,7 @@ export interface BrainAppliedEvent {
  */
 export interface BrainApplied {
   file: string;
-  verdict: "approve" | "reject" | "restore";
+  verdict: "approve" | "reject" | "restore" | "keep";
 }
 /**
  * This interface was referenced by `OrbProtocol`'s JSON-Schema
@@ -2131,18 +2389,35 @@ export interface DelegationItem {
   apply_text: string;
   ask?: string | null;
   branch: string;
+  checks?: DelegationCheck[] | null;
   conflict?: string | null;
   folder: string;
   id: string;
   line: string;
-  needs?: ("card" | "failed" | "stuck" | "stopped" | "outward") | null;
+  merging?: boolean;
+  needs?:
+    | ("card" | "failed" | "stuck" | "stopped" | "outward" | "collision" | "merge" | "closed" | "blocked" | "update")
+    | null;
   pr?: number | null;
   pr_url?: string | null;
   repo: string;
   session: string;
-  stage: "queued" | "working" | "testing" | "pushing" | "ready" | "failed" | "applied" | "reverted" | "stopped";
+  stage:
+    "queued" | "working" | "testing" | "pushing" | "ready" | "failed" | "applied" | "reverted" | "stopped" | "merged";
   task: number;
   title: string;
+  update_from?: string | null;
+}
+/**
+ * A failing check on a delegation's PR: its name (safe charset), conclusion, and a link when it is https.
+ *
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "DelegationCheck".
+ */
+export interface DelegationCheck {
+  conclusion: string;
+  name: string;
+  url?: string | null;
 }
 /**
  * Review: the delegation's own work (snapshot..branch), stat then patch, capped.
@@ -2166,11 +2441,12 @@ export interface DelegationDiffEvent {
  * via the `definition` "MakeTaskCardEvent".
  */
 export interface MakeTaskCardEvent {
+  capture?: string;
   folder?: string | null;
   id: string;
   project: string;
   replay?: boolean | null;
-  routine: string;
+  routine?: string;
   session?: string | null;
   title: string;
   type: "make_task_card";
@@ -2182,6 +2458,7 @@ export interface MakeTaskCardEvent {
  * via the `definition` "MakeTaskDoneEvent".
  */
 export interface MakeTaskDoneEvent {
+  capture?: string | null;
   error?: string | null;
   folder?: string | null;
   id: string;
@@ -2195,12 +2472,13 @@ export interface MakeTaskDoneEvent {
   url?: string | null;
 }
 /**
- * Undo of a created task: deleted, or why not.
+ * Undo of a created task: deleted (and a capture's owner_read taken off again), or why not.
  *
  * This interface was referenced by `OrbProtocol`'s JSON-Schema
  * via the `definition` "MakeTaskUndoneEvent".
  */
 export interface MakeTaskUndoneEvent {
+  capture?: string | null;
   error?: string | null;
   folder?: string | null;
   ok: boolean;

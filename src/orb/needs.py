@@ -18,6 +18,14 @@ With no ranking for exactly these items (stale, failed, never asked) Needs you i
 the last ranking's order for the items it ranked. A reason the model gave stays on its item until that item's
 facts change.
 
+A rule may pin a Needs you row (docs/adr/0012): security (a broken setup, a routine whose judged run is a security
+risk), client (an overdue task whose repo is a client folder) or money (an overdue task with a pin label, one of
+the tracker labels in settings "pin_labels"; first match in that order names the class). Pinned rows lead, in a block the model orders only
+inside, like the rest. A row's age counts from its due date (tasks, reminders) or from when it entered Needs you
+(routines, setup, the vault: `since` in needs.json, dropped when it leaves). Past ESCALATE_H a routine row or a
+diverged vault clone turns red, a task or reminder only when it is pinned too. The model reads the age; the
+fingerprint doesn't, so a day passing asks nothing.
+
 Cached in `~/.orb/needs.json`. Asked again only when the items changed (a fingerprint of the stable facts) and at
 most every MIN_GAP seconds, or when you press Re-rank.
 """
@@ -27,6 +35,7 @@ from __future__ import annotations
 import datetime as dt
 import hashlib
 import json
+import logging
 import os
 import re
 import secrets
@@ -34,7 +43,9 @@ import time
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 
-from . import config, suggest
+from . import config, suggest, vault_git
+
+log = logging.getLogger(__name__)
 
 MODEL = config.env("NEEDS_MODEL", "sonnet")
 MIN_GAP = 20 * 60  # seconds between two automatic calls
@@ -43,9 +54,12 @@ REASON_MAX = 140
 ROUTINE_RANK = {"failed": 0, "broken": 1, "waiting": 2, "stuck": 3, "missed": 4, "action": 5}
 ROUTINE_SAYS = {"failed": "failed", "broken": "reports a problem", "waiting": "needs a decision", "stuck": "is stuck",
                 "missed": "missed its run", "action": "asks you to act"}
-SENT = ("key", "kind", "id", "title", "reason", "source", "due", "priority", "url", "actions", "repo", "suggest", "urgent")
+SENT = ("key", "kind", "id", "title", "reason", "source", "due", "priority", "url", "actions", "repo", "suggest", "urgent", "pin", "repair", "held_by")
 QUEUE_MAX = 30  # queue items the model sees (the first in rule order); the rest follow in rule order
 UP_NEXT = 5
+ESCALATE_H = 48  # hours in Needs you (past due, for a task or reminder) after which a routine, or a pinned row, turns red
+WAITING_H = 24  # hours an Allow card may wait before its session's Needs you row turns red (ADR 0012); never auto-denied
+CLOCKED = ("setup", "routine", "vault")  # kinds whose age counts from when they entered Needs you (`since`), not from a due date
 
 RULES = (
     "You are the owner's chief of staff. The owner is a freelance developer who runs a few client projects and "
@@ -94,7 +108,41 @@ def setup_problems(auth: dict | None, tasks_error: str | None, stt: str, tts: st
         out.append({"id": "speech", "title": "Whisper isn't answering", "reason": "Speech recognition can't hear you on this Mac."})
     if tts == "kokoro" and not health.get("kokoro"):
         out.append({"id": "voice", "title": "Kokoro isn't answering", "reason": "Her voice is silent until it is back."})
+    for bad in config.set_aside:  # a precious state file Orb set aside (docs/adr/0014), until its copy is gone
+        if bad["precious"] and bad["copy"] and os.path.exists(bad["copy"]):
+            out.append({"id": f"state-{bad['name'].removesuffix('.json')}", "title": f"Orb set aside a damaged {bad['name']}",
+                        "reason": f"Kept as {os.path.basename(bad['copy'])} in Orb's state folder; Orb started it fresh. "
+                                  "Look at the copy, then delete it."})
     return out
+
+
+def vault_row(h: vault_git.Health | None) -> dict | None:
+    """The vault clone's Needs you row from `vault_git.health` (ticket 833), counts only, never a path: red when it is
+    conflicted, grey when it has diverged (red later on the since clock) or Orb can't check it; None when there is
+    nothing to resolve (in step, ahead-only, behind-only or only dirty)."""
+    if h is None:
+        return None
+    if h.why:
+        state, title, reason = "unchecked", "Vault: Orb can't check it", h.why.replace("the vault's ", "its ", 1).split(";")[0]
+    elif h.conflicted or h.diverged:
+        n = h.unmerged
+        parts = [f"behind {h.behind}" if h.behind else "", f"ahead {h.ahead}" if h.ahead else "",
+                 f"{n} conflict{'' if n == 1 else 's'}" if n else f"mid-{h.operation}" if h.operation else ""]
+        fetched = dt.datetime.fromtimestamp(h.fetched) if h.fetched else None
+        title = "Vault: " + ", ".join(x for x in parts if x) + (f" · fetched {fetched.day} {fetched:%b}" if fetched else "")
+        state, reason = ("conflict", "Orb writes no notes until it's resolved") if h.conflicted else ("diverged", "pull, then push")
+    else:
+        return None
+    return _row(key=f"vault:{state}", kind="vault", id="vault", title=title, reason=reason, source="vault",
+                actions=["open"], urgent=state == "conflict",
+                facts=f"{'Urgent. ' if state == 'conflict' else ''}The notes vault's local git clone: {title.removeprefix('Vault: ')}. {reason}",
+                stable=f"{state}|{h.unmerged}|{h.operation}")
+
+
+def _row(**c: object) -> dict:
+    """A Needs you row: what its rule doesn't set is None."""
+    return {"due": None, "priority": None, "url": None, "repo": None, "suggest": None, "pin": None, "repair": None,
+            "held_by": None, **c}
 
 
 def _late(due: str, today: str) -> str:
@@ -102,40 +150,106 @@ def _late(due: str, today: str) -> str:
 
 
 def needs_you(routines: list[dict] | None, tasks: list[dict] | None, today: str,
-              setup: list[dict] | None = None, reminders: list[dict] | None = None) -> list[dict]:
-    """What needs the owner, in rule order: a broken setup (`setup_problems`), routines with a problem (worst
-    first), reminders due today or earlier (`forget.due_now`, oldest first), then Vikunja tasks due before `today`
-    (oldest first, then highest priority). [{key, kind, id, title, reason, source, due, priority, url, actions,
-    facts, stable}]; `facts` is what the model reads, `stable` what the fingerprint uses."""
+              setup: list[dict] | None = None, reminders: list[dict] | None = None, vault: list | None = None) -> list[dict]:
+    """What needs the owner, in rule order: a broken setup (`setup_problems`), the vault clone (`vault_row`), routines
+    with a problem (worst first), reminders due today or earlier (`forget.due_now`, oldest first), then Vikunja tasks
+    due before `today` (oldest first, then highest priority). [{key, kind, id, title, reason, source, due, priority, url, actions,
+    facts, stable, pin}]; `facts` is what the model reads, `stable` what the fingerprint uses, `pin` the class a rule
+    pinned it in (security: a broken setup or a routine whose judged run is a security risk; client: an overdue task
+    whose repo is a client folder, `client` on the task; money: an overdue task with a pin label, `money` on the task,
+    see `money`), else None; a task in both is client."""
     out: list[dict] = []
     for p in setup or []:
-        out.append({"key": f"setup:{p['id']}", "kind": "setup", "id": p["id"], "title": p["title"], "reason": p["reason"],
-                    "source": "setup", "due": None, "priority": None, "url": None, "actions": ["open"], "repo": None, "suggest": None,
-                    "urgent": True, "facts": f"Urgent. Broken setup: {p['title']}. {_clip(p['reason'])}", "stable": f"{p['title']}|{p['reason']}"})
+        out.append(_row(key=f"setup:{p['id']}", kind="setup", id=p["id"], title=p["title"], reason=p["reason"],
+                        source="setup", actions=["open"], urgent=True,
+                        facts=f"Urgent. Broken setup: {p['title']}. {_clip(p['reason'])}", stable=f"{p['title']}|{p['reason']}",
+                        pin="security"))
+    out += [row for h in vault or [] if (row := vault_row(h))]
     bad = [r for r in routines or [] if r.get("enabled") and r.get("needs") in ROUTINE_RANK]
     for r in sorted(bad, key=lambda r: ROUTINE_RANK[r["needs"]]):
         last = r.get("last") or {}
         said = _clip(last.get("summary") or last.get("detail") or r.get("why"), REASON_MAX)
-        out.append({"key": f"routine:{r['id']}", "kind": "routine", "id": r["id"], "title": f"Routine ‘{r['name']}’ {ROUTINE_SAYS[r['needs']]}",
-                    "reason": said or f"Its last run {ROUTINE_SAYS[r['needs']]}.", "source": "routine", "due": None, "priority": None,
-                    "url": None, "actions": ["open"], "repo": None, "suggest": None, "urgent": bool(r.get("urgent")),
-                    "facts": f"{'Urgent. ' if r.get('urgent') else ''}Scheduled job '{_clip(r['name'], 80)}': {r['needs']}. Judge: {_clip(r.get('why'), 120) or '-'}. "
-                             f"Last run: {_clip(last.get('summary') or last.get('detail'))}",
-                    "stable": f"{last.get('id')}|{r['needs']}"})
+        streak = r.get("streak")  # a failure streak (routines.streak): make it a task first
+        repair = r.get("repair")  # its open Repair task: Open first, no second card (GLOSSARY: Repair task)
+        if streak:
+            said = f"{streak['count']} failed runs in a row since {dt.datetime.fromtimestamp(streak['since']).date().isoformat()}"
+        plain = f"Its last run {ROUTINE_SAYS[r['needs']]}."
+        stable = f"{last.get('id')}|{r['needs']}"
+        if repair:
+            said = f"{(said or plain).rstrip('.')} · Task #{repair['task']}"
+            stable += f"|{repair['task']}"
+        out.append(_row(key=f"routine:{r['id']}", kind="routine", id=r["id"], title=f"Routine ‘{r['name']}’ {ROUTINE_SAYS[r['needs']]}",
+                        reason=said or plain, source="routine",
+                        url=repair.get("url") if repair else None, actions=["make_task", "open"] if streak and not repair else ["open"],
+                        urgent=bool(r.get("urgent")),
+                        facts=f"{'Urgent. ' if r.get('urgent') else ''}Scheduled job '{_clip(r['name'], 80)}': {r['needs']}. Judge: {_clip(r.get('why'), 120) or '-'}. "
+                              f"Last run: {_clip(last.get('summary') or last.get('detail'))}{f'. {said}' if streak or repair else ''}",
+                        stable=stable, pin="security" if r.get("security") else None,
+                        repair=repair["task"] if repair else None))
     for r in sorted((r for r in reminders or [] if r.get("due") and r["due"] <= today), key=lambda r: r["due"]):
-        out.append({"key": f"reminder:{r['due']}:{_clip(r['text'], 80)}", "kind": "reminder", "id": r["due"],
-                    "title": _clip(r["text"], 120), "reason": _late(r["due"], today), "source": "reminder", "due": r["due"],
-                    "priority": None, "url": r.get("url"), "actions": ["open"] if r.get("url") else [], "repo": None, "suggest": None,
-                    "urgent": False, "facts": f"Reminder the owner set: {_clip(r['text'], 200)}; due {r['due']}", "stable": f"{r['text']}|{r['due']}"})
+        out.append(_row(key=f"reminder:{r['due']}:{_clip(r['text'], 80)}", kind="reminder", id=r["due"],
+                        title=_clip(r["text"], 120), reason=_late(r["due"], today), source="reminder", due=r["due"],
+                        url=r.get("url"), actions=["open"] if r.get("url") else [], urgent=False,
+                        facts=f"Reminder the owner set: {_clip(r['text'], 200)}; due {r['due']}", stable=f"{r['text']}|{r['due']}"))
     late = [t for t in tasks or [] if t.get("due") and t["due"] < today]
     for t in sorted(late, key=lambda t: (t["due"], -(t.get("priority") or 0))):
-        out.append({"key": f"vikunja:{t['id']}", "kind": "task", "id": str(t["id"]), "title": _clip(t["title"], 120),
-                    "reason": _ago(t["due"], today), "source": t.get("project") or None, "due": t["due"],
-                    "priority": t.get("priority") or None, "url": t.get("url"), "actions": ["open"], "repo": t.get("repo"),
-                    "suggest": suggest.task(t["due"], t.get("repo"), today), "urgent": False,
-                    "facts": f"Tracker task: {_clip(t['title'], 200)}; project {t.get('project') or '-'}; was due {t['due']}; "
-                             f"priority {t.get('priority') or 'unset'}",
-                    "stable": f"{t['title']}|{t['due']}|{t.get('priority')}"})
+        out.append(_row(key=f"vikunja:{t['id']}", kind="task", id=str(t["id"]), title=_clip(t["title"], 120),
+                        reason=_ago(t["due"], today), source=t.get("project") or None, due=t["due"],
+                        priority=t.get("priority") or None, url=t.get("url"), actions=["open"], repo=t.get("repo"),
+                        suggest=suggest.task(t["due"], t.get("repo"), today, t.get("held_by")), urgent=False,
+                        held_by=t.get("held_by"),
+                        facts=f"Tracker task: {_clip(t['title'], 200)}; project {t.get('project') or '-'}; was due {t['due']}; "
+                              f"priority {t.get('priority') or 'unset'}{_held(t)}",
+                        stable=f"{t['title']}|{t['due']}|{t.get('priority')}{_held(t)}",
+                        pin="client" if t.get("client") else "money" if t.get("money") else None))
+    return out
+
+
+def waiting(since: float | None) -> dict:
+    """A session waiting for the owner's OK (an open Allow card): since when (its oldest card, wall time) and when its
+    Needs you row turns red, WAITING_H later. The card itself is never answered or denied by Orb."""
+    return {"waiting_since": since, "red_at": since + WAITING_H * 3600 if since else None}
+
+
+def money(labels: list[str] | None, pin_labels: list[str] | None) -> bool:
+    """A task carries a pin label (settings "pin_labels", matched case-insensitively): an overdue one pins as money.
+    No pin labels, or a tracker without such a label, leave the class empty."""
+    want = {str(p).strip().casefold() for p in pin_labels or [] if str(p).strip()}
+    return bool(want) and any(str(x).strip().casefold() in want for x in labels or [])
+
+
+def clock(items: list[dict], since: dict[str, float], now: float, known: set[str]) -> dict[str, float]:
+    """`since` for these items: a routine or setup key keeps the time it entered Needs you, a new one gets `now`, one
+    that left is dropped (a return starts a new clock). Keys of a kind whose facts haven't arrived yet (not in `known`,
+    e.g. right after a restart) are kept."""
+    out = {k: t for k, t in since.items() if k.split(":", 1)[0] not in known}
+    for c in items:
+        if c["kind"] in CLOCKED:
+            out[c["key"]] = since.get(c["key"], now)
+    return out
+
+
+def _hours(c: dict, since: dict[str, float], today: str, now: float) -> float:
+    if c["kind"] in CLOCKED:
+        return max(0.0, now - since.get(c["key"], now)) / 3600
+    try:
+        return max(0, (dt.date.fromisoformat(today) - dt.date.fromisoformat(c["due"] or today)).days) * 24.0
+    except ValueError:
+        return 0.0
+
+
+def aged(items: list[dict], since: dict[str, float], today: str, now: float) -> list[dict]:
+    """Needs you's items with their age: the model's facts end with "in Needs you for N days" (facts aren't hashed, so a
+    day passing changes no fingerprint), and `urgent` turns on past ESCALATE_H for a routine, or for a task or reminder
+    that is pinned too, or for a diverged vault clone (one Orb can't check stays grey); a plain overdue task stays grey
+    however old it is."""
+    out = []
+    for c in items:
+        hours = _hours(c, since, today, now)
+        days = int(hours // 24)
+        late = hours >= ESCALATE_H and (c["kind"] == "routine" or c["key"] == "vault:diverged" or (bool(c.get("pin")) and c["kind"] in ("task", "reminder")))
+        out.append({**c, "urgent": bool(c["urgent"] or late),
+                    "facts": f"{c['facts']}; in Needs you for {days} day{'' if days == 1 else 's'}"})
     return out
 
 
@@ -162,15 +276,25 @@ def _days(n: int) -> str:
 
 
 TASK_ACTIONS = ["start", "done", "later"]
-VIKUNJA_ACTIONS = [*TASK_ACTIONS, "delegate"]  # `repo`: the mapped repo's label, else the page asks for one
+VIKUNJA_ACTIONS = [*TASK_ACTIONS, "delegate"]  # `repo`: the mapped repo's label, else the page asks for one; not on a teammate's task
+
+
+def _held(t: dict) -> str:
+    return f"; held by teammate {_clip(t['held_by'], 80)}" if t.get("held_by") else ""
+
+
+LEAVE_DAYS = 14  # a pull request this quiet gets Leave it: hidden until it changes, Orb never writes to it (ticket 850)
+RESULT_OLD_DAYS = 3  # a Finished session not opened for this long joins Up next's one "N finished sessions not opened" (ticket 849)
 
 
 def queue(tasks: list[dict] | None, notes: list[dict] | None, results: list[dict] | None, prs: list[dict] | None,
-          awaiting: int, today: str, hidden: set[str] = frozenset()) -> list[dict]:
+          awaiting: int, today: str, hidden: set[str] = frozenset(), notopic: int = 0, now: float | None = None,
+          left: dict[str, float] | None = None) -> list[dict]:
     """What doesn't need the owner but is worth doing, in rule order: due date (soonest first, undated last), then
     priority (Vikunja's, else the suggested one in `suggested`), then newest. Items in `hidden` are left out.
     Every item can be started or put off (Later); tasks (Vikunja's and the notes') can also be marked done, and
-    carry the rule's suggestion (suggest.py).
+    carry the rule's suggestion (suggest.py). A pull request quiet LEAVE_DAYS gets Leave it; one in `left` (key ->
+    its updatedAt when left) stays out until that time changes.
     Same shape as needs_you's items, plus `group`."""
     out: list[dict] = []
 
@@ -186,28 +310,40 @@ def queue(tasks: list[dict] | None, notes: list[dict] | None, results: list[dict
         said = _due(due, today) if due else f"Priority {prio}{'' if t.get('priority') else ' (suggested)'}." if prio else "No due date."
         add(key=f"vikunja:{t['id']}", kind="task", id=str(t["id"]), title=_clip(t["title"], 120), reason=said,
             source=t.get("project") or None, due=due, priority=prio, url=t.get("url"), ts=_ts(t.get("created")),
-            actions=VIKUNJA_ACTIONS, repo=t.get("repo"), suggest=suggest.task(due, t.get("repo"), today),
+            actions=TASK_ACTIONS if t.get("held_by") else VIKUNJA_ACTIONS, repo=t.get("repo"),
+            suggest=suggest.task(due, t.get("repo"), today, t.get("held_by")), held_by=t.get("held_by"),
             facts=f"Tracker task: {_clip(t['title'], 200)}; project {t.get('project') or '-'}; "
-                  f"due {due or 'none'}; priority {prio or 'unset'}",
-            stable=f"{t['title']}|{due}|{prio}")
+                  f"due {due or 'none'}; priority {prio or 'unset'}{_held(t)}",
+            stable=f"{t['title']}|{due}|{prio}{_held(t)}")
     for n in notes or []:
         name = n["file"].split("/")[-1].removesuffix(".md")
         add(key=f"note:{n['file']}:{n['line']}", kind="note_task", id=f"{n['file']}:{n['line']}", title=_clip(n["text"], 120),
             reason=f"From your note ‘{_clip(name, 60)}’.", source=name, ts=_ts(n.get("mtime")), actions=TASK_ACTIONS,
             suggest=suggest.note_task(n.get("raw") or n["text"], today),
             facts=f"Task in the note '{_clip(name, 80)}': {_clip(n['text'], 200)}", stable=n["text"])
+    cut = (now or time.time()) - RESULT_OLD_DAYS * 86400
+    old = [r for r in results or [] if r.get("finished_at") and r["finished_at"] <= cut]  # no finished time: its own item
     for r in results or []:
+        if r in old:
+            continue
         add(key=f"result:{r['key']}", kind="result", id=r["key"], title=_clip(r.get("label") or "New session", 120),
             reason="Finished; the answer is ready to read.", source=r.get("repo") or None, ts=_ts(r.get("last_used")),
             facts=f"Finished agent session in {r.get('repo') or '-'}; the owner asked: {_clip(r.get('label'), 200)}",
             stable=str(r.get("label")))
+    if old:  # one item, never red, no clock; after STALE_DAYS (sessions.py) they archive themselves
+        add(key="results:old", kind="results_old", id="old",
+            title=f"{len(old)} finished session{'s' if len(old) != 1 else ''} not opened", reason="Read them or let them go; after a week they archive themselves.",
+            source=None, ts=0.0, facts=f"{len(old)} finished agent sessions the owner has not opened for {RESULT_OLD_DAYS}+ days",
+            stable=str(len(old)))
     for p in prs or []:
-        if p.get("draft"):
+        key = f"pr:{p['repo']}#{p['number']}"
+        if p.get("draft") or (left and key in left and left[key] == p.get("updated")):
             continue
         repo = p["repo"].split("/")[-1]
-        add(key=f"pr:{p['repo']}#{p['number']}", kind="pr", id=f"{p['repo']}#{p['number']}", title=_clip(p["title"], 120),
+        add(key=key, kind="pr", id=f"{p['repo']}#{p['number']}", title=_clip(p["title"], 120),
             reason=f"Open pull request, last activity {_days(p.get('idle_days', 0))}.", source=repo, url=p.get("url"),
-            ts=_ts(p.get("updated")), facts=f"Owner's open pull request in {repo}: {_clip(p['title'], 200)}; "
+            ts=_ts(p.get("updated")), actions=["start", "later", "leave"] if p.get("idle_days", 0) >= LEAVE_DAYS else ["start", "later"],
+            facts=f"Owner's open pull request in {repo}: {_clip(p['title'], 200)}; "
                                             f"last activity {_days(p.get('idle_days', 0))}",
             stable=f"{p['title']}|{p.get('idle_days')}")
     if awaiting:
@@ -215,6 +351,11 @@ def queue(tasks: list[dict] | None, notes: list[dict] | None, results: list[dict
             title=f"{awaiting} note{'s wait' if awaiting != 1 else ' waits'} for a verdict", reason="Judge them in one pass, best first.",
             source="notes", ts=0.0, facts=f"{awaiting} notes in the second brain wait for the owner's verdict (approve or reject)",
             stable=str(awaiting))
+    if notopic:  # No-topic captures (ticket 820): a queue item only, never Needs you, no clock, no pin
+        add(key="notes:notopic", kind="notopic", id="notopic",
+            title=f"{notopic} capture{'s have' if notopic != 1 else ' has'} no topic", reason="Keep, drop or sort them one at a time.",
+            source="notes", ts=0.0, facts=f"{notopic} voice captures in the second brain matched no topic for a week",
+            stable=str(notopic))
     return sorted(out, key=lambda c: (c["due"] or "9999", -(c["priority"] or 0), -c["ts"]))
 
 
@@ -268,10 +409,11 @@ def _rows(rows: list[dict], by: dict[str, tuple[int, dict]]) -> list[dict]:
 
 
 def ordered(items: list[dict], ranking: list[dict], fresh: bool) -> list[dict]:
-    """Needs you's rows. A fresh ranking orders the items it ranked (any it missed follow in rule order); a stale one
-    leaves the rule order."""
+    """Needs you's rows. Pinned rows lead (docs/adr/0012); inside that block and inside the rest, a fresh ranking orders
+    the items it ranked (any it missed follow in rule order) and a stale one leaves the rule order."""
     by = {p["key"]: (n, p) for n, p in enumerate(ranking)}
-    return _rows(sorted(items, key=lambda c: by[c["key"]][0] if c["key"] in by else len(by)) if fresh else list(items), by)
+    rows = sorted(items, key=lambda c: by[c["key"]][0] if c["key"] in by else len(by)) if fresh else list(items)
+    return _rows(sorted(rows, key=lambda c: not c.get("pin")), by)
 
 
 def queued(items: list[dict], ranking: list[dict]) -> list[dict]:
@@ -295,8 +437,9 @@ class Needs:
     notes and pull requests with a Home refresh, routines and session results whenever they change), so each part is
     kept until it is sent again."""
 
-    FACTS = ("setup", "routines", "reminders", "tasks", "notes", "results", "prs", "awaiting")
+    FACTS = ("setup", "vault", "routines", "reminders", "tasks", "notes", "results", "prs", "awaiting", "notopic")
     MARKS = ("started", "later", "done")  # queue keys hidden for the day they were set
+    MARK_DAYS = 7  # a mark older than this goes on load (ticket 851)
 
     def __init__(self, path: Path, ask: Callable[[str], Awaitable[str]], push: Callable[[dict], Awaitable[None]]) -> None:
         self.path, self.ask, self.push = path, ask, push
@@ -308,13 +451,22 @@ class Needs:
         self.state = self._load()
 
     def _load(self) -> dict:
-        try:
-            data = json.loads(self.path.read_text())
-            if isinstance(data, dict) and isinstance(data.get("ranking"), list):
-                return data
-        except (OSError, ValueError):
-            pass
-        return {"fp": "", "at": None, "ranking": [], "error": None}
+        data = config.read_state(self.path, lambda d: isinstance(d, dict) and isinstance(d.get("ranking"), list))
+        if not data:
+            return {"fp": "", "at": None, "ranking": [], "error": None, "since": {}}
+        # Marks only hide a key for their own day: one older than MARK_DAYS is dead weight. Saved only on a change.
+        cut = (dt.date.today() - dt.timedelta(days=self.MARK_DAYS)).isoformat()
+        gone = 0
+        for part in self.MARKS:
+            marks = data.get(part)
+            if isinstance(marks, dict):
+                kept = {k: d for k, d in marks.items() if isinstance(d, str) and d >= cut}
+                gone += len(marks) - len(kept)
+                data[part] = kept
+        if gone:
+            log.info("needs: %d old marks pruned", gone)
+            config.write_private(self.path, json.dumps(data))
+        return data
 
     def _save(self) -> None:
         config.write_private(self.path, json.dumps(self.state))
@@ -326,8 +478,25 @@ class Needs:
     def _build(self) -> None:
         f = self.facts
         hidden = {k for part in self.MARKS for k, day in (self.state.get(part) or {}).items() if day == self.today}
-        self.items = needs_you(f["routines"], f["tasks"], self.today, f["setup"], f["reminders"])  # type: ignore[arg-type]
-        self.queue = queue(f["tasks"], f["notes"], f["results"], f["prs"], int(f["awaiting"] or 0), self.today, hidden)  # type: ignore[arg-type]
+        self.items = needs_you(f["routines"], f["tasks"], self.today, f["setup"], f["reminders"], f["vault"])  # type: ignore[arg-type]
+        self.queue = queue(f["tasks"], f["notes"], f["results"], f["prs"], int(f["awaiting"] or 0), self.today, hidden,  # type: ignore[arg-type]
+                           int(f["notopic"] or 0), left=self.state.get("left") or {})  # type: ignore[call-overload]
+
+    def _aged(self, now: float | None = None) -> list[dict]:
+        return aged(self.items, self.state.get("since") or {}, self.today, now or time.time())
+
+    def _clock(self, now: float) -> None:
+        """Start or drop the routine, setup and vault rows' clocks; saved with the ranking (one file, one atomic write)."""
+        known = {kind for kind, part in (("setup", "setup"), ("routine", "routines"), ("vault", "vault")) if self.facts[part] is not None}
+        since = clock(self.items, self.state.get("since") or {}, now, known)
+        if since != self.state.get("since"):
+            self.state["since"] = since
+            self._save()
+
+    def needs_rows(self) -> list[dict]:
+        """Needs you's plan rows in today's order (a read: the next action's pin stays as it is)."""
+        ranked = self._ranked()
+        return ordered(self._aged(), self.state["ranking"], bool(ranked) and self.state["fp"] == fingerprint(ranked, self.today))
 
     def event(self) -> dict:
         ranked = self._ranked()
@@ -343,7 +512,7 @@ class Needs:
             self._save()
         if rows:
             rows.insert(0, rows.pop(keys.index(pin["key"])))
-        return {"type": "plan", "needs_you": ordered(self.items, self.state["ranking"], fresh),
+        return {"type": "plan", "needs_you": ordered(self._aged(), self.state["ranking"], fresh),
                 "next": rows[0] if rows else None, "up_next": rows[1:1 + UP_NEXT],
                 "ranked_at": self.state["at"], "stale": bool(ranked) and not fresh, "busy": self.busy,
                 "error": self.state.get("error")}
@@ -362,14 +531,29 @@ class Needs:
         self._build()
         await self.push(self.event())
 
+    async def leave(self, key: str) -> bool:
+        """Leave it on a quiet pull request: hidden, on every page and after a restart, until its updatedAt changes.
+        Entries for PRs that changed or closed go at the same time. Nothing is written to GitHub."""
+        prs = {f"pr:{p['repo']}#{p['number']}": p for p in self.facts["prs"] or []}  # type: ignore[union-attr]
+        p = prs.get(key)
+        if not p or p.get("idle_days", 0) < LEAVE_DAYS:
+            return False
+        kept = {k: u for k, u in (self.state.get("left") or {}).items() if k in prs and prs[k].get("updated") == u}
+        self.state["left"] = {**kept, key: p.get("updated")}
+        self._save()
+        self._build()
+        await self.push(self.event())
+        return True
+
     async def update(self, today: str, force: bool = False, now: float | None = None, **facts: object) -> None:
-        """New facts (`setup=`, `routines=`, `reminders=`, `tasks=`, `notes=`, `results=`, `prs=`, `awaiting=`): send the rule lists at once;
+        """New facts (`setup=`, `vault=` ([Health] or []), `routines=`, `reminders=`, `tasks=`, `notes=`, `results=`, `prs=`, `awaiting=`, `notopic=`): send the rule lists at once;
         ask for a ranking when they changed (or `force`)."""
         self.facts.update({k: v for k, v in facts.items() if k in self.facts})
         self.today = today
         self._build()
-        ranked = self._ranked()
         now = now or time.time()
+        self._clock(now)
+        ranked = self._ranked()
         fp = fingerprint(ranked, today)
         tried = self.state.get("tried")
         due = force or (fp != self.state["fp"] and (tried is None or now - tried >= MIN_GAP))
@@ -379,7 +563,7 @@ class Needs:
         self.busy, self.state["tried"] = True, now
         await self.push(self.event())
         try:
-            text, ids = prompt(ranked, today)
+            text, ids = prompt(self._aged(now) + self.queue[:QUEUE_MAX], today)
             stable = {c["key"]: c["stable"] for c in ranked}
             ranking = [{**p, "stable": stable[p["key"]]} for p in parse(await self.ask(text), ids)]
             self.state.update(fp=fp, at=now, ranking=ranking, error=None)

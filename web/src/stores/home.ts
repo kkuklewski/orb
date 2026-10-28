@@ -1,21 +1,22 @@
 // Home: what needs you (sessions, routines), open tasks and recent notes from the notes folder.
 // The notes part comes from the server's home.summary (read-only, no model call).
 import { create } from "zustand";
-import type { DelegationItem, FolderItem, HomeEvent, HomeForgetEvent, HomeTasksEvent, PlanEvent, PlanItem, RoutinesEvent } from "../protocol.gen";
+import type { AwayRecap, DelegationItem, FolderItem, HomeEvent, HomeForgetEvent, HomeTasksEvent, PlanEvent, PlanItem, RoutinesEvent } from "../protocol.gen";
 import { on } from "../events";
 import { send } from "../ws";
 import { trackerName, useFeatures } from "./features";
-import { activityRows, useViews, type SessionRow } from "./views";
+import { activityRows, openSessions, useViews, type SessionRow } from "./views";
 import { askIn, openFolder } from "./session";
 import { openItem, startItem } from "./items";
 import { useDelegations } from "./delegation";
-import { openBrain, setFilter } from "./brain";
+import { openBrain, openNoTopic, setFilter } from "./brain";
 
 // forget: the Don't forget pane (reminders, repos with unsaved work, open pull requests) and pinned links (server: forget.summary).
 // tasks: the Tasks source as Home sees it, the first open Vikunja tasks and the count, or why it can't be read (server: vikunja.home_event).
 // plan: what needs you, from rules, in the order the model gave it (server: needs.py, docs/adr/0001).
-export const useHome = create<{ notes: HomeEvent | null; forget: HomeForgetEvent | null; tasks: HomeTasksEvent | null; plan: PlanEvent | null }>(
-  () => ({ notes: null, forget: null, tasks: null, plan: null }));
+// away: the Away recap after 24 hours or more without the owner acting, or null (server: away.py).
+export const useHome = create<{ notes: HomeEvent | null; forget: HomeForgetEvent | null; tasks: HomeTasksEvent | null; plan: PlanEvent | null;
+  away: AwayRecap | null }>(() => ({ notes: null, forget: null, tasks: null, plan: null, away: null }));
 
 /** The Vikunja tasks Home can count on: null when Vikunja isn't set up, can't be read, or hasn't answered yet. */
 export function vikunjaTasks(t: HomeTasksEvent | null): (HomeTasksEvent & { tasks: NonNullable<HomeTasksEvent["tasks"]> }) | null {
@@ -39,6 +40,9 @@ export function wireHome(): () => void {
   const offs = [on("home", (ev) => useHome.setState({ notes: ev })), on("home_forget", (ev) => useHome.setState({ forget: ev })),
     on("home_tasks", (ev) => useHome.setState({ tasks: ev })),
     on("plan", (ev) => useHome.setState({ plan: ev })),
+    on("away_recap", (ev) => useHome.setState({ away: ev.recap })),
+    // Leaving Home with the Away recap on screen counts as having opened it: it goes, on every page.
+    useViews.subscribe((s, prev) => { if (prev.view === "home" && s.view !== "home" && useHome.getState().away) awaySeen(); }),
     on("result", (ev) => { if (!ev.replay) refreshIfHome(); }), // a turn ended: it may have made a task
     useViews.subscribe((s, prev) => { if (s.view === "home" && prev.view !== "home") refreshIfHome(); })];
   return () => { clearInterval(timer); document.removeEventListener("visibilitychange", refreshIfHome); window.removeEventListener("focus", refreshIfHome); offs.forEach((off) => off()); };
@@ -68,6 +72,12 @@ export function refreshHome() {
   if (useFeatures.getState().features?.routines) send({ type: "routines" });
 }
 
+/** The Away recap was read: close it here and on every other page. */
+export function awaySeen() {
+  useHome.setState({ away: null });
+  send({ type: "away_seen" });
+}
+
 /** Ask for a new ranking of the plan now (the server otherwise asks only when it changed). */
 export function rerank() {
   send({ type: "home", rerank: true });
@@ -75,13 +85,16 @@ export function rerank() {
 
 /** Start a queue item, each kind its own way: a Vikunja task opens a session from its brief (the server picks the
  *  repo, else the Home chat), a note task goes to the Home chat, a result opens its session (which clears it), a pull
- *  request its page, the notes batch Brain's notes waiting for a verdict (grouped there by suggestion, ADR 0006). A started task or PR leaves the queue for today. */
+ *  request its page, the notes batch Brain's notes waiting for a verdict (grouped there by suggestion, ADR 0006), the
+ *  No-topic captures Brain's No topic view, the old Finished ones Sessions showing only Finished. A started task or PR leaves the queue for today. */
 export function startPlan(p: PlanItem) {
   const vault = useFeatures.getState().features?.vault;
   if (p.kind === "task") startItem("vikunja", p.id);
   else if (p.kind === "note_task" && vault) askIn(vault, `Help me get this task from my note "${p.id.slice(0, p.id.lastIndexOf(":"))}" done: ${p.title}`);
   else if (p.kind === "pr") openItem("prs", p.id);
   else if (p.kind === "notes_batch") { setFilter({ waiting: true }); openBrain(); }
+  else if (p.kind === "notopic") openNoTopic();
+  else if (p.kind === "results_old") openSessions(false, true);
   else if (p.kind === "result") {
     const f = useFeatures.getState().folders.find((x) => x.sessions?.some((s) => s.key === p.id));
     if (f) openFolder(f.path, p.id);
@@ -91,6 +104,10 @@ export function startPlan(p: PlanItem) {
 
 /** Later: the item leaves the queue until tomorrow, on every page (the server keeps it; nothing is written to Vikunja). */
 export const laterPlan = (p: PlanItem) => send({ type: "plan_later", key: p.key });
+
+/** Leave it on a pull request quiet for two weeks: hidden until the PR changes (the server keeps its updatedAt); Orb
+ *  never closes, comments on or touches the PR. */
+export const leavePlan = (p: PlanItem) => send({ type: "plan_leave", key: p.key });
 
 
 export const askAboutNote = (file: string) => `Read my note "${file}" and tell me in a few sentences what it says and what, if anything, I still need to do about it.`;

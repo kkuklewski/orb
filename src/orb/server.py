@@ -23,7 +23,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTex
 from fastapi.staticfiles import StaticFiles
 from starlette.datastructures import Headers, MutableHeaders
 
-from . import billing, chain, config, delegation, desk, folders, forget, handoff, home, intake, items, kokoro_setup, make_task, navigate, needs, parakeet, routines, settings, setup, slash, speech, tasks, tracker, triage, vault_write, vendor, vocab, worktree
+from . import away, billing, chain, claim, config, delegation, desk, fence, folders, forget, handoff, home, intake, items, kokoro_setup, make_task, navigate, needs, parakeet, routines, settings, setup, slash, speech, tasks, timing, tracker, triage, vault_git, vault_write, vendor, vocab, worktree
 from .agent import SCREEN_MAX, FolderSession, dumps, first_request
 from .brain import CaptureGuard
 from .sessions import SessionStore
@@ -33,11 +33,9 @@ STATIC = Path(__file__).parent / "static"
 
 
 def build_id() -> str:
-    """Hash of the page's own files: a page from an older build reloads itself (no stale JS)."""
-    h = hashlib.sha256()
-    for name in ("index.html", "app.js", "app.css", "studio.css"):
-        h.update((STATIC / name).read_bytes())
-    return h.hexdigest()[:12]
+    """Hash of the built page's index.html; its asset names carry content hashes, so any rebuild changes it."""
+    built = STATIC / "app" / "index.html"
+    return hashlib.sha256(built.read_bytes() if built.is_file() else b"").hexdigest()[:12]
 
 
 BUILD = build_id()
@@ -78,6 +76,12 @@ async def notice_audio(text: str) -> str | None:
         return None
 
 
+def card_since(s: FolderSession | None) -> float | None:
+    """When the session's oldest open Allow card opened (wall time), or None without one."""
+    opened = [ev["_created"] for _, ev in s.pending.values() if "_created" in ev] if s else []
+    return time.time() - (time.monotonic() - min(opened)) if opened else None
+
+
 class Hub:
     def __init__(self) -> None:
         self.conns: set[Conn] = set()
@@ -86,6 +90,8 @@ class Hub:
         self.folders: list[dict] = []
         self.rate_limit: dict | None = None
         self.guard = CaptureGuard(config.STATE_DIR / "captures.json")  # shared: one daily limit
+        self.away = away.Clock(config.STATE_DIR / "away.json")  # the Away recap: when the owner last acted
+        self.archived_at = 0.0  # when stale sessions were last archived (on start, then once a day)
         self.routines = routines.Watch(config.STATE_DIR / "routines.json", notify=self.routine_notice,
                                        push=self.push_routines)
         self.needs = needs.Needs(config.STATE_DIR / "needs.json", ask=lambda p: routines.ask_haiku(p, needs.MODEL),
@@ -104,11 +110,12 @@ class Hub:
             cfg=lambda: settings.settings.data, vault=settings.settings.vault,
             folders=lambda: self.folders or self.scan(),
             routines=self.live_routines,
-            sessions=self.store.sessions)
+            sessions=self.store.sessions, away=self.away_brief)
         self.delegator = delegation.Delegator(
             config.STATE_DIR / "delegations.json", store=self.store, session=self.session, push=self.push_all,
             done=self.task_done, waiting=self.card_words,
-            limit=lambda: int(settings.settings["delegation_limit"]))
+            limit=lambda: int(settings.settings["delegation_limit"]), claims=claim.Claims(lambda: settings.settings.data),
+            never=lambda: never_names())
         self.maker = make_task.Maker(cfg=lambda: settings.settings.data, vault=settings.settings.vault,
                                      inbox=lambda: settings.settings["tasks_inbox"])
 
@@ -163,10 +170,12 @@ class Hub:
         for e in self.store.sessions(path):
             live = self.sessions.get(e["key"])
             out.append({"key": e["key"], "label": e.get("label"), "created": e.get("created"), "last_used": e.get("last_used"),
-                        "archived": bool(e.get("archived")),
+                        "finished_at": e.get("finished_at"), "archived": bool(e.get("archived")),
                         "empty": not e.get("resume") and not (live and (live.busy or live.history)),
-                        "status": live.status if live else "idle", "live": bool(live and live.live),
+                        "status": live.status if live else ("done" if e.get("finished_at") else "idle"),
+                        "live": bool(live and live.live),
                         "ask": next((ev["summary"] for _, ev in live.pending.values()), None) if live else None,
+                        **needs.waiting(card_since(live)),
                         "mcp_failed": live.info.get("mcp_failed", 0) if live else 0,
                         "opus": sum(1 for t in live.running_tasks() if t["coder"]) if live else 0})
         return out
@@ -210,6 +219,7 @@ class Hub:
                 navigate=self.navigate,
             )
             self.sessions[key] = s
+            s.unseen = any(x["key"] == key and x.get("finished_at") for x in self.store.sessions(path))  # kept over a restart
         return s
 
     async def start_task(self, conn: "Conn", path: str, brief: str) -> None:
@@ -314,6 +324,8 @@ class Hub:
             return
         targets = [c for c in self.conns if c.key != s.key]
         d = self.delegator.of_session(s.key)
+        if kind == "done" and not d:
+            self.store.set_finished(s.path, s.key, time.time())
         if not targets or (d and kind == "done"):  # a delegation is never Finished: its stage line says Ready
             await self.push_folders()
             return
@@ -354,6 +366,36 @@ class Hub:
         await asyncio.gather(*(c.send(ev) for c in self.conns))
         self.replan(routines=self.live_routines())  # a routine that just failed needs you now, not at the next Home refresh
 
+    def away_lines(self, since: float) -> list[dict]:
+        """The Away recap's lines from what Orb already keeps: the routines that ran ok (while the panel is on), the
+        pages the vault archived (frontmatter only), then the sessions still Finished (unopened) and the delegations
+        that became Ready, each counted since `since`, then the sessions waiting for an OK now (a delegation's card is
+        its own Needs you row)."""
+        st = self.routines.state
+        ran = routines.away_lines(self.routines.items(), st["runs"], st["logs"], since) if settings.settings["routines"] else []
+        finished = [x["finished_at"] for f in self.folder_list() for x in self.store.sessions(f["path"])
+                    if x.get("finished_at") and not x.get("archived") and not self.delegator.of_session(x["key"])]
+        ready = [r["ready_at"] for r in self.delegator.items.values() if r.get("ready_at")]
+        vault = settings.settings.vault()
+        expired = away.expired_line(home.expired_since(vault, since)) if vault and vault.is_dir() else []
+        waiting = sum(1 for f in self.folder_list() for x in f["sessions"] if x["status"] == "approval" and not self.delegator.of_session(x.get("key", "")))
+        return ran + expired + away.own_lines(finished, ready, since, self.store.auto_archived()) + away.waiting_line(waiting)
+
+    def away_event(self) -> dict:
+        return self.away.event(lines=self.away_lines)
+
+    def away_brief(self) -> dict | None:
+        """The Away recap for the Home chat's home_brief: pending, or the last one once opened, with Needs you in the
+        page's order (sessions waiting for an OK, delegations, the plan's rows). A read: the card stays as it is."""
+        rec = self.away.peek(lines=self.away_lines)
+        if rec is None:
+            return None
+        waiting = [f"{f['label']}: {x['label'] or 'New session'}, waiting for your OK"
+                   for f in self.folder_list() for x in f["sessions"] if x["status"] == "approval"]
+        delegated = [f"Delegated #{d['task']} {d['title']} ({d['repo']}): {d['line']}" for d in self.delegator.event()["items"] if d["needs"]]
+        plan = [f"{p['title']}: {p['reason']}" for p in self.needs.needs_rows()]
+        return {**rec, "needs": waiting + delegated + plan}
+
     def live_routines(self) -> list[dict] | None:
         return self.routines.items() if settings.settings["routines"] else None
 
@@ -372,7 +414,8 @@ class Hub:
 
     def results(self, found: list[dict] | None = None) -> list[dict]:
         """Sessions that finished while nobody looked (their answer is unread), for the plan's queue."""
-        out = [{"key": x["key"], "label": x["label"], "repo": f["label"].split("/")[-1], "last_used": x["last_used"]}
+        out = [{"key": x["key"], "label": x["label"], "repo": f["label"].split("/")[-1], "last_used": x["last_used"],
+                "finished_at": x.get("finished_at")}
                for f in (found if found is not None else self.folder_list())
                for x in f["sessions"] if x["status"] == "done" and not x["archived"]]
         self.results_sent = out
@@ -390,11 +433,31 @@ class Hub:
                 log.info("closing idle session %s (%s)", s.path, s.key[:8])
                 await s.close()
 
+    async def archive_stale(self, now: float | None = None) -> int:
+        """Archive the Stale sessions (ticket 847): never one that is running, has an open card, is a delegation's or
+        is on a page."""
+        viewed = {c.key for c in self.conns}
+
+        def keep(key: str) -> bool:
+            s = self.sessions.get(key)
+            return (key in viewed or bool(self.delegator.of_session(key))
+                    or bool(s and (s.busy or s.pending or s.running_tasks())))
+        self.archived_at = time.time() if now is None else now
+        count = self.store.archive_stale(keep, now=now)
+        if count:
+            log.info("archived %d stale sessions", count)
+            if self.conns:
+                await self.push_folders()
+        return count
+
     async def janitor(self) -> None:
         while True:
             await asyncio.sleep(60)
             with contextlib.suppress(Exception):
                 await self.enforce_limits()
+            if time.time() - self.archived_at >= 86400:
+                with contextlib.suppress(Exception):
+                    await self.archive_stale()
             with contextlib.suppress(Exception):
                 await self.delegator.tick()  # "Stuck 20 min"
 
@@ -406,8 +469,10 @@ hub = Hub()
 async def lifespan(app: FastAPI):
     billing.assert_subscription_env()
     await asyncio.to_thread(vendor.ensure)
+    await asyncio.to_thread(timing.trim)
     await asyncio.to_thread(hub.store.backfill_labels, first_request)
     hub.scan()
+    await hub.archive_stale()
     tasks = [asyncio.create_task(hub.janitor()), asyncio.create_task(hub.routines.loop()),
              asyncio.create_task(hub.check_auth())]
     yield
@@ -459,17 +524,13 @@ app.add_middleware(Guard)
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
 
-CDN = "https://cdn.jsdelivr.net"
-
-
-def csp(host: str, secure: bool, cdn: bool = True) -> str:
+def csp(host: str, secure: bool) -> str:
     """The page's policy. The React page bundles everything, so it gets no CDN at all."""
     ws = f"{'wss' if secure else 'ws'}://{host}"
-    extra = f" {CDN}" if cdn else ""
     return "; ".join([
         "default-src 'self'",
-        f"script-src 'self'{extra} 'wasm-unsafe-eval'",  # CDN scripts carry SRI hashes
-        f"style-src 'self'{extra} https://fonts.googleapis.com",
+        "script-src 'self' 'wasm-unsafe-eval'",
+        "style-src 'self' https://fonts.googleapis.com",
         "font-src https://fonts.gstatic.com",
         "img-src 'self' data:",
         f"connect-src 'self' {ws}",
@@ -481,11 +542,11 @@ def csp(host: str, secure: bool, cdn: bool = True) -> str:
     ])
 
 
-def page(request: Request, html: str, cdn: bool) -> HTMLResponse:
+def page(request: Request, html: str) -> HTMLResponse:
     secure = request.headers.get("x-forwarded-proto") == "https" or request.url.scheme == "https"
     return HTMLResponse(html, headers={
         "Cache-Control": "no-store",
-        "Content-Security-Policy": csp(request.headers.get("host", ""), secure, cdn=cdn),
+        "Content-Security-Policy": csp(request.headers.get("host", ""), secure),
         "Referrer-Policy": "no-referrer",
     })
 
@@ -511,13 +572,7 @@ async def index(request: Request, route: str = ""):
     built = STATIC / "app" / "index.html"
     if not built.is_file():
         return PlainTextResponse("The page isn't built. Run: cd web && npm ci && npm run build", status_code=404)
-    return page(request, built.read_text(), cdn=False)
-
-
-@app.get("/old")
-async def old_page(request: Request):
-    """The previous page (plain JS), kept reachable until the React page has everything."""
-    return page(request, (STATIC / "index.html").read_text().replace("__BUILD__", BUILD), cdn=True)
+    return page(request, built.read_text())
 
 
 @app.get("/next")
@@ -570,6 +625,7 @@ async def ws_endpoint(ws: WebSocket):
         while True:
             msg = await ws.receive_json()
             try:
+                await owner_acted(msg)
                 await handle(conn, msg)
             except Exception as e:  # noqa: BLE001
                 log.exception("ws message %s", msg.get("type"))
@@ -648,7 +704,7 @@ async def note_action(conn: "Conn", file: str, line: int, expect: str, action: s
     await conn.send(ev)
     summary = await asyncio.to_thread(home.summary, vault)
     await asyncio.gather(*(c.send(summary) for c in hub.conns))  # every page shows the new list
-    hub.replan(notes=summary["tasks"], awaiting=summary["awaiting_count"])
+    hub.replan(notes=summary["tasks"], awaiting=summary["awaiting_count"], notopic=summary.get("notopic_count", 0))
 
 
 async def item_list(conn: "Conn", source: str) -> None:
@@ -675,6 +731,40 @@ async def brain_list(conn: "Conn") -> None:
         await conn.send({"type": "brain_list", "notes": [], "error": "No notes folder is set up."})
         return
     await conn.send({"type": "brain_list", "notes": await asyncio.to_thread(home.brain_notes, vault)})
+
+
+async def brain_expired(conn: "Conn") -> None:
+    vault = settings.settings.vault()
+    if not vault:
+        await conn.send({"type": "brain_expired", "notes": [], "error": "No notes folder is set up."})
+        return
+    await conn.send({"type": "brain_expired", "notes": await asyncio.to_thread(home.expired_notes, vault)})
+
+
+async def brain_notopic(conn: "Conn", files: list[str]) -> None:
+    vault = settings.settings.vault()
+    if not vault:
+        await conn.send({"type": "brain_notopic", "notes": [], "error": "No notes folder is set up."})
+        return
+    await conn.send({"type": "brain_notopic", "notes": await asyncio.to_thread(home.notopic_notes, vault, None, files)})
+
+
+def capture_card(file: str) -> dict:
+    vault = settings.settings.vault()
+    if not vault:
+        return {"type": "error", "text": "No notes folder is set up."}
+    return hub.maker.capture_card(next((n for n in home.notopic_notes(vault) if n["file"] == file), None))
+
+
+def brain_keep(file: str, seen: str) -> tuple[list[dict], list[dict]]:
+    """Keep a No-topic capture as an idea: owner_read, only if it still reads `seen`. (applied, refused) as brain_apply."""
+    try:
+        vault_write.set_owner_read(settings.settings.vault(), file, seen)
+    except tasks.TaskError as e:
+        return [], [{"file": file, "reason": str(e)}]
+    except (OSError, UnicodeDecodeError) as e:
+        return [], [{"file": file, "reason": f"Couldn't change the note: {e}"}]
+    return [{"file": file, "verdict": "keep"}], []
 
 
 async def brain_note(conn: "Conn", file: str) -> bool:
@@ -718,6 +808,13 @@ async def item_get(conn: "Conn", source: str, item_id: str, start: bool) -> None
     await conn.send({"type": "item", "source": source, "id": item_id, **got, "repo": repo[1] if repo else None})
 
 
+async def owner_acted(msg: dict) -> None:
+    """Every page message passes here first: a click or a message moves the Away recap's clock (away.ACTIONS), a page
+    that only opens or reads does not. Back after 24 hours: every page's Home freezes the recap."""
+    if msg.get("type") in away.ACTIONS and hub.away.acted():
+        await hub.push_all(hub.away_event())
+
+
 async def delegate(conn: Conn, task_id: int, path: str | None) -> None:
     """Delegate on a tracker task: the grant card. The repo comes from the repo map, or for an unmapped task from the
     picker (this delegation only; the notes are never edited); either way it must be an allowed folder."""
@@ -755,12 +852,16 @@ async def bulk_next(conn: Conn, groups: list, skipped: list[str] | None = None) 
         await conn.send(card)
 
 
+def never_names() -> set[str]:
+    """Never-open names stay out of a delegation's snapshot (and the card's count of uncommitted files), like the fence."""
+    return {*settings.settings["skip_names"], "secrets"}
+
+
 async def delegate_confirm(conn: Conn, cid: str, ok: bool) -> None:
     """The card's answer; on a bulk card the next repo's card follows either way."""
     rest = hub.delegator.then(cid)
-    never = {*settings.settings["skip_names"], "secrets"}  # never-open names stay out of the snapshot, like the fence
     try:
-        await hub.delegator.confirm(cid, ok, never)
+        await hub.delegator.confirm(cid, ok, never_names())
     finally:
         if rest:
             await bulk_next(conn, rest)
@@ -786,6 +887,7 @@ async def open_session(conn: Conn, path: str, key: str) -> None:
         await old.speaker.reset()  # nobody hears it any more; stop synthesizing
     s = hub.session(path, key)
     s.unseen = False
+    hub.store.set_finished(path, key, None)
     await asyncio.to_thread(s.load_history)
     desc = folders.describe(Path(path), folders.root_of(Path(path), settings.settings.roots()) or Path(path).parent)
     await conn.send({"type": "opened", "folder": path, "session": key, "label": desc.label, "branch": desc.branch,
@@ -1030,6 +1132,7 @@ async def handle(conn: Conn, msg: dict) -> None:
         await hub.push_folders()
         return
     if t == "home":
+        await conn.send(hub.away_event())
         await conn.send(hub.delegator.event())
         notes = await asyncio.to_thread(home.summary, settings.settings.vault())
         await conn.send(notes)
@@ -1041,19 +1144,29 @@ async def handle(conn: Conn, msg: dict) -> None:
         await conn.send(tracker.home_event(src))
         # Then the plan: the rule lists at once, a new ranking in the background when it changed.
         open_ = src["tasks"] if src else []
-        mine = triage.current(open_, triage.load())  # the suggested priority stands in where the tracker has none
-        repos = {pid: repo_of(path) for pid, path in (await asyncio.to_thread(tracker.repo_map, cfg, settings.settings.vault())).items()}
+        mine = triage.current(open_, triage.load(open_=triage.open_ids(src)))  # the suggested priority stands in where the tracker has none
+        paths = await asyncio.to_thread(tracker.repo_map, cfg, settings.settings.vault())
+        repos = {pid: repo_of(path) for pid, path in paths.items()}
+        clients = {pid for pid, path in paths.items() if fence.Fence(path, isolated=False).in_client()}  # pins an overdue task (needs.py)
         hub.replan(setup=await hub.setup_problems(src and src["error"]), reminders=forget.due_now(settings.settings.data),
-                   tasks=[{**x, "suggested": (mine.get(x["id"]) or {}).get("p"), "repo": (repos.get(x.get("project_id")) or (None, None))[1]}
-                          for x in open_], routines=hub.live_routines(),
-                   notes=notes["tasks"], awaiting=notes["awaiting_count"], prs=w.get("prs") or [], results=hub.results(),
+                   tasks=[{**x, "suggested": (mine.get(x["id"]) or {}).get("p"), "repo": (repos.get(x.get("project_id")) or (None, None))[1],
+                           "client": x.get("project_id") in clients, "money": needs.money(x.get("labels"), cfg.get("pin_labels"))} for x in open_], routines=hub.live_routines(),
+                   vault=[h] if (h := await asyncio.to_thread(vault_git.cached, settings.settings.vault())) else [],
+                   notes=notes["tasks"], awaiting=notes["awaiting_count"], notopic=notes.get("notopic_count", 0), prs=w.get("prs") or [], results=hub.results(),
                    force=bool(msg.get("rerank")))
+        return
+    if t == "away_seen":  # the Away recap was closed, or Home left: gone on every page
+        if hub.away.seen():
+            await hub.push_all(hub.away_event())
         return
     if t == "plan_start":
         await hub.needs.mark("started", str(msg["key"]), dt.date.today().isoformat())
         return
     if t == "plan_later":
         await hub.needs.mark("later", str(msg["key"]), dt.date.today().isoformat())
+        return
+    if t == "plan_leave":  # a pull request quiet for two weeks: hidden until it changes, nothing written to GitHub
+        await hub.needs.leave(str(msg["key"]))
         return
     if t == "plan_done":
         # Done on a queue task: the tracker's is written there at once (Undo opens it again); a notes task gets its line
@@ -1136,6 +1249,16 @@ async def handle(conn: Conn, msg: dict) -> None:
     if t == "brain_list":
         await brain_list(conn)
         return
+    if t == "brain_expired":
+        await brain_expired(conn)
+        return
+    if t == "brain_notopic":
+        await brain_notopic(conn, [str(f) for f in msg.get("files") or []])
+        return
+    if t == "brain_keep":
+        applied, refused = await asyncio.to_thread(brain_keep, str(msg["file"]), str(msg.get("seen") or ""))
+        await conn.send({"type": "brain_applied", "applied": applied, "refused": refused})
+        return
     if t == "brain_get":
         await brain_note(conn, str(msg["file"]))
         return
@@ -1183,14 +1306,23 @@ async def handle(conn: Conn, msg: dict) -> None:
         await hub.routines.resolve(str(msg["id"]), bool(msg.get("undo")))
         return
     if t == "make_task":
-        x = next((r for r in hub.routines.items() if r["id"] == msg["routine"]), None)
+        if msg.get("capture"):  # a No-topic capture (ticket 820): only one still on the list
+            await conn.send(await asyncio.to_thread(capture_card, str(msg["capture"])))
+            return
+        x = next((r for r in hub.routines.items() if r["id"] == msg.get("routine")), None)
         await conn.send(await asyncio.to_thread(hub.maker.card, x))
         return
     if t == "make_task_confirm":
-        await conn.send(await asyncio.to_thread(hub.maker.confirm, str(msg["id"]), bool(msg["ok"])))
+        done = await asyncio.to_thread(hub.maker.confirm, str(msg["id"]), bool(msg["ok"]))
+        if done.get("ok") and done["task"] in hub.maker.repairs:  # a failure streak's Repair task: one per routine
+            await hub.routines.set_repair(hub.maker.repairs[done["task"]], done["task"], done["url"])
+        await conn.send(done)
         return
     if t == "make_task_undo":
-        await conn.send(await asyncio.to_thread(hub.maker.undo, int(msg["task"])))
+        undone = await asyncio.to_thread(hub.maker.undo, int(msg["task"]))
+        if undone.get("ok"):
+            await hub.routines.drop_repair(int(msg["task"]))
+        await conn.send(undone)
         return
     if t == "mute":
         conn.muted = bool(msg.get("value"))
@@ -1221,6 +1353,12 @@ async def handle(conn: Conn, msg: dict) -> None:
         return
     if t == "delegation_resume":
         await delegation_step(conn, hub.delegator.resume(str(msg["id"])))
+        return
+    if t == "delegation_update":
+        await delegation_step(conn, hub.delegator.update(str(msg["id"])))
+        return
+    if t == "delegation_reopen":
+        await delegation_step(conn, hub.delegator.reopen(str(msg["id"])))
         return
     if t == "delegation_outward":
         await delegation_step(conn, hub.delegator.outward(str(msg["id"]), bool(msg["allow"])))

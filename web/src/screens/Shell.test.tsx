@@ -183,6 +183,15 @@ describe("composer and slash menu", () => {
 
   const box = () => screen.getByRole("combobox", { name: "Message" }) as HTMLTextAreaElement;
 
+  it("a draft lands in the box, focused and unsent (New topic, ticket 820)", () => {
+    render(<Composer />);
+    act(() => useSession.setState({ draft: "Start a Topics page for the capture inbox/captures/acme.md" }));
+    expect(box().value).toBe("Start a Topics page for the capture inbox/captures/acme.md");
+    expect(document.activeElement).toBe(box());
+    expect(useSession.getState().draft).toBeNull();
+    expect(sent).toEqual([]);
+  });
+
   it("/ opens the menu; arrows move, Tab completes", () => {
     render(<Composer />);
     fireEvent.change(box(), { target: { value: "/c" } });
@@ -267,6 +276,20 @@ describe("sessions view", () => {
     fireEvent.click(screen.getByRole("button", { name: "Show all sessions" }));
     expect(useViews.getState().running).toBe(false);
     expect(screen.getByRole("button", { name: /notes/ })).toBeTruthy();
+  });
+
+  it("the Finished filter shows only the Finished sessions, and clears to all (ticket 849)", () => {
+    useFeatures.setState({ folders: [
+      folder("web", [session("w1", "approval", { label: "fix login", last_used: 20 }), session("w2", "done", { label: "ship invoices", last_used: 10 })]),
+      folder("api", [session("a1", "working", { label: "add tests", last_used: 30 }), session("a2", "done", { label: "old", last_used: 5 })]),
+    ] });
+    useViews.setState({ view: "sessions", running: false, finished: true });
+    render(<Sessions />);
+    expect(screen.getByText("finished, not opened")).toBeTruthy();
+    expect(screen.getAllByRole("button", { name: /fix login|add tests|ship invoices|old/ }).map((b) => b.querySelector(".act-label")?.textContent)).toEqual(["web · ship invoices", "api · old"]);
+    fireEvent.click(screen.getByRole("button", { name: "Show all sessions" }));
+    expect(useViews.getState().finished).toBe(false);
+    expect(screen.getByRole("button", { name: /fix login/ })).toBeTruthy();
   });
 });
 

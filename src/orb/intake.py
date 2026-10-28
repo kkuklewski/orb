@@ -199,6 +199,10 @@ def transcript_job(url: str, env: Env) -> Callable[[], Done]:
 
     def run() -> Done:
         assert env.vault and vid
+        try:
+            vault_write.clone_ok(env.vault)  # before the fetch; new_transcript checks again before it writes
+        except vault_write.TaskError as e:
+            raise Refused(str(e)) from None
         data = fetch_transcript(env, f"https://youtu.be/{vid}")
         title = str(data.get("title") or "").strip() or f"YouTube transcript {vid}"
         try:

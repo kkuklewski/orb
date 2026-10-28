@@ -72,6 +72,15 @@ routine, a reminder due today or earlier, an overdue task, a broken setup (sign-
 chosen speech engine down, linking into Settings at the section that fixes it).
 _Avoid_: Urgent, waiting, important
 
+**Pinned**:
+A Needs you row a rule holds at the top until it leaves: security, client or money. It shows its class word, and turns
+red after 48 hours in Needs you (past due, for a task).
+_Avoid_: Sticky, escalated, priority
+
+**Pin label**:
+A tracker label from `pin_labels` that pins an overdue task as money; a convention, default money. Orb only reads it.
+_Avoid_: Money tag, billing flag
+
 **Next action**:
 The single item Home suggests the owner start now, after everything that needs them.
 _Avoid_: Lead, top item, today's plan
@@ -114,6 +123,15 @@ A delegation waiting for a free slot: at most three delegated sessions run at on
 finish.
 _Avoid_: Pending, waiting, backlog
 
+**Claim**:
+The task's assignee in the tracker, set to the owner by Delegate before its worktree exists. A task held by a
+teammate is not delegated; Discard takes back a claim Orb made, Apply and done leave it.
+_Avoid_: lock, reserve, take
+
+**Teammate**:
+Another person with their own Orb in the same repos and the same tracker. Orb never removes a teammate's claim.
+_Avoid_: user, colleague, other owner
+
 **Grant**:
 The owner's one approval for what a session may do without asking again, given by the act that started it: a
 delegation's grant (its own worktree, declared commands, its branch), a drop's grant (fetching its own link, reading its
@@ -121,7 +139,8 @@ own file). It belongs to that one session, is never stored and ends with it; the
 _Avoid_: Auto-approve, bypass, trust
 
 **Apply**:
-Merging a delegated session's tested pull request into its repo; undone by reverting it.
+Merging a delegated session's tested pull request into its repo, on the remote when there is a PR (after a card
+that always asks); undone by reverting it (a revert PR when it was merged on the remote).
 _Avoid_: Accept, ship, approve
 
 **Read**:
@@ -129,23 +148,97 @@ The owner opened a note itself and left it without a verdict (`owner_read`). See
 not reading it.
 _Avoid_: Seen, viewed, opened
 
+**Expiry**:
+The vault's nightly archive of an unread AI page scored 4 or lower after 14 days; Orb shows it, never does it. Brain
+shows the day as a chip ("expires in N days"); a verdict, a read or a human review takes the page out of it
+(docs/adr/0013).
+_Avoid_: Timeout, TTL, auto-reject
+
+**Expiring soon**:
+Brain's group of pages within 3 days of their expiry day, right above Reject. Its button is Keep: the approve verdict,
+written like any other.
+_Avoid_: Urgent, last chance, about to drop
+
+**Expired**:
+A page the vault has archived (`auto_archived`). It leaves Brain's list and is no longer waiting; the vault's word wins
+over Orb's count of days ("expires tonight" is a page past its day the nightly run hasn't reached yet).
+Brain's Expired view lists the last 30 days, read only (Keep is the approve verdict; Orb never un-archives); the Away
+recap counts the pages archived after the owner's last-active day ("2 pages expired").
+_Avoid_: Deleted, dropped, rejected
+
+**No-topic capture**:
+A voice note in `inbox/`, or a thought / talk_summary / task capture, that the nightly matching left alone: no
+`promoted_to`, verdict, `owner_read`, `rag_dismissed` or `auto_archived`, and 7 or more days old (`kind: task` at
+once, since nothing matches it). A rule, not a model. Brain's No topic view lists them oldest first and the owner
+decides one at a time: Keep (as an idea, `owner_read`) or Drop (the reject verdict; Restore undoes it). Up next shows
+"N captures have no topic"; never Needs you, never red. They don't expire.
+_Avoid_: Orphan, unmatched
+
 **Finished**:
 A session that ended a turn the owner hasn't looked at yet; opening it clears it. The same word on Home and in
 Sessions. A delegation's session is never Finished: it shows as Delegated, Needs you or Ready.
 _Avoid_: Done, result, completed
 
+**Stale session**:
+A session with no turn (sent or Finished) for 7 days that isn't running, waiting on a card, a delegation's or open on a
+page. Orb archives it on its own (Restore brings it back) and the Away recap counts it.
+_Avoid_: Old session, dead session
+
 **Ready**:
 A delegation whose tested PR is up ("Ready: PR #N, tests passed"); its actions are Review and Apply.
 _Avoid_: Result, done, finished
+
+**Other side**:
+Whatever reached the remote target branch first: a hand edit or another Orb's delegation, treated the same.
+_Avoid_: Teammate, upstream, them
+
+**Landed first**:
+The Other side's commits on the remote target branch since a delegation's base that touch the same files; a
+collision card names, per file, the newest one's git author ("you" for the repo's own user.email), when and subject.
+_Avoid_: Upstream changes, their diff
+
+**Update from main**:
+Merging the remote target branch into a delegation's branch after a collision or when its PR is behind (never a
+rebase, never a force push), so its PR updates; "main" is whatever branch the delegation lands in. A clean one is
+Orb's own commit, with no session turn.
+_Avoid_: Rebase, sync, send back
 
 **Run**:
 One run of a routine; the judge flags it worth reading or not. /r/<routine> shows its last run.
 _Avoid_: Result, report, output
 
+**Failure streak**:
+3 consecutive failed or judged-broken runs of one routine; a clean, resolved or unknown run breaks it. Counted from the
+newest of the 5 kept runs; its Needs you row says "3 failed runs in a row since <date>" and offers Make it a task first.
+_Avoid_: Repeat error, flapping
+
+**Repair task**:
+The one open task per routine that Make it a task creates after a failure streak; Orb never creates it unasked. While
+it is open the routine's row says "Task #N" and offers Open, not a second card; once it is done or gone, a new streak
+counts only the runs that started after it.
+_Avoid_: Auto-ticket, incident
+
 **Don't forget**:
 The pane in Home's status card for things that wait quietly: dated reminders, pull requests going stale, repos with
 unsaved work. A reminder due today or overdue moves to Needs you by rule.
 _Avoid_: Watch, watchlist, reminders (for the whole pane)
+
+**Vault sync**:
+The local vault clone against its remote: behind, ahead, conflicts; Orb reports it, never fixes it. A conflicted or
+diverged clone is a Needs you row (counts only, Open only), and Orb's vault writes refuse while it is conflicted.
+_Avoid_: sync error, out of date
+
+**Set aside**:
+A state file in Orb's state folder that Orb could not read (not JSON, the wrong shape, unreadable): renamed
+`<name>.bad-<time>` next to it, never edited or repaired, and the store starts from its default. The newest three copies
+are kept. A precious file set aside (settings, sessions, delegations, worktrees) is a Needs you row; the others are a
+log line.
+_Avoid_: corrupt, reset, recovered
+
+**Away recap**:
+Home's one-shot card after the owner was away 24 hours or more: the routines that ran ok, the sessions Finished, the
+delegations that became Ready and the Stale sessions archived without them, then the top of Needs you. It goes once opened and never gets a Badge.
+_Avoid_: Digest, summary, catch-up, brief
 
 **Routine state**:
 The one word a routine's line shows: failed, stuck, missed, needs you (an ok run the judge found broken or wanting

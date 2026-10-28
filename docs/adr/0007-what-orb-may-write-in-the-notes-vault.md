@@ -24,3 +24,5 @@ out note tasks on Home. The rule is now an allowlist: what is on it Orb's code m
   hand, so a stale write is the real risk. A task line carries the line as the page showed it (`expect`); a verdict
   carries each note's verdict as the Notes list showed it (`seen`), and one changed note refuses the whole batch.
 - Orb commits nothing but a drop's own new transcript (ADR 0009); the owner commits the rest of the vault.
+- Orb's vault writes refuse while the clone is conflicted (an unmerged path, or a merge/rebase/cherry-pick in
+  progress); a dirty tree doesn't block them. Orb reads the clone's git (`vault_git.py`), it never fixes it.

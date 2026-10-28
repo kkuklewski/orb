@@ -265,6 +265,8 @@
 button.lead-sug:hover { border-color: var(--text-3); color: var(--text); }
 button.lead-sug:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
 span.lead-sug { cursor: inherit; }
+.lead-held { flex: none; margin: 0; padding: 3px 9px; border: 1px dashed var(--line); border-radius: 999px; color: var(--text-3); font: 400 11.5px var(--mono); white-space: nowrap; width: fit-content; }
+.lead-body .lead-held { margin-top: 6px; }
 @keyframes lead-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 
 /* Status card: Routines / Don't forget as tabs. */

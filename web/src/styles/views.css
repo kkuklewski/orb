@@ -1,4 +1,4 @@
-/* Views (Settings, Activity, Routines): rules copied from src/orb/static/app.css + studio.css. */
+/* Views (Settings, Activity, Routines): rules ported from the old page. */
 .nav-badge { margin-left: auto; font: 10.5px var(--mono); padding: 1px 7px; border-radius: 999px; background: var(--side-row); color: var(--text-2); }
 .nav-badge.approval { color: #1a1300; background: var(--warn); }
 .nav-badge.busy { color: var(--accent); }
@@ -72,6 +72,10 @@
 .sg-open { border: 0; background: none; padding: 0; color: inherit; font: inherit; font-weight: 600; text-align: left; cursor: pointer; }
 .sg-open:hover { text-decoration: underline; }
 .sg-act { padding: 3px 10px; font-size: 12px; }
+.exp-chip { color: var(--warn); margin-right: 8px; } /* "expires in N days": the vault's archive day (ADR 0013) */
+.nt-acts { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; } /* No topic: Keep, Make it a task, New topic, Drop */
+.nt-card { grid-column: 2 / -1; margin-top: 6px; } /* the Make it a task card, under its row */
+.nt-card:empty { display: none; }
 .sg-refused { grid-column: 2 / -1; font-size: 12px; color: var(--err); margin-top: 3px; }
 .chats-repo .sg-all { margin-left: auto; width: auto; text-transform: none; letter-spacing: 0; }
 .note-head { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; font-size: 12px; color: var(--text-2); }
@@ -88,7 +92,9 @@
   .rt-tail { grid-row: 3; margin-top: 0; }
   .sg-line { grid-template-columns: 18px minmax(0, 1fr) auto; }
   .sg-line .sg-act { grid-row: 1; grid-column: 3; }
-  .sg-refused { grid-row: 4; }
+  .sg-line .nt-acts { grid-row: 4; grid-column: 2 / -1; justify-content: flex-start; } /* four buttons: a row of their own */
+  .sg-refused { grid-row: 5; }
+  .nt-card { grid-row: 6; }
 }
 .act-row.approval .act-status { color: var(--warn); } .act-row.working .act-status { color: var(--accent); } .act-row.done .act-status { color: var(--blue); }
 .set { border-top: 1px solid var(--line-soft); padding: 18px 0; }

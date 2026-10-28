@@ -38,7 +38,7 @@ def test_task_limit_keeps_the_total(tmp_path):
 
 def test_no_vault():
     s = home.summary(None)
-    assert s == {"type": "home", "vault": "", "tasks": [], "open_tasks": 0, "snoozed": 0, "notes": [], "notes_week": 0, "awaiting": [], "awaiting_count": 0}
+    assert s == {"type": "home", "vault": "", "tasks": [], "open_tasks": 0, "snoozed": 0, "notes": [], "notes_week": 0, "awaiting": [], "awaiting_count": 0, "notopic_count": 0}
     protocol.SERVER_EVENTS["home"].model_validate(s)
 
 
@@ -57,7 +57,7 @@ def test_tasks_read_as_plain_text(tmp_path):
 
 def test_awaiting_verdict(tmp_path):
     now = 1_800_000_000
-    write(tmp_path / "a.md", "---\nfact_checked_at: 2026-10-01\nverification_rate: 0.8\n---\n# Checked\n", now - 10)
+    write(tmp_path / "scrapers" / "Inbox" / "a.md", "---\nfact_checked_at: 2026-10-01\nverification_rate: 0.8\n---\n# Checked\n", now - 10)
     write(tmp_path / "b.md", "---\ncurated_by: ai\nhuman_reviewed: false\n---\n# Topic\n", now - 20)
     write(tmp_path / "c.md", "---\nfact_checked_at: 2026-10-01\nhuman_verdict: approve\n---\n# Done\n", now - 30)
     write(tmp_path / "d.md", "---\nfact_checked_at: 2026-10-01\nstatus: vetoed\n---\n# Vetoed\n", now - 40)

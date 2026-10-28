@@ -45,10 +45,11 @@ def test_links_keep_web_urls_only():
 
 def test_parse_status():
     assert forget.parse_status("## main...origin/main [ahead 2, behind 1]\n M a.py\n?? b.py\n") == \
-        {"branch": "main", "changed": 2, "ahead": 2}
-    assert forget.parse_status("## main...origin/main\n") == {"branch": "main", "changed": 0, "ahead": 0}
-    assert forget.parse_status("## feature\n M x\n") == {"branch": "feature", "changed": 1, "ahead": None}
-    assert forget.parse_status("## No commits yet on main\n") == {"branch": "main", "changed": 0, "ahead": None}
+        {"branch": "main", "changed": 2, "ahead": 2, "behind": 1}
+    assert forget.parse_status("## main...origin/main\n") == {"branch": "main", "changed": 0, "ahead": 0, "behind": 0}
+    assert forget.parse_status("## feature\n M x\n") == {"branch": "feature", "changed": 1, "ahead": None, "behind": 0}
+    assert forget.parse_status("## main...origin/main [behind 13]\n")["behind"] == 13
+    assert forget.parse_status("## No commits yet on main\n") == {"branch": "main", "changed": 0, "ahead": None, "behind": 0}
 
 
 def test_repos_lists_only_unsaved(tmp_path):
@@ -62,7 +63,19 @@ def test_repos_lists_only_unsaved(tmp_path):
     (tmp_path / "dirty" / "new.txt").write_text("x")
     not_git = {"path": str(tmp_path), "label": "root"}
     assert forget.repos([clean, dirty, not_git]) == [
-        {"path": dirty["path"], "label": "acme/dirty", "branch": "main", "changed": 1, "ahead": None}]
+        {"path": dirty["path"], "label": "acme/dirty", "branch": "main", "changed": 1, "ahead": None, "behind": 0}]
+
+
+def test_repos_count_behind_without_taking_the_index_lock(tmp_path, monkeypatch):
+    p = tmp_path / "acme"
+    subprocess.run(["git", "init", "-q", "-b", "main", str(p)], check=True)
+    (p / "new.txt").write_text("x")
+    ran = []
+    real = subprocess.run
+    monkeypatch.setattr(forget.subprocess, "run", lambda args, *a, **kw: ran.append(args) or real(args, *a, **kw))
+    assert forget.repos([{"path": str(p), "label": "acme"}])[0]["behind"] == 0
+    assert [a[1] for a in ran if "status" in a] == ["--no-optional-locks"]
+    assert forget.parse_status("## main...origin/main [ahead 1, behind 2]\n M x\n")["behind"] == 2
 
 
 def test_repos_never_run_programs_from_the_repos_config(tmp_path):
@@ -199,11 +212,11 @@ def test_task_list_shows_current_suggestions_and_groups_by_project(monkeypatch, 
             "priority": 0, "updated": 1.0, "url": "u"}
     monkeypatch.setattr(vikunja, "open_tasks", lambda url, project=None: {"tasks": [task], "total": 1, "url": "http://v"})
     monkeypatch.setattr(vikunja, "repo_map", lambda vault: {})
-    monkeypatch.setattr(triage, "load", lambda: {"1": {"p": 4, "why": "client waits", "fp": triage.fingerprint(task)}})
+    monkeypatch.setattr(triage, "load", lambda **k: {"1": {"p": 4, "why": "client waits", "fp": triage.fingerprint(task)}})
     got = items.list_("vikunja", {"vikunja_url": "http://v"}, None, [])
     assert got["group_key"] == "project" and got["rows"][0]["status"] == "unranked"
     assert got["rows"][0]["cells"]["suggested"] == "4" and got["rows"][0]["cells"]["suggested_why"] == "client waits"
-    monkeypatch.setattr(triage, "load", lambda: {"1": {"p": 4, "why": "old", "fp": "stale"}})  # the task changed since
+    monkeypatch.setattr(triage, "load", lambda **k: {"1": {"p": 4, "why": "old", "fp": "stale"}})  # the task changed since
     assert items.list_("vikunja", {"vikunja_url": "http://v"}, None, [])["rows"][0]["cells"]["suggested"] == ""
 
 
@@ -324,14 +337,15 @@ async def test_home_sends_dont_forget_then_the_tasks_source(monkeypatch, onboard
     monkeypatch.setattr(vikunja, "open_tasks", lambda url: {"tasks": [TASK], "total": 1, "url": "http://v"})
     conn = _Conn()
     await server.handle(conn, {"type": "home"})
-    sent = [e for e in conn.sent if e["type"] != "delegations"]  # the Delegated strip's own event
+    assert conn.sent[0]["type"] == "away_recap"  # first: Home shows it on top
+    sent = [e for e in conn.sent if e["type"] not in ("delegations", "away_recap")]  # the Delegated strip's and the Away recap's own events
     assert [e["type"] for e in sent] == ["home", "home_forget", "home_tasks"]
     assert sent[2]["total"] == 1 and sent[2]["error"] is None and planned["tasks"][0]["id"] == 1
 
     monkeypatch.setattr(vikunja, "open_tasks", lambda url: (_ for _ in ()).throw(vikunja.VikunjaError("Vikunja didn't answer: down")))
     conn = _Conn()
     await server.handle(conn, {"type": "home"})
-    sent = [e for e in conn.sent if e["type"] != "delegations"]
+    sent = [e for e in conn.sent if e["type"] not in ("delegations", "away_recap")]
     assert sent[2]["error"] == "Vikunja not reachable: didn't answer: down" and planned["tasks"] == []
     assert not [e for e in conn.sent if e["type"] == "error"]
     assert [p["id"] for p in planned["setup"]] == ["vikunja"]
@@ -359,10 +373,15 @@ async def test_home_gives_the_plan_a_broken_setup_and_the_reminders_due(monkeypa
 
     monkeypatch.setattr(server.setup, "auth_status", signed_out)
     monkeypatch.setattr(server.speech, "health", whisper_down)
+    monkeypatch.setattr(server.vault_git, "cached", lambda vault: server.vault_git.Health(unmerged=1))
     conn = _Conn()
     await server.handle(conn, {"type": "home"})
     assert [p["id"] for p in planned["setup"]] == ["claude", "vikunja", "speech"]
     assert [r["text"] for r in planned["reminders"]] == ["Renew"]
+    assert planned["vault"] == [server.vault_git.Health(unmerged=1)]  # the vault check, cached (ticket 833)
+    monkeypatch.setattr(server.vault_git, "cached", lambda vault: None)
+    await server.handle(conn, {"type": "home"})
+    assert planned["vault"] == []
     assert [e for e in conn.sent if e["type"] == "home_tasks"][0]["error"].startswith("Vikunja not reachable: ")
 
 
@@ -388,3 +407,18 @@ def test_prs_never_wait_on_github(monkeypatch, tmp_path):
     monkeypatch.setattr(forget, "_prs", {"at": 0.0, "items": []})  # a restart: the list comes back from disk at once
     monkeypatch.setattr(forget, "_fetch_prs", lambda now: None)
     assert [p["number"] for p in forget.prs()] == [1]
+
+
+def test_open_tasks_carry_their_label_names_read_only(monkeypatch):
+    raw = [{"id": 1, "title": "Send the acme invoice", "project_id": 1, "labels": [{"id": 4, "title": "money"}, {"id": 5, "title": "Q4"}]},
+           {"id": 2, "title": "Fix globex login", "project_id": 1, "labels": None}]  # Vikunja sends null for no labels
+    calls = []
+
+    def fake(base, token, path, params):
+        calls.append(path)
+        return [{"id": 1, "title": "acme"}] if path == "/projects" else raw if params["page"] == 1 else []
+    monkeypatch.setattr(vikunja, "configured", lambda url: ("http://v", "tk"))
+    monkeypatch.setattr(vikunja, "_get", fake)
+    got = {t["id"]: t["labels"] for t in vikunja.open_tasks("http://v")["tasks"]}
+    assert got == {1: ["money", "Q4"], 2: []}
+    assert not any("label" in p for p in calls)  # labels come with the task list; no label endpoint is touched
