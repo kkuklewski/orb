@@ -15,7 +15,7 @@ import type { DelegationItem } from "../protocol.gen";
 // an OK (Push and open PR, Skip) unless the repo's outward steps are on; a PR Orb opened is linked from the row. With
 // that PR, Apply asks to merge it on the remote (Merge PR #N, Skip; always asks, #876) and Undo opens a revert PR.
 // While that merge runs the row says so, with no Apply and no Discard (#879).
-// The PR's states (#877): merged on the remote = done, Dismiss only; closed = Reopen PR; a failed required check = Send
+// The PR's states (#877): merged on the remote = done, Dismiss only; closed = Reopen PR; a failing check = Send
 // back, with a link per check; behind main with a clean merge = Update from main (Orb commits it, no session turn).
 
 /** The grant card, the repo picker and a refusal: whichever is up. */

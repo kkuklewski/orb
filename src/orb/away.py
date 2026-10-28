@@ -29,7 +29,7 @@ ACTIONS = frozenset({
     "plan_start", "plan_later", "plan_done", "item_start", "item_done", "task_action", "tasks_bulk", "notes_verdict",
     "brain_apply", "brain_verdict", "routines_resolve", "make_task", "make_task_confirm", "make_task_undo", "drop",
     "delegate", "delegate_bulk", "delegate_confirm", "delegation_review", "delegation_apply", "delegation_revert",
-    "delegation_discard", "delegation_retry", "delegation_resume", "delegation_outward", "delegation_update", "revoke_grant", "away_seen",
+    "delegation_discard", "delegation_retry", "delegation_resume", "delegation_outward", "delegation_update", "delegation_reopen", "revoke_grant", "away_seen",
 })
 
 

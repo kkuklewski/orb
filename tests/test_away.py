@@ -76,6 +76,12 @@ def test_a_page_that_only_opens_or_reads_is_not_acting():
     assert {"user_text", "permission", "plan_start", "away_seen"} <= away.ACTIONS
 
 
+def test_every_delegation_tap_is_the_owner_acting():
+    # Reopen PR too (#880): it is outward, but the tap is the owner's, like Push or Merge (delegation_outward)
+    taps = {t for t in protocol.CLIENT_MESSAGES if t.startswith(("delegate", "delegation_"))} | {"revoke_grant"}
+    assert "delegation_reopen" in taps and taps <= away.ACTIONS, taps - away.ACTIONS
+
+
 def test_every_action_is_a_message_the_page_can_send():
     assert away.ACTIONS <= protocol.CLIENT_MESSAGES.keys(), away.ACTIONS - protocol.CLIENT_MESSAGES.keys()
 

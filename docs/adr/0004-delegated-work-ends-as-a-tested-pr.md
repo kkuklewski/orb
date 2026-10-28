@@ -128,3 +128,14 @@ Amends #771: with a PR Orb opened, Apply merges it on the remote; without one, A
   and Apply waits; a later clean read clears it.
 - Behind with a clean merge: Update from main merges without a session turn (`merge --no-ff`, Orb's own commit), runs
   the declared test, then the push asks again. Behind with conflicting files is the collision.
+
+## Amended (#880)
+
+- The PR body names the task by its number only ("Task #N"), never the tracker's URL: a self-hosted tracker is a
+  private host in a public PR. The link stays in the tracker comment and on Home (as the host stays out of PR and commit, #866).
+- Every Ready delegation with an open PR is read on the poll, whatever its outward state: a skipped update push or an
+  unanswered Update card still notices a teammate merging or closing it.
+- A blocked PR's line names the failing check ("blocked; failing check: X") and never calls it required: GitHub's rollup
+  doesn't say which checks are.
+- After GitHub refuses a merge, the collision check runs only when the PR's own state (`mergeable`, `mergeStateStatus`)
+  says it may conflict, never on gh's wording.

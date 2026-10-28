@@ -711,7 +711,7 @@ async def test_allow_pushes_the_branch_and_opens_a_pr_named_after_the_task(dev, 
     assert git(remote, "rev-parse", r["branch"]) == git(rig.web, "rev-parse", r["branch"])
     ((branch, into, title, body),) = gh.calls
     assert (branch, into, title) == (r["branch"], "main", "Fix the login button")
-    assert "Task #7: http://tracker.example/tasks/7" in body
+    assert body.startswith("Task #7\n") and "tracker.example" not in body  # the number only, never the tracker's host
     assert [ev["items"][0]["line"] for ev in rig.pushed[-2:]] == ["Opening PR", "Ready: PR #12, tests passed"]
     row = rig.row()
     assert (row["needs"], row["pr"], row["pr_url"]) == (None, 12, "https://git.example/acme/web/pull/12")
@@ -1394,8 +1394,12 @@ async def test_a_github_refusal_changes_nothing_here(dev, remote, gh):
                            "policy prohibits the merge.")
     assert fingerprint(Path(rig.web)) == before and git(remote, "rev-parse", "main") == main and rig.marked == []
 
+    assert ("pr", "view", "12", "--json", "mergeable,mergeStateStatus") in gh.argv  # GitHub's state, not gh's wording
+    assert rig.d.items[r["id"]].get("collision") is None  # MERGEABLE: no collision check, whatever the text said
+
     gh.refuse = ""
     land(dev, remote, {"d.txt": "theirs\n"}, "their d")  # GitHub refuses on a conflict: the collision card
+    gh.view["mergeable"] = "CONFLICTING"
     await rig.d.outward(r["id"], True)
     assert rig.row()["needs"] == "collision" and fingerprint(Path(rig.web)) == before and rig.marked == []
 
