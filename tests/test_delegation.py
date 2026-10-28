@@ -718,9 +718,9 @@ async def test_a_pr_or_push_failure_stays_ready_with_the_branch_and_says_why(dev
 
     gh.fail = ""
     git(rig.web, "remote", "set-url", "origin", str(dev / "gone.git"))
-    await rig.turn({"d.txt": "delegated, again\n"})  # the fetch before any push fails first
+    await rig.turn({"d.txt": "delegated, again\n"})  # a changed remote URL stops it before the fetch
     row = rig.row()
-    assert (row["stage"], row["needs"]) == ("ready", None) and "not pushed: git fetch failed" in row["line"]
+    assert (row["stage"], row["needs"]) == ("ready", None) and "not pushed: The git config changed" in row["line"]
     assert len(gh.calls) == 1
 
 
@@ -913,3 +913,120 @@ async def test_discard_after_a_collision_leaves_the_pushed_branch_and_pr(dev, re
     await rig.d.discard(r["id"])
     assert on_remote(remote) == ["main", r["branch"]] and git(remote, "rev-parse", r["branch"]) == pushed
 
+
+
+# -- update from main (#869) ----------------------------------------------------------------------
+
+async def collided(rig: Rig, dev: Path, remote: Path) -> dict:
+    """Pushed with PR #12, then Alice lands c.txt first and the next turn changes the same line."""
+    r = await rig.allow()
+    await rig.turn({"d.txt": "delegated\n"})
+    await rig.d.outward(r["id"], True)
+    land(dev, remote, {"c.txt": "one\n2\nthree\n"}, "fix rounding")
+    await rig.turn({"c.txt": "one\nTWO\nthree\n"})
+    assert rig.row()["needs"] == "collision"
+    return r
+
+
+def resolve(r: dict, files: dict[str, str]) -> None:
+    """The session's side of an update: resolve the markers and commit the merge Orb started."""
+    for name, text in files.items():
+        (Path(r["worktree"]) / name).write_text(text)
+    git(r["worktree"], "add", "-A")
+    git(r["worktree"], "commit", "-q", "--no-edit")
+
+
+async def test_update_merges_main_keeps_their_lines_retests_and_asks_before_the_push(dev, remote, gh):
+    rig = Rig(dev, test="true")
+    r = await collided(rig, dev, remote)
+    assert rig.row()["update_from"] == "main"
+    pushed = git(remote, "rev-parse", r["branch"])
+
+    await rig.d.update(r["id"])
+    await rig.settle()
+    row = rig.row()
+    assert (row["stage"], row["line"], row["update_from"]) == ("working", "Updating from main", None)
+    text, _ = rig.sessions[r["session"]].sent[-1]
+    assert "Their lines stay exactly as they landed" in text and "c.txt changed first by Alice Acme" in text
+    assert "<<<<<<<" in (Path(r["worktree"]) / "c.txt").read_text()  # the merge is open, not committed
+
+    resolve(r, {"c.txt": "one\n2\nTWO\nthree\n"})
+    await rig.turn()
+    row = rig.row()
+    assert (row["stage"], row["needs"]) == ("ready", "outward")
+    assert row["line"] == "Ready: updated from main (c.txt changed first by Alice Acme), tests passed"
+    assert row["ask"] == f"Push the update to branch {r['branch']} (PR #12)?"
+    assert git(remote, "rev-parse", r["branch"]) == pushed  # nothing went out yet
+    assert rig.d.items[r["id"]]["collisions"][-1]["outcome"] == "updated"
+    merge = git(r["worktree"], "log", "-1", "--format=%P%n%B")
+    assert len(merge.splitlines()[0].split()) == 2 and "Conflicts in c.txt; c.txt changed first by Alice Acme." in merge
+
+    await rig.d.outward(r["id"], True)
+    assert git(remote, "rev-parse", r["branch"]) == git(r["worktree"], "rev-parse", "HEAD") and len(gh.calls) == 1
+    assert git(remote, "merge-base", "--is-ancestor", "main", r["branch"]) == ""  # never rebased: main is in it
+
+
+async def test_an_update_that_drops_their_line_or_commits_nothing_is_refused(dev, remote, gh):
+    rig = Rig(dev, test="true")
+    r = await collided(rig, dev, remote)
+    pushed = git(remote, "rev-parse", r["branch"])
+
+    await rig.d.update(r["id"])
+    await rig.turn()  # no commit: the open merge is aborted
+    row = rig.row()
+    assert (row["stage"], row["needs"], row["update_from"]) == ("ready", "collision", None)
+    assert row["line"] == "Can't update without changing their lines."
+    assert git(r["worktree"], "status", "--porcelain") == "" and git(r["worktree"], "rev-parse", "HEAD") == git(rig.web, "rev-parse", r["branch"])
+    with pytest.raises(DelegationError, match="Only a Ready delegation that collided"):
+        await rig.d.update(r["id"])
+
+    # offered again (as after a fresh collision): this time the session commits a merge without Alice's "2"
+    rig.d.items[r["id"]]["collision"].pop("refused")
+    await rig.d.update(r["id"])
+    resolve(r, {"c.txt": "one\nTWO\nthree\n"})
+    await rig.turn()
+    row = rig.row()
+    assert (row["needs"], row["line"]) == ("collision", "Can't update without changing their lines in c.txt.")
+    assert [c["outcome"] for c in rig.d.items[r["id"]]["collisions"]] == ["refused"]
+    with pytest.raises(DelegationError, match="changed the same files first"):
+        await rig.d.apply(r["id"], rig.store.apply_mode)
+    assert git(remote, "rev-parse", r["branch"]) == pushed and len(gh.calls) == 1
+
+
+async def test_an_update_runs_the_tests_again(dev, remote, gh):
+    rig = Rig(dev, test="test ! -e broken")
+    r = await collided(rig, dev, remote)
+    await rig.d.update(r["id"])
+    resolve(r, {"c.txt": "one\n2\nTWO\nthree\n", "broken": "x\n"})
+    await rig.turn()
+    row = rig.row()
+    assert (row["stage"], row["needs"]) == ("failed", "failed") and row["line"].startswith("Tests failed")
+
+
+async def test_the_outward_setting_pushes_the_update_without_a_card(dev, remote, gh):
+    rig = Rig(dev, test="true")
+    r = await collided(rig, dev, remote)
+    rig.store.set_outward(rig.web, True)
+    await rig.d.update(r["id"])
+    resolve(r, {"c.txt": "one\n2\nTWO\nthree\n"})
+    await rig.turn()
+    assert rig.row()["needs"] is None and git(remote, "rev-parse", r["branch"]) == git(r["worktree"], "rev-parse", "HEAD")
+
+
+async def test_the_update_message_reaches_the_delegation(dev, remote, gh, monkeypatch):
+    from orb import server, settings
+    rig = Rig(dev, test="true")
+    monkeypatch.setitem(settings.settings.data, "onboarded", True)
+    monkeypatch.setattr(server.hub, "delegator", rig.d)
+    r = await rig.allow()
+    conn = Conn()
+    await server.handle(conn, {"type": "delegation_update", "id": r["id"]})
+    assert conn.sent[-1] == {"type": "error", "text": "Only a Ready delegation that collided can be updated."}
+
+
+async def test_a_changed_git_config_stops_the_fetch(dev, remote, gh):
+    rig = Rig(dev, test="true")
+    r = await rig.allow()
+    git(rig.web, "config", "core.sshCommand", "touch pwned")
+    await rig.turn({"d.txt": "delegated\n"})
+    assert "not pushed: The git config changed" in rig.row()["line"] and on_remote(remote) == ["main"]

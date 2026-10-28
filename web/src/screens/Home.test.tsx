@@ -979,10 +979,10 @@ describe("delegation", () => {
     fireEvent.click(within(ready).getByRole("button", { name: "Apply" }));
     expect(within(ready).getByText("Apply merges PR #12 and marks task #9 done.")).toBeTruthy();
   });
-  it("a collision waits in Needs you with Review and Discard only: no Apply, no Open session", () => {
+  it("a collision waits in Needs you with Update from main, Review and Discard: no Apply, no Open session", () => {
     render(<><Sidebar /><Home /></>);
     act(() => dispatch({ type: "delegations", items: [
-      row({ stage: "ready", needs: "collision", line: "Conflict with main in a.txt. Landed first: a.txt by Alice Acme 2 h ago ('fix rounding')." }),
+      row({ stage: "ready", needs: "collision", update_from: "main", line: "Conflict with main in a.txt. Landed first: a.txt by Alice Acme 2 h ago ('fix rounding')." }),
     ] }));
     const item = within(screen.getByRole("article", { name: "2 things need you" })).getByRole("group", { name: "Delegation of task #8" });  // the waiting session + the collision
     expect(item.textContent).toContain("CONFLICT");
@@ -992,5 +992,18 @@ describe("delegation", () => {
     expect(within(r).getByRole("button", { name: "Discard" })).toBeTruthy();
     expect(within(r).queryByRole("button", { name: "Apply" })).toBeNull();
     expect(within(r).queryByRole("button", { name: "Open session" })).toBeNull();
+    sent.length = 0;
+    fireEvent.click(within(r).getByRole("button", { name: "Update from main" }));
+    expect(sent).toEqual([{ type: "delegation_update", id: "d1" }]);
+  });
+  it("an update that would change their lines is refused: Discard only", () => {
+    render(<><Sidebar /><Home /></>);
+    act(() => dispatch({ type: "delegations", items: [
+      row({ stage: "ready", needs: "collision", update_from: null, line: "Can't update without changing their lines in a.txt." }),
+    ] }));
+    const r = strip().querySelector(".deleg-row") as HTMLElement;
+    expect(r.textContent).toContain("Can't update without changing their lines in a.txt.");
+    expect(within(r).getByRole("button", { name: "Discard" })).toBeTruthy();
+    for (const name of ["Update from main", "Review", "Apply", "Open session"]) expect(within(r).queryByRole("button", { name })).toBeNull();
   });
 });

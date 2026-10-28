@@ -269,12 +269,30 @@ def unpushed(wt: Worktree, remote: str, into: str) -> int:
     return int(out.stdout.strip() or 0) if out.returncode == 0 else 0
 
 
+def _same_config(wt: Worktree) -> None:
+    """Refuse when the git config changed since the delegation started: a remote's URL, ssh command, filter or merge
+    driver could run code or send the work elsewhere."""
+    if not wt.config or _config_print(wt.repo) != wt.config:
+        raise WorktreeError(f"The git config changed since {wt.branch} was delegated (a filter or merge driver "
+                            "could run code). Check git config --list --show-origin, then apply by hand.")
+
+
+# Never the transport that runs a local command (ext::), whatever the config says.
+_NET = ["-c", "protocol.ext.allow=never"]
+
+
+def _fetch(wt: Worktree, remote: str, into: str) -> str:
+    _same_config(wt)
+    theirs = f"refs/remotes/{remote}/{into}"
+    _git(wt.repo, *_NET, "fetch", "--quiet", "--no-tags", remote, f"+refs/heads/{into}:{theirs}")
+    return theirs
+
+
 def collide(wt: Worktree, remote: str, into: str, commit: str) -> dict:
     """Fetch `into` from `remote` and merge `commit` against its tip in memory (nothing is written): `behind` = commits
     the remote target has that the branch lacks, `files` = paths that conflict, `landed` = per file (first CAP) the
     newest commit that reached the remote first: author, whether it is the repo's own user.email, when, subject."""
-    theirs = f"refs/remotes/{remote}/{into}"
-    _git(wt.repo, "fetch", "--quiet", "--no-tags", remote, f"+refs/heads/{into}:{theirs}")
+    theirs = _fetch(wt, remote, into)
     behind = int(_line(wt.repo, "rev-list", "--count", f"{commit}..{theirs}"))
     out = _git(wt.repo, "merge-tree", "--write-tree", "--name-only", "--no-messages", theirs, commit, check=False)
     if out.returncode not in (0, 1):
@@ -295,8 +313,65 @@ def push(wt: Worktree, remote: str, commit: str) -> None:
     """`commit` (the one the check ran on) as the delegation branch on `remote`; no force, hooks off."""
     if tip(wt) != commit:
         raise Moved(f"{wt.branch} changed after its check; re-run the check.")
+    _same_config(wt)
     ref = f"refs/heads/{wt.branch}"
-    _git(wt.repo, "push", "--quiet", remote, f"{commit}:{ref}")
+    _git(wt.repo, *_NET, "push", "--quiet", remote, f"{commit}:{ref}")
+
+
+# -- update from the target branch (#869) -------------------------------------------------------
+
+def merge_in(wt: Worktree, remote: str, into: str, message: str) -> dict:
+    """Start merging the fresh `remote`/`into` into the delegation branch in its worktree, uncommitted (conflicts stay
+    as markers for the session). Never a rebase. Returns {head: the branch before, theirs, base: their merge base}."""
+    if dirty(wt):
+        raise WorktreeError(f"Uncommitted changes on branch {wt.branch}.")
+    theirs = _line(wt.repo, "rev-parse", _fetch(wt, remote, into))
+    head = _line(wt.path, "rev-parse", "HEAD")
+    out = _git(wt.path, "merge", "--no-commit", "--no-ff", "-m", message, theirs, check=False)
+    if not merging(wt):  # a conflict exits 1 and leaves the merge open; anything else started nothing
+        raise WorktreeError(f"git merge failed: {' '.join((out.stderr or out.stdout).split())[:200]}")
+    return {"head": head, "theirs": theirs, "base": _line(wt.repo, "merge-base", head, theirs)}
+
+
+def merging(wt: Worktree) -> bool:
+    return _git(wt.path, "rev-parse", "-q", "--verify", "MERGE_HEAD", check=False).returncode == 0
+
+
+def _added(wt: Worktree, base: str, theirs: str) -> dict[str, list[str]]:
+    """Per file, the lines the other side added since base (text files; a deleted file has none)."""
+    out = _git(wt.repo, "-c", "core.quotePath=false", "diff", "--no-color", "--no-ext-diff", "--no-textconv",
+               "--unified=0", base, theirs).stdout
+    added: dict[str, list[str]] = {}
+    path, head = None, True
+    for l in out.splitlines():
+        if l.startswith("diff --git "):
+            path, head = None, True
+        elif head and l.startswith("+++ "):
+            path = l[6:] if l.startswith("+++ b/") else None
+        elif l.startswith("@@"):
+            head = False
+        elif not head and path and l.startswith("+"):
+            added.setdefault(path, []).append(l[1:])
+    return added
+
+
+def kept(wt: Worktree, update: dict) -> list[str] | None:
+    """After the session's update turn: None when the branch has a new commit that contains theirs and every line
+    they added since base; else the files that lost lines ([] when there is no such merge at all). An open merge is
+    aborted (nothing of it is kept)."""
+    if merging(wt):
+        _git(wt.path, "merge", "--abort", check=False)
+        return []
+    now = tip(wt)
+    if now == update["head"] or _git(wt.repo, "merge-base", "--is-ancestor", update["theirs"], now, check=False).returncode:
+        return []
+    gone = []
+    for f, lines in _added(wt, update["base"], update["theirs"]).items():
+        have = _git(wt.repo, "show", f"{now}:{f}", check=False)
+        left = set(have.stdout.splitlines()) if have.returncode == 0 else set()
+        if any(l not in left for l in lines):
+            gone.append(f)
+    return gone or None
 
 
 # -- apply and revert ---------------------------------------------------------------------------
@@ -323,9 +398,7 @@ def apply(wt: Worktree, mode: str = "squash", message: str | None = None, expect
     when the branch is still that commit (the one its check ran on)."""
     if mode not in MODES:
         raise WorktreeError(f"Unknown apply mode {mode}: use squash or merge.")
-    if not wt.config or _config_print(wt.repo) != wt.config:
-        raise WorktreeError(f"The git config changed since {wt.branch} was delegated (a filter or merge driver "
-                            "could run code). Check git config --list --show-origin, then apply by hand.")
+    _same_config(wt)
     current = current_branch(wt.repo)
     if current == wt.branch:
         raise WorktreeError(f"The checkout is on {wt.branch} itself; switch back to your branch first.")
