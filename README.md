@@ -214,7 +214,6 @@ A notes vault can map repos to projects in `projects/*.md` frontmatter: `vikunja
 | "access token is out of date" / "Open the link Orb printed" | Orb restarted: open the newest link it printed. |
 | Claude isn't signed in | Run the sign-in command the page shows, in Terminal. |
 | "Refusing to start: ANTHROPIC_… is set" | Remove `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN` or `ANTHROPIC_BASE_URL` from your shell setup (`~/.zshrc`), then reopen Terminal. |
-| Home chat won't set up your notes: the folder "holds secrets" | Reply that the folder is new and empty and it should create the files with Write. |
 | Tasks say the tracker is unreachable | Check the address in Settings → Tasks and that Orb was started with the token (see above). |
 
 ## Development

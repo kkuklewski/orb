@@ -122,8 +122,9 @@ class Fence:
         self.home = self._canon(self.session)  # the session's repo: for a worktree, the repo it belongs to
         self.root = self._root(self.home) or self.home  # the session's own root (labels, client folders)
         home = Path.home()
-        self.sensitive = [*(os.path.join(r, SECRETS_DIR) for r in self.roots), *(str(home / d) for d in sorted(SECRET_DIRS)),
-                          *map(str, SECRET_FILES)]
+        # A root's secrets/ counts only while it exists (read per call): an empty notes folder can still be searched.
+        self.root_secrets = [os.path.join(r, SECRETS_DIR) for r in self.roots]
+        self.sensitive = [*(str(home / d) for d in sorted(SECRET_DIRS)), *map(str, SECRET_FILES)]
 
     def in_client(self) -> bool:
         """True when the session works inside one of the client folders (any repo, in the work profile)."""
@@ -168,7 +169,8 @@ class Fence:
             return None
         rel = os.path.relpath(target, root)
         top = rel.split(os.sep)[0] if rel != "." else ""
-        if top and fnmatch.fnmatch(SECRETS_DIR, top.casefold()):  # a glob like "sec*" counts too
+        if top and fnmatch.fnmatch(SECRETS_DIR, top.casefold()) and (  # a glob like "sec*" counts too, when it exists
+                top.casefold() == SECRETS_DIR or os.path.lexists(os.path.join(root, SECRETS_DIR))):
             return "deny", "A secrets/ folder holds credentials and is blocked in Orb."
         if _within(actual, self.session) or (self.home == self.session and _within(target, self.home)):
             return None  # its own folder; a repo's session also reaches the repo's worktrees
@@ -232,7 +234,7 @@ class Fence:
                 return deny("This search would read secret files (.env, keys, credentials); narrow the glob.")
         asked = None
         for t in targets:
-            if recursive and any(_within(s, t) for s in self.sensitive):
+            if recursive and any(_within(s, t) for s in [*filter(os.path.lexists, self.root_secrets), *self.sensitive]):
                 return deny(f"{t} holds secrets (a secrets/ folder, ~/.ssh, ~/.aws, ...); search a narrower folder.")
             verdict = self.check_path(t, write)
             if verdict and verdict[0] == "deny":
