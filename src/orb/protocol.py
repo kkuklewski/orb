@@ -680,6 +680,7 @@ class ExpiredNote(BrainNote):
 
 class NoTopicNote(BrainNote):
     created: str  # the capture's day (`created`, else its file's day)
+    capture: str = ""  # its own kind (thought, talk_summary, task; "" for an old voice note): a task leads with Make it a task
 
 
 class BrainNoTopicEvent(_Event):
@@ -940,7 +941,8 @@ class MakeTaskCardEvent(_Event):
     """"Make it a task": the card to allow or deny before Orb creates a task in the tracker (ADR 0008, 0010)."""
     type: Literal["make_task_card"]
     id: str
-    routine: str
+    routine: str = ""
+    capture: str = ""  # a No-topic capture's file instead of a routine (ticket 820)
     title: str
     project: str
 
@@ -954,14 +956,16 @@ class MakeTaskDoneEvent(_Event):
     title: str | None = None
     url: str | None = None
     project: str | None = None
+    capture: str | None = None  # the capture it came from: Allow wrote its owner_read
     error: str | None = None
 
 
 class MakeTaskUndoneEvent(_Event):
-    """Undo of a created task: deleted, or why not."""
+    """Undo of a created task: deleted (and a capture's owner_read taken off again), or why not."""
     type: Literal["make_task_undone"]
     task: int
     ok: bool
+    capture: str | None = None
     error: str | None = None
 
 
@@ -1291,9 +1295,11 @@ class TaskActionMsg(_Msg):
 
 
 class MakeTaskMsg(_Msg):
-    """"Make it a task" on a routine's last run: the server answers with a card first."""
+    """"Make it a task" on a routine's last run, or on a No-topic capture (`capture`, its file): the server answers
+    with a card first."""
     type: Literal["make_task"]
-    routine: str
+    routine: str = ""
+    capture: str = ""
 
 
 class MakeTaskConfirmMsg(_Msg):

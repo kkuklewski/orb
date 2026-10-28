@@ -10,12 +10,16 @@
 // Expired view lists the pages the vault already archived (last 30 days, newest first), read only: Keep there writes the
 // approve verdict and the row says "kept"; only the vault can bring a page back, so there is no Restore. The No topic
 // view (ticket 820) lists the No-topic captures, oldest first, one at a time: Keep (owner_read, the capture stays an idea)
-// or Drop (the reject verdict; Restore undoes it). A row acted on stays on the page with its state.
+// Make it a task (the make_task card, ADR 0008: title and day only; Allow marks it read, Undo takes both back), New topic
+// (a brief for the notes session, typed in its composer and not sent), or Drop (the reject verdict; Restore undoes it).
+// A row acted on stays on the page with its state.
 import { create } from "zustand";
 import type { BrainExpiredEvent, BrainListEvent, BrainNoTopicEvent, BrainNote, BrainNoteEvent, VerdictNote } from "../protocol.gen";
 import { on } from "../events";
 import { send } from "../ws";
 import { useViews, type View } from "./views";
+import { useFeatures } from "./features";
+import { draftIn, useSession } from "./session";
 
 export interface BrainFilter { waiting: boolean; kinds: string[]; lanes: string[]; q: string }
 export const KINDS = ["AI", "your note", "capture", "unverified view"];
@@ -42,7 +46,7 @@ export const useBrain = create<{
 
 export type Suggested = "approve" | "reject";
 export const SUGGESTED: Suggested[] = ["approve", "reject"];
-export type Applied = Suggested | "keep";
+export type Applied = Suggested | "keep" | "task";
 export type Group = Suggested | "soon";
 /** Brain's groups, top to bottom: Expiring soon sits right above Reject. */
 export const GROUPS: Group[] = ["approve", "soon", "reject"];
@@ -116,9 +120,17 @@ export function drop(n: BrainNote) {
   verdicts([{ file: n.file, seen: n.verdict, verdict: "reject" }]);
 }
 
-/** A No topic row's state: "kept as an idea", "dropped", or "" while it waits. */
+/** New topic: the notes session opens with a brief in its composer, unsent; the owner sends it and approves the
+ *  writes there. Orb itself writes nothing. */
+export function newTopic(n: BrainNote) {
+  const vault = useFeatures.getState().features?.vault;
+  if (!vault) { useSession.setState({ picker: "new" }); return; }
+  draftIn(vault, `Start a Topics page for the capture ${n.file}: read it, suggest a topic name and where it fits, and wait for my OK before you write anything.`);
+}
+
+/** A No topic row's state: "made a task", "kept as an idea", "dropped", or "" while it waits. */
 export const notopicState = (n: BrainNote, applied: Record<string, Applied>) =>
-  applied[n.file] === "keep" || n.owner_read ? "kept as an idea" : n.verdict.startsWith("reject") ? "dropped" : n.verdict ? verdictText(n.verdict) : "";
+  applied[n.file] === "task" ? "made a task" : applied[n.file] === "keep" || n.owner_read ? "kept as an idea" : n.verdict.startsWith("reject") ? "dropped" : n.verdict ? verdictText(n.verdict) : "";
 
 /** An expired row's state: "kept" once it has the approve verdict (or got it on this page), else its verdict, else "". */
 export const expiredState = (n: BrainNote, applied: Record<string, Applied>) =>
@@ -240,6 +252,19 @@ export function wireBrain(): () => void {
         return { applied, refused, picked: s.picked.filter((f) => !done.has(f)) };
       });
       if (useBrain.getState().showExpired) send({ type: "brain_expired" }); // a Keep there: the rows again
+      if (useBrain.getState().showNoTopic) askNoTopic();
+    }),
+    on("make_task_done", (ev) => { // a capture's task (ticket 820): Allow marked it read
+      if (!ev.capture || !ev.ok) return;
+      const file = ev.capture;
+      act(file);
+      useBrain.setState((s) => ({ applied: { ...s.applied, [file]: "task" } }));
+      if (useBrain.getState().showNoTopic) askNoTopic();
+    }),
+    on("make_task_undone", (ev) => {
+      if (!ev.capture || !ev.ok) return;
+      const file = ev.capture;
+      useBrain.setState((s) => { const applied = { ...s.applied }; delete applied[file]; return { applied }; });
       if (useBrain.getState().showNoTopic) askNoTopic();
     }),
     on("brain_expired", (ev) => useBrain.setState({ expired: ev })),

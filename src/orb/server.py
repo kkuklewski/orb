@@ -726,6 +726,13 @@ async def brain_notopic(conn: "Conn", files: list[str]) -> None:
     await conn.send({"type": "brain_notopic", "notes": await asyncio.to_thread(home.notopic_notes, vault, None, files)})
 
 
+def capture_card(file: str) -> dict:
+    vault = settings.settings.vault()
+    if not vault:
+        return {"type": "error", "text": "No notes folder is set up."}
+    return hub.maker.capture_card(next((n for n in home.notopic_notes(vault) if n["file"] == file), None))
+
+
 def brain_keep(file: str, seen: str) -> tuple[list[dict], list[dict]]:
     """Keep a No-topic capture as an idea: owner_read, only if it still reads `seen`. (applied, refused) as brain_apply."""
     try:
@@ -1268,7 +1275,10 @@ async def handle(conn: Conn, msg: dict) -> None:
         await hub.routines.resolve(str(msg["id"]), bool(msg.get("undo")))
         return
     if t == "make_task":
-        x = next((r for r in hub.routines.items() if r["id"] == msg["routine"]), None)
+        if msg.get("capture"):  # a No-topic capture (ticket 820): only one still on the list
+            await conn.send(await asyncio.to_thread(capture_card, str(msg["capture"])))
+            return
+        x = next((r for r in hub.routines.items() if r["id"] == msg.get("routine")), None)
         await conn.send(await asyncio.to_thread(hub.maker.card, x))
         return
     if t == "make_task_confirm":

@@ -160,3 +160,23 @@ describe("askIn", () => {
     expect(sent).toContainEqual({ type: "start_session", path: "/v" });
   });
 });
+
+describe("draftIn (ticket 820)", () => {
+  it("opens the folder's unused session, or starts one, and hands the text to the composer once it opened, unsent", async () => {
+    const { useFeatures } = await import("./features");
+    const { dispatch } = await import("../events");
+    useFeatures.setState({ folders: [{ path: "/Users/a/code/web", label: "v", sessions: [{ key: "w1", label: "", status: "idle", live: false, empty: true }] }] as never });
+    const off = S.wireSession();
+    S.draftIn("/Users/a/code/web", "Start a Topics page");
+    expect(sent).toEqual([{ type: "open_folder", path: "/Users/a/code/web", session: "w1" }]);
+    expect(S.useSession.getState().draft).toBeNull();
+    dispatch(opened());
+    expect(S.useSession.getState()).toMatchObject({ draft: "Start a Topics page", pendingDraft: null, pendingAsk: null });
+    expect(sent.some((m) => m.type === "user_text")).toBe(false);
+    sent.length = 0;
+    useFeatures.setState({ folders: [] });
+    S.draftIn("/Users/a/code/web", "Again");
+    expect(sent).toEqual([{ type: "start_session", path: "/Users/a/code/web" }]);
+    off();
+  });
+});

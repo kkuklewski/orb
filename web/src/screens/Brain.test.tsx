@@ -4,6 +4,9 @@ import { act, cleanup, fireEvent, render, screen, within } from "@testing-librar
 import type { BrainExpiredEvent, BrainListEvent, BrainNoTopicEvent, BrainNote, BrainNoteEvent, ExpiredNote, NoTopicNote } from "../protocol.gen";
 import { dispatch } from "../events";
 import { useViews } from "../stores/views";
+import { useFeatures } from "../stores/features";
+import { useSession } from "../stores/session";
+import { wireMakeTask } from "../stores/routine";
 
 const sent: Record<string, unknown>[] = [];
 vi.mock("../ws", () => ({ send: (m: Record<string, unknown>) => { sent.push(m); return true; } }));
@@ -376,5 +379,53 @@ describe("No topic view (ticket 820)", () => {
     expect(screen.getByRole("alert").textContent).toBe("The note changed since Orb read it.");
     act(() => useViews.setState({ view: "home" }));
     expect(useBrain.getState()).toMatchObject({ showNoTopic: false, acted: [] });
+  });
+
+  it("every row has Make it a task and New topic; a task capture leads with Make it a task and shows its own kind", () => {
+    useViews.setState({ view: "brain" });
+    useBrain.setState({ showNoTopic: true });
+    render(<Brain />);
+    act(() => dispatch(orphans([A, { ...G, capture: "task" }])));
+    const acts = (name: string) => [...screen.getByRole("button", { name: `Keep ${name}` }).parentElement!.querySelectorAll("button")].map((b) => b.textContent);
+    expect(acts("acme-idea")).toEqual(["Keep", "Make it a task", "New topic", "Drop"]);
+    expect(acts("globex-task")).toEqual(["Make it a task", "Keep", "New topic", "Drop"]);
+    expect(screen.getByText("task · 2026-10-27")).toBeTruthy();
+  });
+
+  it("Make it a task asks the server for the card, shows it under that row only; Allow marks it made, Undo takes it back", () => {
+    const offTask = wireMakeTask();
+    useViews.setState({ view: "brain" });
+    useBrain.setState({ showNoTopic: true });
+    render(<Brain />);
+    act(() => dispatch(orphans([A, G])));
+    fireEvent.click(screen.getByRole("button", { name: "Make a task of acme-idea" }));
+    expect(sent.at(-1)).toEqual({ type: "make_task", capture: A.file });
+    act(() => dispatch({ type: "make_task_card", id: "c1", routine: "", capture: A.file, title: "acme-idea", project: "Inbox" } as never));
+    const card = screen.getByRole("group", { name: "Make it a task" });
+    expect(card.closest(".nt-line")!.textContent).toContain("acme-idea");
+    expect(screen.getAllByRole("group", { name: "Make it a task" })).toHaveLength(1);
+    fireEvent.click(within(card).getByRole("button", { name: "Create the task" }));
+    expect(sent.at(-1)).toEqual({ type: "make_task_confirm", id: "c1", ok: true });
+    sent.length = 0;
+    act(() => dispatch({ type: "make_task_done", id: "c1", ok: true, task: 9, title: "acme-idea", project: "Inbox", url: "", error: "", capture: A.file } as never));
+    expect(sent).toContainEqual({ type: "brain_notopic", files: [A.file] });
+    expect(screen.getByText("made a task")).toBeTruthy();
+    sent.length = 0;
+    act(() => dispatch({ type: "make_task_undone", task: 9, ok: true, capture: A.file } as never));
+    expect(sent).toContainEqual({ type: "brain_notopic", files: [A.file] });
+    expect(screen.queryByText("made a task")).toBeNull();
+    offTask();
+  });
+
+  it("New topic opens the notes session with the brief in its composer, nothing sent to the model", () => {
+    useFeatures.setState({ features: { vault: "/Users/a/notes" } as never, folders: [] });
+    useViews.setState({ view: "brain" });
+    useBrain.setState({ showNoTopic: true });
+    render(<Brain />);
+    act(() => dispatch(orphans([A])));
+    fireEvent.click(screen.getByRole("button", { name: "New topic for acme-idea" }));
+    expect(sent.at(-1)).toEqual({ type: "start_session", path: "/Users/a/notes" });
+    expect(useSession.getState().pendingDraft).toContain(A.file);
+    expect(sent.some((m) => m.type === "user_text")).toBe(false);
   });
 });

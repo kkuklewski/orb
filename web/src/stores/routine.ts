@@ -49,6 +49,15 @@ export const useMakeTask = create<{ routine: string | null; pending: boolean; ca
   done: MakeTaskDoneEvent | null; undone: MakeTaskUndoneEvent | null }>(
   () => ({ routine: null, pending: false, card: null, done: null, undone: null }));
 
+/** The card's key: a routine's id, or "capture:<file>" for a No-topic capture (ticket 820). */
+const cardKey = (ev: { routine?: string; capture?: string }) => ev.capture ? `capture:${ev.capture}` : ev.routine ?? "";
+
+/** Make it a task on a No-topic capture: the same card, keyed "capture:<file>". */
+export function makeCaptureTask(file: string) {
+  useMakeTask.setState({ routine: `capture:${file}`, pending: true, card: null, done: null, undone: null });
+  send({ type: "make_task", capture: file });
+}
+
 export function makeTask(id: string) {
   useMakeTask.setState({ routine: id, pending: true, card: null, done: null, undone: null });
   send({ type: "make_task", routine: id });
@@ -58,7 +67,7 @@ export const undoTask = (task: number) => send({ type: "make_task_undo", task })
 
 export function wireMakeTask(): () => void {
   const offs = [
-    on("make_task_card", (ev) => { if (ev.routine === useMakeTask.getState().routine) useMakeTask.setState({ pending: false, card: ev }); }),
+    on("make_task_card", (ev) => { if (cardKey(ev) === useMakeTask.getState().routine) useMakeTask.setState({ pending: false, card: ev }); }),
     on("make_task_done", (ev) => { if (ev.id === useMakeTask.getState().card?.id) useMakeTask.setState({ done: ev }); }),
     on("make_task_undone", (ev) => { if (ev.task === useMakeTask.getState().done?.task) useMakeTask.setState({ undone: ev }); }),
     on("error", () => { if (useMakeTask.getState().pending) useMakeTask.setState({ pending: false, routine: null }); }),

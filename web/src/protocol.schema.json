@@ -4215,6 +4215,10 @@
       "additionalProperties": false,
       "description": "\"Make it a task\": the card to allow or deny before Orb creates a task in the tracker (ADR 0008, 0010).",
       "properties": {
+        "capture": {
+          "default": "",
+          "type": "string"
+        },
         "folder": {
           "anyOf": [
             {
@@ -4244,6 +4248,7 @@
           "default": null
         },
         "routine": {
+          "default": "",
           "type": "string"
         },
         "session": {
@@ -4268,7 +4273,6 @@
       "required": [
         "type",
         "id",
-        "routine",
         "title",
         "project"
       ],
@@ -4301,6 +4305,17 @@
       "additionalProperties": false,
       "description": "The card's outcome: created (`task`, `url`), denied (ok false, no error) or failed (`error`).",
       "properties": {
+        "capture": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "error": {
           "anyOf": [
             {
@@ -4410,9 +4425,14 @@
     },
     "MakeTaskMsg": {
       "additionalProperties": false,
-      "description": "\"Make it a task\" on a routine's last run: the server answers with a card first.",
+      "description": "\"Make it a task\" on a routine's last run, or on a No-topic capture (`capture`, its file): the server answers\nwith a card first.",
       "properties": {
+        "capture": {
+          "default": "",
+          "type": "string"
+        },
         "routine": {
+          "default": "",
           "type": "string"
         },
         "type": {
@@ -4421,8 +4441,7 @@
         }
       },
       "required": [
-        "type",
-        "routine"
+        "type"
       ],
       "title": "MakeTaskMsg",
       "type": "object"
@@ -4448,8 +4467,19 @@
     },
     "MakeTaskUndoneEvent": {
       "additionalProperties": false,
-      "description": "Undo of a created task: deleted, or why not.",
+      "description": "Undo of a created task: deleted (and a capture's owner_read taken off again), or why not.",
       "properties": {
+        "capture": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "error": {
           "anyOf": [
             {
@@ -4795,6 +4825,10 @@
     "NoTopicNote": {
       "additionalProperties": false,
       "properties": {
+        "capture": {
+          "default": "",
+          "type": "string"
+        },
         "created": {
           "type": "string"
         },

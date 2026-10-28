@@ -185,6 +185,17 @@ def set_owner_read(vault: Path | None, file: str, seen: str, today: dt.date | No
     _write(p, _with_fields(lines, end, ("owner_read",), [f"owner_read: '{(today or dt.date.today()).isoformat()}'"]), eol)
 
 
+def clear_owner_read(vault: Path | None, file: str, seen: str) -> None:
+    """Take `owner_read` off a note again, only if it still reads `seen` (Undo of a capture's task, ticket 820)."""
+    p = note_path(vault, file)
+    clone_ok(vault)
+    lines, eol = _read(p)
+    end = _front_end(lines)
+    if end is None or not seen or _fields(lines, end).get("owner_read", "") != seen:
+        raise TaskError(CHANGED)
+    _write(p, _with_fields(lines, end, ("owner_read",), []), eol)
+
+
 def _task_parts(line: str) -> tuple[str, str, str, str] | None:
     """(indent and bullet, marker, gap, text without its dates) of a task line; None when it isn't one."""
     m = CHECKBOX.match(line)

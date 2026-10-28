@@ -26,3 +26,5 @@ it is free, instant and explainable in one line, and the owner's own pick always
 - Bulk Delegate raises one card with one grant per row (ADR 0005). At most three delegations run at once; the rest
   show as queued in the Delegated strip and start as earlier ones finish. Each ends as a PR the owner reviews and
   applies (ADR 0004), so the cap is also the cap on the owner's review load.
+- No-topic captures (GLOSSARY) are picked by a rule too (age, kind, no deciding field), and Home's "N captures have
+  no topic" is an Up next queue item, never Needs you; the owner decides each one on Brain, no suggestion.
