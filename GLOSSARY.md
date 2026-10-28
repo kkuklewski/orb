@@ -139,7 +139,8 @@ own file). It belongs to that one session, is never stored and ends with it; the
 _Avoid_: Auto-approve, bypass, trust
 
 **Apply**:
-Merging a delegated session's tested pull request into its repo; undone by reverting it.
+Merging a delegated session's tested pull request into its repo, on the remote when there is a PR (after a card
+that always asks); undone by reverting it (a revert PR when it was merged on the remote).
 _Avoid_: Accept, ship, approve
 
 **Read**:

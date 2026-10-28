@@ -215,3 +215,16 @@ async def test_behind_with_a_conflict_is_the_collision(dev, remote, gh, view):
     row = rig.row()
     assert (row["needs"], row["update_from"]) == ("collision", "main")
     assert row["line"].startswith("Conflict with main in d.txt.")
+
+
+async def test_the_poll_keeps_out_of_a_merge_apply_is_running_or_has_done(dev, remote, gh, view):
+    rig = Rig(dev, test="true")
+    r = await opened(rig)
+    rec = rig.d.items[r["id"]]
+    rec["merge"] = "merging"
+    view.seen = {**OPEN, "state": "MERGED", "mergedBy": {"login": "alice-acme"}}
+    await poll(rig, r)
+    rec.pop("merge")
+    rec["merged_on"] = "origin"
+    await poll(rig, r)
+    assert view.calls == [] and rig.row()["stage"] == "ready" and rig.marked == []

@@ -812,7 +812,7 @@ export interface DelegationApplyMsg {
   type: "delegation_apply";
 }
 /**
- * Undo after Apply: revert the commit and reopen the task.
+ * Undo after Apply: revert the commit and reopen the task (after a merge on the remote: a revert PR, #876).
  *
  * This interface was referenced by `OrbProtocol`'s JSON-Schema
  * via the `definition` "DelegationRevertMsg".
@@ -852,7 +852,8 @@ export interface DelegationResumeMsg {
   type: "delegation_resume";
 }
 /**
- * The outward card (Needs you): Allow pushes the branch and opens its PR; Skip (allow false) keeps it local.
+ * The outward card (Needs you): Allow pushes the branch and opens its PR; Skip (allow false) keeps it local. The
+ * same answer serves Apply's merge card (merges the PR on the remote, #876) and Undo's revert PR.
  *
  * This interface was referenced by `OrbProtocol`'s JSON-Schema
  * via the `definition` "DelegationOutwardMsg".
@@ -2393,7 +2394,9 @@ export interface DelegationItem {
   folder: string;
   id: string;
   line: string;
-  needs?: ("card" | "failed" | "stuck" | "stopped" | "outward" | "collision" | "closed" | "blocked" | "update") | null;
+  needs?:
+    | ("card" | "failed" | "stuck" | "stopped" | "outward" | "collision" | "merge" | "closed" | "blocked" | "update")
+    | null;
   pr?: number | null;
   pr_url?: string | null;
   repo: string;

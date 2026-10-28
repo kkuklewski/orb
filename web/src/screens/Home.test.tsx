@@ -994,6 +994,25 @@ describe("delegation", () => {
     fireEvent.click(within(ready).getByRole("button", { name: "Apply" }));
     expect(within(ready).getByText("Apply merges PR #12 and marks task #9 done.")).toBeTruthy();
   });
+  it("merging a PR on the remote waits in Needs you: Merge PR #N or Skip, no Apply; a revert PR asks the same way", () => {
+    render(<><Sidebar /><Home /></>);
+    act(() => dispatch({ type: "delegations", items: [
+      row({ stage: "ready", needs: "merge", pr: 12, line: "Ready: PR #12, tests passed", ask: "Merge PR #12 on origin into main?" }),
+      row({ id: "d2", task: 9, stage: "applied", needs: "outward", pr: 13, line: "Applied: PR #13 into main, merged on origin; pull to get it. Task #9 done.", ask: "Push branch orb/revert-9 and open a PR reverting PR #13?" }),
+    ] }));
+    const needs = screen.getByRole("article", { name: "3 things need you" });  // the waiting session + the merge + the revert
+    const item = (task: number) => within(needs).getByRole("group", { name: `Delegation of task #${task}` });
+    expect(item(8).textContent).toContain("MERGE?");
+    expect(within(item(8)).getByLabelText("What it asks to do").textContent).toBe("Merge PR #12 on origin into main?");
+    expect(within(item(8)).queryByRole("button", { name: "Apply" })).toBeNull();
+    sent.length = 0;
+    fireEvent.click(within(item(8)).getByRole("button", { name: "Merge PR #12" }));
+    fireEvent.click(within(item(8)).getByRole("button", { name: "Skip" }));
+    fireEvent.click(within(item(9)).getByRole("button", { name: "Push and open revert PR" }));
+    expect(sent).toEqual([{ type: "delegation_outward", id: "d1", allow: true }, { type: "delegation_outward", id: "d1", allow: false },
+      { type: "delegation_outward", id: "d2", allow: true }]);
+    expect(within(item(9)).queryByRole("button", { name: "Undo" })).toBeNull();  // the revert PR is the Undo
+  });
   it("a collision waits in Needs you with Update from main, Review and Discard: no Apply, no Open session", () => {
     render(<><Sidebar /><Home /></>);
     act(() => dispatch({ type: "delegations", items: [

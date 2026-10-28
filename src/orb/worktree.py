@@ -11,13 +11,17 @@
 - `apply` lands the delegation's own work (base..branch) on the checkout's current branch: one squash
   commit or a merge commit, per repo. The result is computed with `git merge-tree` before anything moves,
   then the branch fast-forwards to it; a conflict touches nothing and raises `Conflict`.
-- `create` (with a remote), `collide`, `merge_in`, `merge_clean` and `fast_forward` fetch the target branch (a read);
-  `push` is the only call that writes to a remote. `collide` merges the checked commit against its tip in memory: who
-  landed first in the files that conflict.
+- `create` (with a remote), `collide`, `push`, `catch_up` and `revert_on` are the only calls that contact a remote.
+  `create`, `collide`, `merge_in`, `merge_clean` and `fast_forward` fetch the target branch (a read); `push` is the
+  only call that writes to a remote. `collide` merges the checked commit against its tip in memory: who landed first
+  in the files that conflict.
   `push` sends the delegation branch to the remote `remote_of` names (the checkout branch's upstream, else origin),
   never forced. The caller pushes only after the owner's Allow or the
   repo's outward steps setting, and never a branch that starts from a snapshot (`from_snapshot`): that commit holds
   the owner's uncommitted work.
+- After a PR merged on the remote (#876), `catch_up` fetches the target branch and fast-forwards the checkout only
+  when it is on that branch, clean and strictly behind; `revert_on` (Undo) fetches it, writes a revert of the merge
+  on its tip with plumbing (the checkout is never touched) and pushes it as a new branch, never forced.
 - `revert` undoes an applied commit the same way. `remove` drops the worktree and the branch (Discard, and
   the cleanup after Apply) and returns what it could not remove.
 Repo hooks and fsmonitor are off for every git call here. Filters and merge drivers come from git config, so
@@ -187,6 +191,13 @@ def branch_name(task: int | str, title: str, who: str = "") -> str:
     return f"orb/{me}/{name}" if me else f"orb/{name}"
 
 
+def revert_name(branch: str, task: int | str) -> str:
+    """Undo's branch after an Apply on the remote (#876), per person like the delegation's own: 'orb/acme-dev/revert-7'
+    for 'orb/acme-dev/7-…', 'orb/revert-7' for 'orb/7-…'."""
+    parts = branch.split("/")
+    return branch_name(f"revert-{task}", "", parts[1] if len(parts) == 3 else "")
+
+
 # -- create -------------------------------------------------------------------------------------
 
 def _pending(repo: str, never: set[str]) -> tuple[str, list[str]]:
@@ -326,8 +337,13 @@ def unpushed(wt: Worktree, remote: str, into: str) -> int:
 def same_config(wt: Worktree) -> None:
     """Refuse when the git config changed since the delegation started: a remote's URL, ssh command, filter or merge
     driver could run code or send the work elsewhere."""
-    if not wt.config or _config_print(wt.repo) != wt.config:
-        raise WorktreeError(f"The git config changed since {wt.branch} was delegated (a filter or merge driver "
+    check_config(wt.repo, wt.config, wt.branch)
+
+
+def check_config(repo: str, seen: str, branch: str) -> None:
+    """`same_config` once the worktree is gone (Undo after an Apply on the remote): `seen` is the fingerprint it kept."""
+    if not seen or _config_print(repo) != seen:
+        raise WorktreeError(f"The git config changed since {branch} was delegated (a filter or merge driver "
                             "could run code). Check git config --list --show-origin, then apply by hand.")
 
 
@@ -372,16 +388,69 @@ def push(wt: Worktree, remote: str, commit: str) -> None:
     if tip(wt) != commit:
         raise Moved(f"{wt.branch} changed after its check; re-run the check.")
     same_config(wt)
-    ref = f"refs/heads/{wt.branch}"
-    out = _git(wt.repo, *_NET, "push", "--porcelain", remote, f"{commit}:{ref}", check=False)
+    _push(wt.repo, remote, commit, wt.branch)
+
+
+def _push(repo: str, remote: str, commit: str, branch: str) -> None:
+    """`commit` as `branch` on `remote`, that ref only; never forced."""
+    out = _git(repo, *_NET, "push", "--porcelain", remote, f"{commit}:refs/heads/{branch}", check=False)
     if out.returncode == 0:
         return
     for line in out.stdout.splitlines():  # "!\t<from>:<to>\t[rejected] (fetch first)"
         flag, _, rest = line.partition("\t")
         if flag == "!" and (m := re.search(r"\[([^\]]+)\]\s*(?:\((.*)\))?$", rest)):
-            said = f"Push of {wt.branch} to {remote}: {m[1]}" + (f" ({m[2]})" if m[2] else "")
+            said = f"Push of {branch} to {remote}: {m[1]}" + (f" ({m[2]})" if m[2] else "")
             raise (Taken if m[2] in ("fetch first", "non-fast-forward") else WorktreeError)(said)
     raise WorktreeError(_failure("push", out))
+
+
+# -- Apply on the remote (#876) -----------------------------------------------------------------
+
+def catch_up(wt: Worktree, remote: str, into: str) -> bool:
+    """After its PR merged into `into` on `remote`: fast-forward the owner's checkout to the fetched tip only when it is
+    on the branch that tracks `remote`/`into`, has no uncommitted tracked changes and is strictly behind. True when it
+    moved; anything else leaves the checkout as it is (the owner pulls)."""
+    same_config(wt)
+    try:
+        if remote_of(wt.repo) != (remote, into):
+            return False
+    except WorktreeError:  # detached HEAD
+        return False
+    quiet = {"GIT_OPTIONAL_LOCKS": "0"}  # status never rewrites the owner's index
+    if _git(wt.repo, "status", "--porcelain", "--untracked-files=no", env=quiet).stdout.strip():
+        return False
+    theirs = _line(wt.repo, "rev-parse", f"{_fetch_ref(wt.repo, remote, into)}^{{commit}}")
+    head = _line(wt.repo, "rev-parse", "HEAD")
+    if head == theirs or _git(wt.repo, "merge-base", "--is-ancestor", head, theirs, check=False).returncode:
+        return False
+    return _git(wt.repo, "merge", "--ff-only", "-q", theirs, check=False).returncode == 0
+
+
+def revert_on(repo: str, remote: str, into: str, commit: str, branch: str, seen: str) -> str:
+    """Undo of an Apply on the remote: a commit on the fetched `remote`/`into` tip that reverts `commit` (a merge commit
+    against its first parent, as `git revert -m 1`), made with plumbing so the owner's checkout, index and branches stay
+    as they are, then pushed as the new `branch` (that ref only, never forced). `seen` is the config fingerprint the
+    delegation started under. Returns the revert commit."""
+    check_config(repo, seen, branch)
+    theirs = _line(repo, "rev-parse", f"{_fetch_ref(repo, remote, into)}^{{commit}}")
+    commit = _line(repo, "rev-parse", "--verify", f"{commit}^{{commit}}")
+    if _git(repo, "merge-base", "--is-ancestor", commit, theirs, check=False).returncode:
+        raise WorktreeError(f"{commit[:12]} is not on {remote}/{into}; nothing was reverted.")
+    parents = _line(repo, "rev-list", "--parents", "-n", "1", commit).split()[1:]
+    out = _git(repo, "merge-tree", "--write-tree", "--name-only", "--no-messages", f"--merge-base={commit}",
+               theirs, parents[0], check=False)
+    lines = out.stdout.splitlines()
+    if out.returncode == 1:
+        raise WorktreeError(f"Can't revert cleanly: {into} changed the same lines since, in "
+                            f"{', '.join(sorted({f for f in lines[1:] if f}))}. Nothing was pushed.")
+    if out.returncode != 0 or not lines:
+        raise WorktreeError(f"git merge-tree failed: {out.stderr.strip()[:200]}")
+    subject = _line(repo, "log", "-1", "--format=%s", commit)
+    said = f", reversing\nchanges made to {parents[0]}" if len(parents) > 1 else ""
+    new = _git(repo, "commit-tree", lines[0], "-p", theirs, "-m",
+               f'Revert "{subject}"\n\nThis reverts commit {commit}{said}.').stdout.strip()
+    _push(repo, remote, new, branch)
+    return new
 
 
 # -- update from the target branch (#869) -------------------------------------------------------

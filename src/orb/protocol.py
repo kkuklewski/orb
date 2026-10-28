@@ -936,9 +936,10 @@ class DelegationItem(_Msg):
     apply_text: str
     # Why it can't finish without you (Home's Needs you): a card the grant doesn't cover, the check failed after
     # its last turn, no event for 20 min while Working, the server restarted while it ran, or Ready with push and its
-    # PR waiting for your OK (#771), a collision (#863), or its PR closed, blocked by a failing check or behind its
-    # target with a clean merge (#877). None while it can.
-    needs: Literal["card", "failed", "stuck", "stopped", "outward", "collision", "closed", "blocked", "update"] | None = None
+    # PR waiting for your OK (#771, Undo's revert PR too), a collision (#863), Apply's merge of the PR on the remote
+    # (#876), or its PR closed, blocked by a failing check or behind its target with a clean merge (#877). None while
+    # it can.
+    needs: Literal["card", "failed", "stuck", "stopped", "outward", "collision", "merge", "closed", "blocked", "update"] | None = None
     ask: str | None = None  # the card it waits on, in its words; or the outward question
     pr: int | None = None  # the PR Orb opened for its branch
     pr_url: str | None = None
@@ -1438,7 +1439,7 @@ class DelegationApplyMsg(_Msg):
 
 
 class DelegationRevertMsg(_Msg):
-    """Undo after Apply: revert the commit and reopen the task."""
+    """Undo after Apply: revert the commit and reopen the task (after a merge on the remote: a revert PR, #876)."""
     type: Literal["delegation_revert"]
     id: str
 
@@ -1456,7 +1457,8 @@ class DelegationResumeMsg(_Msg):
 
 
 class DelegationOutwardMsg(_Msg):
-    """The outward card (Needs you): Allow pushes the branch and opens its PR; Skip (allow false) keeps it local."""
+    """The outward card (Needs you): Allow pushes the branch and opens its PR; Skip (allow false) keeps it local. The
+    same answer serves Apply's merge card (merges the PR on the remote, #876) and Undo's revert PR."""
     type: Literal["delegation_outward"]
     id: str
     allow: bool

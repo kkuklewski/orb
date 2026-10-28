@@ -18,8 +18,17 @@ branch and open a PR with gh. The repo's outward steps setting does it at once (
 the delegation stays Ready and Needs you asks "Push branch X and open a PR for task #N?" (Allow, Skip, Discard). Skip
 and Deny never contact the remote. A branch that starts from Orb's snapshot of uncommitted changes (made only without
 a remote) is never pushed.
-Allow: "Opening PR", then "Ready: PR #M, tests passed"; a failure stays Ready with the branch and says why. Apply and
-Undo stay local (the owner's choice): Apply merges the branch into the checkout and leaves the PR open as history.
+Allow: "Opening PR", then "Ready: PR #M, tests passed"; a failure stays Ready with the branch and says why.
+Apply on GitHub (#876, amends #771): with a PR Orb opened and pushed, Apply reads it fresh (`gh pr view`, behind the
+config check): merged, closed or BLOCKED is refused with GitHub's state, CONFLICTING runs the collision check (the card
+only with real files), else Needs you "merge" asks "Merge PR #N on <remote> into <into>?" every time, outward steps on
+or not. Allow runs `gh pr merge` (squash or merge per repo, `--match-head-commit` the checked commit, the branch kept on
+the remote); a refusal changes nothing here (a conflict raises the collision, anything else stays on the card with
+GitHub's reason). Merged: the task is done, the checkout fast-forwards only when it is on <into>, clean and strictly
+behind ("pull to get it" otherwise), the worktree goes. Its Undo is a revert PR: a revert of the merge commit on a new
+branch orb/<me>/revert-<task>, pushed and opened behind the outward card (or at once with outward steps, never in a
+client folder); the task reopens once it is open, and a second Undo is refused. Without a PR (or with its update not
+pushed) Apply and Undo stay local: Apply merges the branch into the checkout, Undo reverts that commit.
 
 Collisions (#863): when the tests passed, before any push, Orb fetches the remote target branch and merges the
 checked commit against its tip in memory. Clean but behind stays Ready ("main moved 3 commits, merges cleanly").
@@ -267,6 +276,43 @@ async def reopen_pr(repo: str, number: int) -> None:
         raise DelegationError(f"gh pr reopen failed: {failing_line(text)}")
 
 
+async def gh(repo: str, *args: str) -> tuple[int, str]:
+    """gh in the checkout, no prompts, as `gh pr create` runs: (exit code, output). Refuses when gh is missing or slow."""
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "gh", *args, cwd=repo, env={**os.environ, "GH_PROMPT_DISABLED": "1"}, stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT, stdin=asyncio.subprocess.DEVNULL)
+    except FileNotFoundError:
+        raise DelegationError("gh is not installed") from None
+    try:
+        out, _ = await asyncio.wait_for(proc.communicate(), PR_TIMEOUT)
+    except asyncio.TimeoutError:
+        proc.kill()
+        await proc.wait()
+        raise DelegationError(f"gh {' '.join(args[:2])} timed out") from None
+    return proc.returncode or 0, out.decode(errors="replace")
+
+
+async def pr_view(repo: str, number: int, fields: str) -> dict:
+    """`gh pr view <n> --json <fields>` as a dict (#876: the fresh read before the merge card, the merge commit after)."""
+    code, text = await gh(repo, "pr", "view", str(number), "--json", fields)
+    try:
+        seen = json.loads(text) if code == 0 else None
+    except ValueError:
+        seen = None
+    if not isinstance(seen, dict):
+        raise DelegationError(f"gh pr view failed: {failing_line(text)}")
+    return seen
+
+
+def said(text: str) -> str:
+    """GitHub's reason from gh's output, on one line and trimmed ("X " is gh's failure mark)."""
+    return " ".join(text.split()).removeprefix("X ")[:LINE_MAX] or "no reason given"
+
+
+_CONFLICTING = re.compile(r"conflict|not mergeable", re.I)
+
+
 async def run_tests(path: str, cmd: str, timeout: float = TEST_TIMEOUT) -> tuple[bool, str]:
     """The repo's declared test command in the worktree, in the sandbox: it runs files the session edited.
     (passed, first failing line); a timeout kills the whole process group."""
@@ -313,7 +359,13 @@ class Delegator:
         cut = [r for r in self.items.values() if r["stage"] == "pushing"]
         for r in cut:  # cut while pushing: Ready, and the card asks again
             r.update(stage="ready", outward="ask")
-        if stopped or cut:
+        merging = [r for r in self.items.values() if r.get("merge") == "merging" or r.get("undo") == "pushing"]
+        for r in merging:  # cut while GitHub merged or Undo pushed: it may have happened, so the card says so
+            if r.get("merge") == "merging":
+                r.update(merge="failed", merge_problem=f"Orb restarted while merging; check PR #{r['pr']} on GitHub first")
+            else:
+                r.update(undo="failed", undo_problem="Orb restarted while opening the revert PR")
+        if stopped or cut or merging:
             self._save()
 
     # -- records ------------------------------------------------------------------------------
@@ -347,8 +399,8 @@ class Delegator:
 
     def needs(self, r: dict) -> str | None:
         """Why it can't finish without the owner: "card", "failed", "stuck", "stopped", "outward" (push and PR wait
-        for an OK), "collision", and the PR's "closed", "blocked" (a failing check), "update" (behind, merges cleanly);
-        None while it can."""
+        for an OK, Undo's revert PR too), "collision", "merge" (Apply waits to merge the PR on the remote), and the PR's
+        "closed", "blocked" (a failing check), "update" (behind, merges cleanly); None while it can."""
         if r["stage"] in ("failed", "stopped"):
             return r["stage"]
         if r["stage"] == "ready" and r.get("collision"):
@@ -360,6 +412,10 @@ class Delegator:
         if r["stage"] == "ready" and r.get("clean_update"):
             return "update"
         if r["stage"] == "ready" and r.get("outward") == "ask":
+            return "outward"
+        if r["stage"] == "ready" and r.get("merge") in ("ask", "failed"):
+            return "merge"
+        if r["stage"] == "applied" and r.get("undo") in ("ask", "failed"):
             return "outward"
         if r["stage"] == "working" and self.waiting(r["session"]):
             return "card"
@@ -398,6 +454,8 @@ class Delegator:
             return "Can't update without changing their lines" + (f" in {named}." if named else ".")
         if s == "ready" and r.get("collision"):
             return collision_text(r["collision"], r.get("into") or "main")
+        if s == "ready" and r.get("merge") == "merging":
+            return f"Merging PR #{r['pr']} on {r.get('remote')}"
         if s == "ready" and "closed_by" in r:
             by = f" by {r['closed_by']}" if r["closed_by"] else ""
             return f"PR #{r['pr']} was closed on {r.get('remote')}{by}."
@@ -408,6 +466,8 @@ class Delegator:
             head = f"Ready: PR #{r['pr']}, " if r.get("pr") else f"Ready: branch {b}, "
             tail = {"failed": f" · not pushed: {r.get('outward_problem')}",
                     "snapshot": " · not pushed: it starts from your uncommitted changes"}.get(r.get("outward") or "", "")
+            if r.get("merge") == "failed":
+                tail += f" · not merged: {r.get('merge_problem')}"
             said = {"passed": "tests passed", "skipped": "tests not run (no sandbox here)"}.get(r.get("tests"), "no tests declared")
             if n := r.get("behind"):
                 tail = f" · {r.get('into')} moved {n} commit{'s' * (n != 1)}, merges cleanly" + tail
@@ -420,8 +480,17 @@ class Delegator:
             return r.get("problem") or "Tests failed"
         if s == "applied":
             left = f" Left behind: {', '.join(r['leftovers'])}." if r.get("leftovers") else ""
-            pr = f" PR #{r['pr']} stays open." if r.get("pr") else ""
-            return f"Applied to {r.get('target')}; task #{r['task']} done.{pr}{left}"
+            if not r.get("merged_on"):
+                pr = f" PR #{r['pr']} stays open." if r.get("pr") else ""
+                return f"Applied to {r.get('target')}; task #{r['task']} done.{pr}{left}"
+            where = f"Applied: PR #{r['pr']} into {r.get('target')}, merged on {r['merged_on']}"
+            done = (f"{where} and pulled; task #{r['task']} done." if r.get("pulled") else
+                    f"{where}; pull to get it. Task #{r['task']} done.")
+            undo = {"pushing": f" · Undo: opening a revert PR from {r.get('revert_branch')}",
+                    "failed": f" · not undone: {r.get('undo_problem')}"}.get(r.get("undo") or "", "")
+            return done + left + undo
+        if s == "reverted" and r.get("revert_pr"):
+            return f"Reverted: PR #{r['revert_pr']} reverts PR #{r['pr']} on {r['merged_on']}; task #{r['task']} reopened."
         if s == "reverted":
             return f"Reverted; task #{r['task']} reopened."
         if s == "merged":
@@ -455,20 +524,32 @@ class Delegator:
             return r.get("into")
         return r.get("into") if r["stage"] == "ready" and c and not {"refused", "taken"} & c.keys() else None
 
+    @staticmethod
+    def on_github(r: dict) -> bool:
+        """Apply merges on the remote (#876): a PR Orb opened, with the checked commit pushed to it."""
+        return bool(r.get("pr")) and r.get("outward") == "done"
+
     def apply_text(self, r: dict) -> str:
+        if self.on_github(r):
+            return f"Apply asks to merge PR #{r['pr']} on {r['remote']} into {r['into']}, then marks task #{r['task']} done."
         what = f"PR #{r['pr']}" if r.get("pr") else f"branch {r['branch']}"
         return f"Apply merges {what} and marks task #{r['task']} done."
 
     def ask(self, r: dict) -> str | None:
-        """What it waits for the owner to allow: the card its session waits on, or the outward steps."""
+        """What it waits for the owner to allow: the card its session waits on, the merge on the remote, or the
+        outward steps (Undo's revert PR among them)."""
         if r["stage"] == "working":
             return self.waiting(r["session"]) or None
+        if self.needs(r) == "merge":
+            return f"Merge PR #{r['pr']} on {r['remote']} into {r['into']}?"
         if self.needs(r) == "closed":
             return f"Reopen PR #{r['pr']} on {r.get('remote')}?"
         if self.needs(r) == "update":
             return f"Update branch {r['branch']} from {r.get('into')}? It merges cleanly: Orb commits the merge and runs the tests."
         if self.needs(r) != "outward":
             return None
+        if r["stage"] == "applied":
+            return f"Push branch {r['revert_branch']} and open a PR reverting PR #{r['pr']}?"
         if r.get("pr") and r.get("updated") is not None:
             return f"Push the update to branch {r['branch']} (PR #{r['pr']})?"
         if r.get("pr"):
@@ -672,7 +753,7 @@ class Delegator:
         elif ev["type"] == "result" and not ev.get("replay") and r["stage"] in ("working", "ready", "failed", "stopped"):
             r["stage"] = "testing"
             for k in ("conflict", "outward", "outward_problem", "collision", "behind", "updated", "blocked", "waiting",
-                      "clean_update"):
+                      "clean_update", "merge", "merge_mode", "merge_problem"):
                 r.pop(k, None)
             await self.changed()
             self._spawn(self.check(r))
@@ -689,11 +770,17 @@ class Delegator:
             await self._fill()  # a stuck one gave up its slot
         for r in list(self.items.values()):
             if (r["stage"] == "ready" and r.get("pr") and r.get("outward") == "done" and not r.get("collision")
-                    and not r.get("pr_closed") and not r.get("clean_update") and r["id"] not in self.polling
+                    and not r.get("pr_closed") and not r.get("clean_update") and not self._landing(r)
+                    and r["id"] not in self.polling
                     and time.time() - r.get("polled", 0) >= POLL):
                 r["polled"] = time.time()
                 self.polling.add(r["id"])
                 self._spawn(self._poll(r))
+
+    @staticmethod
+    def _landing(r: dict) -> bool:
+        """Apply is merging the PR on the remote, or has: that path owns the record, the poll keeps out of it (#876)."""
+        return bool(r.get("merged_on")) or r.get("merge") == "merging"
 
     async def _poll(self, r: dict) -> None:
         """One read of the PR (#870, #877). Merged or closed: never read again. CONFLICTING, or BEHIND under branch
@@ -701,7 +788,8 @@ class Delegator:
         Update card. BLOCKED: a failing check is Needs you, a review (or a pending check) only a word on the line.
         UNKNOWN is "not yet". A failed read waits for the next turn."""
         rid, pr, checked = r["id"], r["pr"], r.get("checked") or ""
-        moved = lambda: self.items.get(rid) is not r or r["stage"] != "ready" or r.get("pr") != pr or r.get("collision")
+        moved = lambda: (self.items.get(rid) is not r or r["stage"] != "ready" or r.get("pr") != pr or r.get("collision")
+                         or self._landing(r))
         try:
             wt = self._wt(r)
             await asyncio.to_thread(worktree.same_config, wt)  # gh runs git here and resolves the repo from its remotes
@@ -941,10 +1029,17 @@ class Delegator:
         r.setdefault("collisions", []).append({**r["collision"], "outcome": "open"})
 
     async def outward(self, rid: str, allow: bool) -> dict:
-        """The outward card's answer: Allow pushes (and opens the PR); Skip leaves it Ready with the branch."""
+        """The outward card's answer: Allow pushes (and opens the PR); Skip leaves it Ready with the branch. The merge
+        card (#876) and Undo's revert PR answer here too."""
         r = self._get(rid)
+        if self.needs(r) == "merge":
+            await self._merge(r, allow)
+            return r
         if self.needs(r) != "outward":
             raise DelegationError("That delegation has nothing waiting to be pushed.")
+        if r["stage"] == "applied":
+            await (self._unmerge(r) if allow else self._undo_skipped(r))
+            return r
         if not allow:
             r["outward"] = "skipped"
             await self.changed()
@@ -1005,6 +1100,13 @@ class Delegator:
             raise DelegationError(self.line(r) + " Send it back or discard.")
         if r.get("waiting"):
             raise DelegationError(f"PR #{r['pr']}: {self._waiting(r)}.")
+        if r.get("merge") == "merging":
+            raise DelegationError(f"PR #{r['pr']} is being merged on {r.get('remote')}.")
+        if r.get("pr") and r.get("outward") == "ask":
+            raise DelegationError(f"Push the update to PR #{r['pr']} first, or Skip it to apply here.")
+        if self.on_github(r):
+            await self._ask_merge(r, mode)
+            return r
         await self._stop(r)  # nothing writes to the branch while it lands
         wt = self._wt(r)
         try:
@@ -1028,8 +1130,134 @@ class Delegator:
         await self.done(r["task"], True)
         return r
 
+    # -- Apply on GitHub (#876) ---------------------------------------------------------------
+
+    async def _ask_merge(self, r: dict, mode: Callable[[str], str]) -> None:
+        """Apply with a PR: a fresh read of it, then the merge card (always asks). Merged, closed or BLOCKED is
+        refused with GitHub's state; CONFLICTING goes to the collision check, the card only when files conflict here."""
+        rid, pr, checked = r["id"], r["pr"], r.get("checked") or ""
+        wt = self._wt(r)
+        await asyncio.to_thread(worktree.same_config, wt)  # gh runs git here and resolves the repo from its remotes
+        seen = await pr_view(wt.repo, pr, "state,mergeable,mergeStateStatus")
+        if self.items.get(rid) is not r or r["stage"] != "ready" or r.get("checked") != checked or r.get("collision"):
+            raise DelegationError("It changed while GitHub answered; look again, then Apply.")
+        state, mergeable, status = (str(seen.get(k) or "") for k in ("state", "mergeable", "mergeStateStatus"))
+        if state != "OPEN":
+            raise DelegationError(f"PR #{pr} is {state or 'unknown'} on GitHub; nothing was merged.")
+        if status == "BLOCKED":
+            raise DelegationError(f"PR #{pr} is BLOCKED on GitHub (a required review or check is missing); nothing "
+                                  "was merged.")
+        if mergeable == "CONFLICTING" and not await self._conflicts(r, wt):
+            raise DelegationError(f"GitHub says PR #{pr} conflicts with {r['into']}, but it merges cleanly here; try "
+                                  "Apply again in a minute.")
+        if not r.get("collision"):
+            r.update(merge="ask", merge_mode=mode(r["repo"]))
+            r.pop("merge_problem", None)
+        await self.changed()
+
+    async def _conflicts(self, r: dict, wt: worktree.Worktree) -> bool:
+        """The same fetch + in-memory merge as at Ready: True (and the collision card) when files conflict."""
+        seen = await asyncio.to_thread(worktree.collide, wt, r["remote"], r["into"], r.get("checked") or "")
+        r["behind"] = seen["behind"]
+        if not seen["files"]:
+            return False
+        for k in ("merge", "merge_mode", "merge_problem"):
+            r.pop(k, None)
+        self._collided(r, seen)
+        return True
+
+    async def _merge(self, r: dict, allow: bool) -> None:
+        """The merge card's answer. Skip: back to Ready. Allow: `gh pr merge` on the checked commit only, never
+        deleting the branch; a refusal changes nothing here."""
+        if not allow:
+            for k in ("merge", "merge_mode", "merge_problem"):
+                r.pop(k, None)
+            await self.changed()
+            return
+        pr, checked, how = r["pr"], r.get("checked") or "", "--merge" if r.get("merge_mode") == "merge" else "--squash"
+        r["merge"] = "merging"
+        r.pop("merge_problem", None)
+        await self.changed()
+        await self._stop(r)  # nothing writes to the branch while it lands
+        try:
+            wt = self._wt(r)
+            await asyncio.to_thread(worktree.same_config, wt)
+            code, text = await gh(wt.repo, "pr", "merge", str(pr), how, "--match-head-commit", checked)
+            if code != 0 and _CONFLICTING.search(text) and await self._conflicts(r, wt):
+                await self.changed()
+                return
+        except (DelegationError, worktree.WorktreeError, OSError) as e:
+            code, text = 1, str(e)
+        if code != 0:
+            r.update(merge="failed", merge_problem=said(text))
+            await self.changed()
+            return
+        try:
+            r["merge_sha"] = ((await pr_view(wt.repo, pr, "mergeCommit")).get("mergeCommit") or {}).get("oid")
+        except DelegationError as e:  # merged all the same; Undo says it can't find the commit
+            log.warning("PR #%s merged, its merge commit unread: %s", pr, e)
+        try:
+            pulled = await asyncio.to_thread(worktree.catch_up, wt, r["remote"], r["into"])
+        except (worktree.WorktreeError, OSError) as e:
+            log.info("PR #%s merged, %s not pulled: %s", pr, r["into"], e)
+            pulled = False
+        r.update(stage="applied", target=r["into"], merged_on=r["remote"], pulled=pulled, config=wt.config)
+        for k in ("merge", "merge_mode", "merge_problem", "conflict"):
+            r.pop(k, None)
+        r["leftovers"] = await asyncio.to_thread(worktree.remove, wt)
+        self.store.forget(r["worktree"])
+        await self.changed()
+        await self.done(r["task"], True)
+
+    async def _undo(self, r: dict) -> dict:
+        """Undo after an Apply on the remote: a revert PR, once. Its push and PR ask unless outward steps are on."""
+        if r.get("revert_pr"):
+            raise DelegationError(f"PR #{r['revert_pr']} already reverts PR #{r['pr']}; Undo is offered once per Apply.")
+        if r["stage"] != "applied":
+            raise DelegationError("Only an applied delegation can be undone.")
+        if r.get("undo"):
+            raise DelegationError(f"Undo of PR #{r['pr']} is already under way.")
+        if not r.get("merge_sha"):
+            raise DelegationError(f"Orb couldn't read PR #{r['pr']}'s merge commit; revert it on GitHub.")
+        r.update(undo="ask", revert_branch=worktree.revert_name(r["branch"], r["task"]))
+        if self.store.outward(r["repo"]) and not Fence(r["repo"]).in_client():
+            await self._unmerge(r)
+        else:
+            await self.changed()
+        return r
+
+    async def _undo_skipped(self, r: dict) -> None:
+        for k in ("undo", "undo_problem"):
+            r.pop(k, None)
+        await self.changed()
+
+    async def _unmerge(self, r: dict) -> None:
+        """Revert the merge commit on the fetched target in plumbing (the checkout untouched), push it as the revert
+        branch (never forced) and open "Revert #N"; the task reopens once that PR is open."""
+        r["undo"] = "pushing"
+        r.pop("undo_problem", None)
+        await self.changed()
+        remote, into, branch = r["merged_on"], r["target"], r["revert_branch"]
+        try:
+            await asyncio.to_thread(worktree.check_config, r["repo"], r.get("config") or "", branch)
+            if not r.get("undo_pushed"):  # pushed before a failed PR: open the PR only
+                r["undo_pushed"] = await asyncio.to_thread(worktree.revert_on, r["repo"], remote, into, r["merge_sha"],
+                                                           branch, r.get("config") or "")
+            body = f"Reverts PR #{r['pr']} (task #{r['task']}).\n\nOpened with Orb's Undo."
+            r["revert_pr"], r["revert_pr_url"] = await open_pr(r["repo"], branch, into, f"Revert #{r['pr']}", body)
+        except (DelegationError, worktree.WorktreeError, OSError) as e:
+            r.update(undo="failed", undo_problem=str(e)[:LINE_MAX])
+            await self.changed()
+            return
+        r.pop("undo", None)
+        r["stage"] = "reverted"
+        await self.changed()
+        await self.done(r["task"], False)
+
     async def revert(self, rid: str) -> dict:
         r = self._get(rid)
+        if r.get("merged_on"):
+            return await self._undo(r)
         if r["stage"] != "applied" or not r.get("commit"):
             raise DelegationError("Only an applied delegation can be undone.")
         r["revert"] = await asyncio.to_thread(worktree.revert, r["repo"], r["commit"])
@@ -1041,6 +1269,8 @@ class Delegator:
     async def discard(self, rid: str) -> list[str]:
         """Stop the session, drop the branch and worktree and the record; returns what could not be removed."""
         r = self._get(rid)
+        if r.get("merge") == "merging":
+            raise DelegationError(f"PR #{r['pr']} is being merged on {r.get('remote')}; wait for it.")
         left: list[str] = []
         if r["stage"] not in ("applied", "reverted"):
             merged = r["stage"] == "merged"  # merged on the remote: the session is stopped and the claim stays (done)

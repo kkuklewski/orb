@@ -12,7 +12,8 @@ import type { DelegationItem } from "../protocol.gen";
 // actions). Discard drops the branch and the worktree, so it takes a second tap. Past the limit a delegation waits
 // as Queued (its line "Queued · 2nd"; no session yet, so no Open session) and starts when a slot frees. A bulk
 // Delegate brings one card per repo listing its tasks, one after another. After the tests pass, push and a PR wait for
-// an OK (Push and open PR, Skip) unless the repo's outward steps are on; a PR Orb opened is linked from the row.
+// an OK (Push and open PR, Skip) unless the repo's outward steps are on; a PR Orb opened is linked from the row. With
+// that PR, Apply asks to merge it on the remote (Merge PR #N, Skip; always asks, #876) and Undo opens a revert PR.
 // The PR's states (#877): merged on the remote = done, Dismiss only; closed = Reopen PR; a failed required check = Send
 // back, with a link per check; behind main with a clean merge = Update from main (Orb commits it, no session turn).
 
@@ -102,12 +103,13 @@ export function Actions({ d }: { d: DelegationItem }) {
   const done = d.stage === "applied" || d.stage === "reverted" || d.stage === "merged";
   const [sure, setSure] = useState(false);  // Discard drops the branch and its commits: a second tap
   const refused = d.needs === "collision" && !d.update_from;  // an update that would change their lines: Discard only
-  const held = d.needs === "collision" || d.needs === "closed" || d.needs === "blocked";  // Apply waits on the remote
+  const held = d.needs === "collision" || d.needs === "merge" || d.needs === "closed" || d.needs === "blocked";  // Apply waits on the remote
   return (
     <span className="deleg-actions">
       {!done && d.needs !== "stopped" && d.needs !== "collision" && d.stage !== "queued" && <button type="button" className="hbtn" onClick={() => openFolder(d.folder, d.session)}>Open session</button>}
-      {d.needs === "outward" && <button type="button" className="hbtn dark" onClick={() => outward(d.id, true)}>{d.pr ? "Push" : "Push and open PR"}</button>}
-      {d.needs === "outward" && <button type="button" className="hbtn" onClick={() => outward(d.id, false)}>Skip</button>}
+      {d.needs === "outward" && <button type="button" className="hbtn dark" onClick={() => outward(d.id, true)}>{d.stage === "applied" ? "Push and open revert PR" : d.pr ? "Push" : "Push and open PR"}</button>}
+      {d.needs === "merge" && <button type="button" className="hbtn dark" onClick={() => outward(d.id, true)}>Merge PR #{d.pr}</button>}
+      {(d.needs === "outward" || d.needs === "merge") && <button type="button" className="hbtn" onClick={() => outward(d.id, false)}>Skip</button>}
       {d.pr && d.pr_url && /^https:\/\//.test(d.pr_url) && <a className="hbtn" href={d.pr_url} target="_blank" rel="noreferrer">PR #{d.pr}</a>}
       {d.update_from && <button type="button" className="hbtn dark" onClick={() => update(d.id)}>Update from {d.update_from}</button>}
       {d.stage === "ready" && !refused && <button type="button" className="hbtn" onClick={() => review(d.id)}>Review</button>}
@@ -117,7 +119,7 @@ export function Actions({ d }: { d: DelegationItem }) {
       {d.stage === "ready" && !held && <button type="button" className="hbtn dark" onClick={() => askApply(d.id)}>{d.conflict ? "Apply again" : "Apply"}</button>}
       {(d.needs === "failed" || d.needs === "stuck") && <button type="button" className="hbtn dark" onClick={() => retry(d.id)}>Retry</button>}
       {d.needs === "stopped" && <button type="button" className="hbtn dark" onClick={() => resume(d.id)}>Resume</button>}
-      {d.stage === "applied" && <button type="button" className="hbtn" onClick={() => revert(d.id)}>Undo</button>}
+      {d.stage === "applied" && !d.needs && <button type="button" className="hbtn" onClick={() => revert(d.id)}>Undo</button>}
       {done ? <button type="button" className="hbtn" onClick={() => discard(d.id)}>Dismiss</button>
         : <button type="button" className="hbtn" onClick={() => (sure ? discard(d.id) : setSure(true))} onBlur={() => setSure(false)}>{sure ? "Discard branch and work?" : "Discard"}</button>}
     </span>
