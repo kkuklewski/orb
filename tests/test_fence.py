@@ -135,7 +135,7 @@ def test_a_new_notes_folder_can_be_searched_until_it_holds_secrets(tmp_path):
     assert f.rule("Glob", {"pattern": "**/*.md"}) == {}
     assert f.rule("Grep", {"pattern": "x", "path": str(notes)}) == {}
     assert decision(f.rule("Write", {"file_path": str(notes / "secrets" / "bank.md"), "content": "x"})) == "deny"
-    (notes / "secrets").mkdir()
+    (notes / "Secrets").mkdir()  # any letter case, also on a case-sensitive disk (CI)
     assert decision(f.rule("Glob", {"pattern": "**/*.md"})) == "deny"
     assert decision(f.rule("Bash", {"command": f"grep -r x {notes}"})) == "deny"
 
