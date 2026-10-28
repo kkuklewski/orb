@@ -267,3 +267,11 @@ def test_other_git_failures_keep_the_last_line_that_is_not_a_hint():
     out = subprocess.CompletedProcess([], 1, "", "error: failed to push some refs\nhint: Updates were rejected\nhint: See git help\n")
     assert wts._failure("push", out) == "git push failed: error: failed to push some refs"
     assert wts._failure("fetch", subprocess.CompletedProcess([], 1, "", "")) == "git fetch failed: "
+
+
+def test_their_lines_count_as_kept_only_as_whole_hunks_in_order():
+    block = ["a = 1", "b = 2"]
+    assert wts._contains(["x", "a = 1", "b = 2", "y"], block)
+    assert not wts._contains(["a = 1", "mine", "b = 2"], block)  # split by the session's own line
+    assert not wts._contains(["b = 2", "a = 1"], block)  # moved
+    assert not wts._contains(["a = 1 ", "b = 2"], block)  # whitespace counts
