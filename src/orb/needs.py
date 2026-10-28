@@ -54,7 +54,7 @@ REASON_MAX = 140
 ROUTINE_RANK = {"failed": 0, "broken": 1, "waiting": 2, "stuck": 3, "missed": 4, "action": 5}
 ROUTINE_SAYS = {"failed": "failed", "broken": "reports a problem", "waiting": "needs a decision", "stuck": "is stuck",
                 "missed": "missed its run", "action": "asks you to act"}
-SENT = ("key", "kind", "id", "title", "reason", "source", "due", "priority", "url", "actions", "repo", "suggest", "urgent", "pin", "repair")
+SENT = ("key", "kind", "id", "title", "reason", "source", "due", "priority", "url", "actions", "repo", "suggest", "urgent", "pin", "repair", "held_by")
 QUEUE_MAX = 30  # queue items the model sees (the first in rule order); the rest follow in rule order
 UP_NEXT = 5
 ESCALATE_H = 48  # hours in Needs you (past due, for a task or reminder) after which a routine, or a pinned row, turns red
@@ -137,7 +137,7 @@ def vault_row(h: vault_git.Health | None) -> dict | None:
             "due": None, "priority": None, "url": None, "actions": ["open"], "repo": None, "suggest": None,
             "urgent": state == "conflict",
             "facts": f"{'Urgent. ' if state == 'conflict' else ''}The notes vault's local git clone: {title.removeprefix('Vault: ')}. {reason}",
-            "stable": f"{state}|{h.unmerged}|{h.operation}", "pin": None, "repair": None}
+            "stable": f"{state}|{h.unmerged}|{h.operation}", "pin": None, "repair": None, "held_by": None}
 
 
 def _late(due: str, today: str) -> str:
@@ -158,7 +158,7 @@ def needs_you(routines: list[dict] | None, tasks: list[dict] | None, today: str,
         out.append({"key": f"setup:{p['id']}", "kind": "setup", "id": p["id"], "title": p["title"], "reason": p["reason"],
                     "source": "setup", "due": None, "priority": None, "url": None, "actions": ["open"], "repo": None, "suggest": None,
                     "urgent": True, "facts": f"Urgent. Broken setup: {p['title']}. {_clip(p['reason'])}", "stable": f"{p['title']}|{p['reason']}",
-                    "pin": "security", "repair": None})
+                    "pin": "security", "repair": None, "held_by": None})
     out += [row for h in vault or [] if (row := vault_row(h))]
     bad = [r for r in routines or [] if r.get("enabled") and r.get("needs") in ROUTINE_RANK]
     for r in sorted(bad, key=lambda r: ROUTINE_RANK[r["needs"]]):
@@ -180,22 +180,23 @@ def needs_you(routines: list[dict] | None, tasks: list[dict] | None, today: str,
                     "facts": f"{'Urgent. ' if r.get('urgent') else ''}Scheduled job '{_clip(r['name'], 80)}': {r['needs']}. Judge: {_clip(r.get('why'), 120) or '-'}. "
                              f"Last run: {_clip(last.get('summary') or last.get('detail'))}{f'. {said}' if streak or repair else ''}",
                     "stable": stable, "pin": "security" if r.get("security") else None,
-                    "repair": repair["task"] if repair else None})
+                    "repair": repair["task"] if repair else None, "held_by": None})
     for r in sorted((r for r in reminders or [] if r.get("due") and r["due"] <= today), key=lambda r: r["due"]):
         out.append({"key": f"reminder:{r['due']}:{_clip(r['text'], 80)}", "kind": "reminder", "id": r["due"],
                     "title": _clip(r["text"], 120), "reason": _late(r["due"], today), "source": "reminder", "due": r["due"],
                     "priority": None, "url": r.get("url"), "actions": ["open"] if r.get("url") else [], "repo": None, "suggest": None,
                     "urgent": False, "facts": f"Reminder the owner set: {_clip(r['text'], 200)}; due {r['due']}", "stable": f"{r['text']}|{r['due']}",
-                    "pin": None, "repair": None})
+                    "pin": None, "repair": None, "held_by": None})
     late = [t for t in tasks or [] if t.get("due") and t["due"] < today]
     for t in sorted(late, key=lambda t: (t["due"], -(t.get("priority") or 0))):
         out.append({"key": f"vikunja:{t['id']}", "kind": "task", "id": str(t["id"]), "title": _clip(t["title"], 120),
                     "reason": _ago(t["due"], today), "source": t.get("project") or None, "due": t["due"],
                     "priority": t.get("priority") or None, "url": t.get("url"), "actions": ["open"], "repo": t.get("repo"),
-                    "suggest": suggest.task(t["due"], t.get("repo"), today), "urgent": False,
+                    "suggest": suggest.task(t["due"], t.get("repo"), today, t.get("held_by")), "urgent": False,
+                    "held_by": t.get("held_by"),
                     "facts": f"Tracker task: {_clip(t['title'], 200)}; project {t.get('project') or '-'}; was due {t['due']}; "
-                             f"priority {t.get('priority') or 'unset'}",
-                    "stable": f"{t['title']}|{t['due']}|{t.get('priority')}", "pin": "client" if t.get("client") else "money" if t.get("money") else None, "repair": None})
+                             f"priority {t.get('priority') or 'unset'}{_held(t)}",
+                    "stable": f"{t['title']}|{t['due']}|{t.get('priority')}{_held(t)}", "pin": "client" if t.get("client") else "money" if t.get("money") else None, "repair": None})
     return out
 
 
@@ -270,7 +271,11 @@ def _days(n: int) -> str:
 
 
 TASK_ACTIONS = ["start", "done", "later"]
-VIKUNJA_ACTIONS = [*TASK_ACTIONS, "delegate"]  # `repo`: the mapped repo's label, else the page asks for one
+VIKUNJA_ACTIONS = [*TASK_ACTIONS, "delegate"]  # `repo`: the mapped repo's label, else the page asks for one; not on a teammate's task
+
+
+def _held(t: dict) -> str:
+    return f"; held by teammate {_clip(t['held_by'], 80)}" if t.get("held_by") else ""
 
 
 LEAVE_DAYS = 14  # a pull request this quiet gets Leave it: hidden until it changes, Orb never writes to it (ticket 850)
@@ -300,10 +305,11 @@ def queue(tasks: list[dict] | None, notes: list[dict] | None, results: list[dict
         said = _due(due, today) if due else f"Priority {prio}{'' if t.get('priority') else ' (suggested)'}." if prio else "No due date."
         add(key=f"vikunja:{t['id']}", kind="task", id=str(t["id"]), title=_clip(t["title"], 120), reason=said,
             source=t.get("project") or None, due=due, priority=prio, url=t.get("url"), ts=_ts(t.get("created")),
-            actions=VIKUNJA_ACTIONS, repo=t.get("repo"), suggest=suggest.task(due, t.get("repo"), today),
+            actions=TASK_ACTIONS if t.get("held_by") else VIKUNJA_ACTIONS, repo=t.get("repo"),
+            suggest=suggest.task(due, t.get("repo"), today, t.get("held_by")), held_by=t.get("held_by"),
             facts=f"Tracker task: {_clip(t['title'], 200)}; project {t.get('project') or '-'}; "
-                  f"due {due or 'none'}; priority {prio or 'unset'}",
-            stable=f"{t['title']}|{due}|{prio}")
+                  f"due {due or 'none'}; priority {prio or 'unset'}{_held(t)}",
+            stable=f"{t['title']}|{due}|{prio}{_held(t)}")
     for n in notes or []:
         name = n["file"].split("/")[-1].removesuffix(".md")
         add(key=f"note:{n['file']}:{n['line']}", kind="note_task", id=f"{n['file']}:{n['line']}", title=_clip(n["text"], 120),

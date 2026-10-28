@@ -772,6 +772,21 @@ describe("delegation", () => {
     expect(within(lead).queryByRole("button", { name: /Delegate/ })).toBeNull();
   });
 
+  it("a teammate's task reads Held by, its Delegate is off with the reason, and its suggestion is later", () => {
+    const held: PlanItem = { ...mapped, actions: ["start", "done", "later"], held_by: "Globex Dev", suggest: "later" };
+    render(<Home />);
+    act(() => dispatch(plan([], { next: held, up_next: [qNote, { ...held, key: "vikunja:9", id: "9", title: "Tidy the footer" }] })));
+    const lead = screen.getByRole("article", { name: "Next action" });
+    expect(within(lead).getAllByText("Held by Globex Dev")).toHaveLength(2);  // the lead and its row in Up next
+    const off = within(lead).getByRole("button", { name: "Delegate" }) as HTMLButtonElement;
+    expect(off.disabled).toBe(true);
+    expect(off.title).toContain("Held by Globex Dev");
+    sent.length = 0;
+    fireEvent.click(off);
+    expect(sent).toEqual([]);
+    expect(within(lead).getByRole("button", { name: "later: Tidy the footer" })).toBeTruthy();
+  });
+
   it("an unmapped task asks for the repo first, then the grant card; Deny starts nothing", () => {
     render(<Home />);
     act(() => dispatch(plan([], { next: unmapped, up_next: [] })));

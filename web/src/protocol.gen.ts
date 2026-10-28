@@ -1637,8 +1637,10 @@ export interface HomeTasksEvent {
  * via the `definition` "TrackerTask".
  */
 export interface TrackerTask {
+  assignees?: Assignee[];
   created?: string;
   due?: string | null;
+  held_by?: string | null;
   id: number;
   labels?: string[];
   priority: number;
@@ -1647,6 +1649,14 @@ export interface TrackerTask {
   title: string;
   updated: number;
   url: string;
+}
+/**
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "Assignee".
+ */
+export interface Assignee {
+  id: string;
+  name: string;
 }
 /**
  * Home's Away recap (away.Clock): the one-shot card after 24 hours or more without the owner acting, or None.
@@ -1719,6 +1729,7 @@ export interface PlanEvent {
 export interface PlanItem {
   actions?: ("open" | "start" | "done" | "later" | "delegate" | "make_task" | "leave")[];
   due?: string | null;
+  held_by?: string | null;
   id: string;
   key: string;
   kind:

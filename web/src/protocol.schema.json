@@ -44,6 +44,23 @@
       "title": "ArchiveSessionMsg",
       "type": "object"
     },
+    "Assignee": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "Assignee",
+      "type": "object"
+    },
     "AudioEvent": {
       "additionalProperties": false,
       "properties": {
@@ -5790,6 +5807,17 @@
           ],
           "default": null
         },
+        "held_by": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "id": {
           "type": "string"
         },
@@ -8912,11 +8940,29 @@
     "TrackerTask": {
       "additionalProperties": false,
       "properties": {
+        "assignees": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Assignee"
+          },
+          "type": "array"
+        },
         "created": {
           "default": "",
           "type": "string"
         },
         "due": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "held_by": {
           "anyOf": [
             {
               "type": "string"
