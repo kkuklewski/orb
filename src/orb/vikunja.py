@@ -227,6 +227,12 @@ def unassign(url: str, task_id: int, user_id: str) -> None:
     _write(base, token, f"/tasks/{int(task_id)}/assignees/{int(user_id)}", None, "DELETE")
 
 
+def comment(url: str, task_id: int, text: str) -> None:
+    """A comment on the task, as the token's user (Vikunja creates with PUT)."""
+    base, token = _cfg(url)
+    _write(base, token, f"/tasks/{int(task_id)}/comments", {"comment": text}, "PUT")
+
+
 def _update(url: str, task_id: int, change: dict) -> None:
     """Change fields of a task. The whole task goes back with the change, because Vikunja's update resets the
     fields it isn't given."""

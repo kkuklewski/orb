@@ -93,6 +93,11 @@ def unassign(cfg: dict, task_id: int, user_id: str) -> None:
     m.unassign(url, task_id, user_id)
 
 
+def comment(cfg: dict, task_id: int, text: str) -> None:
+    m, url = _b(cfg)
+    m.comment(url, task_id, text)
+
+
 def by_key(tasks: list[dict], key: str) -> dict | None:
     """The open task whose title starts with this issue key (ACME-12), else None."""
     want = key.strip().upper() + " "

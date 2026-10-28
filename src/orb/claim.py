@@ -65,6 +65,13 @@ class Claims:
         raise ClaimError(f"Couldn't claim task #{task_id}: "
                          + (f"it is held by {holder(t, me)}." if ids - {me['id']} else f"{tracker.name(cfg)} didn't keep the assignment."))
 
+    def note(self, task_id: int, text: str) -> None:
+        """A comment on the task for the teammates (#866 Q6); the owner is its author."""
+        try:
+            tracker.comment(self.cfg(), task_id, text)
+        except tracker.ERRORS as e:
+            raise ClaimError(f"Couldn't comment on task #{task_id}: {e}") from e
+
     def release(self, task_id: int) -> None:
         """Take the owner's assignment back (only ever one this server added)."""
         try:

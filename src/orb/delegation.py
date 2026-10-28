@@ -44,6 +44,9 @@ holds the task ("Task #N is held by <name>"); its branch is per person, orb/<tra
 each task before its worktree (one that can't be claimed is skipped with its reason, the others start; nothing is
 retried); a worktree that fails takes back the claim it just made. The record keeps `claimed` (Orb added the
 assignment), and only Discard takes that back.
+Tracker comments (#866 Q6, `Claims.note`): after Allow, "Delegated with Orb on <host>, branch <branch>."; after a new PR,
+"PR #N: <link>". In the background: a failure is logged, the strip adds "tracker comment not posted", nothing stops.
+The host name goes only in that comment, never in a PR or a commit. Nothing is said on Discard or Apply.
 Bulk Delegate: one grant card per repo (the tasks of that repo in a list), shown one after another; Deny skips that
 repo's tasks and the next repo's card comes up either way.
 """
@@ -56,6 +59,7 @@ import logging
 import os
 import re
 import signal
+import socket
 import time
 import uuid
 from collections.abc import Awaitable, Callable
@@ -291,6 +295,9 @@ class Delegator:
         return self.limit() - sum(r["stage"] in RUNNING and not self._stuck(r) for r in self.items.values())
 
     def line(self, r: dict) -> str:
+        return self._line(r) + (" · tracker comment not posted" if r.get("uncommented") else "")
+
+    def _line(self, r: dict) -> str:
         s, b = r["stage"], r["branch"]
         if s == "queued":
             return f"Queued · {ordinal(self._queued().index(r) + 1)}"
@@ -458,6 +465,7 @@ class Delegator:
                  "claimed": claimed}
             self.items[r["id"]] = r
             await self._go(r, brief(task, branch, self.store.commands(c["repo"])["test"]))
+            self._note(r, f"Delegated with Orb on {socket.gethostname()}, branch {branch}.")
             made.append(r)
         if skipped and not made:
             raise DelegationError(" ".join(skipped))
@@ -465,6 +473,23 @@ class Delegator:
         if skipped:
             await self.push({"type": "notice", "level": "warn", "text": " ".join(skipped)})
         return made
+
+    def _note(self, r: dict, text: str) -> None:
+        """Tell the teammates in the tracker, in the background (#866 Q6): a failure is logged and the strip says so,
+        the delegation goes on. The host name goes only here, never in a PR or a commit."""
+        if self.claims is None:
+            return
+
+        async def post() -> None:
+            try:
+                await asyncio.to_thread(self.claims.note, r["task"], text)
+            except claim.ClaimError as e:
+                log.warning("%s", e)
+                r["uncommented"] = True
+                if r["id"] in self.items:
+                    await self.changed()
+
+        self._spawn(post())
 
     async def _release(self, task_id: int) -> str | None:
         """Take back the claim this server made; what went wrong, else None."""
@@ -746,6 +771,7 @@ class Delegator:
                 link = f": {r['url']}" if r.get("url") else ""
                 body = f"Task #{r['task']}{link}\n\nDelegated with Orb; the repo's tests passed in its worktree."
                 r["pr"], r["pr_url"] = await open_pr(wt.repo, r["branch"], r["into"], r["title"], body)
+                self._note(r, f"PR #{r['pr']}: {r['pr_url']}")
             r.update(outward="done", polled=time.time())  # GitHub needs a while: the first read waits a full POLL
         except worktree.Taken as e:
             if r.get("pushed"):  # it was ours before: the session rewrote what it had pushed (never forced)
