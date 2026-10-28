@@ -9,7 +9,7 @@ import { activityRows, useViews, type SessionRow } from "./views";
 import { askIn, openFolder } from "./session";
 import { openItem, startItem } from "./items";
 import { useDelegations } from "./delegation";
-import { openBrain, setFilter } from "./brain";
+import { openBrain, openNoTopic, setFilter } from "./brain";
 
 // forget: the Don't forget pane (reminders, repos with unsaved work, open pull requests) and pinned links (server: forget.summary).
 // tasks: the Tasks source as Home sees it, the first open Vikunja tasks and the count, or why it can't be read (server: vikunja.home_event).
@@ -85,13 +85,15 @@ export function rerank() {
 
 /** Start a queue item, each kind its own way: a Vikunja task opens a session from its brief (the server picks the
  *  repo, else the Home chat), a note task goes to the Home chat, a result opens its session (which clears it), a pull
- *  request its page, the notes batch Brain's notes waiting for a verdict (grouped there by suggestion, ADR 0006). A started task or PR leaves the queue for today. */
+ *  request its page, the notes batch Brain's notes waiting for a verdict (grouped there by suggestion, ADR 0006), the
+ *  No-topic captures Brain's No topic view. A started task or PR leaves the queue for today. */
 export function startPlan(p: PlanItem) {
   const vault = useFeatures.getState().features?.vault;
   if (p.kind === "task") startItem("vikunja", p.id);
   else if (p.kind === "note_task" && vault) askIn(vault, `Help me get this task from my note "${p.id.slice(0, p.id.lastIndexOf(":"))}" done: ${p.title}`);
   else if (p.kind === "pr") openItem("prs", p.id);
   else if (p.kind === "notes_batch") { setFilter({ waiting: true }); openBrain(); }
+  else if (p.kind === "notopic") openNoTopic();
   else if (p.kind === "result") {
     const f = useFeatures.getState().folders.find((x) => x.sessions?.some((s) => s.key === p.id));
     if (f) openFolder(f.path, p.id);

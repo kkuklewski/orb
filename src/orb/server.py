@@ -681,7 +681,7 @@ async def note_action(conn: "Conn", file: str, line: int, expect: str, action: s
     await conn.send(ev)
     summary = await asyncio.to_thread(home.summary, vault)
     await asyncio.gather(*(c.send(summary) for c in hub.conns))  # every page shows the new list
-    hub.replan(notes=summary["tasks"], awaiting=summary["awaiting_count"])
+    hub.replan(notes=summary["tasks"], awaiting=summary["awaiting_count"], notopic=summary.get("notopic_count", 0))
 
 
 async def item_list(conn: "Conn", source: str) -> None:
@@ -716,6 +716,25 @@ async def brain_expired(conn: "Conn") -> None:
         await conn.send({"type": "brain_expired", "notes": [], "error": "No notes folder is set up."})
         return
     await conn.send({"type": "brain_expired", "notes": await asyncio.to_thread(home.expired_notes, vault)})
+
+
+async def brain_notopic(conn: "Conn", files: list[str]) -> None:
+    vault = settings.settings.vault()
+    if not vault:
+        await conn.send({"type": "brain_notopic", "notes": [], "error": "No notes folder is set up."})
+        return
+    await conn.send({"type": "brain_notopic", "notes": await asyncio.to_thread(home.notopic_notes, vault, None, files)})
+
+
+def brain_keep(file: str, seen: str) -> tuple[list[dict], list[dict]]:
+    """Keep a No-topic capture as an idea: owner_read, only if it still reads `seen`. (applied, refused) as brain_apply."""
+    try:
+        vault_write.set_owner_read(settings.settings.vault(), file, seen)
+    except tasks.TaskError as e:
+        return [], [{"file": file, "reason": str(e)}]
+    except (OSError, UnicodeDecodeError) as e:
+        return [], [{"file": file, "reason": f"Couldn't change the note: {e}"}]
+    return [{"file": file, "verdict": "keep"}], []
 
 
 async def brain_note(conn: "Conn", file: str) -> bool:
@@ -1098,7 +1117,7 @@ async def handle(conn: Conn, msg: dict) -> None:
                    tasks=[{**x, "suggested": (mine.get(x["id"]) or {}).get("p"), "repo": (repos.get(x.get("project_id")) or (None, None))[1],
                            "client": x.get("project_id") in clients, "money": needs.money(x.get("labels"), cfg.get("pin_labels"))} for x in open_], routines=hub.live_routines(),
                    vault=[h] if (h := await asyncio.to_thread(vault_git.cached, settings.settings.vault())) else [],
-                   notes=notes["tasks"], awaiting=notes["awaiting_count"], prs=w.get("prs") or [], results=hub.results(),
+                   notes=notes["tasks"], awaiting=notes["awaiting_count"], notopic=notes.get("notopic_count", 0), prs=w.get("prs") or [], results=hub.results(),
                    force=bool(msg.get("rerank")))
         return
     if t == "away_seen":  # the Away recap was closed, or Home left: gone on every page
@@ -1194,6 +1213,13 @@ async def handle(conn: Conn, msg: dict) -> None:
         return
     if t == "brain_expired":
         await brain_expired(conn)
+        return
+    if t == "brain_notopic":
+        await brain_notopic(conn, [str(f) for f in msg.get("files") or []])
+        return
+    if t == "brain_keep":
+        applied, refused = await asyncio.to_thread(brain_keep, str(msg["file"]), str(msg.get("seen") or ""))
+        await conn.send({"type": "brain_applied", "applied": applied, "refused": refused})
         return
     if t == "brain_get":
         await brain_note(conn, str(msg["file"]))

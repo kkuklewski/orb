@@ -1,8 +1,8 @@
 import { useEffect } from "react";
 import type { BrainNote } from "../protocol.gen";
-import type { ExpiredNote } from "../protocol.gen";
-import { GROUPS, GROUP_NAME, KINDS, LANES, accept, applyPicked, brainRows, closeExpired, expiredState, expiryText, headerLine, keep, openExpired, openNote,
-  pickAll, restore, scoreDot, setFilter, setVerdict, suggestable, suggestionGroups, toggleIn, togglePick, useBrain, verdictText, type Group } from "../stores/brain";
+import type { ExpiredNote, NoTopicNote } from "../protocol.gen";
+import { GROUPS, GROUP_NAME, KINDS, LANES, accept, applyPicked, askNoTopic, brainRows, closeExpired, closeNoTopic, drop, expiredState, expiryText, headerLine, keep,
+  keepIdea, notopicState, openExpired, openNoTopic, openNote, pickAll, restore, scoreDot, setFilter, setVerdict, suggestable, suggestionGroups, toggleIn, togglePick, useBrain, verdictText, type Group } from "../stores/brain";
 import { openSettings, relTime } from "../stores/views";
 import { send } from "../ws";
 
@@ -13,6 +13,8 @@ import { send } from "../ws";
 // vault will archive (ADR 0013) carries an "expires in N days" chip; within 3 days it moves to Expiring soon, above
 // Reject, where Keep (the approve verdict) stops it; Apply suggestions leaves those to Keep. Expired opens the pages the
 // vault archived in the last 30 days, newest first: title, score, why and the archive day; Keep there says "kept" after.
+// No topic lists the No-topic captures, oldest first, one at a time (no selection, no Apply): Keep or Drop, and Restore
+// after a Drop.
 
 /** The expiry chip, when the vault's rule covers the page. */
 const Expiry = ({ n }: { n: BrainNote }) => { const t = expiryText(n); return t ? <span className="exp-chip">{t}</span> : null; };
@@ -69,6 +71,48 @@ function ExpiredLine({ n }: { n: ExpiredNote }) {
   );
 }
 
+/** One No-topic capture: open it, Keep it as an idea or Drop it; once dropped, Restore. */
+function NoTopicLine({ n }: { n: NoTopicNote }) {
+  const said = useBrain((s) => notopicState(n, s.applied));
+  const refused = useBrain((s) => s.refused[n.file]);
+  return (
+    <div className="rt-line sg-line nt-line" data-state={said === "dropped" ? "rejected" : said ? "approved" : "waiting"}>
+      <span className={scoreDot(n.score)} />
+      <button type="button" className="rt-name sg-open" onClick={() => openNote(n.file)}>{n.title}</button>
+      <span className="rt-state mono">{said}</span>
+      {said === "dropped" ? <button type="button" className="chip-btn sg-act" aria-label={`Restore ${n.title}`} onClick={() => restore(n)}>Restore</button>
+        : said ? <span />
+        : <span className="nt-acts">
+          <button type="button" className="chip-btn sg-act" aria-label={`Keep ${n.title}`} onClick={() => keepIdea(n)}>Keep</button>
+          <button type="button" className="chip-btn sg-act" aria-label={`Drop ${n.title}`} onClick={() => drop(n)}>Drop</button>
+        </span>}
+      <span className="rt-tail mono">{[n.kind, n.created].filter(Boolean).join(" · ")}</span>
+      {refused && <span className="sg-refused" role="alert">{refused}</span>}
+    </div>
+  );
+}
+
+/** Brain's No topic view: the captures no topic took, oldest first. */
+function NoTopicView() {
+  const ev = useBrain((s) => s.notopic);
+  useEffect(() => { askNoTopic(); }, []);
+  const notes = ev?.notes ?? [];
+  return (
+    <div className="view-col">
+      <div className="view-head">
+        <h2>No topic</h2>
+        <span className="mono view-sub">{!ev ? "loading…" : ev.error ? "no notes folder" : `${notes.length} capture${notes.length === 1 ? "" : "s"} no topic took`}</span>
+        <button type="button" className="chip-btn" onClick={closeNoTopic}>Back to notes</button>
+      </div>
+      <section className="rt-group" aria-label="No-topic captures">
+        {ev?.error ? <div className="side-hint">{ev.error}</div>
+          : ev && !notes.length ? <div className="side-hint">Every capture has a topic or your decision.</div>
+          : notes.map((n) => <NoTopicLine key={n.file} n={n} />)}
+      </section>
+    </div>
+  );
+}
+
 /** Brain's Expired view: read only, the vault's archive of the last 30 days. */
 function ExpiredView() {
   const ev = useBrain((s) => s.expired);
@@ -91,12 +135,14 @@ function ExpiredView() {
 }
 
 export function Brain() {
-  return useBrain((s) => s.showExpired) ? <ExpiredView /> : <NotesList />;
+  const { showExpired, showNoTopic } = useBrain();
+  return showNoTopic ? <NoTopicView /> : showExpired ? <ExpiredView /> : <NotesList />;
 }
 
 function NotesList() {
-  const { list, filter, snap, applied, picked, soon } = useBrain();
-  useEffect(() => { send({ type: "brain_list" }); }, []);
+  const { list, filter, snap, applied, picked, soon, notopic } = useBrain();
+  useEffect(() => { send({ type: "brain_list" }); send({ type: "brain_notopic", files: [] }); }, []);
+  const orphans = notopic && !notopic.error ? notopic.notes.filter((n) => !notopicState(n, applied)).length : 0;
   const all = brainRows(list?.notes ?? [], filter, snap);
   const groups = suggestionGroups(all, applied, soon);
   const grouped = new Set(GROUPS.flatMap((k) => groups[k].map((n) => n.file)));
@@ -111,6 +157,7 @@ function NotesList() {
         <h2>Brain</h2>
         <span className="mono view-sub">{sub}</span>
         {picked.length > 0 && <button type="button" className="chip-btn" onClick={applyPicked}>Apply suggestions ({picked.length})</button>}
+        <button type="button" className="chip-btn" onClick={openNoTopic}>{orphans > 0 ? `No topic ${orphans}` : "No topic"}</button>
         <button type="button" className="chip-btn" onClick={openExpired}>Expired</button>
         <button type="button" className="chip-btn" onClick={() => send({ type: "brain_list" })}>Check now</button>
       </div>

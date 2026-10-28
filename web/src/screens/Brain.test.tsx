@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
-import type { BrainExpiredEvent, BrainListEvent, BrainNote, BrainNoteEvent, ExpiredNote } from "../protocol.gen";
+import type { BrainExpiredEvent, BrainListEvent, BrainNoTopicEvent, BrainNote, BrainNoteEvent, ExpiredNote, NoTopicNote } from "../protocol.gen";
 import { dispatch } from "../events";
 import { useViews } from "../stores/views";
 
@@ -28,7 +28,8 @@ const NO_FILTER = { waiting: false, kinds: [], lanes: [], q: "" };
 let off = () => {};
 beforeEach(() => {
   sent.length = 0;
-  useBrain.setState({ list: null, file: null, note: null, filter: NO_FILTER, snap: null, applied: {}, refused: {}, picked: [], soon: [], expired: null, showExpired: false });
+  useBrain.setState({ list: null, file: null, note: null, filter: NO_FILTER, snap: null, applied: {}, refused: {}, picked: [], soon: [], expired: null, showExpired: false,
+    notopic: null, showNoTopic: false, acted: [] });
   useViews.setState({ view: "home" });
   off = wireBrain();
 });
@@ -313,5 +314,67 @@ describe("Expired view (ADR 0013)", () => {
     expect(screen.getByText("No page expired in the last 30 days.")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Back to notes" }));
     expect(useBrain.getState().showExpired).toBe(false);
+  });
+});
+
+describe("No topic view (ticket 820)", () => {
+  const cap = (name: string, created: string, over: Partial<NoTopicNote> = {}): NoTopicNote =>
+    ({ ...note(`inbox/captures/${name}.md`, { waiting: false }), created, ...over });
+  const orphans = (notes: NoTopicNote[]): BrainNoTopicEvent => ({ type: "brain_notopic", notes, error: "" });
+  const A = cap("acme-idea", "2026-10-10"), G = cap("globex-task", "2026-10-27");
+
+  it("Brain's head counts them; the chip opens the view, oldest first, Keep and Drop per row, nothing to select", () => {
+    useViews.setState({ view: "brain" });
+    render(<Brain />);
+    expect(sent).toContainEqual({ type: "brain_notopic", files: [] });
+    act(() => { dispatch(list()); dispatch(orphans([A, G])); });
+    fireEvent.click(screen.getByRole("button", { name: "No topic 2" }));
+    const region = screen.getByRole("region", { name: "No-topic captures" });
+    expect(within(region).getAllByRole("button", { name: /^Keep / }).map((b) => b.getAttribute("aria-label"))).toEqual(["Keep acme-idea", "Keep globex-task"]);
+    expect(within(region).getAllByRole("button", { name: /^Drop / })).toHaveLength(2);
+    expect(within(region).queryByRole("checkbox")).toBeNull();
+    expect(screen.queryByRole("button", { name: /Apply/ })).toBeNull();
+    expect(screen.getByText("capture · 2026-10-10")).toBeTruthy();
+  });
+
+  it("Keep sends brain_keep; the row says kept and stays, asked again with the files acted on", () => {
+    useViews.setState({ view: "brain" });
+    useBrain.setState({ showNoTopic: true });
+    render(<Brain />);
+    act(() => dispatch(orphans([A, G])));
+    fireEvent.click(screen.getByRole("button", { name: "Keep acme-idea" }));
+    expect(sent.at(-1)).toEqual({ type: "brain_keep", file: A.file, seen: "" });
+    sent.length = 0;
+    act(() => dispatch({ type: "brain_applied", applied: [{ file: A.file, verdict: "keep" }], refused: [] } as never));
+    expect(sent).toContainEqual({ type: "brain_notopic", files: [A.file] });
+    act(() => dispatch(orphans([{ ...A, owner_read: "2026-10-28" }, G])));
+    expect(screen.getByText("kept as an idea")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Keep acme-idea" })).toBeNull();
+  });
+
+  it("Drop sends the reject verdict; the row says dropped with Restore, which sends restore", () => {
+    useViews.setState({ view: "brain" });
+    useBrain.setState({ showNoTopic: true });
+    render(<Brain />);
+    act(() => dispatch(orphans([G])));
+    fireEvent.click(screen.getByRole("button", { name: "Drop globex-task" }));
+    expect(sent.at(-1)).toEqual({ type: "brain_apply", notes: [{ file: G.file, seen: "", verdict: "reject" }] });
+    act(() => dispatch({ type: "brain_applied", applied: [{ file: G.file, verdict: "reject" }], refused: [] } as never));
+    act(() => dispatch(orphans([{ ...G, verdict: "reject 2026-10-28" }])));
+    expect(screen.getByText("dropped")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Restore globex-task" }));
+    expect(sent.at(-1)).toEqual({ type: "brain_apply", notes: [{ file: G.file, seen: "reject 2026-10-28", verdict: "restore" }] });
+  });
+
+  it("a refused Keep shows its reason; leaving Brain closes the view and forgets the rows acted on", () => {
+    useViews.setState({ view: "brain" });
+    useBrain.setState({ showNoTopic: true });
+    render(<Brain />);
+    act(() => dispatch(orphans([A])));
+    fireEvent.click(screen.getByRole("button", { name: "Keep acme-idea" }));
+    act(() => dispatch({ type: "brain_applied", applied: [], refused: [{ file: A.file, reason: "The note changed since Orb read it." }] } as never));
+    expect(screen.getByRole("alert").textContent).toBe("The note changed since Orb read it.");
+    act(() => useViews.setState({ view: "home" }));
+    expect(useBrain.getState()).toMatchObject({ showNoTopic: false, acted: [] });
   });
 });

@@ -24,8 +24,8 @@ import type { PlanItem } from "../protocol.gen";
 // Keys (Home only, not while typing): J K select a row of Up next, Enter starts, S is Later, D is Done; they act on
 // the selected row, or on the lead when none is.
 
-const TAG: Record<string, string> = { task: "TASK", note_task: "NOTE", result: "RESULT", pr: "PR", notes_batch: "NOTES" };
-const GO: Record<string, string> = { result: "Read the answer", pr: "Review", notes_batch: "Judge them" };
+const TAG: Record<string, string> = { task: "TASK", note_task: "NOTE", result: "RESULT", pr: "PR", notes_batch: "NOTES", notopic: "NOTES" };
+const GO: Record<string, string> = { result: "Read the answer", pr: "Review", notes_batch: "Judge them", notopic: "Sort them" };
 const SUG_TITLE: Record<string, string> = { "take now": "Suggested: start it now (due soon)", delegate: "Suggested: delegate it", later: "Suggested: later (hide it until tomorrow)" };
 
 /** The plan's queue with `front` (a row the owner clicked) brought up. */

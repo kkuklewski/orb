@@ -38,7 +38,7 @@ def test_task_limit_keeps_the_total(tmp_path):
 
 def test_no_vault():
     s = home.summary(None)
-    assert s == {"type": "home", "vault": "", "tasks": [], "open_tasks": 0, "snoozed": 0, "notes": [], "notes_week": 0, "awaiting": [], "awaiting_count": 0}
+    assert s == {"type": "home", "vault": "", "tasks": [], "open_tasks": 0, "snoozed": 0, "notes": [], "notes_week": 0, "awaiting": [], "awaiting_count": 0, "notopic_count": 0}
     protocol.SERVER_EVENTS["home"].model_validate(s)
 
 
