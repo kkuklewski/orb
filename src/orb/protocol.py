@@ -914,6 +914,13 @@ class DelegateCardEvent(_Event):
     more: int = 0
 
 
+class DelegationCheck(_Msg):
+    """A failing check on a delegation's PR: its name (safe charset), conclusion, and a link when it is https."""
+    name: str
+    conclusion: str
+    url: str | None = None
+
+
 class DelegationItem(_Msg):
     """One row of the Delegated strip, in the order they were delegated. `line` is the stage in plain words."""
     id: str
@@ -921,7 +928,7 @@ class DelegationItem(_Msg):
     title: str
     repo: str  # label
     branch: str
-    stage: Literal["queued", "working", "testing", "pushing", "ready", "failed", "applied", "reverted", "stopped"]
+    stage: Literal["queued", "working", "testing", "pushing", "ready", "failed", "applied", "reverted", "stopped", "merged"]
     line: str
     session: str
     folder: str  # the worktree, to open the session
@@ -929,13 +936,15 @@ class DelegationItem(_Msg):
     apply_text: str
     # Why it can't finish without you (Home's Needs you): a card the grant doesn't cover, the check failed after
     # its last turn, no event for 20 min while Working, the server restarted while it ran, or Ready with push and its
-    # PR waiting for your OK (#771, Undo's revert PR too), or Apply's merge of the PR on the remote (#876). None while
+    # PR waiting for your OK (#771, Undo's revert PR too), a collision (#863), Apply's merge of the PR on the remote
+    # (#876), or its PR closed, blocked by a failing check or behind its target with a clean merge (#877). None while
     # it can.
-    needs: Literal["card", "failed", "stuck", "stopped", "outward", "collision", "merge"] | None = None
+    needs: Literal["card", "failed", "stuck", "stopped", "outward", "collision", "merge", "closed", "blocked", "update"] | None = None
     ask: str | None = None  # the card it waits on, in its words; or the outward question
     pr: int | None = None  # the PR Orb opened for its branch
     pr_url: str | None = None
     update_from: str | None = None  # a collision Update can merge in (#869): the target branch; None once refused
+    checks: list[DelegationCheck] | None = None  # blocked: the failing checks (#877)
 
 
 class DelegationsEvent(_Event):
@@ -1461,6 +1470,12 @@ class DelegationUpdateMsg(_Msg):
     id: str
 
 
+class DelegationReopenMsg(_Msg):
+    """Reopen PR on a delegation whose PR was closed on the remote (#877): `gh pr reopen`, then polling resumes."""
+    type: Literal["delegation_reopen"]
+    id: str
+
+
 class DelegationDiscardMsg(_Msg):
     """Discard: stop the session, drop the branch and worktree. On an applied or reverted one: dismiss the row."""
     type: Literal["delegation_discard"]
@@ -1482,7 +1497,7 @@ ClientMessage = Annotated[Union[
     HomeMsg, AwaySeenMsg, PlanStartMsg, PlanLaterMsg, PlanLeaveMsg, PlanDoneMsg, ScreenMsg, TaskDetailMsg, ItemListMsg, ItemGetMsg, ItemDoneMsg, TasksBulkMsg, TasksSuggestMsg, NotesVerdictMsg, BrainListMsg, BrainExpiredMsg, BrainNoTopicMsg, BrainKeepMsg, BrainGetMsg, BrainApplyMsg, BrainVerdictMsg, BrainReadMsg, ItemStartMsg, TaskActionMsg, InterruptMsg, PlaybackMsg, PermissionMsg, ReadAllMsg, DictateNoteMsg, UndoRequestMsg, UndoConfirmMsg,
     McpStatusMsg, McpReconnectMsg, SetModeMsg, SetModelMsg, RevokeGrantMsg, DelegateMsg, DelegateBulkMsg, DelegateConfirmMsg, MakeTaskMsg, MakeTaskConfirmMsg, MakeTaskUndoMsg,
     DelegationReviewMsg, DelegationApplyMsg, DelegationRevertMsg, DelegationDiscardMsg, DelegationRetryMsg,
-    DelegationResumeMsg, DelegationOutwardMsg, DelegationUpdateMsg, DropMsg,
+    DelegationResumeMsg, DelegationOutwardMsg, DelegationUpdateMsg, DelegationReopenMsg, DropMsg,
 ], Field(discriminator="type")]
 
 

@@ -1040,4 +1040,35 @@ describe("delegation", () => {
     expect(within(r).getByRole("button", { name: "Discard" })).toBeTruthy();
     for (const name of ["Update from main", "Review", "Apply", "Open session"]) expect(within(r).queryByRole("button", { name })).toBeNull();
   });
+  it("the PR's states: closed asks to reopen, a failed check sends it back with a link, behind updates, merged is done", () => {
+    render(<><Sidebar /><Home /></>);
+    act(() => dispatch({ type: "delegations", items: [
+      row({ stage: "ready", needs: "closed", pr: 12, line: "PR #12 was closed on origin by bob-globex.", ask: "Reopen PR #12 on origin?" }),
+      row({ id: "d2", task: 9, stage: "ready", needs: "blocked", pr: 13, line: "PR #13 is blocked on origin: a required check failed: ci (failure).",
+            checks: [{ name: "ci", conclusion: "FAILURE", url: "https://git.example/acme/web/actions/runs/5" }, { name: "lint", conclusion: "ERROR", url: "javascript:alert(1)" }] }),
+      row({ id: "d3", task: 10, stage: "ready", needs: "update", update_from: "main", line: "Ready: PR #14, tests passed · main moved 1 commit, merges cleanly" }),
+      row({ id: "d4", task: 11, stage: "merged", line: "Merged by alice-acme on origin; task #11 done. Your main has it." }),
+    ] }));
+    const needs = screen.getByRole("article", { name: "4 things need you" });  // the waiting session + three; merged is done
+    const item = (task: number) => within(needs).getByRole("group", { name: `Delegation of task #${task}` });
+    expect(item(8).textContent).toContain("CLOSED");
+    expect(item(9).textContent).toContain("CHECK");
+    expect(item(10).textContent).toContain("UPDATE");
+    expect(within(needs).queryByText(/Merged by/)).toBeNull();
+    for (const t of [8, 9]) expect(within(item(t)).queryByRole("button", { name: "Apply" })).toBeNull();
+    expect(within(item(9)).getByRole("link", { name: "ci" }).getAttribute("href")).toBe("https://git.example/acme/web/actions/runs/5");
+    expect(within(item(9)).queryByRole("link", { name: "lint" })).toBeNull();  // only an https link
+    sent.length = 0;
+    fireEvent.click(within(item(8)).getByRole("button", { name: "Reopen PR" }));
+    fireEvent.click(within(item(9)).getByRole("button", { name: "Send back" }));
+    fireEvent.click(within(item(10)).getByRole("button", { name: "Update from main" }));
+    expect(sent).toEqual([{ type: "delegation_reopen", id: "d1" }, { type: "delegation_retry", id: "d2" }, { type: "delegation_update", id: "d3" }]);
+
+    const merged = strip().querySelectorAll(".deleg-row")[3] as HTMLElement;
+    expect(merged.textContent).toContain("Merged by alice-acme on origin; task #11 done.");
+    for (const name of ["Apply", "Undo", "Open session", "Review"]) expect(within(merged).queryByRole("button", { name })).toBeNull();
+    sent.length = 0;
+    fireEvent.click(within(merged).getByRole("button", { name: "Dismiss" }));
+    expect(sent).toEqual([{ type: "delegation_discard", id: "d4" }]);
+  });
 });

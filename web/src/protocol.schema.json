@@ -1258,6 +1258,7 @@
           "delegation_apply": "#/$defs/DelegationApplyMsg",
           "delegation_discard": "#/$defs/DelegationDiscardMsg",
           "delegation_outward": "#/$defs/DelegationOutwardMsg",
+          "delegation_reopen": "#/$defs/DelegationReopenMsg",
           "delegation_resume": "#/$defs/DelegationResumeMsg",
           "delegation_retry": "#/$defs/DelegationRetryMsg",
           "delegation_revert": "#/$defs/DelegationRevertMsg",
@@ -1543,6 +1544,9 @@
         },
         {
           "$ref": "#/$defs/DelegationUpdateMsg"
+        },
+        {
+          "$ref": "#/$defs/DelegationReopenMsg"
         },
         {
           "$ref": "#/$defs/DropMsg"
@@ -1901,6 +1905,35 @@
       "title": "DelegationApplyMsg",
       "type": "object"
     },
+    "DelegationCheck": {
+      "additionalProperties": false,
+      "description": "A failing check on a delegation's PR: its name (safe charset), conclusion, and a link when it is https.",
+      "properties": {
+        "conclusion": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "name",
+        "conclusion"
+      ],
+      "title": "DelegationCheck",
+      "type": "object"
+    },
     "DelegationDiffEvent": {
       "additionalProperties": false,
       "description": "Review: the delegation's own work (snapshot..branch), stat then patch, capped.",
@@ -2001,6 +2034,20 @@
         "branch": {
           "type": "string"
         },
+        "checks": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/DelegationCheck"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "conflict": {
           "anyOf": [
             {
@@ -2031,7 +2078,10 @@
                 "stopped",
                 "outward",
                 "collision",
-                "merge"
+                "merge",
+                "closed",
+                "blocked",
+                "update"
               ],
               "type": "string"
             },
@@ -2079,7 +2129,8 @@
             "failed",
             "applied",
             "reverted",
-            "stopped"
+            "stopped",
+            "merged"
           ],
           "type": "string"
         },
@@ -2137,6 +2188,25 @@
         "allow"
       ],
       "title": "DelegationOutwardMsg",
+      "type": "object"
+    },
+    "DelegationReopenMsg": {
+      "additionalProperties": false,
+      "description": "Reopen PR on a delegation whose PR was closed on the remote (#877): `gh pr reopen`, then polling resumes.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "type": {
+          "const": "delegation_reopen",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "id"
+      ],
+      "title": "DelegationReopenMsg",
       "type": "object"
     },
     "DelegationResumeMsg": {

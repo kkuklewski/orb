@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useFeatures } from "../stores/features";
 import { openFolder } from "../stores/session";
-import { apply, askApply, closeDiff, confirmDelegate, delegate, discard, outward, pickRepo, resume, retry, revert, review, update, useDelegations } from "../stores/delegation";
+import { apply, askApply, closeDiff, confirmDelegate, delegate, discard, outward, pickRepo, reopen, resume, retry, revert, review, update, useDelegations } from "../stores/delegation";
 import type { DelegationItem } from "../protocol.gen";
 
 // Delegations on Home (server: delegation.py). The grant card (what the session may do without asking; Allow starts it),
@@ -14,6 +14,8 @@ import type { DelegationItem } from "../protocol.gen";
 // Delegate brings one card per repo listing its tasks, one after another. After the tests pass, push and a PR wait for
 // an OK (Push and open PR, Skip) unless the repo's outward steps are on; a PR Orb opened is linked from the row. With
 // that PR, Apply asks to merge it on the remote (Merge PR #N, Skip; always asks, #876) and Undo opens a revert PR.
+// The PR's states (#877): merged on the remote = done, Dismiss only; closed = Reopen PR; a failed required check = Send
+// back, with a link per check; behind main with a clean merge = Update from main (Orb commits it, no session turn).
 
 /** The grant card, the repo picker and a refusal: whichever is up. */
 export function DelegateCards() {
@@ -98,9 +100,10 @@ export function DelegatedStrip() {
 }
 
 export function Actions({ d }: { d: DelegationItem }) {
-  const done = d.stage === "applied" || d.stage === "reverted";
+  const done = d.stage === "applied" || d.stage === "reverted" || d.stage === "merged";
   const [sure, setSure] = useState(false);  // Discard drops the branch and its commits: a second tap
   const refused = d.needs === "collision" && !d.update_from;  // an update that would change their lines: Discard only
+  const held = d.needs === "collision" || d.needs === "merge" || d.needs === "closed" || d.needs === "blocked";  // Apply waits on the remote
   return (
     <span className="deleg-actions">
       {!done && d.needs !== "stopped" && d.needs !== "collision" && d.stage !== "queued" && <button type="button" className="hbtn" onClick={() => openFolder(d.folder, d.session)}>Open session</button>}
@@ -110,7 +113,10 @@ export function Actions({ d }: { d: DelegationItem }) {
       {d.pr && d.pr_url && /^https:\/\//.test(d.pr_url) && <a className="hbtn" href={d.pr_url} target="_blank" rel="noreferrer">PR #{d.pr}</a>}
       {d.update_from && <button type="button" className="hbtn dark" onClick={() => update(d.id)}>Update from {d.update_from}</button>}
       {d.stage === "ready" && !refused && <button type="button" className="hbtn" onClick={() => review(d.id)}>Review</button>}
-      {d.stage === "ready" && d.needs !== "collision" && d.needs !== "merge" && <button type="button" className="hbtn dark" onClick={() => askApply(d.id)}>{d.conflict ? "Apply again" : "Apply"}</button>}
+      {d.needs === "closed" && <button type="button" className="hbtn dark" onClick={() => reopen(d.id)}>Reopen PR</button>}
+      {d.needs === "blocked" && <button type="button" className="hbtn dark" onClick={() => retry(d.id)}>Send back</button>}
+      {d.checks?.map((c) => c.url && /^https:\/\//.test(c.url) && <a key={c.name} className="hbtn" href={c.url} target="_blank" rel="noreferrer">{c.name}</a>)}
+      {d.stage === "ready" && !held && <button type="button" className="hbtn dark" onClick={() => askApply(d.id)}>{d.conflict ? "Apply again" : "Apply"}</button>}
       {(d.needs === "failed" || d.needs === "stuck") && <button type="button" className="hbtn dark" onClick={() => retry(d.id)}>Retry</button>}
       {d.needs === "stopped" && <button type="button" className="hbtn dark" onClick={() => resume(d.id)}>Resume</button>}
       {d.stage === "applied" && !d.needs && <button type="button" className="hbtn" onClick={() => revert(d.id)}>Undo</button>}

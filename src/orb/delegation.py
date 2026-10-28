@@ -41,6 +41,16 @@ exactly as they landed, then commit the merge. After that turn Orb checks the me
 if not (or there is no merge commit) it is refused: "Can't update without changing their lines", Discard only. A kept
 update is checked like any turn (Ready only when Orb's own tests pass) and its push asks again ("Push the update to
 branch X (PR #N)?") unless outward steps are on.
+The PR's states (#877): every POLL Orb reads the open PR with gh (state, mergeability, branch protection, checks,
+review). Merged by someone on the remote: the task is done ("Merged by <login> on <remote>"), the session stops, the
+record keeps `merge_sha`, and the checkout fast-forwards to it only when it is on the target branch, clean and behind
+(else "pull to get it"); no Undo, Discard only cleans up. Closed without merging: Needs you "closed" (Reopen PR runs
+`gh pr reopen`, only on that tap; polling resumes after it), Apply refused. Blocked by a failing check: Needs you
+"blocked" naming the check (a link to it; Orb never reruns it), Send back gives the session only the check's name and
+conclusion, never its log. Blocked by a required review only: still Ready, " · waiting for review on <remote>", Apply
+refused with that line. Behind with a clean merge: Needs you "update", and Update from <into> makes the merge commit
+itself (no session turn), runs the declared test and asks to push (at once with outward steps); a conflict is the #869
+flow. Nothing the remote wrote (names, logs) reaches a session prompt except a check's name in a safe charset.
 
 Needs you (#772): a delegation that can't finish on its own carries `needs`, and Home lists it with the task and the
 repo. "card": its session waits on a card the grant doesn't cover (the card's words come along). "failed": Orb's
@@ -185,13 +195,11 @@ async def open_pr(repo: str, branch: str, into: str, title: str, body: str) -> t
 POLL = 600  # an open PR's mergeable state is read at most this often (#870)
 
 
-async def pr_state(repo: str, number: int) -> tuple[str, str]:
-    """`gh pr view <n> --json mergeable,state`: (state, mergeable), e.g. ("OPEN", "CONFLICTING"); "UNKNOWN" while
-    GitHub is still computing it."""
+async def _gh(repo: str, *args: str) -> tuple[int, str]:
+    """One gh call in `repo` (no prompts): (exit code, its output)."""
     try:
         proc = await asyncio.create_subprocess_exec(
-            "gh", "pr", "view", str(number), "--json", "mergeable,state", cwd=repo,
-            env={**os.environ, "GH_PROMPT_DISABLED": "1"}, stdout=asyncio.subprocess.PIPE,
+            "gh", *args, cwd=repo, env={**os.environ, "GH_PROMPT_DISABLED": "1"}, stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT, stdin=asyncio.subprocess.DEVNULL)
     except FileNotFoundError:
         raise DelegationError("gh is not installed") from None
@@ -200,15 +208,72 @@ async def pr_state(repo: str, number: int) -> tuple[str, str]:
     except asyncio.TimeoutError:
         proc.kill()
         await proc.wait()
-        raise DelegationError("gh pr view timed out") from None
-    text = out.decode(errors="replace")
+        raise DelegationError(f"gh {' '.join(args[:2])} timed out") from None
+    return proc.returncode or 0, out.decode(errors="replace")
+
+
+PR_FIELDS = "state,mergeable,mergeStateStatus,mergedBy,mergeCommit,reviewDecision,statusCheckRollup"
+_BAD = ("FAILURE", "TIMED_OUT", "CANCELLED", "ACTION_REQUIRED", "STARTUP_FAILURE", "ERROR")
+_LOGIN = re.compile(r"[A-Za-z0-9][A-Za-z0-9-]{0,38}(\[bot\])?")
+
+
+def login(x: Any) -> str:
+    """A GitHub login as the remote gave it, or "" when it isn't one (nothing else is shown)."""
+    x = x.get("login") if isinstance(x, dict) else x
+    return x if isinstance(x, str) and _LOGIN.fullmatch(x) else ""
+
+
+def check_name(x: Any) -> str:
+    """A check's name in a safe charset, capped: the only remote-authored words a session prompt may carry."""
+    return re.sub(r"[^A-Za-z0-9 _.:/()-]", "", x if isinstance(x, str) else "").strip()[:60] or "a check"
+
+
+def read_pr(seen: dict) -> dict:
+    """`gh pr view --json PR_FIELDS` in Orb's words: state, mergeable, merge_state (mergeStateStatus), merged_by,
+    merge_sha, review (reviewDecision), failing checks [{name, conclusion, url}] and whether any is still pending."""
+    failing, pending = [], False
+    for c in seen.get("statusCheckRollup") or []:
+        if not isinstance(c, dict):
+            continue
+        said = str(c.get("conclusion") or c.get("state") or "").upper()  # a CheckRun's conclusion, a StatusContext's state
+        if said in _BAD:
+            url = c.get("detailsUrl") or c.get("targetUrl") or ""
+            failing.append({"name": check_name(c.get("name") or c.get("context")), "conclusion": said,
+                            "url": url if isinstance(url, str) and re.fullmatch(r"https://\S{1,500}", url) else None})
+        elif not said or said in ("PENDING", "EXPECTED", "QUEUED", "IN_PROGRESS") or c.get("status") not in (None, "COMPLETED"):
+            pending = True
+    sha = (seen.get("mergeCommit") or {}).get("oid") if isinstance(seen.get("mergeCommit"), dict) else None
+    return {"state": str(seen.get("state") or ""), "mergeable": str(seen.get("mergeable") or "UNKNOWN"),
+            "merge_state": str(seen.get("mergeStateStatus") or "UNKNOWN"), "merged_by": login(seen.get("mergedBy")),
+            "merge_sha": sha if isinstance(sha, str) and re.fullmatch(r"[0-9a-f]{40,64}", sha) else None,
+            "review": str(seen.get("reviewDecision") or ""), "failing": failing[:worktree.CAP], "pending": pending}
+
+
+async def pr_state(repo: str, number: int) -> dict:
+    """`gh pr view <n>`, read by `read_pr`; mergeable is "UNKNOWN" while GitHub is still computing it."""
+    code, text = await _gh(repo, "pr", "view", str(number), "--json", PR_FIELDS)
     try:
-        seen = json.loads(text) if proc.returncode == 0 else None
+        seen = json.loads(text) if code == 0 else None
     except ValueError:
         seen = None
     if not isinstance(seen, dict):
         raise DelegationError(f"gh pr view failed: {failing_line(text)}")
-    return str(seen.get("state") or ""), str(seen.get("mergeable") or "UNKNOWN")
+    return read_pr(seen)
+
+
+async def closed_by(repo: str, number: int) -> str:
+    """Who closed the PR (gh pr view doesn't say); "" when gh can't tell."""
+    try:
+        code, text = await _gh(repo, "api", f"repos/{{owner}}/{{repo}}/issues/{number}", "--jq", ".closed_by.login")
+    except DelegationError:
+        return ""
+    return login(text.strip()) if code == 0 else ""
+
+
+async def reopen_pr(repo: str, number: int) -> None:
+    code, text = await _gh(repo, "pr", "reopen", str(number))
+    if code != 0:
+        raise DelegationError(f"gh pr reopen failed: {failing_line(text)}")
 
 
 async def gh(repo: str, *args: str) -> tuple[int, str]:
@@ -334,11 +399,18 @@ class Delegator:
 
     def needs(self, r: dict) -> str | None:
         """Why it can't finish without the owner: "card", "failed", "stuck", "stopped", "outward" (push and PR wait
-        for an OK, Undo's revert PR too), "merge" (Apply waits to merge the PR on the remote); None while it can."""
+        for an OK, Undo's revert PR too), "collision", "merge" (Apply waits to merge the PR on the remote), and the PR's
+        "closed", "blocked" (a failing check), "update" (behind, merges cleanly); None while it can."""
         if r["stage"] in ("failed", "stopped"):
             return r["stage"]
         if r["stage"] == "ready" and r.get("collision"):
             return "collision"
+        if r["stage"] == "ready" and "closed_by" in r:
+            return "closed"
+        if r["stage"] == "ready" and r.get("blocked"):
+            return "blocked"
+        if r["stage"] == "ready" and r.get("clean_update"):
+            return "update"
         if r["stage"] == "ready" and r.get("outward") == "ask":
             return "outward"
         if r["stage"] == "ready" and r.get("merge") in ("ask", "failed"):
@@ -384,6 +456,12 @@ class Delegator:
             return collision_text(r["collision"], r.get("into") or "main")
         if s == "ready" and r.get("merge") == "merging":
             return f"Merging PR #{r['pr']} on {r.get('remote')}"
+        if s == "ready" and "closed_by" in r:
+            by = f" by {r['closed_by']}" if r["closed_by"] else ""
+            return f"PR #{r['pr']} was closed on {r.get('remote')}{by}."
+        if s == "ready" and r.get("blocked"):
+            named = ", ".join(f"{c['name']} ({c['conclusion'].lower()})" for c in r["blocked"])
+            return f"PR #{r['pr']} is blocked on {r.get('remote')}: a required check failed: {named}."
         if s == "ready":
             head = f"Ready: PR #{r['pr']}, " if r.get("pr") else f"Ready: branch {b}, "
             tail = {"failed": f" · not pushed: {r.get('outward_problem')}",
@@ -395,6 +473,8 @@ class Delegator:
                 tail = f" · {r.get('into')} moved {n} commit{'s' * (n != 1)}, merges cleanly" + tail
             if (first := r.get("updated")) is not None:
                 head = f"Ready: updated from {r.get('into')}" + (f" ({first}), " if first else ", ")
+            if r.get("waiting"):
+                tail += f" · {self._waiting(r)}"
             return head + said + tail
         if s == "failed":
             return r.get("problem") or "Tests failed"
@@ -413,7 +493,18 @@ class Delegator:
             return f"Reverted: PR #{r['revert_pr']} reverts PR #{r['pr']} on {r['merged_on']}; task #{r['task']} reopened."
         if s == "reverted":
             return f"Reverted; task #{r['task']} reopened."
+        if s == "merged":
+            by = f" by {r['merged_by']}" if r.get("merged_by") else ""
+            got = f" Your {r.get('into')} has it." if r.get("fast_forwarded") else f" Pull {r.get('into')} to get it."
+            return f"Merged{by} on {r.get('remote')}; task #{r['task']} done.{got}"
         return "Stopped by restart"
+
+    @staticmethod
+    def _waiting(r: dict) -> str:
+        """What a blocked PR waits for that isn't the owner's to fix here."""
+        where = r.get("remote")
+        return {"review": f"waiting for review on {where}", "changes": f"changes requested on {where}",
+                "checks": f"waiting for checks on {where}"}.get(r.get("waiting") or "", f"blocked by branch rules on {where}")
 
     def event(self) -> dict:
         rows = sorted(self.items.values(), key=lambda r: r["created"])  # an order that stays put
@@ -421,13 +512,16 @@ class Delegator:
             {"id": r["id"], "task": r["task"], "title": r["title"], "repo": r["label"], "branch": r["branch"],
              "stage": r["stage"], "line": self.line(r), "session": r["session"], "folder": r["worktree"],
              "conflict": r.get("conflict"), "apply_text": self.apply_text(r), "needs": self.needs(r), "ask": self.ask(r),
-             "pr": r.get("pr"), "pr_url": r.get("pr_url"), "update_from": self.update_from(r)}
+             "pr": r.get("pr"), "pr_url": r.get("pr_url"), "update_from": self.update_from(r),
+             "checks": r.get("blocked") or None}
             for r in rows]}
 
     def update_from(self, r: dict) -> str | None:
         """The target branch Update can merge in: Ready with a collision that wasn't refused (a taken branch has
-        nothing to merge: Discard only)."""
+        nothing to merge: Discard only), or a PR behind it that merges cleanly (#877)."""
         c = r.get("collision")
+        if r["stage"] == "ready" and r.get("clean_update"):
+            return r.get("into")
         return r.get("into") if r["stage"] == "ready" and c and not {"refused", "taken"} & c.keys() else None
 
     @staticmethod
@@ -448,6 +542,10 @@ class Delegator:
             return self.waiting(r["session"]) or None
         if self.needs(r) == "merge":
             return f"Merge PR #{r['pr']} on {r['remote']} into {r['into']}?"
+        if self.needs(r) == "closed":
+            return f"Reopen PR #{r['pr']} on {r.get('remote')}?"
+        if self.needs(r) == "update":
+            return f"Update branch {r['branch']} from {r.get('into')}? It merges cleanly: Orb commits the merge and runs the tests."
         if self.needs(r) != "outward":
             return None
         if r["stage"] == "applied":
@@ -467,7 +565,7 @@ class Delegator:
     # -- Delegate -----------------------------------------------------------------------------
 
     def _delegated(self, task_id: int) -> bool:
-        return any(r["task"] == task_id and r["stage"] not in ("applied", "reverted") for r in self.items.values())
+        return any(r["task"] == task_id and r["stage"] not in ("applied", "reverted", "merged") for r in self.items.values())
 
     def card(self, task: dict, repo: str, label: str) -> dict:
         """The grant card for `task` in `repo` (an allowed folder); nothing starts until it is allowed. Runs git."""
@@ -654,8 +752,8 @@ class Delegator:
             self.skip.discard(r["id"])
         elif ev["type"] == "result" and not ev.get("replay") and r["stage"] in ("working", "ready", "failed", "stopped"):
             r["stage"] = "testing"
-            for k in ("conflict", "outward", "outward_problem", "collision", "behind", "updated", "merge", "merge_mode",
-                      "merge_problem"):
+            for k in ("conflict", "outward", "outward_problem", "collision", "behind", "updated", "blocked", "waiting",
+                      "clean_update", "merge", "merge_mode", "merge_problem"):
                 r.pop(k, None)
             await self.changed()
             self._spawn(self.check(r))
@@ -664,7 +762,7 @@ class Delegator:
 
     async def tick(self) -> None:
         """Every minute (and when a stuck one moves): tell the pages when a delegation became stuck or moved again,
-        and read an open PR's mergeable state when its turn comes."""
+        and read an open PR's state when its turn comes."""
         now = {r["id"] for r in self.items.values() if self._stuck(r)}
         if now != self.stuck:
             self.stuck = now
@@ -672,55 +770,120 @@ class Delegator:
             await self._fill()  # a stuck one gave up its slot
         for r in list(self.items.values()):
             if (r["stage"] == "ready" and r.get("pr") and r.get("outward") == "done" and not r.get("collision")
-                    and not r.get("pr_closed") and r["id"] not in self.polling
+                    and not r.get("pr_closed") and not r.get("clean_update") and not self._landing(r)
+                    and r["id"] not in self.polling
                     and time.time() - r.get("polled", 0) >= POLL):
                 r["polled"] = time.time()
                 self.polling.add(r["id"])
                 self._spawn(self._poll(r))
 
+    @staticmethod
+    def _landing(r: dict) -> bool:
+        """Apply is merging the PR on the remote, or has: that path owns the record, the poll keeps out of it (#876)."""
+        return bool(r.get("merged_on")) or r.get("merge") == "merging"
+
     async def _poll(self, r: dict) -> None:
-        """One read of the PR: CONFLICTING runs the same fetch + merge-tree as at Ready and raises the collision;
-        UNKNOWN is "not yet"; a closed or merged PR is never read again. A failed read waits for the next turn."""
+        """One read of the PR (#870, #877). Merged or closed: never read again. CONFLICTING, or BEHIND under branch
+        protection: the same fetch + merge-tree as at Ready; a conflict raises the collision, a clean BEHIND the
+        Update card. BLOCKED: a failing check is Needs you, a review (or a pending check) only a word on the line.
+        UNKNOWN is "not yet". A failed read waits for the next turn."""
         rid, pr, checked = r["id"], r["pr"], r.get("checked") or ""
+        moved = lambda: (self.items.get(rid) is not r or r["stage"] != "ready" or r.get("pr") != pr or r.get("collision")
+                         or self._landing(r))
         try:
             wt = self._wt(r)
             await asyncio.to_thread(worktree.same_config, wt)  # gh runs git here and resolves the repo from its remotes
-            state, mergeable = await pr_state(wt.repo, pr)
-            if self.items.get(rid) is not r or r["stage"] != "ready" or r.get("pr") != pr or r.get("collision"):
+            seen = await pr_state(wt.repo, pr)
+            if moved():
                 return  # it moved on while gh answered
-            if state and state != "OPEN":
-                r["pr_closed"] = True
-                self._save()
+            if seen["state"] == "MERGED":
+                await self._merged(r, wt, seen)
                 return
-            if mergeable != "CONFLICTING":
+            if seen["state"] and seen["state"] != "OPEN":
+                by = await closed_by(wt.repo, pr)
+                if not moved():
+                    r.update(pr_closed=True, closed_by=by)
+                    await self.changed()
                 return
-            seen = await asyncio.to_thread(worktree.collide, wt, r["remote"], r["into"], checked)
-            if self.items.get(rid) is not r or r["stage"] != "ready" or r.get("checked") != checked or r.get("collision"):
-                return
-            r["behind"] = seen["behind"]
-            if seen["files"]:
-                self._collided(r, seen)
-            await self.changed()
+            before = (r.get("blocked"), r.get("waiting"))
+            r.pop("blocked", None)
+            r.pop("waiting", None)
+            if seen["merge_state"] == "BLOCKED":
+                if seen["failing"]:
+                    r["blocked"] = seen["failing"]
+                else:
+                    r["waiting"] = {"REVIEW_REQUIRED": "review", "CHANGES_REQUESTED": "changes"}.get(
+                        seen["review"], "checks" if seen["pending"] else "rules")
+            if seen["mergeable"] == "CONFLICTING" or seen["merge_state"] == "BEHIND":
+                got = await asyncio.to_thread(worktree.collide, wt, r["remote"], r["into"], checked)
+                if moved() or r.get("checked") != checked:
+                    return
+                r["behind"] = got["behind"]
+                if got["files"]:
+                    self._collided(r, got)
+                elif seen["merge_state"] == "BEHIND" and got["behind"]:
+                    r["clean_update"] = True
+                await self.changed()
+            elif before != (r.get("blocked"), r.get("waiting")):
+                await self.changed()
         except (DelegationError, worktree.WorktreeError, OSError, ValueError) as e:
             log.info("PR #%s of %s: %s", pr, r["branch"], e)
         finally:
             self.polling.discard(rid)
 
+    async def _merged(self, r: dict, wt: worktree.Worktree, seen: dict) -> None:
+        """Merged on the remote by someone: the task is done, the session stops; the checkout fast-forwards to the
+        merge commit when it can do so safely. Nothing to Undo (it isn't Orb's merge); Discard cleans up."""
+        sha = seen["merge_sha"]
+        here = False
+        if sha:
+            try:
+                here = await asyncio.to_thread(worktree.fast_forward, wt, r["remote"], r["into"], sha)
+            except worktree.WorktreeError as e:
+                log.info("PR #%s merged, no fast-forward: %s", r["pr"], e)
+        await self._stop(r)
+        r.update(stage="merged", pr_closed=True, merged_by=seen["merged_by"], merge_sha=sha, fast_forwarded=here)
+        r.pop("ready_at", None)
+        await self.changed()
+        await self.done(r["task"], True)
+
+    async def reopen(self, rid: str) -> dict:
+        """Reopen PR (the owner's tap is the ask; never on its own, whatever the outward steps say): `gh pr reopen`,
+        then polling resumes."""
+        r = self._get(rid)
+        if self.needs(r) != "closed":
+            raise DelegationError("Only a delegation whose PR was closed can reopen it.")
+        wt = self._wt(r)
+        await asyncio.to_thread(worktree.same_config, wt)
+        await reopen_pr(wt.repo, r["pr"])
+        r.pop("closed_by", None)
+        r.pop("pr_closed", None)
+        r["polled"] = time.time()
+        await self.changed()
+        return r
+
     # -- Retry, Resume ------------------------------------------------------------------------
 
     async def retry(self, rid: str) -> dict:
-        """A failed or stuck delegation: the same session gets what went wrong as its next request."""
+        """A failed or stuck delegation, or one whose PR a failing check blocks (Send back): the same session gets
+        what went wrong as its next request."""
         r = self._get(rid)
         b = r["branch"]
         if r["stage"] == "failed":
             text = (f"Orb checked your work on {b} after your last turn: {r.get('problem') or 'it failed'}. "
                     f"Fix that, run the tests again, and commit on {b}.")
+        elif self.needs(r) == "blocked":
+            # the check's name and conclusion only: its log and anything else the remote wrote stay out
+            named = ", ".join(f"`{c['name']}` ({c['conclusion'].lower()})" for c in r["blocked"])
+            text = (f"A required check on PR #{r['pr']} failed: {named}. Orb doesn't pass on its log. Find the cause in "
+                    f"this worktree, fix it, run the tests and commit on {b}.")
         elif self._stuck(r):
             text = (f"Nothing happened in this session for {STUCK // 60} minutes, so I stopped the last step. Check "
                     f"where you are, finish the task, run the tests and commit on {b}.")
         else:
-            raise DelegationError("Only a delegation whose tests failed or that is stuck can be retried.")
+            raise DelegationError("Only a delegation whose tests failed, that is stuck or whose PR check failed can be retried.")
         stuck = r["stage"] == "working"
+        r.pop("blocked", None)
         r["stage"] = "retrying"  # holds no slot while it takes its place
         r.pop("problem", None)
         await self._go(r, text, interrupt=stuck)
@@ -746,7 +909,9 @@ class Delegator:
         the request to keep their lines as they landed, re-apply its own change on top and commit the merge."""
         r = self._get(rid)
         if self.update_from(r) is None:
-            raise DelegationError("Only a Ready delegation that collided can be updated.")
+            raise DelegationError("Only a Ready delegation that collided or is behind can be updated.")
+        if r.get("clean_update"):
+            return await self._update_clean(r)
         c, into, b, remote = r["collision"], r["into"], r["branch"], r["remote"]
         first = first_text(c["landed"])
         msg = f"Merge {remote}/{into} into {b}\n\nConflicts in {', '.join(c['files'])}" + (f"; {first}." if first else ".")
@@ -762,6 +927,25 @@ class Delegator:
             "--no-edit`. Don't rebase, reset, abort the merge or push. If your change can't sit next to their lines "
             "without changing them, make no commit and say why."))
         await self.changed()
+        return r
+
+    async def _update_clean(self, r: dict) -> dict:
+        """Behind, no conflict (#877): Orb makes the merge commit itself, no session turn, then checks it like any turn
+        (the declared test; its push asks unless outward steps are on). A conflict meanwhile is the collision."""
+        wt, into, remote = self._wt(r), r["into"], r["remote"]
+        r.pop("clean_update", None)
+        seen = await asyncio.to_thread(worktree.collide, wt, remote, into, r.get("checked") or "")
+        r["behind"] = seen["behind"]
+        if seen["files"]:
+            self._collided(r, seen)
+            await self.changed()
+            return r
+        await asyncio.to_thread(worktree.merge_clean, wt, remote, into, f"Merge {remote}/{into} into {r['branch']}")
+        for k in ("conflict", "outward", "outward_problem", "behind", "blocked", "waiting"):
+            r.pop(k, None)
+        r.update(stage="testing", updated="")
+        await self.changed()
+        self._spawn(self.check(r))
         return r
 
     async def _kept(self, r: dict, wt: worktree.Worktree) -> bool:
@@ -910,6 +1094,12 @@ class Delegator:
         if r.get("collision"):
             raise DelegationError(self.line(r) + " Discard it." if "taken" in r["collision"] else
                                   f"{r.get('into')} changed the same files first: update from it or discard.")
+        if "closed_by" in r:
+            raise DelegationError(self.line(r) + " Reopen it or discard.")
+        if r.get("blocked"):
+            raise DelegationError(self.line(r) + " Send it back or discard.")
+        if r.get("waiting"):
+            raise DelegationError(f"PR #{r['pr']}: {self._waiting(r)}.")
         if r.get("merge") == "merging":
             raise DelegationError(f"PR #{r['pr']} is being merged on {r.get('remote')}.")
         if r.get("pr") and r.get("outward") == "ask":
@@ -1083,12 +1273,13 @@ class Delegator:
             raise DelegationError(f"PR #{r['pr']} is being merged on {r.get('remote')}; wait for it.")
         left: list[str] = []
         if r["stage"] not in ("applied", "reverted"):
-            if r.get("started", True):  # one that never started has no session to stop
+            merged = r["stage"] == "merged"  # merged on the remote: the session is stopped and the claim stays (done)
+            if r.get("started", True) and not merged:  # one that never started has no session to stop
                 await self._stop(r)
             wt = worktree.get(r["worktree"])
             left = await asyncio.to_thread(worktree.remove, wt) if wt else []
             self.store.forget(r["worktree"])
-            if r.get("claimed") and self.claims is not None and (why := await self._release(r["task"])):
+            if not merged and r.get("claimed") and self.claims is not None and (why := await self._release(r["task"])):
                 left.append(why)
         del self.items[rid]
         await self.changed()

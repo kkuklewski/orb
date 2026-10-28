@@ -30,7 +30,7 @@ function approval(x: SessionRow, now = Date.now() / 1000): Row {
     quote: x.ask, side: since ? relTime(since) : "now", urgent: !!x.red_at && now >= x.red_at, open: () => openFolder(x.folder.path, x.key) };
 }
 
-const DELEG_TAG: Record<NonNullable<DelegationItem["needs"]>, string> = { card: "OK?", failed: "TESTS", stuck: "STUCK", stopped: "STOPPED", outward: "PUSH?", collision: "CONFLICT", merge: "MERGE?" };
+const DELEG_TAG: Record<NonNullable<DelegationItem["needs"]>, string> = { card: "OK?", failed: "TESTS", stuck: "STUCK", stopped: "STOPPED", outward: "PUSH?", collision: "CONFLICT", merge: "MERGE?", closed: "CLOSED", blocked: "CHECK", update: "UPDATE" };
 
 /** A delegation in Needs you: the task and the repo say which one; a card's words show like a session's. */
 function DelegationRow({ d }: { d: DelegationItem }) {
