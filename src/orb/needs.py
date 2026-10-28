@@ -258,8 +258,11 @@ TASK_ACTIONS = ["start", "done", "later"]
 VIKUNJA_ACTIONS = [*TASK_ACTIONS, "delegate"]  # `repo`: the mapped repo's label, else the page asks for one
 
 
+RESULT_OLD_DAYS = 3  # a Finished session not opened for this long joins Up next's one "N finished sessions not opened" (ticket 849)
+
+
 def queue(tasks: list[dict] | None, notes: list[dict] | None, results: list[dict] | None, prs: list[dict] | None,
-          awaiting: int, today: str, hidden: set[str] = frozenset(), notopic: int = 0) -> list[dict]:
+          awaiting: int, today: str, hidden: set[str] = frozenset(), notopic: int = 0, now: float | None = None) -> list[dict]:
     """What doesn't need the owner but is worth doing, in rule order: due date (soonest first, undated last), then
     priority (Vikunja's, else the suggested one in `suggested`), then newest. Items in `hidden` are left out.
     Every item can be started or put off (Later); tasks (Vikunja's and the notes') can also be marked done, and
@@ -289,11 +292,20 @@ def queue(tasks: list[dict] | None, notes: list[dict] | None, results: list[dict
             reason=f"From your note ‘{_clip(name, 60)}’.", source=name, ts=_ts(n.get("mtime")), actions=TASK_ACTIONS,
             suggest=suggest.note_task(n.get("raw") or n["text"], today),
             facts=f"Task in the note '{_clip(name, 80)}': {_clip(n['text'], 200)}", stable=n["text"])
+    cut = (now or time.time()) - RESULT_OLD_DAYS * 86400
+    old = [r for r in results or [] if r.get("finished_at") and r["finished_at"] <= cut]  # no finished time: its own item
     for r in results or []:
+        if r in old:
+            continue
         add(key=f"result:{r['key']}", kind="result", id=r["key"], title=_clip(r.get("label") or "New session", 120),
             reason="Finished; the answer is ready to read.", source=r.get("repo") or None, ts=_ts(r.get("last_used")),
             facts=f"Finished agent session in {r.get('repo') or '-'}; the owner asked: {_clip(r.get('label'), 200)}",
             stable=str(r.get("label")))
+    if old:  # one item, never red, no clock; after STALE_DAYS (sessions.py) they archive themselves
+        add(key="results:old", kind="results_old", id="old",
+            title=f"{len(old)} finished session{'s' if len(old) != 1 else ''} not opened", reason="Read them or let them go; after a week they archive themselves.",
+            source=None, ts=0.0, facts=f"{len(old)} finished agent sessions the owner has not opened for {RESULT_OLD_DAYS}+ days",
+            stable=str(len(old)))
     for p in prs or []:
         if p.get("draft"):
             continue

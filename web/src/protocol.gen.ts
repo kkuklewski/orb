@@ -916,6 +916,7 @@ export interface SessionItem {
   ask?: string | null;
   created?: number | null;
   empty: boolean;
+  finished_at?: number | null;
   key: string;
   label?: string | null;
   last_used?: number | null;
@@ -1716,7 +1717,8 @@ export interface PlanItem {
     | "result"
     | "pr"
     | "notes_batch"
-    | "notopic";
+    | "notopic"
+    | "results_old";
   pin?: ("security" | "client" | "money") | null;
   priority?: number | null;
   reason: string;

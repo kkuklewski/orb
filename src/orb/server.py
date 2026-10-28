@@ -165,7 +165,7 @@ class Hub:
         for e in self.store.sessions(path):
             live = self.sessions.get(e["key"])
             out.append({"key": e["key"], "label": e.get("label"), "created": e.get("created"), "last_used": e.get("last_used"),
-                        "archived": bool(e.get("archived")),
+                        "finished_at": e.get("finished_at"), "archived": bool(e.get("archived")),
                         "empty": not e.get("resume") and not (live and (live.busy or live.history)),
                         "status": live.status if live else ("done" if e.get("finished_at") else "idle"),
                         "live": bool(live and live.live),
@@ -406,7 +406,8 @@ class Hub:
 
     def results(self, found: list[dict] | None = None) -> list[dict]:
         """Sessions that finished while nobody looked (their answer is unread), for the plan's queue."""
-        out = [{"key": x["key"], "label": x["label"], "repo": f["label"].split("/")[-1], "last_used": x["last_used"]}
+        out = [{"key": x["key"], "label": x["label"], "repo": f["label"].split("/")[-1], "last_used": x["last_used"],
+                "finished_at": x.get("finished_at")}
                for f in (found if found is not None else self.folder_list())
                for x in f["sessions"] if x["status"] == "done" and not x["archived"]]
         self.results_sent = out

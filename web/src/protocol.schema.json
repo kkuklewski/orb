@@ -5801,7 +5801,8 @@
             "result",
             "pr",
             "notes_batch",
-            "notopic"
+            "notopic",
+            "results_old"
           ],
           "type": "string"
         },
@@ -7415,6 +7416,17 @@
         },
         "empty": {
           "type": "boolean"
+        },
+        "finished_at": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "key": {
           "type": "string"

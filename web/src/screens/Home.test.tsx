@@ -461,6 +461,16 @@ describe("home screen", () => {
     expect(useBrain.getState().showNoTopic).toBe(true);
   });
 
+  it("the old Finished item opens Sessions showing only Finished (ticket 849)", () => {
+    const qOld = q("results_old", "results:old", "old", "2 finished sessions not opened", "Read them or let them go; after a week they archive themselves.");
+    render(<Home />);
+    act(() => dispatch(plan([], { next: qOld })));
+    const lead = screen.getByRole("article", { name: "Next action" });
+    expect(lead.textContent).toContain("NEXT ACTION · RESULT");
+    fireEvent.click(within(lead).getByRole("button", { name: /^Read them/ }));
+    expect(useViews.getState()).toMatchObject({ view: "sessions", running: false, finished: true });
+  });
+
   it("the kind says what Start does: Review a pull request, Judge the notes", () => {
     render(<Home />);
     act(() => dispatch(plan([], { next: qPr, up_next: [qBatch] })));

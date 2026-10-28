@@ -39,28 +39,31 @@ export function StateGroups({ rows, snap, current, row }: { rows: ListRow[]; sna
 }
 
 /** Every session but the Home chat's, grouped by state (or by repo); its adjustments are in the Panel. Where a row sits
- *  is fixed while the list is open. "Running now" on Home opens it showing only Waiting and Running. */
+ *  is fixed while the list is open. "Running now" on Home opens it showing only Waiting and Running, Up next's
+ *  "N finished sessions not opened" only Finished. */
 export function Sessions() {
   const folders = useFeatures((s) => s.folders);
   const vault = useFeatures((s) => s.features?.vault);
   const current = useSession((s) => s.session);
   const running = useViews((s) => s.running);
+  const finished = useViews((s) => s.finished);
   const a = useSessionsList();
   const rows = listRows(folders, vault, current);
   const [snap] = useState(() => snapshot(rows));
   let shown = adjust(rows, a);
   if (running) shown = shown.filter((r) => ["waiting", "running"].includes(snap.get(r.key)?.group ?? groupOf(r.status)));
+  if (finished) shown = shown.filter((r) => (snap.get(r.key)?.group ?? groupOf(r.status)) === "finished");
   const filtered = a.q.trim() || a.repos.length > 0;
   return (
     <div className="view-col">
-      <div className="view-head"><h2>Sessions</h2><span className="mono view-sub">{running ? "running or waiting for you" : a.byRepo ? "by repo" : "by state"}</span></div>
-      {running && (
+      <div className="view-head"><h2>Sessions</h2><span className="mono view-sub">{running ? "running or waiting for you" : finished ? "finished, not opened" : a.byRepo ? "by repo" : "by state"}</span></div>
+      {(running || finished) && (
         <div className="sessions-filter mono">
-          <span>Running now</span>
+          <span>{running ? "Running now" : "Finished"}</span>
           <button type="button" onClick={() => openSessions(false)} aria-label="Show all sessions">All sessions ✕</button>
         </div>
       )}
-      {shown.length === 0 && <div className="side-hint">{filtered ? "Nothing found." : running ? "Nothing running or waiting for you." : "Your sessions show up here."}</div>}
+      {shown.length === 0 && <div className="side-hint">{filtered ? "Nothing found." : running ? "Nothing running or waiting for you." : finished ? "Nothing finished to read." : "Your sessions show up here."}</div>}
       {a.byRepo
         ? byRepo(shown, snap).map((g) => (
           <section key={g.folder.path} className="chats-group" aria-label={folderName(g.folder)}>
