@@ -1099,6 +1099,16 @@ async def test_conflicting_without_a_real_conflict_here_and_a_closed_pr_change_n
     assert view.calls == [12, 12] and rig.row()["needs"] is None  # merged or closed: never read again
 
 
+async def test_a_changed_git_config_stops_the_pr_read(dev, remote, gh, view):
+    rig = Rig(dev, test="true")
+    r = await rig.allow()
+    await rig.turn({"d.txt": "delegated\n"})
+    await rig.d.outward(r["id"], True)
+    git(rig.web, "config", "remote.origin.url", str(dev / "elsewhere.git"))
+    await poll(rig, r)
+    assert view.calls == [] and rig.row()["needs"] is None  # gh never runs against a remote the session rewrote
+
+
 def take(dev: Path, bare: Path, branch: str) -> str:
     """Someone else delegated the same task first: their branch of the same name is on the remote."""
     other = dev / "taker"

@@ -278,7 +278,7 @@ def unpushed(wt: Worktree, remote: str, into: str) -> int:
     return int(out.stdout.strip() or 0) if out.returncode == 0 else 0
 
 
-def _same_config(wt: Worktree) -> None:
+def same_config(wt: Worktree) -> None:
     """Refuse when the git config changed since the delegation started: a remote's URL, ssh command, filter or merge
     driver could run code or send the work elsewhere."""
     if not wt.config or _config_print(wt.repo) != wt.config:
@@ -291,7 +291,7 @@ _NET = ["-c", "protocol.ext.allow=never"]
 
 
 def _fetch(wt: Worktree, remote: str, into: str) -> str:
-    _same_config(wt)
+    same_config(wt)
     theirs = f"refs/remotes/{remote}/{into}"
     _git(wt.repo, *_NET, "fetch", "--quiet", "--no-tags", remote, f"+refs/heads/{into}:{theirs}")
     return theirs
@@ -322,7 +322,7 @@ def push(wt: Worktree, remote: str, commit: str) -> None:
     """`commit` (the one the check ran on) as the delegation branch on `remote`; no force, hooks off."""
     if tip(wt) != commit:
         raise Moved(f"{wt.branch} changed after its check; re-run the check.")
-    _same_config(wt)
+    same_config(wt)
     ref = f"refs/heads/{wt.branch}"
     out = _git(wt.repo, *_NET, "push", "--porcelain", remote, f"{commit}:{ref}", check=False)
     if out.returncode == 0:
@@ -422,7 +422,7 @@ def apply(wt: Worktree, mode: str = "squash", message: str | None = None, expect
     when the branch is still that commit (the one its check ran on)."""
     if mode not in MODES:
         raise WorktreeError(f"Unknown apply mode {mode}: use squash or merge.")
-    _same_config(wt)
+    same_config(wt)
     current = current_branch(wt.repo)
     if current == wt.branch:
         raise WorktreeError(f"The checkout is on {wt.branch} itself; switch back to your branch first.")
