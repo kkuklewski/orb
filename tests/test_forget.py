@@ -211,11 +211,11 @@ def test_task_list_shows_current_suggestions_and_groups_by_project(monkeypatch, 
             "priority": 0, "updated": 1.0, "url": "u"}
     monkeypatch.setattr(vikunja, "open_tasks", lambda url, project=None: {"tasks": [task], "total": 1, "url": "http://v"})
     monkeypatch.setattr(vikunja, "repo_map", lambda vault: {})
-    monkeypatch.setattr(triage, "load", lambda: {"1": {"p": 4, "why": "client waits", "fp": triage.fingerprint(task)}})
+    monkeypatch.setattr(triage, "load", lambda **k: {"1": {"p": 4, "why": "client waits", "fp": triage.fingerprint(task)}})
     got = items.list_("vikunja", {"vikunja_url": "http://v"}, None, [])
     assert got["group_key"] == "project" and got["rows"][0]["status"] == "unranked"
     assert got["rows"][0]["cells"]["suggested"] == "4" and got["rows"][0]["cells"]["suggested_why"] == "client waits"
-    monkeypatch.setattr(triage, "load", lambda: {"1": {"p": 4, "why": "old", "fp": "stale"}})  # the task changed since
+    monkeypatch.setattr(triage, "load", lambda **k: {"1": {"p": 4, "why": "old", "fp": "stale"}})  # the task changed since
     assert items.list_("vikunja", {"vikunja_url": "http://v"}, None, [])["rows"][0]["cells"]["suggested"] == ""
 
 

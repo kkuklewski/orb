@@ -35,6 +35,7 @@ from __future__ import annotations
 import datetime as dt
 import hashlib
 import json
+import logging
 import os
 import re
 import secrets
@@ -43,6 +44,8 @@ from collections.abc import Awaitable, Callable
 from pathlib import Path
 
 from . import config, suggest, vault_git
+
+log = logging.getLogger(__name__)
 
 MODEL = config.env("NEEDS_MODEL", "sonnet")
 MIN_GAP = 20 * 60  # seconds between two automatic calls
@@ -401,6 +404,7 @@ class Needs:
 
     FACTS = ("setup", "vault", "routines", "reminders", "tasks", "notes", "results", "prs", "awaiting", "notopic")
     MARKS = ("started", "later", "done")  # queue keys hidden for the day they were set
+    MARK_DAYS = 7  # a mark older than this goes on load (ticket 851)
 
     def __init__(self, path: Path, ask: Callable[[str], Awaitable[str]], push: Callable[[dict], Awaitable[None]]) -> None:
         self.path, self.ask, self.push = path, ask, push
@@ -413,9 +417,21 @@ class Needs:
 
     def _load(self) -> dict:
         data = config.read_state(self.path, lambda d: isinstance(d, dict) and isinstance(d.get("ranking"), list))
-        if data:
-            return data
-        return {"fp": "", "at": None, "ranking": [], "error": None, "since": {}}
+        if not data:
+            return {"fp": "", "at": None, "ranking": [], "error": None, "since": {}}
+        # Marks only hide a key for their own day: one older than MARK_DAYS is dead weight. Saved only on a change.
+        cut = (dt.date.today() - dt.timedelta(days=self.MARK_DAYS)).isoformat()
+        gone = 0
+        for part in self.MARKS:
+            marks = data.get(part)
+            if isinstance(marks, dict):
+                kept = {k: d for k, d in marks.items() if isinstance(d, str) and d >= cut}
+                gone += len(marks) - len(kept)
+                data[part] = kept
+        if gone:
+            log.info("needs: %d old marks pruned", gone)
+            config.write_private(self.path, json.dumps(data))
+        return data
 
     def _save(self) -> None:
         config.write_private(self.path, json.dumps(self.state))

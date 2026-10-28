@@ -1105,7 +1105,7 @@ async def handle(conn: Conn, msg: dict) -> None:
         await conn.send(tracker.home_event(src))
         # Then the plan: the rule lists at once, a new ranking in the background when it changed.
         open_ = src["tasks"] if src else []
-        mine = triage.current(open_, triage.load())  # the suggested priority stands in where the tracker has none
+        mine = triage.current(open_, triage.load(open_=triage.open_ids(src)))  # the suggested priority stands in where the tracker has none
         paths = await asyncio.to_thread(tracker.repo_map, cfg, settings.settings.vault())
         repos = {pid: repo_of(path) for pid, path in paths.items()}
         clients = {pid for pid, path in paths.items() if fence.Fence(path, isolated=False).in_client()}  # pins an overdue task (needs.py)

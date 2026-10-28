@@ -39,7 +39,7 @@ def list_(source: str, cfg: dict, vault, found: list[dict]) -> dict:
     if source == "vikunja":
         got = tracker.source(cfg)
         repos = tracker.repo_map(cfg, vault) if got["tasks"] else {}
-        mine = triage.current(got["tasks"], triage.load())
+        mine = triage.current(got["tasks"], triage.load(open_=triage.open_ids(got)))
         rows = []
         for t in got["tasks"]:
             s_ = mine.get(t["id"])
