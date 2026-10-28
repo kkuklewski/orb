@@ -22,7 +22,7 @@ def src(tmp_path, monkeypatch):
     monkeypatch.setattr(vikunja, "open_tasks", lambda url, project=None: TASKS)
     monkeypatch.setattr(vikunja, "task", lambda url, i: {"id": i, "title": "Ship it", "description": "line1\nline2", "project": "acme",
                                                           "project_id": 3, "due": None, "priority": 1, "done": False, "url": "u"})
-    monkeypatch.setattr(forget, "repos", lambda found: [{"path": "/r/globex", "label": "acme/globex", "branch": "main", "changed": 3, "ahead": 1}])
+    monkeypatch.setattr(forget, "repos", lambda found: [{"path": "/r/globex", "label": "acme/globex", "branch": "main", "changed": 3, "ahead": 1, "behind": 2}])
     monkeypatch.setattr(forget, "prs", lambda: [{"repo": "acme/globex", "number": 7, "title": "Fix login", "idle_days": 5, "stale": True, "draft": False}])
     (tmp_path / "n.md").write_text("# A note\n")
     return desk.Sources(cfg=lambda: {"vikunja_url": "http://v", "reminders": [{"text": "Renew acme domain", "due": "2026-10-25"}]},
@@ -49,7 +49,7 @@ def test_every_read_result_is_fenced_and_names_the_tool(src):
 def test_home_brief_covers_the_dashboard_and_marks_overdue(src):
     body = unfence(desk.home_brief(src, TODAY))[1]
     assert "#12 Ship the globex invoice (acme, due 2026-10-20 OVERDUE, priority 4)" in body
-    assert "acme/globex (main): 3 changed file(s), 1 unpushed commit(s)" in body
+    assert "acme/globex (main): 3 changed file(s), 1 unpushed commit(s), behind 2" in body
     assert "acme/globex#7 Fix login" in body and "nightly: NEEDS YOU (failed)" in body
     assert "Renew acme domain (due 2026-10-25)" in body and "Fix the login" in body
 

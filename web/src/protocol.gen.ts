@@ -1566,6 +1566,7 @@ export interface Reminder {
  */
 export interface DirtyRepo {
   ahead?: number | null;
+  behind?: number;
   branch?: string | null;
   changed: number;
   label: string;
@@ -1676,7 +1677,8 @@ export interface PlanItem {
   due?: string | null;
   id: string;
   key: string;
-  kind: "approval" | "setup" | "routine" | "reminder" | "task" | "note_task" | "result" | "pr" | "notes_batch";
+  kind:
+    "approval" | "setup" | "vault" | "routine" | "reminder" | "task" | "note_task" | "result" | "pr" | "notes_batch";
   pin?: ("security" | "client" | "money") | null;
   priority?: number | null;
   reason: string;

@@ -185,6 +185,11 @@ The pane in Home's status card for things that wait quietly: dated reminders, pu
 unsaved work. A reminder due today or overdue moves to Needs you by rule.
 _Avoid_: Watch, watchlist, reminders (for the whole pane)
 
+**Vault sync**:
+The local vault clone against its remote: behind, ahead, conflicts; Orb reports it, never fixes it. A conflicted or
+diverged clone is a Needs you row (counts only, Open only), and Orb's vault writes refuse while it is conflicted.
+_Avoid_: sync error, out of date
+
 **Away recap**:
 Home's one-shot card after the owner was away 24 hours or more: the routines that ran ok, the sessions Finished and the
 delegations that became Ready without them, then the top of Needs you. It goes once opened and never gets a Badge.

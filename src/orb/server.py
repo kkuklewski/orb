@@ -23,7 +23,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTex
 from fastapi.staticfiles import StaticFiles
 from starlette.datastructures import Headers, MutableHeaders
 
-from . import away, billing, chain, config, delegation, desk, fence, folders, forget, handoff, home, intake, items, kokoro_setup, make_task, navigate, needs, parakeet, routines, settings, setup, slash, speech, tasks, tracker, triage, vault_write, vendor, vocab, worktree
+from . import away, billing, chain, config, delegation, desk, fence, folders, forget, handoff, home, intake, items, kokoro_setup, make_task, navigate, needs, parakeet, routines, settings, setup, slash, speech, tasks, tracker, triage, vault_git, vault_write, vendor, vocab, worktree
 from .agent import SCREEN_MAX, FolderSession, dumps, first_request
 from .brain import CaptureGuard
 from .sessions import SessionStore
@@ -1097,6 +1097,7 @@ async def handle(conn: Conn, msg: dict) -> None:
         hub.replan(setup=await hub.setup_problems(src and src["error"]), reminders=forget.due_now(settings.settings.data),
                    tasks=[{**x, "suggested": (mine.get(x["id"]) or {}).get("p"), "repo": (repos.get(x.get("project_id")) or (None, None))[1],
                            "client": x.get("project_id") in clients, "money": needs.money(x.get("labels"), cfg.get("pin_labels"))} for x in open_], routines=hub.live_routines(),
+                   vault=[h] if (h := await asyncio.to_thread(vault_git.cached, settings.settings.vault())) else [],
                    notes=notes["tasks"], awaiting=notes["awaiting_count"], prs=w.get("prs") or [], results=hub.results(),
                    force=bool(msg.get("rerank")))
         return

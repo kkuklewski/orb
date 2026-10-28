@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import NamedTuple
 
-from . import forget, home, tracker
+from . import forget, home, needs, tracker, vault_git
 from .brief import one
 from .handoff import SERVER
 
@@ -93,11 +93,18 @@ def _repos_section(src: Sources) -> list[str]:
     prs = forget.prs()
     out = ["Repos with unsaved work:" if repos else "No repo has uncommitted or unpushed work."]
     out += [one(f"- {r['label']} ({r['branch'] or '?'}): {r['changed']} changed file(s)"
-                + (f", {r['ahead']} unpushed commit(s)" if r["ahead"] else "")) for r in repos[:15]]
+                + (f", {r['ahead']} unpushed commit(s)" if r["ahead"] else "")
+                + (f", behind {r['behind']}" if r.get("behind") else "")) for r in repos[:15]]
     out.append("Open pull requests:" if prs else "No open pull requests (or gh isn't signed in).")
     out += [one(f"- {p['repo']}#{p['number']} {p['title']}{' (draft)' if p['draft'] else ''}, quiet {p['idle_days']} day(s)"
                 f"{' - going stale' if p['stale'] else ''}") for p in prs[:15]]
     return out
+
+
+def _vault_section(src: Sources) -> list[str]:
+    """The vault clone's Needs you row (needs.vault_row), counts only; nothing when it has nothing to resolve."""
+    row = needs.vault_row(vault_git.cached(src.vault()))
+    return [one(f"{row['title']}: {row['reason']}" + (" (urgent)" if row["urgent"] else ""))] if row else []
 
 
 def _routines_section(src: Sources) -> list[str]:
@@ -155,10 +162,11 @@ def _away_section(src: Sources) -> list[str]:
 
 
 def home_brief(src: Sources, today: dt.date | None = None) -> str:
-    """The whole day in one text: tasks, sessions, routines, unsaved work and PRs, reminders, notes."""
+    """The whole day in one text: tasks, sessions, routines, the vault clone, unsaved work and PRs, reminders, notes."""
     today = today or dt.date.today()
     rem = forget.reminders(src.cfg().get("reminders") or [], today)
-    parts = [*_tasks_section(src, None, today.isoformat()), *_sessions_section(src), *_routines_section(src), *_repos_section(src),
+    parts = [*_tasks_section(src, None, today.isoformat()), *_sessions_section(src), *_routines_section(src), *_vault_section(src),
+             *_repos_section(src),
              *(["Reminders:", *[one(f"- {r['text']}" + (f" (due {r['due']})" if r["due"] else "")) for r in rem[:10]]] if rem else []),
              *_notes_section(src, 5), *_away_section(src)]
     return fenced("home_brief", "\n".join(parts))

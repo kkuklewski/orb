@@ -2137,6 +2137,10 @@
           ],
           "default": null
         },
+        "behind": {
+          "default": 0,
+          "type": "integer"
+        },
         "branch": {
           "anyOf": [
             {
@@ -5558,6 +5562,7 @@
           "enum": [
             "approval",
             "setup",
+            "vault",
             "routine",
             "reminder",
             "task",

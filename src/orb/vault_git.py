@@ -10,12 +10,14 @@ from __future__ import annotations
 import fnmatch
 import os
 import subprocess
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
 from . import forget
 
 GIT_TIMEOUT = 10
+CACHE_SECONDS = 300  # Home load and home_brief share one check this long; a write always checks fresh
 READS = ("config", "rev-parse", "ls-files", "status")  # the only git commands this module runs
 NOT_REPO = "the vault isn't a git repository"
 # Vault-local git config that makes git run a program (or send the push elsewhere): a session could have written it, so
@@ -23,6 +25,8 @@ NOT_REPO = "the vault isn't a git repository"
 UNSAFE_GIT = ("core.fsmonitor", "core.sshcommand", "core.gitproxy", "core.askpass", "core.alternaterefscommand",
               "filter.*", "include.*", "includeif.*", "credential.*", "gpg.*", "protocol.*", "url.*",
               "remote.*.receivepack", "remote.*.uploadpack", "remote.*.proxy")
+_cache: dict = {"at": 0.0, "vault": None, "health": None}
+
 # What git leaves in the git dir while an operation waits for the owner, in the order checked.
 OPERATIONS = (("MERGE_HEAD", "merge"), ("rebase-merge", "rebase"), ("rebase-apply", "rebase"),
               ("CHERRY_PICK_HEAD", "cherry-pick"))
@@ -108,3 +112,12 @@ def health(vault: Path | None, full: bool = True) -> Health | None:
         fetched = None
     return Health(ahead=s["ahead"] or 0, behind=s["behind"], changed=s["changed"], unmerged=n, operation=op,
                   fetched=fetched)
+
+
+def cached(vault: Path | None, now: float | None = None) -> Health | None:
+    """`health(vault)` for Home's Needs you row and home_brief, at most every CACHE_SECONDS per vault. Never for a write:
+    `vault_write.clone_ok` checks fresh."""
+    now = time.time() if now is None else now
+    if _cache["vault"] != vault or now - _cache["at"] >= CACHE_SECONDS:
+        _cache.update(at=now, vault=vault, health=health(vault))
+    return _cache["health"]
