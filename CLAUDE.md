@@ -14,11 +14,11 @@ cd web && npm run dev       # React page with live reload (server: ORB_DEV_ORIGI
 cd web && npm run build     # builds into src/orb/static/app; commit the result (CI fails if it's stale)
 ```
 
-The page is moving to React + TypeScript + Vite (`web/`, served at `/`; the old page is at `/old`), screen by screen: see
-`docs/react-migration.md`. The old page (`static/app.js`) is kept at `/old` until it can be deleted.
+The page is React + TypeScript + Vite (`web/`, built into `src/orb/static/app`, served at `/`; `/next/...` links
+redirect). See `docs/react-migration.md`.
 
-Python 3.14 via `uv` (`.python-version` pins the patch). Front end is plain HTML/CSS/JS in
-`src/orb/static/`, no build step. Tests run against a throwaway state folder (`tests/conftest.py`).
+Python 3.14 via `uv` (`.python-version` pins the patch). Front end: `web/` (React + TypeScript + Vite); its build
+output in `src/orb/static/app/` is committed. Tests run against a throwaway state folder (`tests/conftest.py`).
 
 ## Hard rules
 
@@ -84,7 +84,7 @@ Python 3.14 via `uv` (`.python-version` pins the patch). Front end is plain HTML
 | `delegation.py` | Delegate a task (Vikunja or Jira): grant card -> worktree + background session with the grant + the task as brief; after each turn Orb runs the declared test itself (Ready / failed); then, with a remote, push + `gh pr create` behind a Needs you card (or at once with the repo's `outwardSteps`, never in a client folder); Review, Apply (local merge, task done; the PR stays open), Undo, Discard; records in `~/.orb/delegations.json`, a restart marks running ones stopped; the Delegated strip on Home |
 | `speech.py` / `parakeet.py` | local speech: Parakeet first, Whisper + vocabulary when an unsure word sounds like a name; Kokoro client |
 | `vendor.py` | downloads the VAD worklet, Silero model and ORT wasm, checks sha384 pins, serves from `/static/vendor` |
-| `static/` | `index.html` (CDN scripts pinned + SRI), `app.js` (onboarding, chat, audio queue, VAD, browser speech, barge-in, voice pill); `app.css` (layout and components) + `studio.css` (the look: grey, hairline, one orange accent for state; dark and light) |
+| `static/` | `app/` (the built React page, committed; `npm run build`), `icons/` + `manifest.webmanifest` (home-screen install), `vendor/` (VAD worklet, Silero model, ORT wasm from `vendor.py`). No CDN scripts. |
 
 Sessions: a folder has several sessions (`sessions.json` v2: key, resume id, label = first request).
 A page shows one session (`Conn.key`) and the others keep running. Background news (`done` /
