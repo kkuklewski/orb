@@ -10,8 +10,9 @@
       "Bash(git add:*)",
       "Bash(git commit:*)",
       "Bash(git merge:*)",
-      "Bash(git push public:*)",
-      "Bash(git -C * push public:*)",
+      "Bash(git push public main)",
+      "Bash(git push public HEAD)",
+      "Bash(git push -u public HEAD)",
       "Bash(gh pr create:*)",
       "Bash(gh pr view:*)",
       "Bash(gh pr checks:*)",
@@ -24,9 +25,16 @@
     ],
     "deny": [
       "Bash(git push origin:*)",
-      "Bash(git -C * push origin:*)",
+      "Bash(git -C * push:*)",
+      "Bash(git -c * push:*)",
       "Bash(git push * --force*)",
-      "Bash(git push -f:*)"
+      "Bash(git push -f:*)",
+      "Bash(git push * +*)",
+      "Bash(git push * :*)",
+      "Bash(git push * --delete*)",
+      "Bash(git push * -d *)",
+      "Bash(git push * --mirror*)",
+      "Bash(git push * --no-verify*)"
     ]
   }
 }
