@@ -68,13 +68,14 @@ The first time, a short setup runs in the page:
 4. **How it keeps you in control.** Then you're in.
 
 The link carries a private access token, and Orb makes a new one every time it starts. So after a
-restart, open the new link Orb printed; an old tab or bookmark tells you to.
+restart, open the new link: `orb open` in Terminal opens it. An old tab or bookmark tells you to.
 
 ## Every day
 
 | What | How |
 | --- | --- |
 | Start | Run `orb` in Terminal and open the link it prints. |
+| Open the page | `orb open` opens the running Orb's page, also when it started at login or in another window. |
 | Stop | Press Control C in that Terminal window, or close it. |
 | Start it at login | Run the command below once. Orb then runs in the background and restarts after a crash. |
 | Update | `uv tool upgrade orb`, then start it again. |
@@ -86,13 +87,8 @@ Start at login (macOS):
 curl -fsSL https://raw.githubusercontent.com/kkuklewski/orb/main/deploy/install-launchd.sh | sh
 ```
 
-To open the page then, run:
-
-```sh
-open "$(grep -o 'http://127.0.0.1:[0-9]*/#t=[^ ]*' ~/.orb/logs/orb.log | tail -1)"
-```
-
-To undo it:
+Then open the page with `orb open`. Run the command again after you add or change a tracker token (see
+[Tasks](#tasks-vikunja-or-jira)); it replaces the job. To undo it:
 `launchctl bootout gui/$(id -u)/dev.orb.server && rm ~/Library/LaunchAgents/dev.orb.server.plist`.
 
 ## Using it
@@ -181,8 +177,17 @@ Settings → Tasks; tokens come only from the environment, never from the page o
   `ORB_JIRA_TOKEN` (an API token from id.atlassian.com). Orb lists issues assigned to you that aren't done;
   `ORB_JIRA_JQL` replaces that query. Jira wins when both addresses are set.
 
-So the token is there, start Orb from Terminal with it, for example
-`ORB_VIKUNJA_TOKEN=<your token> orb`. The start-at-login job doesn't pass tokens yet.
+Orb started from Terminal takes them from that Terminal, for example `ORB_VIKUNJA_TOKEN=<your token> orb`.
+For Orb started at login, export them and run the start-at-login command again; it stores them in the login
+job's file (`~/Library/LaunchAgents/dev.orb.server.plist`, readable only by you) and restarts Orb:
+
+```sh
+read -rs ORB_VIKUNJA_TOKEN && export ORB_VIKUNJA_TOKEN   # paste the token, press Return (it isn't shown)
+curl -fsSL https://raw.githubusercontent.com/kkuklewski/orb/main/deploy/install-launchd.sh | sh
+```
+
+Jira works the same with `ORB_JIRA_EMAIL` and `ORB_JIRA_TOKEN`. A later run keeps the tokens you don't export;
+`export ORB_JIRA_TOKEN=` (empty) removes one.
 
 A notes vault can map repos to projects in `projects/*.md` frontmatter: `vikunja_project: <id>` or
 `jira_project: <KEY>`, next to `local: <repo path>`.
@@ -192,11 +197,11 @@ A notes vault can map repos to projects in `projects/*.md` frontmatter: `vikunja
 | You see | Do |
 | --- | --- |
 | `command not found: uv` or `orb` | Quit Terminal and open it again. Still missing: run `uv tool update-shell`, then reopen. |
-| "address already in use" | Orb is already running (maybe at login): open its link from the log (see Every day). Or run `ORB_PORT=8766 orb`. |
-| "access token is out of date" / "Open the link Orb printed" | Orb restarted: open the newest link it printed. |
+| "Orb is already running" | It runs at login or in another window: `orb open` opens its page. |
+| "access token is out of date" / "Open the link Orb printed" | Orb restarted: run `orb open`. |
 | Claude isn't signed in | Run the sign-in command the page shows, in Terminal. |
 | "Refusing to start: ANTHROPIC_… is set" | Remove `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN` or `ANTHROPIC_BASE_URL` from your shell setup (`~/.zshrc`), then reopen Terminal. |
-| Tasks say the tracker is unreachable | Check the address in Settings → Tasks and that Orb was started with the token (see above). |
+| Tasks say the tracker is unreachable | Check the address in Settings → Tasks and that Orb was started with the token (see [Tasks](#tasks-vikunja-or-jira)). |
 
 ## Development
 

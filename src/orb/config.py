@@ -89,6 +89,54 @@ def token() -> str:
     return value
 
 
+_lock: int | None = None
+
+
+def claim_state() -> bool:
+    """Hold <state>/orb.lock while this server runs, False when another Orb holds it. Taken before token(): a second
+    start on the same folder would otherwise replace the running server's token file (its link printed before it
+    binds the port, so the port alone can't tell)."""
+    global _lock
+    import fcntl
+
+    STATE_DIR.mkdir(mode=0o700, parents=True, exist_ok=True)
+    fd = os.open(STATE_DIR / "orb.lock", os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        os.close(fd)
+        return False
+    _lock = fd  # kept open (and locked) until the process ends
+    return True
+
+
+def saved_token() -> str:
+    """The running server's token from its 0600 file (`orb open`), or "" when the file is missing, a link,
+    someone else's or readable by others."""
+    try:
+        fd = os.open(STATE_DIR / "token", os.O_RDONLY | os.O_NOFOLLOW)
+    except OSError:
+        return ""
+    with os.fdopen(fd) as f:
+        st = os.fstat(f.fileno())
+        if st.st_uid != os.getuid() or st.st_mode & 0o077:
+            return ""
+        return f.read().strip()
+
+
+def page_url(value: str) -> str:
+    return f"http://{HOST}:{PORT}/#t={value}"
+
+
+def port_in_use() -> bool:
+    """Something already listens on Orb's port (an Orb started at login or in another Terminal)."""
+    import socket
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.settimeout(0.5)
+        return s.connect_ex((HOST, PORT)) == 0
+
+
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, *args, **kwargs):
         return None  # the 3xx comes back as an HTTPError
