@@ -2,11 +2,12 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { send } from "../../ws";
 import { useFeatures } from "../../stores/features";
-import { canContinue, hasRepos, signedIn, useSetup } from "../../stores/setup";
+import { LAST_RULE, canAdvance, hasRepos, signedIn, useSetup } from "../../stores/setup";
 import { BROWSER_STT, BROWSER_TTS, speakInBrowser, unlockAudio } from "../../audio/sample";
-import { goTo, next } from "./Setup";
+import { back, next } from "./Setup";
 import { FolderBrowser } from "./FolderBrowser";
 import { VoiceList } from "./VoiceList";
+import { ApprovalScene, LocalScene, PlanScene, ScopeScene } from "./ControlScenes";
 
 function Head({ kicker, title, text }: { kicker: string; title: string; text?: string }) {
   return (
@@ -19,11 +20,11 @@ function Head({ kicker, title, text }: { kicker: string; title: string; text?: s
 }
 
 function Foot({ label, hint }: { label: string; hint?: string }) {
-  const { step, status } = useSetup();
-  const ok = canContinue(step, status);
+  const { step, rule, status } = useSetup();
+  const ok = canAdvance(step, rule, status);
   return (
     <div className="onb-foot">
-      {step > 0 && <button type="button" className="onb-btn ghost" onClick={() => goTo(step - 1)}>Back</button>}
+      {step > 0 && <button type="button" className="onb-btn ghost" onClick={back}>Back</button>}
       <span className="onb-spacer" />
       <button type="button" className="onb-btn primary" disabled={!ok} title={!ok ? hint : undefined} onClick={next}>{label}</button>
     </div>
@@ -324,51 +325,46 @@ export function Voice() {
   );
 }
 
-function Cell({ n, label, rule, text, children }: { n: string; label: string; rule: string; text: string; children: ReactNode }) {
-  return (
-    <div className="onb-spec-cell">
-      <p className="mono onb-spec-label"><span className="onb-spec-sq" />{n} · {label}</p>
-      <h3 className="onb-spec-rule">{rule}</h3>
-      <p className="onb-spec-text">{text}</p>
-      {children}
-    </div>
-  );
-}
-
-function Proof({ rows }: { rows: [string, string, string?][] }) {
-  return (
-    <div className="mono onb-spec-proof" aria-hidden="true">
-      {rows.map(([k, v, cls]) => <div className="onb-spec-row" key={k}><span>{k}</span><span className={cls}>{v}</span></div>)}
-    </div>
-  );
-}
+// Control: the four rules, one screen each, each with its own picture (ControlScenes.tsx).
+const RULES = [
+  { name: "Approvals", title: "You say yes first.", Scene: ApprovalScene,
+    text: () => "Orb never changes a file on its own. It shows you what it wants to do and waits. Tap Allow or Deny, or with headphones on, just say yes or no." },
+  { name: "Your projects", title: "One project at a time.", Scene: ScopeScene,
+    text: (work: boolean) => (work
+      ? "A conversation stays inside the project you opened it in. Your other projects stay closed. Files with passwords and keys are never opened, even if you ask."
+      : "A conversation stays inside the project you opened it in. Before it looks at another project, Orb asks you. Files with passwords and keys are never opened, even if you ask.") },
+  { name: "Your plan", title: "Your plan. No extra bills.", Scene: PlanScene,
+    text: () => "Orb runs on the Claude plan you already pay for. It refuses pay-as-you-go API keys, so nothing gets billed on top." },
+  { name: "This Mac", title: "It stays on this Mac.", Scene: LocalScene,
+    text: () => "Orb's page opens only on this Mac, through a private link. Nobody else on your Wi-Fi or the internet can open it." },
+];
 
 export function Control() {
-  const status = useSetup((s) => s.status);
+  const { status, rule } = useSetup();
   const onboarded = useFeatures((s) => !!s.features?.onboarded);
+  const work = ((status?.values as { profile?: string } | undefined)?.profile ?? "work") === "work";
   const sub = status?.auth.subscription;
   const plan = sub ? cap(sub) : "Pro / Max";
+  const r = RULES[rule] ?? RULES[0];
+  const last = rule === LAST_RULE;
   return (
     <>
-      <Head kicker="STEP 05" title="Nothing changes without you." text="Four rules Orb keeps, whatever you ask it." />
-      <div className="onb-spec">
-        <Cell n="01" label="APPROVALS" rule="Every change asks first." text="Allow or Deny on a card, or answer yes / no by voice on headphones.">
-          <div className="onb-spec-proof onb-spec-mini" aria-hidden="true">
-            <div className="mono onb-spec-minihead"><span className="onb-spec-sq" />NEEDS YOUR OK</div>
-            <div className="onb-spec-minibody"><code>Edit tests/setup.ts</code><span className="onb-spec-btn">Deny</span><span className="onb-spec-btn solid">Allow</span></div>
-          </div>
-        </Cell>
-        <Cell n="02" label="SCOPE" rule="One repo per conversation." text="Other repos need your OK. Secret files are never readable.">
-          <Proof rows={[["web/src/", "open"], ["../api/", "asks first", "warn"], [".env", "blocked", "bad"]]} />
-        </Cell>
-        <Cell n="03" label="BILLING" rule="Your plan. No API keys." text="Runs on your Claude subscription through Claude Code; API keys are refused.">
-          <Proof rows={[["plan", plan], ["apiKeySource", "none"]]} />
-        </Cell>
-        <Cell n="04" label="LOCAL" rule="It stays on this Mac." text="The page only listens here and opens with its private link.">
-          <Proof rows={[["listens on", "127.0.0.1"], ["access", "private link only"]]} />
-        </Cell>
+      <Head kicker={`STEP 05 · RULE ${rule + 1} OF ${RULES.length}`} title={r.title} />
+      <div className="onb-rules" role="tablist" aria-label="Orb's rules">
+        {RULES.map((x, i) => (
+          <button key={x.name} type="button" role="tab" aria-selected={i === rule}
+            className={"onb-rules-tab" + (i === rule ? " on" : "") + (i < rule ? " seen" : "")}
+            onClick={() => useSetup.setState({ rule: i })}>
+            <span className="mono">{String(i + 1).padStart(2, "0")}</span>{x.name}
+          </button>
+        ))}
       </div>
-      <Foot label={onboarded ? "Done" : "Start using Orb"} hint={hasRepos(status) ? "Sign in first" : "Sign in and add a folder with a repo first"} />
+      <div className="onb-rule" key={rule}>
+        <div className="onb-scene" aria-hidden="true"><r.Scene plan={plan} work={work} /></div>
+        <p className="onb-text onb-rule-text">{r.text(work)}</p>
+      </div>
+      <Foot label={!last ? "Got it" : onboarded ? "Done" : "Start using Orb"}
+        hint={hasRepos(status) ? "Sign in first" : "Sign in and add a folder with a repo first"} />
     </>
   );
 }

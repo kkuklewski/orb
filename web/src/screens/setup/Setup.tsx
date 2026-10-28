@@ -3,14 +3,21 @@
 import { useEffect, useRef } from "react";
 import { send } from "../../ws";
 import { useFeatures } from "../../stores/features";
-import { LAST_STEP, canContinue, stepDone, useSetup } from "../../stores/setup";
+import { LAST_RULE, LAST_STEP, canAdvance, stepDone, useSetup } from "../../stores/setup";
 import { Control, Folders, Notes, SignIn, Voice, Welcome } from "./steps";
 
 const RAIL = ["Sign in", "Folders", "Brain", "Voice", "Control"];
 export const NOTES_STEP = 3;
 
-export function goTo(step: number) {
-  useSetup.setState({ step: Math.max(0, Math.min(LAST_STEP, step)), sample: null, browsing: false });
+export function goTo(step: number, rule = 0) {
+  useSetup.setState({ step: Math.max(0, Math.min(LAST_STEP, step)), rule, sample: null, browsing: false });
+}
+
+/** Back one screen: Control's rules first, then the steps. */
+export function back() {
+  const { step, rule } = useSetup.getState();
+  if (step === LAST_STEP && rule > 0) useSetup.setState({ rule: rule - 1 });
+  else goTo(step - 1);
 }
 
 export function closeSetup() {
@@ -18,14 +25,15 @@ export function closeSetup() {
 }
 
 export function next() {
-  const { step } = useSetup.getState();
+  const { step, rule } = useSetup.getState();
+  if (step === LAST_STEP && rule < LAST_RULE) return useSetup.setState({ rule: rule + 1 });
   if (step < LAST_STEP) return goTo(step + 1);
   if (useFeatures.getState().features?.onboarded) return closeSetup(); // reopened from Settings
   send({ type: "set_settings", values: { onboarded: true } }); // the server answers with "features"
 }
 
 export function Setup() {
-  const { step, status, toast } = useSetup();
+  const { step, rule, status, toast } = useSetup();
   const onboarded = useFeatures((s) => !!s.features?.onboarded);
   const card = useRef<HTMLElement>(null);
 
@@ -35,13 +43,13 @@ export function Setup() {
   useEffect(() => {
     const el = card.current?.querySelector<HTMLElement>(".onb-btn.primary:not(:disabled), input, .onb-btn:not(.ghost)");
     el?.focus();
-  }, [step]);
+  }, [step, rule]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       if (e.key === "Escape" && onboarded) { e.preventDefault(); closeSetup(); }
-      else if (e.key === "Enter" && !target.closest("input, textarea, button") && canContinue(useSetup.getState().step, useSetup.getState().status)) {
+      else if (e.key === "Enter" && !target.closest("input, textarea, button") && canAdvance(useSetup.getState().step, useSetup.getState().rule, useSetup.getState().status)) {
         e.preventDefault(); next();
       }
     };

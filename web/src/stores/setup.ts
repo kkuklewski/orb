@@ -11,7 +11,8 @@ export type Toast = { text: string; level: "info" | "error" };
 
 export interface SetupState {
   open: boolean;
-  step: number; // 0 welcome, 1 sign in, 2 folders, 3 voice, 4 control
+  step: number; // 0 welcome, 1 sign in, 2 folders, 3 brain, 4 voice, 5 control
+  rule: number; // which of Control's four rules is showing (0-3)
   status: SetupStatusEvent | null;
   dir: BrowseEvent | null;
   browsing: boolean;
@@ -22,10 +23,11 @@ export interface SetupState {
 }
 
 export const initialSetup: SetupState = {
-  open: false, step: 0, status: null, dir: null, browsing: false, picking: false, pickFor: "roots", sample: null, toast: null,
+  open: false, step: 0, rule: 0, status: null, dir: null, browsing: false, picking: false, pickFor: "roots", sample: null, toast: null,
 };
 
 export const LAST_STEP = 5;
+export const LAST_RULE = 3;
 
 export function signedIn(s: SetupStatusEvent | null): boolean {
   return !!(s?.auth.loggedIn && s.auth.subscriptionLogin);
@@ -41,6 +43,11 @@ export function canContinue(step: number, s: SetupStatusEvent | null): boolean {
   if (step === 2) return hasRepos(s);
   if (step === LAST_STEP) return signedIn(s) && hasRepos(s);
   return true;
+}
+
+/** Can the user move on from what's showing? Control's first three rules always can. */
+export function canAdvance(step: number, rule: number, s: SetupStatusEvent | null): boolean {
+  return (step === LAST_STEP && rule < LAST_RULE) || canContinue(step, s);
 }
 
 /** A step counts as done on the rail when it's behind the current one, or its requirement is met. */
@@ -91,5 +98,5 @@ export function wireSetup(): () => void {
 }
 
 export function openSetup(step = 0) {
-  useSetup.setState({ open: true, step, sample: null, toast: null });
+  useSetup.setState({ open: true, step, rule: 0, sample: null, toast: null });
 }

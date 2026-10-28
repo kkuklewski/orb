@@ -114,7 +114,7 @@ describe("setup assistant", () => {
   });
 
   it("finishes with set_settings onboarded, and Escape closes only once set up", () => {
-    useSetup.setState({ step: 5, status: status() });
+    useSetup.setState({ step: 5, rule: 3, status: status() });
     render(<Setup />);
     fireEvent.keyDown(window, { key: "Escape" });
     expect(useSetup.getState().open).toBe(true); // not set up yet: can't leave
@@ -124,5 +124,21 @@ describe("setup assistant", () => {
     act(() => useFeatures.setState({ features: { roots: [], vault: "", brain: false, routines: false, onboarded: true, stt: "browser", tts: "kokoro", plan: "max" } }));
     fireEvent.keyDown(window, { key: "Escape" });
     expect(useSetup.getState().open).toBe(false);
+  });
+
+  it("shows Control's four rules one at a time: Got it moves on, Back goes back, and only the last one finishes", () => {
+    useSetup.setState({ step: 5, rule: 0, status: status() });
+    render(<Setup />);
+    expect(screen.getByRole("heading", { name: "You say yes first." })).toBeTruthy();
+    for (const title of ["One project at a time.", "Your plan. No extra bills.", "It stays on this Mac."]) {
+      fireEvent.click(screen.getByRole("button", { name: "Got it" }));
+      expect(screen.getByRole("heading", { name: title })).toBeTruthy();
+    }
+    expect(sent).not.toContainEqual({ type: "set_settings", values: { onboarded: true } });
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(useSetup.getState()).toMatchObject({ step: 5, rule: 2 });
+    fireEvent.click(screen.getByRole("tab", { name: /Approvals/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(useSetup.getState()).toMatchObject({ step: 4, rule: 0 });
   });
 });
