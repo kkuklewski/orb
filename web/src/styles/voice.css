@@ -1,4 +1,4 @@
-/* Voice: the dock state line and the voice pill; top-bar chips (usage, context, MCP, model, approvals). Ported from app.css + studio.css. */
+/* Voice: the dock state line and the voice pill; top-bar chips (usage, context, MCP, model, approvals). Ported from the old page; the Studio look. */
 .top-tools { display: flex; align-items: center; gap: 8px; flex: none; }
 .usage { font-size: 11px; color: var(--text-2); letter-spacing: .02em; text-align: right; line-height: 1.35; cursor: default; }
 .usage .u-top b { font-weight: 600; color: var(--text); }

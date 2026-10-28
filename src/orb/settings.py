@@ -82,10 +82,7 @@ def _web(url: object) -> bool:
 class Settings:
     def __init__(self, path: Path) -> None:
         self.path = path
-        try:
-            data = json.loads(path.read_text())
-        except (OSError, ValueError):
-            data = {}
+        data = config.read_state(path) or {}
         if "profile" not in data and data.get("onboarded"):
             data["profile"] = "personal"  # set up before profiles: keeps working as it did
         self.data = {**DEFAULTS, **{k: v for k, v in data.items() if k in DEFAULTS}}

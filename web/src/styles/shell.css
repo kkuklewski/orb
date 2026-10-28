@@ -1,4 +1,4 @@
-/* App shell: sidebar, top bar, repo picker, composer and slash menu. Ported from app.css + studio.css. */
+/* App shell: sidebar, top bar, repo picker, composer and slash menu. Ported from the old page; the Studio look. */
 .app { display: grid; grid-template-columns: auto minmax(0, 1fr); height: 100dvh; overflow: hidden; }
 
 /* ---- Sidebar (after the Claude desktop app: calm, few items, generous spacing) ---- */

@@ -42,7 +42,7 @@ the roots, a malicious website in the owner's browser, another local user.
    page's headers. HTML under `/static` is refused (404); every response gets `nosniff`, `X-Frame-Options` and,
    without its own CSP, `frame-ancestors 'none'` (the `Guard` middleware in `server.py`).
 5. [x] **Fake cards in model output.** DOMPurify runs with defaults (forms, buttons, `class`, `id` survive)
-   and the CSP has no `form-action`. Rendered markdown (React page and `/old`) uses its own purifier: no form
+   and the CSP has no `form-action`. Rendered markdown (the React page) uses its own purifier: no form
    elements, `style` or `dialog`; no `id`, `name`, `style` or `form*` attributes; `class` only as a code block's
    `language-*`; a checkbox stays only disabled (task lists). The CSP adds `form-action 'none'`.
 6. [x] **Tracker tokens reach every session.** `ORB_VIKUNJA_TOKEN` / `ORB_JIRA_*` stay in `os.environ`, which

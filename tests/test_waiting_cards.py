@@ -52,8 +52,9 @@ def test_the_hub_adds_it_after_orbs_own_lines_and_leaves_delegations_to_their_ro
     hub = server.hub
     rows = [{"key": "a", "status": "approval", "archived": False}, {"key": "b", "status": "approval", "archived": False},
             {"key": "c", "status": "idle", "archived": False}, {"key": "deleg", "status": "approval", "archived": False}]
-    monkeypatch.setattr(hub, "folder_list", lambda: [{"label": "acme", "sessions": rows}])
-    monkeypatch.setattr(hub, "finished", {})
+    monkeypatch.setattr(hub, "folder_list", lambda: [{"label": "acme", "path": "/acme", "sessions": rows}])
+    monkeypatch.setattr(hub.store, "sessions", lambda path: rows)  # none has finished_at
+    monkeypatch.setattr(hub.store, "auto_archived", lambda: [])
     monkeypatch.setattr(hub.delegator, "items", {"1": {"session": "deleg", "stage": "running"}})
     monkeypatch.setitem(server.settings.settings.data, "routines", False)
     got = hub.away_lines(time.time() - 30 * H)

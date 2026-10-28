@@ -139,11 +139,12 @@ describe("away recap", () => {
     const lines = [{ kind: "routine", id: "t1", title: "Curation", summary: "ok", count: 1 },
       { kind: "finished", id: "finished", title: "2 sessions finished", summary: "", count: 2 },
       { kind: "ready", id: "ready", title: "1 delegation Ready", summary: "", count: 1 },
+      { kind: "archived", id: "archived", title: "4 old sessions archived", summary: "", count: 4 },
       { kind: "waiting", id: "waiting", title: "2 sessions wait for your OK", summary: "", count: 2 }];
     act(() => dispatch({ type: "away_recap", recap: { since: 0, back: 1, heading: "While you were away · 2 days", lines, more: 0 } } as ServerEvent));
     const rows = within(within(card()!).getByLabelText("What ran and finished")).getAllByRole("button");
     expect(rows.map((r) => r.textContent)).toEqual(["ROUTINECurationok", "FINISHED2 sessions finished", "READY1 delegation Ready",
-      "OK?2 sessions wait for your OK"]);
+      "ARCHIVED4 old sessions archived", "OK?2 sessions wait for your OK"]);
     fireEvent.click(rows[2]);
     expect(sent).toContainEqual({ type: "away_seen" });
     expect(useViews.getState().view).toBe("home");

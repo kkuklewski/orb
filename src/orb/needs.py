@@ -105,6 +105,11 @@ def setup_problems(auth: dict | None, tasks_error: str | None, stt: str, tts: st
         out.append({"id": "speech", "title": "Whisper isn't answering", "reason": "Speech recognition can't hear you on this Mac."})
     if tts == "kokoro" and not health.get("kokoro"):
         out.append({"id": "voice", "title": "Kokoro isn't answering", "reason": "Her voice is silent until it is back."})
+    for bad in config.set_aside:  # a precious state file Orb set aside (docs/adr/0014), until its copy is gone
+        if bad["precious"] and bad["copy"] and os.path.exists(bad["copy"]):
+            out.append({"id": f"state-{bad['name'].removesuffix('.json')}", "title": f"Orb set aside a damaged {bad['name']}",
+                        "reason": f"Kept as {os.path.basename(bad['copy'])} in Orb's state folder; Orb started it fresh. "
+                                  "Look at the copy, then delete it."})
     return out
 
 
@@ -414,12 +419,9 @@ class Needs:
         self.state = self._load()
 
     def _load(self) -> dict:
-        try:
-            data = json.loads(self.path.read_text())
-            if isinstance(data, dict) and isinstance(data.get("ranking"), list):
-                return data
-        except (OSError, ValueError):
-            pass
+        data = config.read_state(self.path, lambda d: isinstance(d, dict) and isinstance(d.get("ranking"), list))
+        if data:
+            return data
         return {"fp": "", "at": None, "ranking": [], "error": None, "since": {}}
 
     def _save(self) -> None:
