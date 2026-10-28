@@ -1262,6 +1262,7 @@
           "delegation_retry": "#/$defs/DelegationRetryMsg",
           "delegation_revert": "#/$defs/DelegationRevertMsg",
           "delegation_review": "#/$defs/DelegationReviewMsg",
+          "delegation_update": "#/$defs/DelegationUpdateMsg",
           "dictate_note": "#/$defs/DictateNoteMsg",
           "drop": "#/$defs/DropMsg",
           "get_settings": "#/$defs/GetSettingsMsg",
@@ -1539,6 +1540,9 @@
         },
         {
           "$ref": "#/$defs/DelegationOutwardMsg"
+        },
+        {
+          "$ref": "#/$defs/DelegationUpdateMsg"
         },
         {
           "$ref": "#/$defs/DropMsg"
@@ -2083,6 +2087,17 @@
         },
         "title": {
           "type": "string"
+        },
+        "update_from": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -2196,6 +2211,25 @@
         "id"
       ],
       "title": "DelegationReviewMsg",
+      "type": "object"
+    },
+    "DelegationUpdateMsg": {
+      "additionalProperties": false,
+      "description": "Update from <into> on a collision: merge the remote target into the branch, the same session finishes it.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "type": {
+          "const": "delegation_update",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "id"
+      ],
+      "title": "DelegationUpdateMsg",
       "type": "object"
     },
     "DelegationsEvent": {

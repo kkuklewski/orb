@@ -70,3 +70,4 @@ export const resume = (id: string) => ask({ type: "delegation_resume", id });
 export const discard = (id: string) => ask({ type: "delegation_discard", id });
 /** Ready with push and its PR waiting (Needs you): Allow pushes the branch and opens the PR; Skip keeps it local. */
 export const outward = (id: string, allow: boolean) => ask({ type: "delegation_outward", id, allow });
+export const update = (id: string) => ask({ type: "delegation_update", id });

@@ -79,6 +79,7 @@ export type ClientMessage =
   | DelegationRetryMsg
   | DelegationResumeMsg
   | DelegationOutwardMsg
+  | DelegationUpdateMsg
   | DropMsg;
 /**
  * This interface was referenced by `OrbProtocol`'s JSON-Schema
@@ -859,6 +860,16 @@ export interface DelegationOutwardMsg {
   allow: boolean;
   id: string;
   type: "delegation_outward";
+}
+/**
+ * Update from <into> on a collision: merge the remote target into the branch, the same session finishes it.
+ *
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "DelegationUpdateMsg".
+ */
+export interface DelegationUpdateMsg {
+  id: string;
+  type: "delegation_update";
 }
 /**
  * Home's drop zone: one pasted link, or one file (name + base64 bytes).
@@ -2378,6 +2389,7 @@ export interface DelegationItem {
   stage: "queued" | "working" | "testing" | "pushing" | "ready" | "failed" | "applied" | "reverted" | "stopped";
   task: number;
   title: string;
+  update_from?: string | null;
 }
 /**
  * Review: the delegation's own work (snapshot..branch), stat then patch, capped.
