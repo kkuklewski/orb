@@ -19,7 +19,7 @@ from . import config
 AWAY_SECONDS = 24 * 3600
 RECAP_KEEP = 12 * 3600  # a recap the owner came back to but never closed is gone this long after
 SAVE_EVERY = 60  # last-active is written at most this often, a recap change at once
-LINES = 8  # the card's lines (routines, Expired, then Finished, Ready and archived); past this one "N more"
+LINES = 8  # the card's lines (routines, Expired, then Finished, Ready, archived and waiting for your OK); past this one "N more"
 
 # Page messages that are the owner acting. Everything else (home, routines, screen, the lists and reads, open_folder on a
 # reload, settings reads, speech plumbing) can come from a page nobody is looking at.
@@ -45,6 +45,13 @@ def expired_line(count: int) -> list[dict]:
     Brain's Expired view."""
     title = "1 page expired" if count == 1 else f"{count} pages expired"
     return [{"kind": "expired", "id": "expired", "title": title, "summary": "", "count": count}] if count > 0 else []
+
+
+def waiting_line(count: int) -> list[dict]:
+    """Sessions waiting for the owner's OK right now (an open Allow card), one line after Orb's own (none at 0): not an
+    action Orb took, a reminder that their work stopped; it opens Sessions, where Orb never answers the card."""
+    title = "1 session waits for your OK" if count == 1 else f"{count} sessions wait for your OK"
+    return [{"kind": "waiting", "id": "waiting", "title": title, "summary": "", "count": count}] if count > 0 else []
 
 
 def own_lines(finished: list[float], ready: list[float], since: float, archived: list[float] = ()) -> list[dict]:

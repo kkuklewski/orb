@@ -9,7 +9,7 @@ import { Actions } from "./HomeDelegated";
 
 // Home's "Needs you" strip: what is blocked or broken until you act, decided by rules (docs/adr/0001). Sessions
 // waiting for an OK first (live from the session list), then delegations that can't finish on their own (named by
-// task and repo, with their actions), then the plan's rows from the server: a broken setup, routines with a problem,
+// task and repo, with their actions; red 24 hours after the card opened), then the plan's rows from the server: a broken setup, routines with a problem,
 // reminders due, then tasks past their due date, rows a rule pinned leading them. A tap opens the item (a broken setup opens Settings at the section
 // that fixes it, a reminder its link); an approval opens its session, where the Allow / Deny card lives. A routine in
 // a failure streak offers Make it a task first (the server's actions), which opens the routine with its card; once its
@@ -21,10 +21,13 @@ export type Row = { key: string; tag: string; title: string; reason: string; quo
 
 const ago = (ts?: number | null) => (ts ? (relTime(ts) === "now" ? "just now" : `${relTime(ts)} ago`) : "just now");
 
-function approval(x: SessionRow): Row {
+/** A session waiting for your OK: since its oldest card opened (else its last turn), red from the server's `red_at`
+ *  (needs.WAITING_H, ADR 0012). It opens the session; Orb never answers or denies the card. */
+function approval(x: SessionRow, now = Date.now() / 1000): Row {
   const repo = folderName(x.folder);
-  return { key: x.key, tag: "OK?", title: `${repo}: ${x.label || "New session"}`, reason: `Paused ${ago(x.last_used)}, waiting for your OK.`,
-    quote: x.ask, side: x.last_used ? relTime(x.last_used) : "now", open: () => openFolder(x.folder.path, x.key) };
+  const since = x.waiting_since ?? x.last_used;
+  return { key: x.key, tag: "OK?", title: `${repo}: ${x.label || "New session"}`, reason: `Paused ${ago(since)}, waiting for your OK.`,
+    quote: x.ask, side: since ? relTime(since) : "now", urgent: !!x.red_at && now >= x.red_at, open: () => openFolder(x.folder.path, x.key) };
 }
 
 const DELEG_TAG: Record<NonNullable<DelegationItem["needs"]>, string> = { card: "OK?", failed: "TESTS", stuck: "STUCK", stopped: "STOPPED", outward: "PUSH?" };
@@ -67,7 +70,7 @@ function planRow(p: PlanItem, canResolve: (id: string) => boolean): Row {
 export function needsLines(n: NeedsYou, canResolve: (id: string) => boolean = () => false): Row[] {
   const deleg = (d: DelegationItem): Row => ({ key: d.id, tag: DELEG_TAG[d.needs!], title: `Delegated #${d.task} ${d.title}`, reason: `${d.repo} · ${d.line}`,
     side: "", open: d.needs === "stopped" ? undefined : () => openFolder(d.folder, d.session) });
-  return [...n.waiting.map(approval), ...n.delegations.map(deleg), ...n.items.map((p) => planRow(p, canResolve))];
+  return [...n.waiting.map((x) => approval(x)), ...n.delegations.map(deleg), ...n.items.map((p) => planRow(p, canResolve))];
 }
 
 /** Grey by default; bold red only when a rule says urgent (needs.py), so the few that are stand out. */
@@ -91,7 +94,7 @@ export function NeedsStrip({ n }: { n: NeedsYou }) {
   const vault = useFeatures((s) => s.features?.vault);
   const routines = useViews((s) => s.routines?.items);
   const canResolve = (id: string) => resolvable(routines?.find((x) => x.id === id));
-  const waiting = n.waiting.map(approval), items = n.items.map((p) => planRow(p, canResolve));
+  const waiting = n.waiting.map((x) => approval(x)), items = n.items.map((p) => planRow(p, canResolve));
   const count = waiting.length + n.delegations.length + items.length;
   if (!count) return null;
   const title = `${count} thing${count === 1 ? "" : "s"} need${count === 1 ? "s" : ""} you`;

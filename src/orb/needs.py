@@ -55,6 +55,7 @@ SENT = ("key", "kind", "id", "title", "reason", "source", "due", "priority", "ur
 QUEUE_MAX = 30  # queue items the model sees (the first in rule order); the rest follow in rule order
 UP_NEXT = 5
 ESCALATE_H = 48  # hours in Needs you (past due, for a task or reminder) after which a routine, or a pinned row, turns red
+WAITING_H = 24  # hours an Allow card may wait before its session's Needs you row turns red (ADR 0012); never auto-denied
 CLOCKED = ("setup", "routine", "vault")  # kinds whose age counts from when they entered Needs you (`since`), not from a due date
 
 RULES = (
@@ -193,6 +194,12 @@ def needs_you(routines: list[dict] | None, tasks: list[dict] | None, today: str,
                              f"priority {t.get('priority') or 'unset'}",
                     "stable": f"{t['title']}|{t['due']}|{t.get('priority')}", "pin": "client" if t.get("client") else "money" if t.get("money") else None, "repair": None})
     return out
+
+
+def waiting(since: float | None) -> dict:
+    """A session waiting for the owner's OK (an open Allow card): since when (its oldest card, wall time) and when its
+    Needs you row turns red, WAITING_H later. The card itself is never answered or denied by Orb."""
+    return {"waiting_since": since, "red_at": since + WAITING_H * 3600 if since else None}
 
 
 def money(labels: list[str] | None, pin_labels: list[str] | None) -> bool:

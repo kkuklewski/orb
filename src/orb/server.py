@@ -76,6 +76,12 @@ async def notice_audio(text: str) -> str | None:
         return None
 
 
+def card_since(s: FolderSession | None) -> float | None:
+    """When the session's oldest open Allow card opened (wall time), or None without one."""
+    opened = [ev["_created"] for _, ev in s.pending.values() if "_created" in ev] if s else []
+    return time.time() - (time.monotonic() - min(opened)) if opened else None
+
+
 class Hub:
     def __init__(self) -> None:
         self.conns: set[Conn] = set()
@@ -168,6 +174,7 @@ class Hub:
                         "status": live.status if live else ("done" if e.get("finished_at") else "idle"),
                         "live": bool(live and live.live),
                         "ask": next((ev["summary"] for _, ev in live.pending.values()), None) if live else None,
+                        **needs.waiting(card_since(live)),
                         "mcp_failed": live.info.get("mcp_failed", 0) if live else 0,
                         "opus": sum(1 for t in live.running_tasks() if t["coder"]) if live else 0})
         return out
@@ -361,7 +368,8 @@ class Hub:
     def away_lines(self, since: float) -> list[dict]:
         """The Away recap's lines from what Orb already keeps: the routines that ran ok (while the panel is on), the
         pages the vault archived (frontmatter only), then the sessions still Finished (unopened) and the delegations
-        that became Ready, each counted since `since`."""
+        that became Ready, each counted since `since`, then the sessions waiting for an OK now (a delegation's card is
+        its own Needs you row)."""
         st = self.routines.state
         ran = routines.away_lines(self.routines.items(), st["runs"], st["logs"], since) if settings.settings["routines"] else []
         finished = [x["finished_at"] for f in self.folder_list() for x in self.store.sessions(f["path"])
@@ -369,7 +377,8 @@ class Hub:
         ready = [r["ready_at"] for r in self.delegator.items.values() if r.get("ready_at")]
         vault = settings.settings.vault()
         expired = away.expired_line(home.expired_since(vault, since)) if vault and vault.is_dir() else []
-        return ran + expired + away.own_lines(finished, ready, since, self.store.auto_archived())
+        waiting = sum(1 for f in self.folder_list() for x in f["sessions"] if x["status"] == "approval" and not self.delegator.of_session(x.get("key", "")))
+        return ran + expired + away.own_lines(finished, ready, since, self.store.auto_archived()) + away.waiting_line(waiting)
 
     def away_event(self) -> dict:
         return self.away.event(lines=self.away_lines)
