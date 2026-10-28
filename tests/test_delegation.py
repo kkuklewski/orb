@@ -1031,3 +1031,118 @@ async def test_a_changed_git_config_stops_the_fetch(dev, remote, gh):
     git(rig.web, "config", "core.sshCommand", "touch pwned")
     await rig.turn({"d.txt": "delegated\n"})
     assert "not pushed: The git config changed" in rig.row()["line"] and on_remote(remote) == ["main"]
+
+
+# -- an open PR that turns conflicting, a taken branch name (#870) -------------------------------
+
+class FakeView:
+    def __init__(self) -> None:
+        self.calls: list[int] = []
+        self.state, self.mergeable = "OPEN", "UNKNOWN"
+
+    async def __call__(self, repo, number):
+        self.calls.append(number)
+        return self.state, self.mergeable
+
+
+@pytest.fixture
+def view(monkeypatch):
+    fake = FakeView()
+    monkeypatch.setattr(delegation, "pr_state", fake)
+    return fake
+
+
+async def poll(rig: Rig, r: dict, due: bool = True) -> None:
+    if due:
+        r["polled"] -= delegation.POLL
+    await rig.d.tick()
+    await rig.settle()
+
+
+async def test_an_open_pr_is_read_every_ten_minutes_and_conflicting_raises_the_collision(dev, remote, gh, view):
+    rig = Rig(dev, test="true")
+    r = await rig.allow()
+    await rig.turn({"d.txt": "delegated\n"})
+    await rig.d.outward(r["id"], True)
+    await poll(rig, r, due=False)
+    assert view.calls == []  # the first read waits a full ten minutes after the PR
+
+    await poll(rig, r)
+    assert view.calls == [12] and rig.row()["needs"] is None  # UNKNOWN: not yet
+    await poll(rig, r, due=False)
+    assert view.calls == [12]  # one call per PR per ten minutes
+
+    land(dev, remote, {"d.txt": "alice\n"}, "alice adds d")
+    view.mergeable = "CONFLICTING"
+    await poll(rig, r)
+    row = rig.row()
+    assert (row["needs"], row["update_from"], row["ask"]) == ("collision", "main", None)
+    assert row["line"] == "Conflict with main in d.txt. Landed first: d.txt by Alice Acme just now ('alice adds d')."
+    (seen,) = rig.d.items[r["id"]]["collisions"]
+    assert (seen["files"], seen["outcome"]) == (["d.txt"], "open")
+    await poll(rig, r)
+    assert view.calls == [12, 12]  # a collision waits for the owner: no more reads
+
+
+async def test_conflicting_without_a_real_conflict_here_and_a_closed_pr_change_nothing(dev, remote, gh, view):
+    rig = Rig(dev, test="true")
+    r = await rig.allow()
+    await rig.turn({"d.txt": "delegated\n"})
+    await rig.d.outward(r["id"], True)
+    view.mergeable = "CONFLICTING"  # GitHub says so, but the fresh merge-tree is clean
+    await poll(rig, r)
+    assert rig.row()["needs"] is None and "collisions" not in rig.d.items[r["id"]]
+
+    view.state = "MERGED"
+    await poll(rig, r)
+    await poll(rig, r)
+    assert view.calls == [12, 12] and rig.row()["needs"] is None  # merged or closed: never read again
+
+
+def take(dev: Path, bare: Path, branch: str) -> str:
+    """Someone else delegated the same task first: their branch of the same name is on the remote."""
+    other = dev / "taker"
+    git(dev, "clone", "-q", str(bare), str(other))
+    run = lambda *a: subprocess.run(["git", "-C", str(other), *a], check=True, capture_output=True, env={**os.environ, **ALICE})
+    run("checkout", "-q", "-b", branch)
+    (other / "e.txt").write_text("alice\n")
+    run("add", "-A")
+    run("commit", "-q", "-m", "alice's take")
+    run("push", "-q", "origin", branch)
+    return git(bare, "rev-parse", branch)
+
+
+async def test_a_branch_name_taken_on_the_remote_gives_the_card_with_discard_only(dev, remote, gh, view):
+    rig = Rig(dev, test="true")
+    r = await rig.allow()
+    theirs = take(dev, remote, r["branch"])
+    await rig.turn({"d.txt": "delegated\n"})
+    await rig.d.outward(r["id"], True)
+
+    row = rig.row()
+    assert (row["stage"], row["needs"], row["update_from"], row["ask"], row["pr"]) == ("ready", "collision", None, None, None)
+    assert row["line"] == (f"Branch {r['branch']} already exists on origin with someone else's commits; someone else "
+                           "may have delegated this task.")
+    assert gh.calls == [] and git(remote, "rev-parse", r["branch"]) == theirs
+    assert rig.d.items[r["id"]]["collisions"][-1]["outcome"] == "taken"
+    with pytest.raises(DelegationError, match="already exists on origin"):
+        await rig.d.apply(r["id"], rig.store.apply_mode)
+    with pytest.raises(DelegationError, match="Only a Ready delegation that collided"):
+        await rig.d.update(r["id"])
+    await poll(rig, r, due=False)
+    assert view.calls == []
+
+    await rig.d.discard(r["id"])  # local: their branch stays as it was
+    assert git(remote, "rev-parse", r["branch"]) == theirs
+
+
+async def test_our_own_pushed_branch_rewritten_is_a_push_failure_not_a_taken_name(dev, remote, gh, view):
+    rig = Rig(dev, test="true")
+    r = await rig.allow()
+    await rig.turn({"d.txt": "delegated\n"})
+    await rig.d.outward(r["id"], True)
+    git(r["worktree"], "commit", "-q", "--amend", "-m", "work, reworded")
+    await rig.turn()
+    await rig.d.outward(r["id"], True)
+    row = rig.row()
+    assert row["needs"] is None and "not pushed: Push of" in row["line"] and "already exists" not in row["line"]
