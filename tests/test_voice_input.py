@@ -13,6 +13,7 @@ class FakeSession:
         self.interrupted = 0
         self.pending = {}
         self.undo_card = None
+        self.card_closed = 0.0
 
     async def state(self, value):
         pass
@@ -167,6 +168,33 @@ async def test_long_or_ambiguous_speech_is_held_and_never_denies(monkeypatch):
     assert (await asyncio.wait_for(decision, 1)).behavior == "allow"
     await asyncio.sleep(0.02)
     assert calls["sent"] == ["Wait, what does that grep actually look for in the file?"]
+
+
+async def test_held_yes_is_not_sent_once_the_card_is_clicked(monkeypatch):
+    # Two cards: "Allow." can't pick one, so it's held; after the clicks it must not become a request.
+    s, decision, calls, events = await card_session(monkeypatch, ["Yeah, you're allowed.", "and check the logs"])
+    second = asyncio.create_task(s._can_use_tool("Write", {"file_path": "/x/a"}, Ctx()))
+    await asyncio.sleep(0.01)
+    await s.voice.utterance(b"1")
+    await asyncio.sleep(0.05)
+    await s.voice.utterance(b"2")
+    await asyncio.sleep(0.05)
+    for pid in list(s.pending):
+        await s.answer_permission(pid, True)
+    await asyncio.gather(decision, second)
+    await asyncio.sleep(0.02)
+    assert calls["sent"] == ["and check the logs"]
+
+
+async def test_late_yes_after_the_card_closed_does_not_interrupt(monkeypatch):
+    s, decision, calls, events = await card_session(monkeypatch, ["Allow.", "Yes, allow."])
+    await s.voice.utterance(b"1")
+    assert (await asyncio.wait_for(decision, 1)).behavior == "allow"
+    s.open_turns = 1  # the turn goes on
+    await s.voice.utterance(b"2")  # said again a moment later
+    await asyncio.sleep(0.05)
+    assert calls == {"sent": [], "interrupted": 0}
+    assert any(e["type"] == "notice" and "already answered" in e["text"] for e in events)
 
 
 def test_spoken_prompt_uses_the_tool_description():

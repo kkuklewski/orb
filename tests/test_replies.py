@@ -6,6 +6,7 @@ from orb.replies import classify_reply
 @pytest.mark.parametrize("text", [
     "Yeah, you can. Approve.", "Yeah, sure.", "Yes", "yes please", "Go ahead.", "Okay, do it.", "Sure, that's fine.",
     "Tak.", "Dawaj.", "Zatwierdź.", "Tak, możesz.", "Jasne, dawaj",
+    "Yeah, you're allowed.", "Yes, it's allowed.", "Allow.", "Okay, let's go.", "Zgoda.", "Tak, pozwalam.",
 ])
 def test_short_yes_allows(text):
     assert classify_reply(text) == "allow"
