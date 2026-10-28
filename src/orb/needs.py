@@ -104,6 +104,11 @@ def setup_problems(auth: dict | None, tasks_error: str | None, stt: str, tts: st
         out.append({"id": "speech", "title": "Whisper isn't answering", "reason": "Speech recognition can't hear you on this Mac."})
     if tts == "kokoro" and not health.get("kokoro"):
         out.append({"id": "voice", "title": "Kokoro isn't answering", "reason": "Her voice is silent until it is back."})
+    for bad in config.set_aside:  # a precious state file Orb set aside (docs/adr/0014), until its copy is gone
+        if bad["precious"] and bad["copy"] and os.path.exists(bad["copy"]):
+            out.append({"id": f"state-{bad['name'].removesuffix('.json')}", "title": f"Orb set aside a damaged {bad['name']}",
+                        "reason": f"Kept as {os.path.basename(bad['copy'])} in Orb's state folder; Orb started it fresh. "
+                                  "Look at the copy, then delete it."})
     return out
 
 

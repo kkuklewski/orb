@@ -8,11 +8,6 @@ import pytest
 from orb import config
 
 
-@pytest.fixture(autouse=True)
-def fresh(monkeypatch):
-    monkeypatch.setattr(config, "set_aside", [])
-
-
 def test_missing_is_none_and_quiet(tmp_path):
     assert config.read_state(tmp_path / "sessions.json") is None
     assert config.set_aside == []
@@ -79,3 +74,55 @@ def test_keeps_newest_three(tmp_path):
     copies = sorted(tmp_path.glob("settings.json.bad-*"))
     assert len(copies) == config.BAD_KEEP
     assert copies[-1].name == config.set_aside[-1]["copy"].rsplit("/", 1)[-1]
+
+
+# Precious stores (ticket 843): set aside, start fresh, Needs you setup row while the copy is there.
+
+def _bad(tmp_path, name):
+    p = tmp_path / name
+    p.write_text("{bad")
+    return p
+
+
+def test_settings_set_aside_starts_from_defaults(tmp_path):
+    from orb import settings
+    s = settings.Settings(_bad(tmp_path, "settings.json"))
+    assert s.data["profile"] == settings.DEFAULTS["profile"]
+    assert config.set_aside[0]["name"] == "settings.json"
+
+
+def test_sessions_set_aside(tmp_path):
+    from orb import sessions
+    store = sessions.SessionStore(_bad(tmp_path, "sessions.json"))
+    assert store.data == {}
+    assert list(tmp_path.glob("sessions.json.bad-*"))
+
+
+def test_delegations_set_aside(tmp_path):
+    from orb import delegation
+    async def nothing(*a):
+        return None
+    d = delegation.Delegator(_bad(tmp_path, "delegations.json"), store=None, session=lambda *a: None, push=nothing, done=nothing)
+    assert d.items == {}
+    assert list(tmp_path.glob("delegations.json.bad-*"))
+
+
+def test_worktrees_set_aside(tmp_path, monkeypatch):
+    from orb import worktree
+    p = _bad(tmp_path, "worktrees.json")
+    monkeypatch.setattr(worktree, "_registry_path", lambda: p)
+    monkeypatch.setattr(worktree, "_cache", None)
+    assert worktree._load() == {}
+    assert list(tmp_path.glob("worktrees.json.bad-*"))
+
+
+def test_needs_you_row_while_the_copy_is_there(tmp_path):
+    from orb import needs, sessions
+    sessions.SessionStore(_bad(tmp_path, "sessions.json"))
+    config.read_state(_bad(tmp_path, "needs.json"))  # not precious: no row
+    rows = needs.setup_problems({}, None, "browser", "browser", {}, False)
+    assert [r["id"] for r in rows] == ["state-sessions"]
+    assert rows[0]["title"] == "Orb set aside a damaged sessions.json" and "sessions.json.bad-" in rows[0]["reason"]
+    for copy in tmp_path.glob("sessions.json.bad-*"):
+        copy.unlink()
+    assert needs.setup_problems({}, None, "browser", "browser", {}, False) == []
