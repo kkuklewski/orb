@@ -1,3 +1,4 @@
+import { Markdown } from "./chat/Markdown";
 import { useEffect } from "react";
 import type { BrainNote } from "../protocol.gen";
 import { KINDS, LANES, SUGGESTED, accept, applyPicked, brainRows, headerLine, openNote, pickAll, restore, scoreDot, setFilter, setVerdict, suggestable,
@@ -148,7 +149,7 @@ export function NotePage() {
         {word !== "reject" && <button type="button" className="chip-btn" onClick={() => setVerdict("reject")}>Reject</button>}
         {note.verdict && <button type="button" className="chip-btn" onClick={() => setVerdict("restore")}>Restore</button>}
       </div>
-      <pre className="note-body">{note.body}</pre>
+      <Markdown className="md note-body" text={note.body} />
     </div>
   );
 }
