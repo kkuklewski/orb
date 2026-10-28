@@ -178,6 +178,20 @@ _Avoid_: Old session, dead session
 A delegation whose tested PR is up ("Ready: PR #N, tests passed"); its actions are Review and Apply.
 _Avoid_: Result, done, finished
 
+**Other side**:
+Whatever reached the remote target branch first: a hand edit or another Orb's delegation, treated the same.
+_Avoid_: Teammate, upstream, them
+
+**Landed first**:
+The Other side's commits on the remote target branch since a delegation's base that touch the same files; a
+collision card names, per file, the newest one's git author ("you" for the repo's own user.email), when and subject.
+_Avoid_: Upstream changes, their diff
+
+**Update from main**:
+Merging the remote target branch into a delegation's branch after a collision (never a rebase, never a force push),
+so its PR updates; "main" is whatever branch the delegation lands in.
+_Avoid_: Rebase, sync, send back
+
 **Run**:
 One run of a routine; the judge flags it worth reading or not. /r/<routine> shows its last run.
 _Avoid_: Result, report, output

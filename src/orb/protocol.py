@@ -922,7 +922,7 @@ class DelegationItem(_Msg):
     # Why it can't finish without you (Home's Needs you): a card the grant doesn't cover, the check failed after
     # its last turn, no event for 20 min while Working, the server restarted while it ran, or Ready with push and its
     # PR waiting for your OK (#771). None while it can.
-    needs: Literal["card", "failed", "stuck", "stopped", "outward"] | None = None
+    needs: Literal["card", "failed", "stuck", "stopped", "outward", "collision"] | None = None
     ask: str | None = None  # the card it waits on, in its words; or the outward question
     pr: int | None = None  # the PR Orb opened for its branch
     pr_url: str | None = None

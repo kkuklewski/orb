@@ -979,4 +979,18 @@ describe("delegation", () => {
     fireEvent.click(within(ready).getByRole("button", { name: "Apply" }));
     expect(within(ready).getByText("Apply merges PR #12 and marks task #9 done.")).toBeTruthy();
   });
+  it("a collision waits in Needs you with Review and Discard only: no Apply, no Open session", () => {
+    render(<><Sidebar /><Home /></>);
+    act(() => dispatch({ type: "delegations", items: [
+      row({ stage: "ready", needs: "collision", line: "Conflict with main in a.txt. Landed first: a.txt by Alice Acme 2 h ago ('fix rounding')." }),
+    ] }));
+    const item = within(screen.getByRole("article", { name: "2 things need you" })).getByRole("group", { name: "Delegation of task #8" });  // the waiting session + the collision
+    expect(item.textContent).toContain("CONFLICT");
+    expect(item.textContent).toContain("Landed first: a.txt by Alice Acme");
+    const r = strip().querySelector(".deleg-row") as HTMLElement;
+    expect(within(r).getByRole("button", { name: "Review" })).toBeTruthy();
+    expect(within(r).getByRole("button", { name: "Discard" })).toBeTruthy();
+    expect(within(r).queryByRole("button", { name: "Apply" })).toBeNull();
+    expect(within(r).queryByRole("button", { name: "Open session" })).toBeNull();
+  });
 });

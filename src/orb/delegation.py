@@ -16,6 +16,12 @@ and Deny never contact the remote. A branch that starts from Orb's snapshot of u
 Allow: "Opening PR", then "Ready: PR #M, tests passed"; a failure stays Ready with the branch and says why. Apply and
 Undo stay local (the owner's choice): Apply merges the branch into the checkout and leaves the PR open as history.
 
+Collisions (#863): when the tests passed, before any push, Orb fetches the remote target branch and merges the
+checked commit against its tip in memory. Clean but behind stays Ready ("main moved 3 commits, merges cleanly").
+A conflict pushes nothing and raises Needs you "collision": the files (CAP, then "and N more") and who landed first
+in each (git author, "you" when it is the repo's user.email, when, subject). Apply is refused; Review and Discard
+stay (Update from <into> is #869); Discard leaves a pushed branch and its PR on the remote. Every collision is kept in the record's `collisions`.
+
 Needs you (#772): a delegation that can't finish on its own carries `needs`, and Home lists it with the task and the
 repo. "card": its session waits on a card the grant doesn't cover (the card's words come along). "failed": Orb's
 check after the last turn failed (Open session, Retry, Discard; Retry sends what failed as the next request).
@@ -79,6 +85,20 @@ def brief(task: dict, branch: str, test: str) -> str:
 
 def ordinal(n: int) -> str:
     return f"{n}{'th' if 10 <= n % 100 <= 20 else {1: 'st', 2: 'nd', 3: 'rd'}.get(n % 10, 'th')}"
+
+
+def ago(t: float, now: float | None = None) -> str:
+    s = max(0, int((now or time.time()) - t))
+    return "just now" if s < 60 else f"{s // 60} min ago" if s < 3600 else f"{s // 3600} h ago" if s < 86400 else f"{s // 86400} d ago"
+
+
+def collision_text(c: dict, into: str) -> str:
+    """The collision card: "Conflict with main in f.py. Landed first: f.py by Alice Acme 2 h ago ('fix rounding')."."""
+    files = c["files"]
+    named = ", ".join(files[:worktree.CAP]) + (f" and {len(files) - worktree.CAP} more" if len(files) > worktree.CAP else "")
+    first = ", ".join(f"{x['file']} by {'you' if x['mine'] else x['author']} {ago(x['when'])} ('{x['subject'][:60]}')"
+                      for x in c["landed"])
+    return f"Conflict with {into} in {named}." + (f" Landed first: {first}." if first else "")
 
 
 def covers(branch: str, commands: dict[str, str], outward: bool = False) -> list[str]:
@@ -207,6 +227,8 @@ class Delegator:
         for an OK); None while it can."""
         if r["stage"] in ("failed", "stopped"):
             return r["stage"]
+        if r["stage"] == "ready" and r.get("collision"):
+            return "collision"
         if r["stage"] == "ready" and r.get("outward") == "ask":
             return "outward"
         if r["stage"] == "working" and self.waiting(r["session"]):
@@ -230,11 +252,15 @@ class Delegator:
             return "Running tests"
         if s == "pushing":
             return f"Pushing to PR #{r['pr']}" if r.get("pr") else "Opening PR"
+        if s == "ready" and r.get("collision"):
+            return collision_text(r["collision"], r.get("into") or "main")
         if s == "ready":
             head = f"Ready: PR #{r['pr']}, " if r.get("pr") else f"Ready: branch {b}, "
             tail = {"failed": f" · not pushed: {r.get('outward_problem')}",
                     "snapshot": " · not pushed: it starts from your uncommitted changes"}.get(r.get("outward") or "", "")
             said = {"passed": "tests passed", "skipped": "tests not run (no sandbox here)"}.get(r.get("tests"), "no tests declared")
+            if n := r.get("behind"):
+                tail = f" · {r.get('into')} moved {n} commit{'s' * (n != 1)}, merges cleanly" + tail
             return head + said + tail
         if s == "failed":
             return r.get("problem") or "Tests failed"
@@ -398,7 +424,7 @@ class Delegator:
             self.skip.discard(r["id"])
         elif ev["type"] == "result" and not ev.get("replay") and r["stage"] in ("working", "ready", "failed", "stopped"):
             r["stage"] = "testing"
-            for k in ("conflict", "outward", "outward_problem"):
+            for k in ("conflict", "outward", "outward_problem", "collision", "behind"):
                 r.pop(k, None)
             await self.changed()
             self._spawn(self.check(r))
@@ -488,10 +514,17 @@ class Delegator:
             where = await asyncio.to_thread(worktree.remote_of, wt.repo)
             if where is None:
                 return
+            r.update(remote=where[0], into=where[1])
+            seen = await asyncio.to_thread(worktree.collide, wt, *where, r.get("checked") or "")
+            r["behind"] = seen["behind"]
+            if seen["files"]:  # the other side landed first: nothing goes out, the owner decides
+                r["collision"] = {"at": time.time(), "files": seen["files"], "landed": seen["landed"]}
+                r.setdefault("collisions", []).append({**r["collision"], "outcome": "open"})
+                return
             if await asyncio.to_thread(worktree.from_snapshot, wt):
                 r["outward"] = "snapshot"
                 return
-            r.update(remote=where[0], into=where[1], unpushed=await asyncio.to_thread(worktree.unpushed, wt, *where))
+            r["unpushed"] = await asyncio.to_thread(worktree.unpushed, wt, *where)
         except worktree.WorktreeError as e:  # e.g. the checkout left its branch: still Ready, not pushed
             r.update(outward="failed", outward_problem=str(e)[:LINE_MAX])
             return
@@ -547,6 +580,8 @@ class Delegator:
         r = self._get(rid)
         if r["stage"] != "ready":
             raise DelegationError("Only a Ready delegation can be applied.")
+        if r.get("collision"):
+            raise DelegationError(f"{r.get('into')} changed the same files first: update from it or discard.")
         await self._stop(r)  # nothing writes to the branch while it lands
         wt = self._wt(r)
         try:
