@@ -127,6 +127,19 @@ def test_notes_folder_outside_the_roots(tmp_path):
     assert decision(out) == "ask" and "Other repo: Notes" in out["hookSpecificOutput"]["permissionDecisionReason"]
 
 
+def test_a_new_notes_folder_can_be_searched_until_it_holds_secrets(tmp_path):
+    code, notes = tmp_path / "code", tmp_path / "Notes"
+    (code / "app/.git").mkdir(parents=True)
+    notes.mkdir()
+    f = Fence(str(notes), roots=[code], clients=(), vault=notes)
+    assert f.rule("Glob", {"pattern": "**/*.md"}) == {}
+    assert f.rule("Grep", {"pattern": "x", "path": str(notes)}) == {}
+    assert decision(f.rule("Write", {"file_path": str(notes / "secrets" / "bank.md"), "content": "x"})) == "deny"
+    (notes / "Secrets").mkdir()  # any letter case, also on a case-sensitive disk (CI)
+    assert decision(f.rule("Glob", {"pattern": "**/*.md"})) == "deny"
+    assert decision(f.rule("Bash", {"command": f"grep -r x {notes}"})) == "deny"
+
+
 def test_ssh_and_more_credential_files_are_denied(dev):
     f = fence(dev, "mine")
     home = Path.home()
