@@ -105,6 +105,10 @@ export function startPlan(p: PlanItem) {
 /** Later: the item leaves the queue until tomorrow, on every page (the server keeps it; nothing is written to Vikunja). */
 export const laterPlan = (p: PlanItem) => send({ type: "plan_later", key: p.key });
 
+/** Leave it on a pull request quiet for two weeks: hidden until the PR changes (the server keeps its updatedAt); Orb
+ *  never closes, comments on or touches the PR. */
+export const leavePlan = (p: PlanItem) => send({ type: "plan_leave", key: p.key });
+
 
 export const askAboutNote = (file: string) => `Read my note "${file}" and tell me in a few sentences what it says and what, if anything, I still need to do about it.`;
 

@@ -1268,6 +1268,7 @@
           "pin_folder": "#/$defs/PinFolderMsg",
           "plan_done": "#/$defs/PlanDoneMsg",
           "plan_later": "#/$defs/PlanLaterMsg",
+          "plan_leave": "#/$defs/PlanLeaveMsg",
           "plan_start": "#/$defs/PlanStartMsg",
           "playback": "#/$defs/PlaybackMsg",
           "read_all": "#/$defs/ReadAllMsg",
@@ -1385,6 +1386,9 @@
         },
         {
           "$ref": "#/$defs/PlanLaterMsg"
+        },
+        {
+          "$ref": "#/$defs/PlanLeaveMsg"
         },
         {
           "$ref": "#/$defs/PlanDoneMsg"
@@ -5766,7 +5770,8 @@
               "done",
               "later",
               "delegate",
-              "make_task"
+              "make_task",
+              "leave"
             ],
             "type": "string"
           },
@@ -5931,6 +5936,25 @@
         "key"
       ],
       "title": "PlanLaterMsg",
+      "type": "object"
+    },
+    "PlanLeaveMsg": {
+      "additionalProperties": false,
+      "description": "Leave it on a pull request idle 14+ days (\"pr:<repo>#<n>\"): hidden until the PR changes (its updatedAt), never\nwritten to GitHub (ticket 850).",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "type": {
+          "const": "plan_leave",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "key"
+      ],
+      "title": "PlanLeaveMsg",
       "type": "object"
     },
     "PlanStartMsg": {

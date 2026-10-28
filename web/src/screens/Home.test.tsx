@@ -461,6 +461,17 @@ describe("home screen", () => {
     expect(useBrain.getState().showNoTopic).toBe(true);
   });
 
+  it("Leave it shows only on a pull request the server marked quiet, and sends just the key (ticket 850)", () => {
+    const quiet = q("pr", "pr:acme/web#3", "acme/web#3", "Old refactor", "Open pull request, last activity 20 days ago.", { source: "web", actions: ["start", "later", "leave"] });
+    render(<Home />);
+    act(() => dispatch(plan([], { next: qPr })));
+    expect(within(screen.getByRole("article", { name: "Next action" })).queryByRole("button", { name: "Leave it" })).toBeNull();
+    act(() => dispatch(plan([], { next: quiet })));
+    sent.length = 0;
+    fireEvent.click(within(screen.getByRole("article", { name: "Next action" })).getByRole("button", { name: "Leave it" }));
+    expect(sent).toEqual([{ type: "plan_leave", key: "pr:acme/web#3" }]);
+  });
+
   it("the old Finished item opens Sessions showing only Finished (ticket 849)", () => {
     const qOld = q("results_old", "results:old", "old", "2 finished sessions not opened", "Read them or let them go; after a week they archive themselves.");
     render(<Home />);
