@@ -10,9 +10,11 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 import re
 import secrets
+import time
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 
@@ -21,6 +23,9 @@ from . import config
 CHUNK = 40  # tasks per call
 MODEL = config.env("TRIAGE_MODEL", "haiku")
 PATH = config.STATE_DIR / "priority-suggestions.json"
+KEEP_DAYS = 30  # a suggestion older than this goes on load
+
+log = logging.getLogger(__name__)
 
 RULES = (
     "You suggest how urgent each open task is for its owner, a freelance developer who runs a few client projects "
@@ -66,8 +71,28 @@ def parse(reply: str, ids: list[int]) -> dict[int, dict]:
     return out
 
 
-def load(path: Path = PATH) -> dict[str, dict]:
-    return config.read_state(path) or {}
+def open_ids(src: dict | None) -> set[str] | None:
+    """The ids of a tracker read that holds every open task (no error, nothing cut off), else None: only a whole list
+    can say a task is gone or done."""
+    if not src or src.get("error") or src.get("total") != len(src.get("tasks") or []):
+        return None
+    return {str(t["id"]) for t in src["tasks"]}
+
+
+def load(path: Path = PATH, open_: set[str] | None = None, now: float | None = None) -> dict[str, dict]:
+    """The cache, pruned (ticket 851): suggestions rated more than KEEP_DAYS ago, and with `open_` (a whole open list)
+    the ones whose task is gone or done, are dropped. One from before `at` existed is stamped now. Written back only
+    when something changed; only the count is logged."""
+    data = config.read_state(path) or {}
+    now = now or time.time()
+    cut = now - KEEP_DAYS * 86400
+    kept = {k: v if isinstance(v.get("at"), (int, float)) else {**v, "at": now} for k, v in data.items()
+            if isinstance(v, dict) and (open_ is None or k in open_) and not (isinstance(v.get("at"), (int, float)) and v["at"] < cut)}
+    if kept != data:
+        if gone := len(data) - len(kept):
+            log.info("priority suggestions: %d pruned", gone)
+        save(kept, path)
+    return kept
 
 
 def save(data: dict[str, dict], path: Path = PATH) -> None:
@@ -100,7 +125,7 @@ async def suggest(tasks: list[dict], today: str, ask: Callable[[str], Awaitable[
             continue
         for t in chunk:
             if t["id"] in got:
-                cache[str(t["id"])] = {**got[t["id"]], "fp": fingerprint(t)}
+                cache[str(t["id"])] = {**got[t["id"]], "fp": fingerprint(t), "at": time.time()}
                 done += 1
     keep = {str(t["id"]) for t in tasks}
     save({k: v for k, v in cache.items() if k in keep}, path)
