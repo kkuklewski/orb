@@ -40,6 +40,7 @@ class SessionItem(_Msg):
     label: str | None = None
     created: float | None = None
     last_used: float | None = None
+    finished_at: float | None = None  # when its last turn finished, unread (sessions.json; Up next's 3-day rule, ticket 849)
     empty: bool
     archived: bool = False
     status: str
@@ -516,7 +517,7 @@ class PlanItem(_Msg):
     unchanged (plain text, from untrusted data)."""
     key: str  # unique on the page: "routine:<id>", "vikunja:<id>", "setup:<section>", "reminder:<due>:<text>",
     # "vault:conflict" | "vault:diverged" | "vault:unchecked"
-    kind: Literal["approval", "setup", "vault", "routine", "reminder", "task", "note_task", "result", "pr", "notes_batch", "notopic"]
+    kind: Literal["approval", "setup", "vault", "routine", "reminder", "task", "note_task", "result", "pr", "notes_batch", "notopic", "results_old"]
     id: str  # what the page opens: routine id, tracker task id, the Settings section that fixes a broken setup
     title: str
     reason: str

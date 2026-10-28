@@ -5,7 +5,7 @@ import type { AwayRecap, DelegationItem, FolderItem, HomeEvent, HomeForgetEvent,
 import { on } from "../events";
 import { send } from "../ws";
 import { trackerName, useFeatures } from "./features";
-import { activityRows, useViews, type SessionRow } from "./views";
+import { activityRows, openSessions, useViews, type SessionRow } from "./views";
 import { askIn, openFolder } from "./session";
 import { openItem, startItem } from "./items";
 import { useDelegations } from "./delegation";
@@ -86,7 +86,7 @@ export function rerank() {
 /** Start a queue item, each kind its own way: a Vikunja task opens a session from its brief (the server picks the
  *  repo, else the Home chat), a note task goes to the Home chat, a result opens its session (which clears it), a pull
  *  request its page, the notes batch Brain's notes waiting for a verdict (grouped there by suggestion, ADR 0006), the
- *  No-topic captures Brain's No topic view. A started task or PR leaves the queue for today. */
+ *  No-topic captures Brain's No topic view, the old Finished ones Sessions showing only Finished. A started task or PR leaves the queue for today. */
 export function startPlan(p: PlanItem) {
   const vault = useFeatures.getState().features?.vault;
   if (p.kind === "task") startItem("vikunja", p.id);
@@ -94,6 +94,7 @@ export function startPlan(p: PlanItem) {
   else if (p.kind === "pr") openItem("prs", p.id);
   else if (p.kind === "notes_batch") { setFilter({ waiting: true }); openBrain(); }
   else if (p.kind === "notopic") openNoTopic();
+  else if (p.kind === "results_old") openSessions(false, true);
   else if (p.kind === "result") {
     const f = useFeatures.getState().folders.find((x) => x.sessions?.some((s) => s.key === p.id));
     if (f) openFolder(f.path, p.id);

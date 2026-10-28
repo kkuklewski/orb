@@ -277,6 +277,20 @@ describe("sessions view", () => {
     expect(useViews.getState().running).toBe(false);
     expect(screen.getByRole("button", { name: /notes/ })).toBeTruthy();
   });
+
+  it("the Finished filter shows only the Finished sessions, and clears to all (ticket 849)", () => {
+    useFeatures.setState({ folders: [
+      folder("web", [session("w1", "approval", { label: "fix login", last_used: 20 }), session("w2", "done", { label: "ship invoices", last_used: 10 })]),
+      folder("api", [session("a1", "working", { label: "add tests", last_used: 30 }), session("a2", "done", { label: "old", last_used: 5 })]),
+    ] });
+    useViews.setState({ view: "sessions", running: false, finished: true });
+    render(<Sessions />);
+    expect(screen.getByText("finished, not opened")).toBeTruthy();
+    expect(screen.getAllByRole("button", { name: /fix login|add tests|ship invoices|old/ }).map((b) => b.querySelector(".act-label")?.textContent)).toEqual(["web · ship invoices", "api · old"]);
+    fireEvent.click(screen.getByRole("button", { name: "Show all sessions" }));
+    expect(useViews.getState().finished).toBe(false);
+    expect(screen.getByRole("button", { name: /fix login/ })).toBeTruthy();
+  });
 });
 
 describe("open_screen", () => {
