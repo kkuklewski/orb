@@ -12,7 +12,7 @@ export type Toast = { text: string; level: "info" | "error" };
 export interface SetupState {
   open: boolean;
   step: number; // 0 welcome, 1 sign in, 2 folders, 3 brain, 4 voice, 5 control
-  rule: number; // which of Control's four rules is showing (0-3)
+  part: number; // which screen of the step is showing (see PARTS)
   status: SetupStatusEvent | null;
   dir: BrowseEvent | null;
   browsing: boolean;
@@ -23,11 +23,13 @@ export interface SetupState {
 }
 
 export const initialSetup: SetupState = {
-  open: false, step: 0, rule: 0, status: null, dir: null, browsing: false, picking: false, pickFor: "roots", sample: null, toast: null,
+  open: false, step: 0, part: 0, status: null, dir: null, browsing: false, picking: false, pickFor: "roots", sample: null, toast: null,
 };
 
 export const LAST_STEP = 5;
-export const LAST_RULE = 3;
+/** Screens per step: Welcome (hello, this Mac), Voice (hearing you, her voice), Control's four rules. */
+export const PARTS = [2, 1, 1, 1, 2, 4];
+export const lastPart = (step: number) => (PARTS[step] ?? 1) - 1;
 
 export function signedIn(s: SetupStatusEvent | null): boolean {
   return !!(s?.auth.loggedIn && s.auth.subscriptionLogin);
@@ -45,9 +47,9 @@ export function canContinue(step: number, s: SetupStatusEvent | null): boolean {
   return true;
 }
 
-/** Can the user move on from what's showing? Control's first three rules always can. */
-export function canAdvance(step: number, rule: number, s: SetupStatusEvent | null): boolean {
-  return (step === LAST_STEP && rule < LAST_RULE) || canContinue(step, s);
+/** Can the user move on from what's showing? A step's earlier screens always can. */
+export function canAdvance(step: number, part: number, s: SetupStatusEvent | null): boolean {
+  return part < lastPart(step) || canContinue(step, s);
 }
 
 /** A step counts as done on the rail when it's behind the current one, or its requirement is met. */
@@ -98,5 +100,5 @@ export function wireSetup(): () => void {
 }
 
 export function openSetup(step = 0) {
-  useSetup.setState({ open: true, step, rule: 0, sample: null, toast: null });
+  useSetup.setState({ open: true, step, part: 0, sample: null, toast: null });
 }

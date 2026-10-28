@@ -1,13 +1,15 @@
-// The five setup screens. Copy and behaviour carried over from the old page (Onb).
-import { useEffect, useState, type ReactNode } from "react";
+// The setup screens, written for people who don't code: one ask per screen, each with a picture (Scenes.tsx).
+import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { send } from "../../ws";
 import { useFeatures } from "../../stores/features";
-import { LAST_RULE, canAdvance, hasRepos, signedIn, useSetup } from "../../stores/setup";
+import { PARTS, canAdvance, hasRepos, lastPart, signedIn, useSetup } from "../../stores/setup";
 import { BROWSER_STT, BROWSER_TTS, speakInBrowser, unlockAudio } from "../../audio/sample";
 import { back, next } from "./Setup";
 import { FolderBrowser } from "./FolderBrowser";
 import { VoiceList } from "./VoiceList";
-import { ApprovalScene, LocalScene, PlanScene, ScopeScene } from "./ControlScenes";
+import {
+  ApprovalScene, FoldersScene, HearScene, LocalScene, NotesScene, PlanScene, ScopeScene, SignInScene, SpeakScene, TalkScene,
+} from "./Scenes";
 
 function Head({ kicker, title, text }: { kicker: string; title: string; text?: string }) {
   return (
@@ -19,9 +21,36 @@ function Head({ kicker, title, text }: { kicker: string; title: string; text?: s
   );
 }
 
+/** "STEP 04 · 1 OF 2" on a step with several screens. */
+function kicker(step: number, part: number, noun = "") {
+  const n = PARTS[step] ?? 1;
+  return `STEP ${String(step).padStart(2, "0")}` + (n > 1 ? ` · ${noun}${part + 1} OF ${n}` : "");
+}
+
+/** The tabs over a step's screens: where you are, what's seen, a tap to jump. */
+function Parts({ names, label }: { names: string[]; label: string }) {
+  const part = useSetup((s) => s.part);
+  return (
+    <div className="onb-rules" role="tablist" aria-label={label} style={{ "--n": names.length } as CSSProperties}>
+      {names.map((name, i) => (
+        <button key={name} type="button" role="tab" aria-selected={i === part}
+          className={"onb-rules-tab" + (i === part ? " on" : "") + (i < part ? " seen" : "")}
+          onClick={() => useSetup.setState({ part: i })}>
+          <span className="mono">{String(i + 1).padStart(2, "0")}</span>{name}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** The picture: decorative, the text says it all. `small` on screens that also hold controls. */
+function Scene({ children, small }: { children: ReactNode; small?: boolean }) {
+  return <div className={"onb-scene" + (small ? " small" : "")} aria-hidden="true">{children}</div>;
+}
+
 function Foot({ label, hint }: { label: string; hint?: string }) {
-  const { step, rule, status } = useSetup();
-  const ok = canAdvance(step, rule, status);
+  const { step, part, status } = useSetup();
+  const ok = canAdvance(step, part, status);
   return (
     <div className="onb-foot">
       {step > 0 && <button type="button" className="onb-btn ghost" onClick={back}>Back</button>}
@@ -50,26 +79,49 @@ function CopyButton({ text }: { text: string }) {
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
-const PROFILE_TEXT: Record<string, string> = {
-  work: "Work: no claude.ai connectors, speech stays on this Mac, each repo stays in its own session, the page answers on this Mac only.",
-  personal: "Personal: Brain and your other connectors when you turn them on, browser speech, a card before a session reaches another repo, Tailscale serve.",
-};
+const MACS: { id: string; name: string; points: string[]; icon: ReactNode }[] = [
+  { id: "work", name: "Work Mac", icon: <path d="M8 16h32v22H8zM18 16v-5h12v5M8 25h32" />, points: [
+    "Your voice is turned into text on this Mac only",
+    "No claude.ai connectors",
+    "Each project kept fully apart",
+    "Orb's page opens on this Mac only",
+  ] },
+  { id: "personal", name: "Personal Mac", icon: <path d="M8 22 24 9l16 13M12 19v19h24V19M20 38V27h8v11" />, points: [
+    "Your Brain and other claude.ai connectors, when you turn them on",
+    "Browser speech (Chrome sends your voice to Google)",
+    "Asks before a conversation looks at another project",
+    "Open Orb from your own devices (Tailscale)",
+  ] },
+];
 
 export function Welcome() {
+  const part = useSetup((s) => s.part);
   const profile = (useSetup((s) => s.status)?.values as { profile?: string } | undefined)?.profile ?? "work";
-  return (
+  if (part === 0) return (
     <>
       <Head kicker="ORB · POWERED BY CLAUDE" title="Talk to your code."
-        text="Orb lets you talk to Claude about the repos on this Mac: ask, plan and change code by voice, and approve every change. Setup takes about a minute." />
-      <ul className="onb-points">
-        <li>Runs on your own Claude Pro or Max plan</li>
-        <li>Only the folders you choose</li>
-        <li>Every change asks you first</li>
-      </ul>
-      <Seg label="THIS MAC" value={profile} onPick={(v) => send({ type: "set_settings", values: { profile: v } })}
-        options={[["work", "Work machine", true], ["personal", "Personal", true]]} />
-      <p className="onb-text small">{PROFILE_TEXT[profile]} You can change it later in Settings.</p>
+        text="Orb lets you talk to Claude about the projects on this Mac. Ask questions, plan changes and make them, out loud or by typing. Nothing changes without your OK. Setup takes about a minute." />
+      <div className="onb-rule"><Scene><TalkScene /></Scene></div>
       <Foot label="Get started" />
+    </>
+  );
+  return (
+    <>
+      <Head kicker="WELCOME · 2 OF 2" title="Is this a work Mac?"
+        text="This decides how careful Orb is with your code and your voice. You can change it later in Settings." />
+      <div className="onb-macs onb-rule" role="radiogroup" aria-label="This Mac">
+        {MACS.map((m) => (
+          <button key={m.id} type="button" role="radio" aria-checked={m.id === profile} className={"onb-mac" + (m.id === profile ? " on" : "")}
+            onClick={() => send({ type: "set_settings", values: { profile: m.id } })}>
+            <span className="onb-mac-head">
+              <svg className="sc-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">{m.icon}</svg>
+              <b>{m.name}</b><span className="onb-mac-radio" />
+            </span>
+            <ul>{m.points.map((t) => <li key={t}>{t}</li>)}</ul>
+          </button>
+        ))}
+      </div>
+      <Foot label="Continue" />
     </>
   );
 }
@@ -82,17 +134,18 @@ export function SignIn() {
   return (
     <>
       <Head kicker="STEP 01" title="Sign in to Claude"
-        text="Orb runs Claude Code with your own subscription. You sign in in Anthropic's own window; Orb never sees your login." />
+        text="Orb uses your own Claude subscription. You sign in on Anthropic's own page, so Orb never sees your password." />
+      <Scene small><SignInScene ok={ok} plan={a?.subscription ? cap(a.subscription) : "Pro"} /></Scene>
       {!a ? <Status good={false}>Checking Claude Code…</Status>
         : ok ? <Status good>Signed in · Claude {a.subscription ? cap(a.subscription) : ""} plan</Status>
           : (
             <>
               <Status good={false}>
                 {!a.installed ? "Claude Code wasn't found."
-                  : a.loggedIn ? "Signed in with a Console account or API key. Orb needs a Claude Pro or Max account."
+                  : a.loggedIn ? "You're signed in with a developer (Console) account or an API key. Orb needs a Claude Pro or Max account."
                     : "Not signed in yet."}
               </Status>
-              <p className="onb-text small">Open Terminal, run this, sign in in the browser window it opens, then come back:</p>
+              <p className="onb-text small">Open the Terminal app, paste this line and press Return. Sign in on the page that opens, then come back here.</p>
               <Row>
                 <code className="onb-code">{cmd}</code>
                 <CopyButton text={cmd} />
@@ -123,15 +176,16 @@ export function Folders() {
   };
   return (
     <>
-      <Head kicker="STEP 02" title="Choose your code folders"
-        text="Orb lists the git repos inside these folders. A conversation stays in its own repo; touching another needs your OK." />
+      <Head kicker="STEP 02" title="Where are your projects?"
+        text="Pick the folder that holds your code projects. Orb finds every project inside it (each folder tracked with git), and each conversation stays inside one project." />
+      <Scene small><FoldersScene /></Scene>
       <div className="onb-list">
         {roots.map((r) => (
           <div className="onb-item on" key={r.path}>
             <span className="onb-check">✓</span>
             <div className="onb-item-txt">
               <code>{tilde(r.path)}</code>
-              <span>{r.exists ? `${r.repos.length} repo${r.repos.length === 1 ? "" : "s"}` : "missing"}</span>
+              <span>{r.exists ? `${r.repos.length} project${r.repos.length === 1 ? "" : "s"}` : "not found"}</span>
             </div>
             <button type="button" className="onb-btn ghost small" onClick={() => setRoots(roots.map((x) => x.path).filter((p) => p !== r.path))}>Remove</button>
           </div>
@@ -139,7 +193,7 @@ export function Folders() {
         {(status?.suggested ?? []).map((sug) => (
           <button type="button" className="onb-item" key={sug.path} onClick={() => add(sug.path)}>
             <span className="onb-check">+</span>
-            <div className="onb-item-txt"><code>{tilde(sug.path)}</code><span>{sug.repos} repos · add</span></div>
+            <div className="onb-item-txt"><code>{tilde(sug.path)}</code><span>{sug.repos} project{sug.repos === 1 ? "" : "s"} · add</span></div>
           </button>
         ))}
       </div>
@@ -156,12 +210,12 @@ export function Folders() {
       </Row>
       {browsing && <FolderBrowser onAdd={add} chosen={(p) => roots.some((r) => r.path === p)} />}
       <Row>
-        <input className="onb-input" placeholder="Another folder, e.g. ~/code" aria-label="Folder path" value={typed}
+        <input className="onb-input" placeholder="Or type a folder, e.g. ~/code" aria-label="Folder path" value={typed}
           onChange={(e) => setTyped(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addTyped(); } }} />
         <button type="button" className="onb-btn" onClick={addTyped}>Add</button>
       </Row>
-      <p className="onb-text small">Always blocked: secrets/ folders, .env files, keys and credentials, ~/.ssh and ~/.aws.</p>
-      <Foot label="Continue" hint="Add a folder with at least one repo" />
+      <p className="onb-text small">Always off-limits, even inside these folders: secrets folders, .env files, keys and passwords, ~/.ssh and ~/.aws.</p>
+      <Foot label="Continue" hint="Add a folder with at least one project" />
     </>
   );
 }
@@ -180,19 +234,20 @@ export function Notes() {
   return (
     <>
       <Head kicker="STEP 03" title="Your notes, your second brain"
-        text="Point Orb at the folder where you keep your notes: an Obsidian vault, or any folder of Markdown files. Its home screen then shows your open tasks and recent notes, and you can ask about them by voice." />
+        text="Keep notes in Obsidian or plain Markdown files? Point Orb at that folder. Its home screen then shows your open tasks and recent notes, and you can ask about them out loud." />
+      <Scene small><NotesScene /></Scene>
       <div className="onb-list">
         {vault ? (
           <div className="onb-item on">
             <span className="onb-check">{vault.exists ? "✓" : "!"}</span>
             <div className="onb-item-txt">
               <code>{tilde(vault.path)}</code>
-              <span>{vault.exists ? `${vault.notes} note${vault.notes === 1 ? "" : "s"} · ${vault.open_tasks} open task${vault.open_tasks === 1 ? "" : "s"}` : "missing"}</span>
+              <span>{vault.exists ? `${vault.notes} note${vault.notes === 1 ? "" : "s"} · ${vault.open_tasks} open task${vault.open_tasks === 1 ? "" : "s"}` : "not found"}</span>
             </div>
             <button type="button" className="onb-btn ghost small" onClick={() => choose("")}>Remove</button>
           </div>
         ) : (
-          <p className="onb-text small">No notes folder yet. This step is optional: you can add one later in Settings.</p>
+          <p className="onb-text small">No notes folder yet. This step is optional; you can add one later in Settings.</p>
         )}
       </div>
       <Row>
@@ -212,7 +267,7 @@ export function Notes() {
           onChange={(e) => setTyped(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); chooseTyped(); } }} />
         <button type="button" className="onb-btn" onClick={chooseTyped}>Use</button>
       </Row>
-      <p className="onb-text small">Orb reads the notes only on this Mac. A notes session may write there too; edits to CLAUDE.md files always need your OK.</p>
+      <p className="onb-text small">Orb reads your notes only on this Mac. A notes conversation can write there too; changes to its instruction files (CLAUDE.md) always need your OK.</p>
       <Foot label={vault ? "Continue" : "Skip for now"} />
     </>
   );
@@ -285,6 +340,7 @@ function KokoroSetup({ running, onReady }: { running: boolean; onReady: () => vo
 }
 
 export function Voice() {
+  const part = useSetup((s) => s.part);
   const status = useSetup((s) => s.status);
   const sp = status?.speech ?? {};
   const values = (status?.values ?? {}) as { profile?: string; stt?: string; tts?: string; voice?: string };
@@ -304,22 +360,37 @@ export function Voice() {
     if (values.tts === "browser") speakInBrowser("Hi, I'm Orb. Pick a repo and just talk.");
     else { unlockAudio(); send({ type: "voice_sample" }); }
   };
+  const tabs = <Parts names={["Hearing you", "Her voice"]} label="Voice" />;
+  if (part === 0) return (
+    <>
+      <Head kicker={kicker(4, part)} title="How Orb hears you." />
+      {tabs}
+      <div className="onb-rule">
+        <Scene small><HearScene local={values.stt !== "browser"} /></Scene>
+        <p className="onb-text onb-rule-text">{work
+          ? "Parakeet and Whisper turn your voice into text right here on this Mac. If neither is installed, you can type instead. Browser speech is off on a work Mac, because Chrome sends your voice to Google."
+          : "Parakeet and Whisper turn your voice into text right here on this Mac. Browser speech works right away, but Chrome sends your voice to Google to do it."}</p>
+      </div>
+      <Seg label="LISTENING WITH" value={values.stt} onPick={(v) => set("stt", v)}
+        options={[["parakeet", "Parakeet", !!sp.parakeet], ["whisper", "Whisper", !!sp.whisper],
+          ["browser", "Browser (Google)", BROWSER_STT && !work, work ? "Off on a work Mac: Chrome sends your voice to Google" : undefined]]} />
+      <Row><button type="button" className="onb-btn" onClick={testMic}>{mic}</button></Row>
+      <Foot label="Continue" />
+    </>
+  );
   return (
     <>
-      <Head kicker="STEP 04" title="Her voice, and yours"
-        text={work ? "Parakeet and Whisper hear you on this Mac; without them, type. Browser speech recognition is off on a work machine: Chrome sends the audio to Google."
-          : "Parakeet and Whisper hear you on this Mac. Browser speech works right away, but Chrome sends the audio to Google."} />
-      <Seg label="HEARING YOU" value={values.stt} onPick={(v) => set("stt", v)}
-        options={[["parakeet", "Parakeet", !!sp.parakeet], ["whisper", "Whisper", !!sp.whisper],
-          ["browser", "Browser (Google)", BROWSER_STT && !work, work ? "Off on a work machine: Chrome sends the audio to Google" : undefined]]} />
+      <Head kicker={kicker(4, part)} title="How Orb talks back." />
+      {tabs}
+      <div className="onb-rule">
+        <Scene small><SpeakScene engine={values.tts === "kokoro" ? "Kokoro · on this Mac" : "Browser voice"} /></Scene>
+        <p className="onb-text onb-rule-text">Pick the voice Orb answers with. Browser voices work right away. Kokoro sounds more natural and runs on this Mac (English voices only).</p>
+      </div>
       <Seg label="HER VOICE" value={values.tts} onPick={(v) => set("tts", v)}
         options={[["browser", "Browser", BROWSER_TTS], ["kokoro", "Kokoro", !!sp.kokoro]]} />
       <KokoroSetup running={!!sp.kokoro} onReady={() => set("tts", "kokoro")} />
       {values.tts === "kokoro" && (status?.voices.length ?? 0) > 0 && <VoiceList voices={status!.voices} current={values.voice} />}
-      <Row>
-        <button type="button" className="onb-btn" onClick={testMic}>{mic}</button>
-        <button type="button" className="onb-btn" onClick={hear}>Hear her</button>
-      </Row>
+      <Row><button type="button" className="onb-btn" onClick={hear}>Hear her</button></Row>
       <Foot label="Continue" />
     </>
   );
@@ -340,25 +411,17 @@ const RULES = [
 ];
 
 export function Control() {
-  const { status, rule } = useSetup();
+  const { status, part: rule } = useSetup();
   const onboarded = useFeatures((s) => !!s.features?.onboarded);
   const work = ((status?.values as { profile?: string } | undefined)?.profile ?? "work") === "work";
   const sub = status?.auth.subscription;
   const plan = sub ? cap(sub) : "Pro / Max";
   const r = RULES[rule] ?? RULES[0];
-  const last = rule === LAST_RULE;
+  const last = rule === lastPart(5);
   return (
     <>
-      <Head kicker={`STEP 05 · RULE ${rule + 1} OF ${RULES.length}`} title={r.title} />
-      <div className="onb-rules" role="tablist" aria-label="Orb's rules">
-        {RULES.map((x, i) => (
-          <button key={x.name} type="button" role="tab" aria-selected={i === rule}
-            className={"onb-rules-tab" + (i === rule ? " on" : "") + (i < rule ? " seen" : "")}
-            onClick={() => useSetup.setState({ rule: i })}>
-            <span className="mono">{String(i + 1).padStart(2, "0")}</span>{x.name}
-          </button>
-        ))}
-      </div>
+      <Head kicker={kicker(5, rule, "RULE ")} title={r.title} />
+      <Parts names={RULES.map((x) => x.name)} label="Orb's rules" />
       <div className="onb-rule" key={rule}>
         <div className="onb-scene" aria-hidden="true"><r.Scene plan={plan} work={work} /></div>
         <p className="onb-text onb-rule-text">{r.text(work)}</p>

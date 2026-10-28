@@ -26,6 +26,10 @@ describe("setup assistant", () => {
   it("walks welcome → sign in, and won't continue until signed in", () => {
     render(<Setup />);
     fireEvent.click(screen.getByRole("button", { name: "Get started" }));
+    expect(screen.getByRole("heading", { name: "Is this a work Mac?" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("radio", { name: /Personal Mac/ }));
+    expect(sent).toContainEqual({ type: "set_settings", values: { profile: "personal" } });
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     expect(screen.getByRole("heading", { name: "Sign in to Claude" })).toBeTruthy();
     expect(screen.getByText("Checking Claude Code…")).toBeTruthy();
     expect((screen.getByRole("button", { name: "Continue" }) as HTMLButtonElement).disabled).toBe(true);
@@ -49,7 +53,7 @@ describe("setup assistant", () => {
   });
 
   it("plays a voice first, then saves it, and shows Loading… on its row", () => {
-    useSetup.setState({ step: 4, status: status({ voices: [{ id: "af_heart", name: "Heart", desc: "US · female", grade: "A" }, { id: "af_bella", name: "Bella", desc: "US · female", grade: "A-" }] }) });
+    useSetup.setState({ step: 4, part: 1, status: status({ voices: [{ id: "af_heart", name: "Heart", desc: "US · female", grade: "A" }, { id: "af_bella", name: "Bella", desc: "US · female", grade: "A-" }] }) });
     vi.stubGlobal("AudioContext", class { state = "running"; resume() {} });
     render(<Setup />);
     fireEvent.click(screen.getByRole("radio", { name: /Bella/ }));
@@ -62,7 +66,7 @@ describe("setup assistant", () => {
     vi.useFakeTimers();
     const off = { kokoro: false, whisper: false, parakeet: false };
     const k = { voicemode: false, installed: false, autostart: false, exposed: false };
-    useSetup.setState({ step: 4, status: status({ speech: off, kokoro_install: k }) });
+    useSetup.setState({ step: 4, part: 1, status: status({ speech: off, kokoro_install: k }) });
     render(<Setup />);
     fireEvent.click(screen.getByRole("button", { name: "Set up Kokoro" }));
     expect(screen.getByText("voicemode service install kokoro")).toBeTruthy(); // by hand, if they'd rather
@@ -87,7 +91,7 @@ describe("setup assistant", () => {
 
   it("shows a failed step and lets it be tried again", () => {
     const k = { voicemode: true, installed: true, autostart: false, exposed: false, job: { step: "Starting it", running: false, error: "❌ Failed to start kokoro" } };
-    useSetup.setState({ step: 4, status: status({ speech: { kokoro: false }, kokoro_install: k }) });
+    useSetup.setState({ step: 4, part: 1, status: status({ speech: { kokoro: false }, kokoro_install: k }) });
     render(<Setup />);
     fireEvent.click(screen.getByRole("button", { name: "Set up Kokoro" }));
     expect(screen.getByText("❌ Failed to start kokoro")).toBeTruthy();
@@ -96,7 +100,7 @@ describe("setup assistant", () => {
   });
 
   it("warns when Kokoro listens on the whole network, even while she runs, and fixes it with one click", () => {
-    useSetup.setState({ step: 4, status: status({ kokoro_install: { voicemode: true, installed: true, autostart: true, exposed: true } }) });
+    useSetup.setState({ step: 4, part: 1, status: status({ kokoro_install: { voicemode: true, installed: true, autostart: true, exposed: true } }) });
     render(<Setup />);
     expect(screen.getByText(/listens on your whole network/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Keep it on this Mac" }));
@@ -104,7 +108,7 @@ describe("setup assistant", () => {
   });
 
   it("offers no Kokoro setup when she already runs on this Mac only, or off a Mac", () => {
-    useSetup.setState({ step: 4, status: status() });
+    useSetup.setState({ step: 4, part: 1, status: status() });
     render(<Setup />);
     expect(screen.queryByRole("button", { name: "Set up Kokoro" })).toBeNull();
     cleanup();
@@ -113,8 +117,20 @@ describe("setup assistant", () => {
     expect(screen.queryByRole("button", { name: "Set up Kokoro" })).toBeNull();
   });
 
+  it("splits voice in two: how Orb hears you, then her voice", () => {
+    useSetup.setState({ step: 4, status: status() });
+    render(<Setup />);
+    expect(screen.getByRole("heading", { name: "How Orb hears you." })).toBeTruthy();
+    expect(screen.getByRole("radiogroup", { name: "LISTENING WITH" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    expect(screen.getByRole("heading", { name: "How Orb talks back." })).toBeTruthy();
+    expect(useSetup.getState()).toMatchObject({ step: 4, part: 1 });
+    fireEvent.click(screen.getByRole("tab", { name: /Hearing you/ }));
+    expect(useSetup.getState().part).toBe(0);
+  });
+
   it("finishes with set_settings onboarded, and Escape closes only once set up", () => {
-    useSetup.setState({ step: 5, rule: 3, status: status() });
+    useSetup.setState({ step: 5, part: 3, status: status() });
     render(<Setup />);
     fireEvent.keyDown(window, { key: "Escape" });
     expect(useSetup.getState().open).toBe(true); // not set up yet: can't leave
@@ -127,7 +143,7 @@ describe("setup assistant", () => {
   });
 
   it("shows Control's four rules one at a time: Got it moves on, Back goes back, and only the last one finishes", () => {
-    useSetup.setState({ step: 5, rule: 0, status: status() });
+    useSetup.setState({ step: 5, part: 0, status: status() });
     render(<Setup />);
     expect(screen.getByRole("heading", { name: "You say yes first." })).toBeTruthy();
     for (const title of ["One project at a time.", "Your plan. No extra bills.", "It stays on this Mac."]) {
@@ -136,9 +152,9 @@ describe("setup assistant", () => {
     }
     expect(sent).not.toContainEqual({ type: "set_settings", values: { onboarded: true } });
     fireEvent.click(screen.getByRole("button", { name: "Back" }));
-    expect(useSetup.getState()).toMatchObject({ step: 5, rule: 2 });
+    expect(useSetup.getState()).toMatchObject({ step: 5, part: 2 });
     fireEvent.click(screen.getByRole("tab", { name: /Approvals/ }));
     fireEvent.click(screen.getByRole("button", { name: "Back" }));
-    expect(useSetup.getState()).toMatchObject({ step: 4, rule: 0 });
+    expect(useSetup.getState()).toMatchObject({ step: 4, part: 1 }); // the voice step's last screen
   });
 });
