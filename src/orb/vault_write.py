@@ -10,13 +10,13 @@
 
 Every edit is compare-and-apply: it happens only if the field or line still reads as the page saw it, otherwise
 nothing is written ("The note changed since Orb read it"). Writes are atomic and keep the note's line endings.
+All four refuse while the vault clone is conflicted (`clone_ok`); its git is read, never changed.
 Apart from (4), Orb commits nothing: the vault's git stays the owner's.
 """
 
 from __future__ import annotations
 
 import datetime as dt
-import fnmatch
 import json
 import os
 import re
@@ -25,7 +25,8 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import folders
+from . import folders, vault_git
+from .vault_git import UNSAFE_GIT, unsafe_config  # noqa: F401 (callers name them here)
 
 CHECKBOX = re.compile(r"^(\s*[-*+] \[)(.)(\]\s+)(.*?)(\s*)$")
 DATES = re.compile(r"\s*[✅❌⏳]\s*\d{4}-\d{2}-\d{2}")  # the dates a marker change adds or removes
@@ -37,15 +38,18 @@ _FIELD = re.compile(r"^([A-Za-z_][\w-]*):\s*(.*?)\s*$")
 _DAY = re.compile(r"\d{4}-\d{2}-\d{2}")
 TRANSCRIPTS = "scrapers/Transcripts"  # the default; settings "transcripts_folder"
 VIDEO_ID = re.compile(r"[A-Za-z0-9_-]{11}")  # fullmatch: "$" lets a trailing newline through
-# Vault-local git config that makes git run a program (or send the push elsewhere): a session could have written it, so
-# Orb's own git calls refuse to run while it is set (`unsafe_config`). Matched on lower-case names with fnmatch.
-UNSAFE_GIT = ("core.fsmonitor", "core.sshcommand", "core.gitproxy", "core.askpass", "core.alternaterefscommand",
-              "filter.*", "include.*", "includeif.*", "credential.*", "gpg.*", "protocol.*", "url.*",
-              "remote.*.receivepack", "remote.*.uploadpack", "remote.*.proxy")
 
 
 class TaskError(Exception):
     """Refused: shown to the user as is."""
+
+
+def clone_ok(vault: Path | None) -> None:
+    """Every write starts here: refused while the vault clone is conflicted (an unmerged path, or a merge, rebase or
+    cherry-pick in progress), checked fresh each time. A dirty tree, no git repo or a clone Orb can't check writes."""
+    h = vault_git.health(vault, full=False)
+    if h and h.conflicted:
+        raise TaskError(h.refusal())
 
 
 def note_path(vault: Path | None, file: str) -> Path:
@@ -120,6 +124,11 @@ def set_verdict(vault: Path | None, seen: dict[str, str], verdict: str, today: d
         raise TaskError("Unknown verdict.")
     if not seen or len(seen) > MAX_NOTES:
         raise TaskError(f"Pick between 1 and {MAX_NOTES} notes.")
+    clone_ok(vault)
+    return _set_verdict(vault, seen, verdict, today)
+
+
+def _set_verdict(vault: Path | None, seen: dict[str, str], verdict: str, today: dt.date | None) -> int:
     day = (today or dt.date.today()).isoformat()
     planned: list[tuple[Path, list[str], str]] = []
     for f, was in seen.items():
@@ -146,12 +155,15 @@ def set_verdicts(vault: Path | None, notes: list[dict], today: dt.date | None = 
     note as it was and doesn't stop the others. Returns (applied `{file, verdict}`, refused `{file, reason}`)."""
     if not notes or len(notes) > MAX_NOTES:
         raise TaskError(f"Pick between 1 and {MAX_NOTES} notes.")
+    clone_ok(vault)  # once for the batch: a conflicted clone refuses them all
     applied: list[dict] = []
     refused: list[dict] = []
     for n in notes:
         f = str(n["file"])
         try:
-            set_verdict(vault, {f: str(n.get("seen") or "")}, n["verdict"], today)
+            if n["verdict"] not in VERDICTS:
+                raise TaskError("Unknown verdict.")
+            _set_verdict(vault, {f: str(n.get("seen") or "")}, n["verdict"], today)
             applied.append({"file": f, "verdict": n["verdict"]})
         except TaskError as e:
             refused.append({"file": f, "reason": str(e)})
@@ -163,6 +175,7 @@ def set_verdicts(vault: Path | None, notes: list[dict], today: dt.date | None = 
 def set_owner_read(vault: Path | None, file: str, seen: str, today: dt.date | None = None) -> None:
     """Mark a note read (`owner_read: '<day>'`), only if its owner_read still reads `seen` ("" = not set)."""
     p = note_path(vault, file)
+    clone_ok(vault)
     lines, eol = _read(p)
     end = _front_end(lines)
     if end is None:
@@ -185,6 +198,7 @@ def set_task_line(vault: Path | None, file: str, line: int, expect: str, new: st
     """Replace one task line, only if it still reads `expect` and `new` differs from it only in the marker and
     the done / not doing / snooze dates."""
     p = note_path(vault, file)
+    clone_ok(vault)
     lines, eol = _read(p)
     if not 1 <= line <= len(lines) or lines[line - 1] != expect:
         raise TaskError(CHANGED)
@@ -210,6 +224,7 @@ def new_transcript(vault: Path, video_id: str, title: str, lang: str, text: str,
         raise TaskError("The transcripts folder must be a folder inside the vault.")
     now = now or dt.datetime.now().astimezone()
     rel = f"{f.as_posix()}/{now.date().isoformat()}-{video_id}.md"
+    clone_ok(vault)
     p = vault / rel
     p.parent.mkdir(parents=True, exist_ok=True)
     if not p.parent.resolve().is_relative_to(vault.resolve()):
@@ -234,23 +249,6 @@ class Pushed:
 
     def __bool__(self) -> bool:
         return self.ok
-
-
-def unsafe_config(vault: Path) -> str | None:
-    """Why Orb's git calls in the vault won't run, or None: the vault's own (local or worktree) git config sets a key
-    from UNSAFE_GIT. Reading the config runs nothing."""
-    try:
-        r = subprocess.run(["git", "-C", str(vault), "config", "--list", "--name-only", "--show-scope"],
-                           capture_output=True, text=True, timeout=30)
-    except (OSError, subprocess.SubprocessError):
-        return "git didn't answer"
-    if r.returncode:
-        return "the vault isn't a git repository"
-    for line in r.stdout.splitlines():
-        scope, _, key = line.partition("\t")
-        if scope in ("local", "worktree") and any(fnmatch.fnmatchcase(key.lower(), pat) for pat in UNSAFE_GIT):
-            return f"the vault's git config sets {key}; Orb doesn't run git there while it does"
-    return None
 
 
 def commit_new(vault: Path, rel: str, message: str) -> Pushed:

@@ -56,18 +56,23 @@ def links(items: list) -> list[dict]:
 
 
 def parse_status(out: str) -> dict:
-    """`git status --porcelain=v1 -b`: branch, files changed, commits ahead of the upstream (None = no upstream)."""
+    """`git status --porcelain=v1 -b`: branch, files changed, commits ahead of the upstream (None = no upstream) and
+    behind it (as of the last fetch)."""
     lines = out.splitlines()
     head = lines[0][3:] if lines and lines[0].startswith("## ") else ""
     branch, _, rest = head.partition("...")
     ahead: int | None = None
+    behind = 0
     if rest:
         ahead = 0
         if "[" in rest and "ahead " in rest:
             ahead = int(rest.split("ahead ", 1)[1].split("]")[0].split(",")[0])
+        if "[" in rest and "behind " in rest:
+            behind = int(rest.split("behind ", 1)[1].split("]")[0])
     if branch.startswith("No commits yet on "):
         branch = branch.removeprefix("No commits yet on ")
-    return {"branch": branch.split(" ")[0] or None, "changed": sum(1 for x in lines[1:] if x.strip()), "ahead": ahead}
+    return {"branch": branch.split(" ")[0] or None, "changed": sum(1 for x in lines[1:] if x.strip()), "ahead": ahead,
+            "behind": behind}
 
 
 def repo_filters(out: str) -> list[str]:

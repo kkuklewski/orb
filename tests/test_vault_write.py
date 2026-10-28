@@ -9,7 +9,7 @@ import subprocess
 
 import pytest
 
-from orb import home, items, server, settings, tasks, vault_write
+from orb import home, items, server, settings, tasks, vault_git, vault_write
 from orb.vault_write import TaskError
 
 DAY = dt.date(2026, 10, 24)
@@ -24,11 +24,20 @@ def note(root, name, extra="", published="2026-06-14T00:00:00.000Z"):
 
 @pytest.fixture(autouse=True)
 def no_git(monkeypatch):
-    """Orb commits nothing: any process started during a write fails the test."""
+    """Orb commits nothing: any process started during a write fails the test, except the read-only clone check
+    (vault_git: git with --no-optional-locks running one of its READS)."""
+    real = subprocess.Popen
+
     def refuse(*a, **kw):
         raise AssertionError(f"a process was started: {a}")
-    for name in ("run", "Popen", "call", "check_call", "check_output"):
+
+    def read_only(args, *a, **kw):  # subprocess.run starts its process through Popen
+        if args[:2] == ["git", "--no-optional-locks"] and args[8] in vault_git.READS:
+            return real(args, *a, **kw)
+        refuse(args)
+    for name in ("call", "check_call", "check_output"):
         monkeypatch.setattr(subprocess, name, refuse)
+    monkeypatch.setattr(subprocess, "Popen", read_only)
     monkeypatch.setattr(os, "system", refuse)
 
 
