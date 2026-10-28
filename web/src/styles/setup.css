@@ -223,3 +223,192 @@ button.onb-item:hover { border-color: var(--onb-acc); }
 @media (prefers-reduced-motion: reduce) {
   [data-skin="studio"] .vp-bars i { transition: none; animation: none !important; }
 }
+
+/* ---- One ask per screen, each with a picture (Scenes.tsx); tabs over a step's screens. ---- */
+[data-skin="studio"] .onb-rules { display: grid; grid-template-columns: repeat(var(--n, 4), minmax(0, 1fr)); gap: 6px; margin: 6px 0 18px; }
+[data-skin="studio"] .onb-rules-tab { display: flex; align-items: baseline; gap: 8px; min-width: 0; min-height: 44px; padding: 10px 0 8px; border: 0; border-top: 2px solid var(--line);
+  background: none; color: var(--text-3); font: 13.5px var(--sans); text-align: left; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+[data-skin="studio"] .onb-rules-tab .mono { font-size: 11px; }
+[data-skin="studio"] .onb-rules-tab.seen { border-top-color: var(--text-3); color: var(--text-2); }
+[data-skin="studio"] .onb-rules-tab.on { border-top-color: var(--s-acc); color: var(--text); font-weight: 600; }
+[data-skin="studio"] .onb-rules-tab:focus-visible { outline: 2px solid var(--s-acc); outline-offset: 2px; }
+[data-skin="studio"] .onb-rule-text { max-width: 560px; margin: 18px 0 0; font-size: 16px; line-height: 1.55; }
+[data-skin="studio"] .onb-scene { border: 1px solid var(--line); border-radius: 8px; overflow: hidden;
+  background: radial-gradient(color-mix(in srgb, var(--text) 10%, transparent) 1px, transparent 1.2px) 0 0 / 18px 18px, var(--bg-elev); }
+
+.sc { --acc: var(--s-acc); position: relative; min-height: 300px; padding: clamp(18px, 3vw, 32px); display: flex; align-items: center; justify-content: center; gap: 18px; color: var(--text); }
+.sc .mono { font-family: var(--mono); letter-spacing: .12em; font-size: 10.5px; }
+.sc-sq { display: inline-block; width: 7px; height: 7px; background: var(--acc); flex: none; }
+.sc-icon { width: 40px; height: 40px; color: var(--text-2); }
+.sc-icon.small { width: 26px; height: 26px; }
+.sc-in { animation: sc-in .55s cubic-bezier(.2,.7,.2,1) var(--d, 0s) both; }
+@keyframes sc-in { from { opacity: 0; transform: translateY(10px); } }
+
+/* 1 · Approvals: your request -> Orb's card -> Allow (or a spoken yes) */
+.sc-approve { flex-direction: column; gap: 0; }
+.sc-bubble { align-self: center; display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-radius: 999px; background: var(--text); color: var(--bg); font-size: 14.5px; max-width: 100%; }
+.sc-bubble .sc-who { color: color-mix(in srgb, var(--bg) 65%, transparent); }
+.sc-link { width: 1px; height: 22px; border-left: 1px dashed var(--text-3); }
+.sc-ask { width: min(340px, 100%); border: 1px solid var(--line); border-radius: 8px; background: var(--bg); box-shadow: 0 12px 30px -18px rgb(0 0 0 / .35); }
+.sc-ask-head { display: flex; align-items: center; gap: 8px; margin: 0; padding: 9px 14px; border-bottom: 1px solid var(--line); color: var(--s-acc-txt); }
+.sc-ask-what { margin: 12px 14px 4px; font-size: 15px; }
+.sc-ask-diff { margin: 0 14px; font: 12.5px var(--mono); color: var(--text-3); display: flex; gap: 10px; flex-wrap: wrap; }
+.sc-ask-diff span { color: var(--text); }
+.sc-ask-btns { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 14px 14px; }
+.sc-btn { font-size: 13px; padding: 6px 14px; border: 1px solid var(--line); border-radius: 5px; color: var(--text-2); }
+.sc-btn.solid { background: var(--text); color: var(--bg); border-color: var(--text); }
+.sc-pulse { animation: sc-pulse 2.4s ease-out 1.4s infinite; }
+@keyframes sc-pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--acc) 55%, transparent); } 70%, 100% { box-shadow: 0 0 0 10px transparent; } }
+.sc-voice { display: flex; align-items: center; gap: 10px; margin-top: 16px; color: var(--text-3); }
+.sc-wave { display: flex; align-items: center; gap: 3px; height: 18px; }
+.sc-wave i { width: 3px; height: 30%; background: var(--acc); border-radius: 2px; animation: sc-wave 1.1s ease-in-out infinite; }
+.sc-wave i:nth-child(2) { animation-delay: .15s; } .sc-wave i:nth-child(3) { animation-delay: .3s; }
+.sc-wave i:nth-child(4) { animation-delay: .45s; } .sc-wave i:nth-child(5) { animation-delay: .6s; }
+@keyframes sc-wave { 50% { height: 100%; } }
+
+/* 2 · Scope: the open project, a neighbour, the locked box */
+.sc-scope { align-items: stretch; }
+.sc-tile { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 8px; padding: 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+.sc-tile-state { display: flex; align-items: center; gap: 7px; margin: 0 0 6px; color: var(--text-3); }
+.sc-tile-name { margin: 0; font-weight: 600; font-size: 15px; }
+.sc-tile-note { margin: 0; font-size: 13px; color: var(--text-3); }
+.sc-tile.on { border-color: var(--acc); box-shadow: 0 0 0 3px color-mix(in srgb, var(--acc) 14%, transparent); }
+.sc-tile.on .sc-tile-state { color: var(--s-acc-txt); }
+.sc-tile.on .sc-icon { color: var(--acc); }
+.sc-files { list-style: none; margin: 4px 0 0; padding: 0; color: var(--text-2); letter-spacing: 0 !important; font-size: 12px !important; }
+.sc-files li { padding: 5px 0; border-top: 1px dashed var(--line); }
+.sc-tile.dim { border-style: dashed; background: transparent; }
+.sc-tile.dim .sc-icon, .sc-tile.dim .sc-tile-name { color: var(--text-3); }
+.sc-tile.locked { background: transparent; border-style: dashed; }
+.sc-tile.locked .sc-tile-name { color: var(--text-3); text-decoration: line-through; }
+
+/* 3 · Plan: your membership card, the refused key, nothing extra */
+.sc-card { position: relative; width: min(280px, 100%); aspect-ratio: 1.586; padding: 18px 20px; border-radius: 14px; display: flex; flex-direction: column;
+  background: linear-gradient(140deg, #2a2b2f, #18191b 60%); color: #ececea; box-shadow: 0 18px 40px -22px rgb(0 0 0 / .6); overflow: hidden; }
+.sc-card::after { content: ""; position: absolute; inset: auto -30% -60% auto; width: 220px; height: 220px; border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--acc) 55%, transparent), transparent 65%); }
+.sc-card-top { display: flex; align-items: center; gap: 8px; color: #b7b8bc; }
+.sc-card-dot { width: 12px; height: 12px; border-radius: 50%; background: #ececea; }
+.sc-card-plan { margin: auto 0 4px; font: 600 34px/1 var(--sans); letter-spacing: -0.02em; }
+.sc-card-foot { display: flex; align-items: center; gap: 8px; margin: 0; color: #b7b8bc; }
+.sc-side { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.sc-key { white-space: nowrap; display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px dashed var(--line); border-radius: 8px; font-size: 14px; color: var(--text-3); }
+.sc-key b { font-weight: 500; text-decoration: line-through; }
+.sc-key .mono { color: var(--s-acc-txt); }
+.sc-bill { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--text-3); }
+.sc-bill-n { font: 600 28px/1 var(--sans); color: var(--text); }
+
+/* 4 · Local: the Mac inside its boundary, the outside kept out */
+.sc-local { gap: clamp(16px, 4vw, 44px); }
+.sc-ring { position: relative; display: grid; place-items: center; width: 250px; aspect-ratio: 1; border-radius: 50%; border: 1px dashed var(--text-3);
+  background: radial-gradient(circle, color-mix(in srgb, var(--acc) 12%, transparent), transparent 62%); flex: none; }
+.sc-mac { width: 170px; color: var(--text); }
+.sc-orb { position: absolute; top: 37%; left: 50%; width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 50%; background: var(--acc);
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--acc) 20%, transparent); animation: sc-breathe 3s ease-in-out infinite; }
+@keyframes sc-breathe { 50% { box-shadow: 0 0 0 12px color-mix(in srgb, var(--acc) 8%, transparent); } }
+.sc-mac-label { position: absolute; top: 22px; color: var(--text-3); }
+.sc-pass { position: absolute; bottom: -14px; left: 0; right: 0; margin: 0 auto; width: max-content; white-space: nowrap; display: flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid var(--acc); border-radius: 999px; background: var(--bg); color: var(--s-acc-txt); }
+.sc-away { order: -1; display: flex; flex-direction: column; gap: 10px; color: var(--text-3); }
+.sc-away-item { white-space: nowrap; display: flex; align-items: center; gap: 10px; font-size: 13.5px; opacity: .7; }
+.sc-away-item .sc-icon { color: var(--text-3); }
+.sc-away-x { white-space: nowrap; padding-top: 6px; border-top: 1px dashed var(--line); }
+
+[data-skin="studio"] .onb-scene.small { margin: 6px 0 18px; }
+[data-skin="studio"] .onb-rule > .onb-scene.small { margin: 0; }
+[data-skin="studio"] .onb-rule + .onb-field { margin-top: 20px; }
+.onb-scene.small .sc { min-height: 190px; padding: 20px; }
+
+/* Welcome · which Mac: the choice is the picture */
+[data-skin="studio"] .onb-macs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 8px 0 4px; }
+[data-skin="studio"] .onb-mac { display: flex; flex-direction: column; gap: 12px; min-width: 0; padding: 18px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--bg-elev); color: var(--text-2); font: 14px/1.45 var(--sans); text-align: left; cursor: pointer; }
+[data-skin="studio"] .onb-mac:hover { border-color: var(--text-3); }
+[data-skin="studio"] .onb-mac:focus-visible { outline: 2px solid var(--s-acc); outline-offset: 2px; }
+[data-skin="studio"] .onb-mac.on { border-color: var(--s-acc); box-shadow: 0 0 0 3px color-mix(in srgb, var(--s-acc) 14%, transparent); }
+[data-skin="studio"] .onb-mac-head { display: flex; align-items: center; gap: 12px; color: var(--text); font-size: 16px; }
+[data-skin="studio"] .onb-mac-head b { flex: 1; font-weight: 600; }
+[data-skin="studio"] .onb-mac.on .sc-icon { color: var(--s-acc); }
+[data-skin="studio"] .onb-mac-radio { width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid var(--text-3); flex: none; }
+[data-skin="studio"] .onb-mac.on .onb-mac-radio { border: 5px solid var(--s-acc); }
+[data-skin="studio"] .onb-mac ul { margin: 0; padding: 0; list-style: none; }
+[data-skin="studio"] .onb-mac li { padding: 7px 0; border-top: 1px dashed var(--line); }
+
+.sc-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--acc); flex: none; }
+.sc-dot.big { width: 26px; height: 26px; box-shadow: 0 0 0 6px color-mix(in srgb, var(--acc) 20%, transparent); animation: sc-breathe 3s ease-in-out infinite; }
+.sc-icon.big { width: 52px; height: 52px; }
+.sc-say { margin: 4px 14px 14px; }
+
+/* Sign in: Anthropic's window -> only "signed in" reaches Orb */
+.sc-win { width: min(240px, 100%); border: 1px solid var(--line); border-radius: 8px; background: var(--bg); overflow: hidden; flex: none; }
+.sc-win-bar { display: flex; align-items: center; gap: 6px; margin: 0; padding: 8px 12px; border-bottom: 1px solid var(--line); color: var(--text-3); white-space: nowrap; }
+.sc-win-bar .sc-icon { width: 15px; height: 15px; }
+.sc-win-body { display: flex; flex-direction: column; gap: 9px; padding: 14px; }
+.sc-field { height: 26px; border: 1px solid var(--line); border-radius: 5px; }
+.sc-field.short { width: 70%; }
+.sc-win-body .sc-btn { align-self: flex-start; }
+.sc-arrow { position: relative; flex: 1 1 60px; max-width: 170px; min-width: 60px; height: 1px; border-top: 1px dashed var(--text-3); }
+.sc-arrow::after { content: ""; position: absolute; right: 0; top: -5px; border: 4.5px solid transparent; border-left: 7px solid var(--text-3); border-right: 0; }
+.sc-arrow .mono { position: absolute; bottom: 8px; left: 0; right: 0; text-align: center; color: var(--text-3); font-size: 9.5px; }
+.sc-me { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 18px 20px; border: 1px dashed var(--line); border-radius: 8px; flex: none; }
+.sc-me.on { border: 1px solid var(--acc); background: var(--bg); }
+.sc-me .sc-tile-state { margin: 0; white-space: nowrap; }
+.sc-me.on .sc-tile-state { color: var(--s-acc-txt); }
+
+/* Folders: one code folder, the projects found inside, secrets locked */
+.sc-tree { width: min(380px, 100%); padding: 14px 18px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+.sc-tree-root { display: flex; align-items: center; gap: 10px; margin: 0 0 6px; color: var(--text-2); }
+.sc-tree-root .sc-icon { width: 28px; height: 28px; }
+.sc-tree-row { display: flex; align-items: center; gap: 10px; margin: 0 0 0 14px; padding: 9px 0 9px 14px; border-left: 1px solid var(--line); border-top: 1px dashed var(--line); font-size: 14.5px; }
+.sc-tree-row .mono { margin-left: auto; color: var(--text-3); white-space: nowrap; }
+.sc-tree-row.on .mono { color: var(--s-acc-txt); }
+.sc-tree-row.off { color: var(--text-3); text-decoration: line-through; }
+.sc-tree-row.off .sc-icon { width: 15px; height: 15px; color: var(--text-3); }
+.sc-tree-row.off .mono { text-decoration: none; }
+
+/* Notes: Markdown files -> Home's tasks and recent notes */
+.sc-stack { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.sc-note { display: flex; flex-direction: column; gap: 3px; margin: 0; padding: 9px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); font-size: 13.5px; white-space: nowrap; }
+.sc-note .mono { color: var(--text-3); font-size: 9.5px; }
+.sc-note:nth-child(2) { margin-left: 14px; } .sc-note:nth-child(3) { margin-left: 28px; opacity: .75; }
+.sc-flow { width: 48px; height: 1px; border-left: 0; border-top: 1px dashed var(--text-3); flex: none; }
+.sc-home { width: min(230px, 100%); border: 1px solid var(--acc); border-radius: 8px; background: var(--bg); flex: none; }
+.sc-home-row { margin: 0; padding: 8px 14px; border-bottom: 1px dashed var(--line); font-size: 14px; white-space: nowrap; }
+.sc-home-sub { margin: 0; padding: 9px 14px; color: var(--text-3); }
+
+/* Voice: your voice -> text (where), Orb's answer -> your ears */
+.sc-hear { gap: clamp(14px, 3vw, 28px); }
+.sc-hear > .sc-icon { color: var(--text); flex: none; }
+.sc-wave.wide { height: 34px; gap: 4px; flex: none; }
+.sc-wave.wide i { width: 4px; }
+.sc-wave.wide i:nth-child(6) { animation-delay: .75s; } .sc-wave.wide i:nth-child(7) { animation-delay: .9s; }
+.sc-heard { min-width: 0; padding: 12px 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+.sc-heard .sc-ask-what { margin: 0 0 8px; }
+.sc-heard .sc-tile-state { margin: 0; }
+.sc-heard .sc-tile-state:first-child { margin-bottom: 8px; }
+.sc-tile-state.good { color: var(--s-acc-txt); }
+.sc-ear { display: flex; flex-direction: column; align-items: center; gap: 8px; color: var(--text-3); flex: none; }
+.sc-ear .sc-icon { color: var(--text); }
+
+@media (max-width: 640px) {
+  [data-skin="studio"] .onb-rules-tab { font-size: 0; } /* numbers only on a phone */
+  [data-skin="studio"] .onb-rules-tab .mono { font-size: 12px; }
+  .sc { min-height: 0; flex-direction: column; }
+  .sc-scope { gap: 10px; }
+  .sc-scope .sc-tile { width: 100%; display: grid; grid-template-columns: 32px 1fr; column-gap: 12px; row-gap: 2px; align-items: center; padding: 12px 14px; }
+  .sc-scope .sc-tile-state { grid-column: 1 / -1; }
+  .sc-scope .sc-icon { width: 30px; height: 30px; grid-row: span 2; }
+  .sc-scope .sc-files { display: none; }
+  .sc-side { width: min(280px, 100%); }
+  .sc-local .sc-away { order: 1; flex-direction: row; flex-wrap: wrap; justify-content: center; }
+  .sc-ring { width: 210px; }
+  [data-skin="studio"] .onb-macs { grid-template-columns: 1fr; }
+  .sc-arrow { flex: none; width: 1px; height: 36px; min-width: 0; border-top: 0; border-left: 1px dashed var(--text-3); }
+  .sc-arrow::after { right: -5px; top: auto; bottom: 0; border: 4.5px solid transparent; border-top: 7px solid var(--text-3); border-bottom: 0; }
+  .sc-arrow .mono { bottom: auto; top: 12px; left: 14px; right: auto; white-space: nowrap; text-align: left; }
+  .sc-flow { width: 1px; height: 22px; border-top: 0; border-left: 1px dashed var(--text-3); }
+  .sc-note:nth-child(n) { margin-left: 0; }
+  .sc-hear .sc-wave.wide { height: 24px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sc-in, .sc-pulse, .sc-wave i, .sc-orb, .sc-dot.big { animation: none; }
+}
