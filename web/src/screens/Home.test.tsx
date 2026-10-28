@@ -1054,7 +1054,7 @@ describe("delegation", () => {
     render(<><Sidebar /><Home /></>);
     act(() => dispatch({ type: "delegations", items: [
       row({ stage: "ready", needs: "closed", pr: 12, line: "PR #12 was closed on origin by bob-globex.", ask: "Reopen PR #12 on origin?" }),
-      row({ id: "d2", task: 9, stage: "ready", needs: "blocked", pr: 13, line: "PR #13 is blocked on origin: a required check failed: ci (failure).",
+      row({ id: "d2", task: 9, stage: "ready", needs: "blocked", pr: 13, line: "PR #13 is blocked on origin; failing check: ci (failure).",
             checks: [{ name: "ci", conclusion: "FAILURE", url: "https://git.example/acme/web/actions/runs/5" }, { name: "lint", conclusion: "ERROR", url: "javascript:alert(1)" }] }),
       row({ id: "d3", task: 10, stage: "ready", needs: "update", update_from: "main", line: "Ready: PR #14, tests passed · main moved 1 commit, merges cleanly" }),
       row({ id: "d4", task: 11, stage: "merged", line: "Merged by alice-acme on origin; task #11 done. Your main has it." }),
