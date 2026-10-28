@@ -23,7 +23,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTex
 from fastapi.staticfiles import StaticFiles
 from starlette.datastructures import Headers, MutableHeaders
 
-from . import away, billing, chain, config, delegation, desk, fence, folders, forget, handoff, home, intake, items, kokoro_setup, make_task, navigate, needs, parakeet, routines, settings, setup, slash, speech, tasks, tracker, triage, vault_git, vault_write, vendor, vocab, worktree
+from . import away, billing, chain, config, delegation, desk, fence, folders, forget, handoff, home, intake, items, kokoro_setup, make_task, navigate, needs, parakeet, routines, settings, setup, slash, speech, tasks, timing, tracker, triage, vault_git, vault_write, vendor, vocab, worktree
 from .agent import SCREEN_MAX, FolderSession, dumps, first_request
 from .brain import CaptureGuard
 from .sessions import SessionStore
@@ -438,6 +438,7 @@ hub = Hub()
 async def lifespan(app: FastAPI):
     billing.assert_subscription_env()
     await asyncio.to_thread(vendor.ensure)
+    await asyncio.to_thread(timing.trim)
     await asyncio.to_thread(hub.store.backfill_labels, first_request)
     hub.scan()
     tasks = [asyncio.create_task(hub.janitor()), asyncio.create_task(hub.routines.loop()),

@@ -175,3 +175,29 @@ def test_rebuildable_stores_log_only(tmp_path):
     test_triage_set_aside(tmp_path)
     assert config.set_aside and not any(b["precious"] for b in config.set_aside)
     assert needs.setup_problems({}, None, "browser", "browser", {}, False) == []
+
+
+# Bounds for stores that grow (docs/adr/0014).
+
+def test_timing_keeps_newest_lines(tmp_path):
+    from orb import timing
+    p = tmp_path / "timing.jsonl"
+    p.write_text("".join(f'{{"n": {i}}}\n' for i in range(12)))
+    timing.trim(p, keep=5)
+    assert [json.loads(x)["n"] for x in p.read_text().splitlines()] == [7, 8, 9, 10, 11]
+    assert oct(p.stat().st_mode & 0o777) == "0o600"
+    timing.trim(p, keep=5)  # at the bound: untouched
+    assert len(p.read_text().splitlines()) == 5
+    timing.trim(tmp_path / "missing.jsonl")  # nothing to trim
+
+
+def test_routines_state_keeps_what_streak_and_screen_read():
+    from orb import routines
+    runs = [{"id": f"r{i}"} for i in range(8)]
+    st = {"routines": {"acme": {}}, "runs": {"acme": runs, "gone": [{"id": "g1"}]},
+          "logs": {"r0": {}, "r6": {}, "g1": {}}, "verdicts": {"r4": {}, "g1": {}},
+          "seen": {"acme": "r0", "gone": "g1"}, "resolved": {"acme": "r1", "gone": "g1"}}
+    routines.trim(st)
+    assert [x["id"] for x in st["runs"]["acme"]] == ["r0", "r1", "r2", "r3", "r4"] and "gone" not in st["runs"]
+    assert st["logs"] == {"r0": {}} and st["verdicts"] == {"r4": {}}
+    assert st["seen"] == {"acme": "r0"} and st["resolved"] == {"acme": "r1"}
