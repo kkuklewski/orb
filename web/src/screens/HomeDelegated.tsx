@@ -101,12 +101,12 @@ export function Actions({ d }: { d: DelegationItem }) {
   const [sure, setSure] = useState(false);  // Discard drops the branch and its commits: a second tap
   return (
     <span className="deleg-actions">
-      {!done && d.needs !== "stopped" && d.stage !== "queued" && <button type="button" className="hbtn" onClick={() => openFolder(d.folder, d.session)}>Open session</button>}
+      {!done && d.needs !== "stopped" && d.needs !== "collision" && d.stage !== "queued" && <button type="button" className="hbtn" onClick={() => openFolder(d.folder, d.session)}>Open session</button>}
       {d.needs === "outward" && <button type="button" className="hbtn dark" onClick={() => outward(d.id, true)}>{d.pr ? "Push" : "Push and open PR"}</button>}
       {d.needs === "outward" && <button type="button" className="hbtn" onClick={() => outward(d.id, false)}>Skip</button>}
       {d.pr && d.pr_url && /^https:\/\//.test(d.pr_url) && <a className="hbtn" href={d.pr_url} target="_blank" rel="noreferrer">PR #{d.pr}</a>}
       {d.stage === "ready" && <button type="button" className="hbtn" onClick={() => review(d.id)}>Review</button>}
-      {d.stage === "ready" && <button type="button" className="hbtn dark" onClick={() => askApply(d.id)}>{d.conflict ? "Apply again" : "Apply"}</button>}
+      {d.stage === "ready" && d.needs !== "collision" && <button type="button" className="hbtn dark" onClick={() => askApply(d.id)}>{d.conflict ? "Apply again" : "Apply"}</button>}
       {(d.needs === "failed" || d.needs === "stuck") && <button type="button" className="hbtn dark" onClick={() => retry(d.id)}>Retry</button>}
       {d.needs === "stopped" && <button type="button" className="hbtn dark" onClick={() => resume(d.id)}>Resume</button>}
       {d.stage === "applied" && <button type="button" className="hbtn" onClick={() => revert(d.id)}>Undo</button>}

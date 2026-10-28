@@ -2359,7 +2359,7 @@ export interface DelegationItem {
   folder: string;
   id: string;
   line: string;
-  needs?: ("card" | "failed" | "stuck" | "stopped" | "outward") | null;
+  needs?: ("card" | "failed" | "stuck" | "stopped" | "outward" | "collision") | null;
   pr?: number | null;
   pr_url?: string | null;
   repo: string;

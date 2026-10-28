@@ -31,3 +31,13 @@ do) and propose-only sessions (the work happens in two rounds and the edits stil
   merging the PR on GitHub. The PR stays open as history; the Applied line says so.
 - A branch that starts from Orb's snapshot of uncommitted changes is never pushed (the snapshot holds the owner's
   own unfinished work); it stays Ready with the branch and says why.
+
+## Amended (#863)
+
+- When the tests pass, before any push, Orb fetches the remote target branch: the one remote read a delegation
+  makes besides the push itself. It merges the checked commit against that tip in memory (`git merge-tree`).
+- Behind but clean is not a collision: it stays Ready and the line adds "main moved N commits, merges cleanly". A
+  real conflict pushes nothing and raises Needs you: the files (five, then "and N more") and, per file, who landed
+  first (git author or "you", when, subject). The model never picks between two people's edits.
+- A collision offers Update from main (a merge, never a rebase or force push) and Discard; Apply is refused. Discard
+  is local: a pushed branch and its PR stay on the remote. The record keeps every collision.

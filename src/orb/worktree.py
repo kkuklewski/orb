@@ -8,8 +8,10 @@
 - `apply` lands the delegation's own work (snapshot..branch) on the checkout's current branch: one squash
   commit or a merge commit, per repo. The result is computed with `git merge-tree` before anything moves,
   then the branch fast-forwards to it; a conflict touches nothing and raises `Conflict`.
-- `push` is the only call that contacts a remote: the delegation branch to the remote `remote_of` names (the
-  checkout branch's upstream, else origin), never forced. The caller pushes only after the owner's Allow or the
+- `collide` and `push` are the only calls that contact a remote. `collide` fetches the target branch (a read) and
+  merges the checked commit against its tip in memory: who landed first in the files that conflict.
+  `push` sends the delegation branch to the remote `remote_of` names (the checkout branch's upstream, else origin),
+  never forced. The caller pushes only after the owner's Allow or the
   repo's outward steps setting, and never a branch that starts from a snapshot (`from_snapshot`): that commit holds
   the owner's uncommitted work.
 - `revert` undoes an applied commit the same way. `remove` drops the worktree and the branch (Discard, and
@@ -37,6 +39,7 @@ _SAFE = ["-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false"]
 _ORB = {"GIT_AUTHOR_NAME": "Orb", "GIT_AUTHOR_EMAIL": "orb@localhost",
         "GIT_COMMITTER_NAME": "Orb", "GIT_COMMITTER_EMAIL": "orb@localhost"}
 MODES = ("squash", "merge")
+CAP = 5  # conflicting files a collision names one by one
 
 
 class WorktreeError(Exception):
@@ -269,6 +272,28 @@ def unpushed(wt: Worktree, remote: str, into: str) -> int:
     """The owner's own commits under the branch that `remote`/`into` doesn't have yet (they would go along)."""
     out = _git(wt.repo, "rev-list", "--count", f"{wt.base}", f"^refs/remotes/{remote}/{into}", check=False)
     return int(out.stdout.strip() or 0) if out.returncode == 0 else 0
+
+
+def collide(wt: Worktree, remote: str, into: str, commit: str) -> dict:
+    """Fetch `into` from `remote` and merge `commit` against its tip in memory (nothing is written): `behind` = commits
+    the remote target has that the branch lacks, `files` = paths that conflict, `landed` = per file (first CAP) the
+    newest commit that reached the remote first: author, whether it is the repo's own user.email, when, subject."""
+    theirs = f"refs/remotes/{remote}/{into}"
+    _git(wt.repo, "fetch", "--quiet", "--no-tags", remote, f"+refs/heads/{into}:{theirs}")
+    behind = int(_line(wt.repo, "rev-list", "--count", f"{commit}..{theirs}"))
+    out = _git(wt.repo, "merge-tree", "--write-tree", "--name-only", "--no-messages", theirs, commit, check=False)
+    if out.returncode not in (0, 1):
+        raise WorktreeError(f"git merge-tree failed: {out.stderr.strip()[:200]}")
+    files = sorted({f for f in out.stdout.splitlines()[1:] if f}) if out.returncode == 1 else []
+    me = _git(wt.repo, "config", "user.email", check=False).stdout.strip().lower()
+    base = _line(wt.repo, "merge-base", theirs, commit) if files else ""
+    landed = []
+    for f in files[:CAP]:
+        if said := _line(wt.repo, "log", "-1", "--format=%an%x00%ae%x00%ct%x00%s", f"{base}..{theirs}", "--", f):
+            name, email, when, subject = said.split("\0", 3)
+            landed.append({"file": f, "author": name, "mine": bool(me) and email.lower() == me, "when": int(when),
+                           "subject": subject})
+    return {"behind": behind, "files": files, "landed": landed}
 
 
 def push(wt: Worktree, remote: str, commit: str) -> None:

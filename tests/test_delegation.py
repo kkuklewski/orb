@@ -718,9 +718,9 @@ async def test_a_pr_or_push_failure_stays_ready_with_the_branch_and_says_why(dev
 
     gh.fail = ""
     git(rig.web, "remote", "set-url", "origin", str(dev / "gone.git"))
-    await rig.turn({"d.txt": "delegated, again\n"})
-    await rig.d.outward(r["id"], True)
-    assert "not pushed: git push failed" in rig.row()["line"] and gh.calls[-1][0] == r["branch"]  # the first try only
+    await rig.turn({"d.txt": "delegated, again\n"})  # the fetch before any push fails first
+    row = rig.row()
+    assert (row["stage"], row["needs"]) == ("ready", None) and "not pushed: git fetch failed" in row["line"]
     assert len(gh.calls) == 1
 
 
@@ -735,10 +735,8 @@ async def test_the_outward_setting_pushes_without_a_card_but_never_in_a_client_f
     assert rig.row()["line"] == "Ready: PR #12, tests passed" and r["branch"] in on_remote(remote)
 
     client = dev / "dev" / "acme" / "site"
-    client.mkdir(parents=True)
-    git(client, "init", "-q", "-b", "main")
-    commit(client, {"a.txt": "a\n"}, "init")
-    git(client, "remote", "add", "origin", str(remote))
+    client.parent.mkdir(parents=True)
+    git(dev, "clone", "-q", str(remote), str(client))
     rig2 = Rig(dev, test="true")
     rig2.web = str(client)
     rig2.store.set_command(rig2.web, "test", "true")
@@ -832,3 +830,86 @@ async def test_a_branch_that_moved_after_its_check_is_not_pushed(dev, remote, gh
     await rig.d.outward(r["id"], True)
     assert on_remote(remote) == ["main"] and gh.calls == []
     assert rig.row()["line"].endswith(f"not pushed: {r['branch']} changed after its check; re-run the check.")
+
+
+# -- collisions (#863) ----------------------------------------------------------------------------
+
+ALICE = {"GIT_AUTHOR_NAME": "Alice Acme", "GIT_AUTHOR_EMAIL": "alice@acme.example", "GIT_COMMITTER_NAME": "Alice Acme",
+         "GIT_COMMITTER_EMAIL": "alice@acme.example"}
+
+
+def land(dev: Path, bare: Path, files: dict[str, str], msg: str) -> None:
+    """The other side: a second clone commits as Alice and pushes main first."""
+    other = dev / "other"
+    if not other.exists():
+        git(dev, "clone", "-q", str(bare), str(other))
+    for name, text in files.items():
+        (other / name).write_text(text)
+    run = lambda *a: subprocess.run(["git", "-C", str(other), *a], check=True, capture_output=True, env={**os.environ, **ALICE})
+    run("add", "-A")
+    run("commit", "-q", "-m", msg)
+    run("push", "-q", "origin", "main")
+
+
+def test_the_collision_line_names_capped_files_and_who_landed_first():
+    now = 1_000_000
+    c = {"files": [f"f{i}.py" for i in range(7)],
+         "landed": [{"file": "f0.py", "author": "Alice Acme", "mine": False, "when": now - 7200, "subject": "fix rounding"},
+                    {"file": "f1.py", "author": "t", "mine": True, "when": now - 90000, "subject": "rename"}]}
+    assert [delegation.ago(now - s, now) for s in (5, 600, 7200, 90000)] == ["just now", "10 min ago", "2 h ago", "1 d ago"]
+    text = delegation.collision_text(c, "main")
+    assert text.startswith("Conflict with main in f0.py, f1.py, f2.py, f3.py, f4.py and 2 more. Landed first: f0.py by Alice Acme ")
+    assert "f1.py by you " in text and "('rename')" in text
+
+
+async def test_main_moved_without_a_conflict_stays_ready_and_says_so(dev, remote, gh):
+    rig = Rig(dev, test="true")
+    r = await rig.allow()
+    land(dev, remote, {"a.txt": "alice\n"}, "alice edits a")
+    await rig.turn({"d.txt": "delegated\n"})
+    row = rig.row()
+    assert (row["stage"], row["needs"]) == ("ready", "outward")
+    assert row["line"] == f"Ready: branch {r['branch']}, tests passed · main moved 1 commit, merges cleanly"
+    assert "collisions" not in rig.d.items[r["id"]]
+
+
+async def test_a_conflict_pushes_nothing_and_names_who_landed_first(dev, remote, gh):
+    rig = Rig(dev, test="true")
+    r = await rig.allow()
+    land(dev, remote, {"c.txt": "one\n2\nthree\n"}, "fix rounding")
+    await rig.turn({"c.txt": "one\nTWO\nthree\n"})
+    row = rig.row()
+    assert (row["stage"], row["needs"], row["ask"]) == ("ready", "collision", None)
+    assert row["line"] == "Conflict with main in c.txt. Landed first: c.txt by Alice Acme just now ('fix rounding')."
+    assert on_remote(remote) == ["main"] and gh.calls == []
+    (seen,) = rig.d.items[r["id"]]["collisions"]
+    assert (seen["files"], seen["outcome"], seen["landed"][0]["author"]) == (["c.txt"], "open", "Alice Acme")
+    with pytest.raises(DelegationError, match="main changed the same files first"):
+        await rig.d.apply(r["id"], rig.store.apply_mode)
+    assert not (Path(rig.web) / "c.txt").read_text().startswith("one\nTWO")
+
+
+async def test_the_owners_own_commit_reads_as_you_and_the_files_are_capped(dev, remote, gh):
+    git(dev / "dev" / "web", "config", "user.email", "alice@acme.example")
+    rig = Rig(dev, test="true")
+    await rig.allow()
+    many = {f"f{i}.txt": f"alice {i}\n" for i in range(7)}
+    land(dev, remote, many, "alice adds f")
+    await rig.turn({name: "mine\n" for name in many})
+    line = rig.row()["line"]
+    assert line.startswith("Conflict with main in f0.txt, f1.txt, f2.txt, f3.txt, f4.txt and 2 more. Landed first: f0.txt by you ")
+    assert line.count(" by you ") == 5 and "f5.txt by" not in line
+
+
+async def test_discard_after_a_collision_leaves_the_pushed_branch_and_pr(dev, remote, gh):
+    rig = Rig(dev, test="true")
+    r = await rig.allow()
+    await rig.turn({"d.txt": "delegated\n"})
+    await rig.d.outward(r["id"], True)
+    land(dev, remote, {"d.txt": "alice\n"}, "alice adds d")
+    await rig.turn({"d.txt": "delegated, again\n"})
+    assert rig.row()["needs"] == "collision"
+    pushed = git(remote, "rev-parse", r["branch"])
+    await rig.d.discard(r["id"])
+    assert on_remote(remote) == ["main", r["branch"]] and git(remote, "rev-parse", r["branch"]) == pushed
+

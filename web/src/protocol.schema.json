@@ -2008,7 +2008,8 @@
                 "failed",
                 "stuck",
                 "stopped",
-                "outward"
+                "outward",
+                "collision"
               ],
               "type": "string"
             },
