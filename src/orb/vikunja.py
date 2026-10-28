@@ -9,6 +9,7 @@ environment (ORB_VIKUNJA_TOKEN), so it never lands in settings.json. Without bot
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
 import html
 import json
 import re
@@ -26,6 +27,7 @@ MAX_PAGES = 20  # Vikunja caps a page at 50 whatever per_page says, so we read u
 TIMEOUT = 6
 NO_DATE = "0001-01-01"  # Vikunja's "no due date"
 HOME_SHOWN = 12  # tasks Home gets (it counts all of them)
+_me_cache: dict[tuple[str, str], dict] = {}  # (base, token digest) -> who the token is, for the server's life
 
 
 class VikunjaError(Exception):
@@ -121,6 +123,26 @@ def labels(t: dict) -> list[str]:
     return [str(x["title"])[:80] for x in t.get("labels") or [] if isinstance(x, dict) and x.get("title")]
 
 
+def assignees(t: dict) -> list[dict]:
+    """A task's assignees as {"id", "name"} (null when it has none); id is a string, like Jira's accountId."""
+    return [{"id": str(u["id"]), "name": str(u.get("name") or u.get("username") or "")[:80]}
+            for u in t.get("assignees") or [] if isinstance(u, dict) and u.get("id")]
+
+
+def me(url: str) -> dict:
+    """Who the token is: {"id", "name" (display name, else the username), "username"}. Read once per token and kept in
+    memory; a failure isn't kept, so the next call asks again."""
+    base, token = _cfg(url)
+    key = (base, hashlib.sha256(token.encode()).hexdigest())
+    if key not in _me_cache:
+        u = _fetch(base, token, "/user", {})
+        if not isinstance(u, dict) or not u.get("id") or not u.get("username"):
+            raise VikunjaError("Vikunja didn't say who this token is.")
+        _me_cache[key] = {"id": str(u["id"]), "name": str(u.get("name") or u["username"])[:80],
+                          "username": str(u["username"])[:80]}
+    return _me_cache[key]
+
+
 def open_tasks(url: str, project: str | None = None) -> dict:
     """{"tasks": [...], "total": n, "url": base}: every open task (or one project's), most urgent first."""
     cfg = configured(url)
@@ -146,7 +168,8 @@ def open_tasks(url: str, project: str | None = None) -> dict:
         out.append({"id": int(t.get("id", 0)), "title": str(t.get("title", ""))[:200], "project": name,
                     "project_id": int(t.get("project_id") or 0),
                     "due": _due(t.get("due_date")), "created": str(t.get("created", ""))[:10], "priority": int(t.get("priority") or 0), "updated": updated,
-                    "url": f"{base}/tasks/{t.get('id')}", "labels": labels(t)})
+                    "url": f"{base}/tasks/{t.get('id')}", "labels": labels(t),
+                    "assignees": assignees(t)})
     return {"tasks": order(out), "total": len(out), "url": base}
 
 
@@ -176,7 +199,7 @@ def plain(text: str | None) -> str:
 
 def task(url: str, task_id: int) -> dict:
     """One task in full: {"id", "title", "description" (plain text), "project", "project_id", "due", "priority", "done",
-    "done_at" (a timestamp, None while open), "url"}."""
+    "done_at" (a timestamp, None while open), "url", "assignees"}."""
     cfg = configured(url)
     if not cfg:
         raise VikunjaError("Vikunja isn't set up (vikunja_url and ORB_VIKUNJA_TOKEN).")
@@ -189,7 +212,8 @@ def task(url: str, task_id: int) -> dict:
     return {"id": int(t["id"]), "title": str(t.get("title", ""))[:200], "description": plain(t.get("description"))[:8000],
             "project": str(project.get("title", "")) if isinstance(project, dict) else "", "project_id": pid,
             "due": _due(t.get("due_date")), "priority": int(t.get("priority") or 0), "done": bool(t.get("done")),
-            "done_at": _when(t.get("done_at")) if t.get("done") else None, "url": f"{base}/tasks/{t['id']}"}
+            "done_at": _when(t.get("done_at")) if t.get("done") else None, "url": f"{base}/tasks/{t['id']}",
+            "assignees": assignees(t)}
 
 
 def _update(url: str, task_id: int, change: dict) -> None:
