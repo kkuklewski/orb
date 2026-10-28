@@ -270,15 +270,18 @@ TASK_ACTIONS = ["start", "done", "later"]
 VIKUNJA_ACTIONS = [*TASK_ACTIONS, "delegate"]  # `repo`: the mapped repo's label, else the page asks for one
 
 
+LEAVE_DAYS = 14  # a pull request this quiet gets Leave it: hidden until it changes, Orb never writes to it (ticket 850)
 RESULT_OLD_DAYS = 3  # a Finished session not opened for this long joins Up next's one "N finished sessions not opened" (ticket 849)
 
 
 def queue(tasks: list[dict] | None, notes: list[dict] | None, results: list[dict] | None, prs: list[dict] | None,
-          awaiting: int, today: str, hidden: set[str] = frozenset(), notopic: int = 0, now: float | None = None) -> list[dict]:
+          awaiting: int, today: str, hidden: set[str] = frozenset(), notopic: int = 0, now: float | None = None,
+          left: dict[str, float] | None = None) -> list[dict]:
     """What doesn't need the owner but is worth doing, in rule order: due date (soonest first, undated last), then
     priority (Vikunja's, else the suggested one in `suggested`), then newest. Items in `hidden` are left out.
     Every item can be started or put off (Later); tasks (Vikunja's and the notes') can also be marked done, and
-    carry the rule's suggestion (suggest.py).
+    carry the rule's suggestion (suggest.py). A pull request quiet LEAVE_DAYS gets Leave it; one in `left` (key ->
+    its updatedAt when left) stays out until that time changes.
     Same shape as needs_you's items, plus `group`."""
     out: list[dict] = []
 
@@ -319,12 +322,14 @@ def queue(tasks: list[dict] | None, notes: list[dict] | None, results: list[dict
             source=None, ts=0.0, facts=f"{len(old)} finished agent sessions the owner has not opened for {RESULT_OLD_DAYS}+ days",
             stable=str(len(old)))
     for p in prs or []:
-        if p.get("draft"):
+        key = f"pr:{p['repo']}#{p['number']}"
+        if p.get("draft") or (left and key in left and left[key] == p.get("updated")):
             continue
         repo = p["repo"].split("/")[-1]
-        add(key=f"pr:{p['repo']}#{p['number']}", kind="pr", id=f"{p['repo']}#{p['number']}", title=_clip(p["title"], 120),
+        add(key=key, kind="pr", id=f"{p['repo']}#{p['number']}", title=_clip(p["title"], 120),
             reason=f"Open pull request, last activity {_days(p.get('idle_days', 0))}.", source=repo, url=p.get("url"),
-            ts=_ts(p.get("updated")), facts=f"Owner's open pull request in {repo}: {_clip(p['title'], 200)}; "
+            ts=_ts(p.get("updated")), actions=["start", "later", "leave"] if p.get("idle_days", 0) >= LEAVE_DAYS else ["start", "later"],
+            facts=f"Owner's open pull request in {repo}: {_clip(p['title'], 200)}; "
                                             f"last activity {_days(p.get('idle_days', 0))}",
             stable=f"{p['title']}|{p.get('idle_days')}")
     if awaiting:
@@ -448,7 +453,7 @@ class Needs:
         hidden = {k for part in self.MARKS for k, day in (self.state.get(part) or {}).items() if day == self.today}
         self.items = needs_you(f["routines"], f["tasks"], self.today, f["setup"], f["reminders"], f["vault"])  # type: ignore[arg-type]
         self.queue = queue(f["tasks"], f["notes"], f["results"], f["prs"], int(f["awaiting"] or 0), self.today, hidden,  # type: ignore[arg-type]
-                           int(f["notopic"] or 0))  # type: ignore[call-overload]
+                           int(f["notopic"] or 0), left=self.state.get("left") or {})  # type: ignore[call-overload]
 
     def _aged(self, now: float | None = None) -> list[dict]:
         return aged(self.items, self.state.get("since") or {}, self.today, now or time.time())
@@ -498,6 +503,20 @@ class Needs:
         self._save()
         self._build()
         await self.push(self.event())
+
+    async def leave(self, key: str) -> bool:
+        """Leave it on a quiet pull request: hidden, on every page and after a restart, until its updatedAt changes.
+        Entries for PRs that changed or closed go at the same time. Nothing is written to GitHub."""
+        prs = {f"pr:{p['repo']}#{p['number']}": p for p in self.facts["prs"] or []}  # type: ignore[union-attr]
+        p = prs.get(key)
+        if not p or p.get("idle_days", 0) < LEAVE_DAYS:
+            return False
+        kept = {k: u for k, u in (self.state.get("left") or {}).items() if k in prs and prs[k].get("updated") == u}
+        self.state["left"] = {**kept, key: p.get("updated")}
+        self._save()
+        self._build()
+        await self.push(self.event())
+        return True
 
     async def update(self, today: str, force: bool = False, now: float | None = None, **facts: object) -> None:
         """New facts (`setup=`, `vault=` ([Health] or []), `routines=`, `reminders=`, `tasks=`, `notes=`, `results=`, `prs=`, `awaiting=`, `notopic=`): send the rule lists at once;

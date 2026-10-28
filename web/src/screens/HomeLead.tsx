@@ -3,7 +3,7 @@ import { folderName, openPicker } from "../stores/session";
 import { openSessions, useViews } from "../stores/views";
 import { openItems } from "../stores/items";
 import { openSetup } from "../stores/setup";
-import { laterPlan, startPlan, type NeedsYou } from "../stores/home";
+import { laterPlan, leavePlan, startPlan, type NeedsYou } from "../stores/home";
 import { donePlan } from "../stores/tasks";
 import { delegate, delegateBulk, pickRepo } from "../stores/delegation";
 import { NOTES_STEP } from "./setup/Setup";
@@ -115,6 +115,10 @@ export function LeadCard({ n, queue, lists, title }: { n: NeedsYou; queue: PlanI
             <button type="button" className="hbtn dark big lead-go" onClick={() => startPlan(lead)}>{GO[lead.kind] ?? "Start"} <kbd className="kbd">⏎</kbd></button>
             {lead.actions?.includes("done") && <button type="button" className="hbtn big" onClick={done}>Done <kbd className="kbd">D</kbd></button>}
             <button type="button" className="hbtn big" onClick={skip} title="Hide it until tomorrow">Later <kbd className="kbd">S</kbd></button>
+            {lead.actions?.includes("leave") && (
+              <button type="button" className="hbtn big" title="Hide it until the pull request changes; Orb never touches it"
+                onClick={() => { setFront(null); leavePlan(lead); }}>Leave it</button>
+            )}
             {lead.kind === "task" && lead.actions?.includes("delegate") && (
               <button type="button" className="hbtn big" title="A background session does it in its own worktree; you review and apply"
                 onClick={() => (lead.repo ? delegate(lead.id) : pickRepo(lead.id))}>Delegate{lead.repo ? ` to ${lead.repo}` : ""}</button>

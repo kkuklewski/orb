@@ -34,6 +34,7 @@ export type ClientMessage =
   | AwaySeenMsg
   | PlanStartMsg
   | PlanLaterMsg
+  | PlanLeaveMsg
   | PlanDoneMsg
   | ScreenMsg
   | TaskDetailMsg
@@ -400,6 +401,17 @@ export interface PlanStartMsg {
 export interface PlanLaterMsg {
   key: string;
   type: "plan_later";
+}
+/**
+ * Leave it on a pull request idle 14+ days ("pr:<repo>#<n>"): hidden until the PR changes (its updatedAt), never
+ * written to GitHub (ticket 850).
+ *
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "PlanLeaveMsg".
+ */
+export interface PlanLeaveMsg {
+  key: string;
+  type: "plan_leave";
 }
 /**
  * Done on a queue task ("vikunja:<id>" or "note:<file>:<line>"): written at once; undo=True reopens the tracker's task.
@@ -1705,7 +1717,7 @@ export interface PlanEvent {
  * via the `definition` "PlanItem".
  */
 export interface PlanItem {
-  actions?: ("open" | "start" | "done" | "later" | "delegate" | "make_task")[];
+  actions?: ("open" | "start" | "done" | "later" | "delegate" | "make_task" | "leave")[];
   due?: string | null;
   id: string;
   key: string;

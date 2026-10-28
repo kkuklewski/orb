@@ -1160,6 +1160,9 @@ async def handle(conn: Conn, msg: dict) -> None:
     if t == "plan_later":
         await hub.needs.mark("later", str(msg["key"]), dt.date.today().isoformat())
         return
+    if t == "plan_leave":  # a pull request quiet for two weeks: hidden until it changes, nothing written to GitHub
+        await hub.needs.leave(str(msg["key"]))
+        return
     if t == "plan_done":
         # Done on a queue task: the tracker's is written there at once (Undo opens it again); a notes task gets its line
         # ticked like on the task screen, and that toast's Undo puts the line back.
