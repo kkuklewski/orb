@@ -80,6 +80,7 @@ export type ClientMessage =
   | DelegationResumeMsg
   | DelegationOutwardMsg
   | DelegationUpdateMsg
+  | DelegationReopenMsg
   | DropMsg;
 /**
  * This interface was referenced by `OrbProtocol`'s JSON-Schema
@@ -870,6 +871,16 @@ export interface DelegationOutwardMsg {
 export interface DelegationUpdateMsg {
   id: string;
   type: "delegation_update";
+}
+/**
+ * Reopen PR on a delegation whose PR was closed on the remote (#877): `gh pr reopen`, then polling resumes.
+ *
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "DelegationReopenMsg".
+ */
+export interface DelegationReopenMsg {
+  id: string;
+  type: "delegation_reopen";
 }
 /**
  * Home's drop zone: one pasted link, or one file (name + base64 bytes).
@@ -2377,19 +2388,32 @@ export interface DelegationItem {
   apply_text: string;
   ask?: string | null;
   branch: string;
+  checks?: DelegationCheck[] | null;
   conflict?: string | null;
   folder: string;
   id: string;
   line: string;
-  needs?: ("card" | "failed" | "stuck" | "stopped" | "outward" | "collision") | null;
+  needs?: ("card" | "failed" | "stuck" | "stopped" | "outward" | "collision" | "closed" | "blocked" | "update") | null;
   pr?: number | null;
   pr_url?: string | null;
   repo: string;
   session: string;
-  stage: "queued" | "working" | "testing" | "pushing" | "ready" | "failed" | "applied" | "reverted" | "stopped";
+  stage:
+    "queued" | "working" | "testing" | "pushing" | "ready" | "failed" | "applied" | "reverted" | "stopped" | "merged";
   task: number;
   title: string;
   update_from?: string | null;
+}
+/**
+ * A failing check on a delegation's PR: its name (safe charset), conclusion, and a link when it is https.
+ *
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "DelegationCheck".
+ */
+export interface DelegationCheck {
+  conclusion: string;
+  name: string;
+  url?: string | null;
 }
 /**
  * Review: the delegation's own work (snapshot..branch), stat then patch, capped.

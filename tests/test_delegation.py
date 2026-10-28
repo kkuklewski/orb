@@ -1022,7 +1022,7 @@ async def test_the_update_message_reaches_the_delegation(dev, remote, gh, monkey
     r = await rig.allow()
     conn = Conn()
     await server.handle(conn, {"type": "delegation_update", "id": r["id"]})
-    assert conn.sent[-1] == {"type": "error", "text": "Only a Ready delegation that collided can be updated."}
+    assert conn.sent[-1] == {"type": "error", "text": "Only a Ready delegation that collided or is behind can be updated."}
 
 
 async def test_a_changed_git_config_stops_the_fetch(dev, remote, gh):
@@ -1042,7 +1042,7 @@ class FakeView:
 
     async def __call__(self, repo, number):
         self.calls.append(number)
-        return self.state, self.mergeable
+        return delegation.read_pr({"state": self.state, "mergeable": self.mergeable})
 
 
 @pytest.fixture
@@ -1084,7 +1084,7 @@ async def test_an_open_pr_is_read_every_ten_minutes_and_conflicting_raises_the_c
     assert view.calls == [12, 12]  # a collision waits for the owner: no more reads
 
 
-async def test_conflicting_without_a_real_conflict_here_and_a_closed_pr_change_nothing(dev, remote, gh, view):
+async def test_conflicting_without_a_real_conflict_here_changes_nothing_and_a_merged_pr_is_never_read_again(dev, remote, gh, view):
     rig = Rig(dev, test="true")
     r = await rig.allow()
     await rig.turn({"d.txt": "delegated\n"})

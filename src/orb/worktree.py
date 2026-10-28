@@ -8,8 +8,9 @@
 - `apply` lands the delegation's own work (snapshot..branch) on the checkout's current branch: one squash
   commit or a merge commit, per repo. The result is computed with `git merge-tree` before anything moves,
   then the branch fast-forwards to it; a conflict touches nothing and raises `Conflict`.
-- `collide` and `push` are the only calls that contact a remote. `collide` fetches the target branch (a read) and
-  merges the checked commit against its tip in memory: who landed first in the files that conflict.
+- `push` is the only call that writes to a remote; `collide`, `merge_in`, `merge_clean` and `fast_forward` fetch the
+  target branch (a read). `collide` merges the checked commit against its tip in memory: who landed first in the files
+  that conflict.
   `push` sends the delegation branch to the remote `remote_of` names (the checkout branch's upstream, else origin),
   never forced. The caller pushes only after the owner's Allow or the
   repo's outward steps setting, and never a branch that starts from a snapshot (`from_snapshot`): that commit holds
@@ -354,6 +355,43 @@ def merge_in(wt: Worktree, remote: str, into: str, message: str) -> dict:
     if not merging(wt):  # a conflict exits 1 and leaves the merge open; anything else started nothing
         raise WorktreeError(f"git merge failed: {' '.join((out.stderr or out.stdout).split())[:200]}")
     return {"head": head, "theirs": theirs, "base": _line(wt.repo, "merge-base", head, theirs)}
+
+
+def merge_clean(wt: Worktree, remote: str, into: str, message: str) -> str:
+    """Update from `into` when it merges cleanly (#877): Orb's own merge commit of the fresh `remote`/`into` on the
+    delegation branch, no session turn. Never a rebase. A conflict aborts the merge (nothing changes) and raises
+    Conflict. Returns the merge commit."""
+    if dirty(wt):
+        raise WorktreeError(f"Uncommitted changes on branch {wt.branch}.")
+    theirs = _line(wt.repo, "rev-parse", _fetch(wt, remote, into))
+    out = _git(wt.path, "merge", "--no-ff", "--no-edit", "-m", message, theirs, check=False)
+    if out.returncode != 0:
+        files = _git(wt.path, "diff", "--name-only", "--diff-filter=U", check=False).stdout.split()
+        _git(wt.path, "merge", "--abort", check=False)
+        raise Conflict(sorted(files))
+    return _line(wt.path, "rev-parse", "HEAD")
+
+
+def _ancestor(repo: str, a: str, b: str) -> bool:
+    return _git(repo, "merge-base", "--is-ancestor", a, b, check=False).returncode == 0
+
+
+def fast_forward(wt: Worktree, remote: str, into: str, sha: str) -> bool:
+    """The PR merged on the remote (#877): move the owner's checkout to its merge commit, only when that commit is on
+    the fresh `remote`/`into`, the checkout is on `into` with no uncommitted changes to tracked files, and strictly
+    behind it. True when the checkout has the merge commit now."""
+    theirs = _fetch(wt, remote, into)
+    got = _git(wt.repo, "rev-parse", "--verify", "-q", f"{sha}^{{commit}}", check=False).stdout.strip()
+    if not got or not _ancestor(wt.repo, got, theirs):
+        return False
+    head = _line(wt.repo, "rev-parse", "HEAD")
+    if _ancestor(wt.repo, got, head):
+        return True
+    on = _git(wt.repo, "symbolic-ref", "-q", "--short", "HEAD", check=False).stdout.strip()
+    tracked = _git(wt.repo, "status", "--porcelain", "--untracked-files=no", check=False).stdout.strip()
+    if on != into or tracked or not _ancestor(wt.repo, head, got):
+        return False
+    return _git(wt.repo, "merge", "--ff-only", "-q", got, check=False).returncode == 0
 
 
 def merging(wt: Worktree) -> bool:

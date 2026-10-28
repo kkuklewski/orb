@@ -71,3 +71,19 @@ do) and propose-only sessions (the work happens in two rounds and the edits stil
 
 - Delegate claims the task in the tracker first; a task held by a teammate is refused, and Orb never takes it from
   them (#866). Its branch is per person: orb/<tracker user>/<task>-<slug>.
+
+## Amended (#877)
+
+- The PR read also takes its merge state, merger, merge commit, review decision and checks. Orb shows only words of
+  its own: a login, a check's name in a safe charset (60 characters), its conclusion and an https link. A check's log,
+  output or description never reaches the page or a session's prompt.
+- Merged on the remote (by anyone): the task is marked done, the session stops, the row reads "Merged by X" and the
+  owner's checkout fast-forwards only when it is on the target branch with no tracked changes. No Apply, no Undo; Discard
+  removes the worktree and keeps the claim.
+- Closed without merging: Needs you "PR #N was closed by X", Apply refused, no more reads until the owner taps Reopen
+  PR (`gh pr reopen`). Nothing reopens on its own.
+- Blocked by a failed check: Needs you with a link per check and Send back, which gives the same session only the
+  check's name and conclusion. Blocked by a review, pending checks or branch rules: the row stays Ready with the reason
+  and Apply waits; a later clean read clears it.
+- Behind with a clean merge: Update from main merges without a session turn (`merge --no-ff`, Orb's own commit), runs
+  the declared test, then the push asks again. Behind with conflicting files is the collision.

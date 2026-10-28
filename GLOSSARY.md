@@ -197,8 +197,9 @@ collision card names, per file, the newest one's git author ("you" for the repo'
 _Avoid_: Upstream changes, their diff
 
 **Update from main**:
-Merging the remote target branch into a delegation's branch after a collision (never a rebase, never a force push),
-so its PR updates; "main" is whatever branch the delegation lands in.
+Merging the remote target branch into a delegation's branch after a collision or when its PR is behind (never a
+rebase, never a force push), so its PR updates; "main" is whatever branch the delegation lands in. A clean one is
+Orb's own commit, with no session turn.
 _Avoid_: Rebase, sync, send back
 
 **Run**:

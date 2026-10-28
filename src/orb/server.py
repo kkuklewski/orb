@@ -1352,6 +1352,9 @@ async def handle(conn: Conn, msg: dict) -> None:
     if t == "delegation_update":
         await delegation_step(conn, hub.delegator.update(str(msg["id"])))
         return
+    if t == "delegation_reopen":
+        await delegation_step(conn, hub.delegator.reopen(str(msg["id"])))
+        return
     if t == "delegation_outward":
         await delegation_step(conn, hub.delegator.outward(str(msg["id"]), bool(msg["allow"])))
         return
