@@ -124,9 +124,14 @@ def _git(cwd: str, *args: str, env: dict[str, str] | None = None, check: bool = 
         full.pop(k, None)
     out = subprocess.run(["git", "-C", cwd, *_SAFE, *args], capture_output=True, text=True, env=full, timeout=120)
     if check and out.returncode != 0:
-        last = (out.stderr or out.stdout).strip().splitlines()[-1:] or [""]
-        raise WorktreeError(f"git {args[0]} failed: {last[0]}"[:300])
+        raise WorktreeError(_failure(args[0], out))
     return out
+
+
+def _failure(cmd: str, out: subprocess.CompletedProcess) -> str:
+    """git's last line that says what went wrong; `hint:` lines are advice, never the reason."""
+    said = [l for l in (out.stderr or out.stdout).strip().splitlines() if not l.startswith("hint:")]
+    return f"git {cmd} failed: {(said[-1:] or [''])[0]}"[:300]
 
 
 def _line(cwd: str, *args: str) -> str:
@@ -271,7 +276,14 @@ def push(wt: Worktree, remote: str, commit: str) -> None:
     if tip(wt) != commit:
         raise Moved(f"{wt.branch} changed after its check; re-run the check.")
     ref = f"refs/heads/{wt.branch}"
-    _git(wt.repo, "push", "--quiet", remote, f"{commit}:{ref}")
+    out = _git(wt.repo, "push", "--porcelain", remote, f"{commit}:{ref}", check=False)
+    if out.returncode == 0:
+        return
+    for line in out.stdout.splitlines():  # "!\t<from>:<to>\t[rejected] (fetch first)"
+        flag, _, rest = line.partition("\t")
+        if flag == "!" and (m := re.search(r"\[([^\]]+)\]\s*(?:\((.*)\))?$", rest)):
+            raise WorktreeError(f"Push of {wt.branch} to {remote}: {m[1]}" + (f" ({m[2]})" if m[2] else ""))
+    raise WorktreeError(_failure("push", out))
 
 
 # -- apply and revert ---------------------------------------------------------------------------
