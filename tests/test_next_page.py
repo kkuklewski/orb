@@ -17,8 +17,12 @@ def test_react_routes_get_the_same_page(route):
     assert r.status_code == 200 and '<div id="root"></div>' in r.text and "cdn.jsdelivr.net" not in r.headers["content-security-policy"]
 
 
-def test_old_page_keeps_its_cdn_policy():
-    assert "cdn.jsdelivr.net" in TestClient(server.app).get("/old").headers["content-security-policy"]
+def test_the_old_page_is_gone_and_nothing_loads_from_a_cdn():
+    c = TestClient(server.app)
+    assert c.get("/old", follow_redirects=False).status_code == 404
+    for path in ("/static/app.js", "/static/app.css", "/static/studio.css"):
+        assert c.get(path).status_code == 404
+    assert "cdn.jsdelivr.net" not in server.csp("127.0.0.1:8765", False)
 
 
 def test_next_links_redirect_to_the_same_screen():
@@ -63,7 +67,7 @@ def test_raw_html_under_static_is_refused_and_every_response_gets_the_headers():
     c = TestClient(server.app)
     for path in ("/static/index.html", "/static/app/index.html", "/static/APP/Index.HTML"):
         assert c.get(path).status_code == 404
-    r = c.get("/static/app.js")
+    r = c.get("/static/icons/icon.svg")
     assert r.status_code == 200 and r.headers["x-content-type-options"] == "nosniff"
     assert r.headers["content-security-policy"] == "frame-ancestors 'none'"
     assert "form-action 'none'" in c.get("/").headers["content-security-policy"]

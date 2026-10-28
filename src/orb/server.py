@@ -33,11 +33,9 @@ STATIC = Path(__file__).parent / "static"
 
 
 def build_id() -> str:
-    """Hash of the page's own files: a page from an older build reloads itself (no stale JS)."""
-    h = hashlib.sha256()
-    for name in ("index.html", "app.js", "app.css", "studio.css"):
-        h.update((STATIC / name).read_bytes())
-    return h.hexdigest()[:12]
+    """Hash of the built page's index.html; its asset names carry content hashes, so any rebuild changes it."""
+    built = STATIC / "app" / "index.html"
+    return hashlib.sha256(built.read_bytes() if built.is_file() else b"").hexdigest()[:12]
 
 
 BUILD = build_id()
@@ -492,17 +490,13 @@ app.add_middleware(Guard)
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
 
-CDN = "https://cdn.jsdelivr.net"
-
-
-def csp(host: str, secure: bool, cdn: bool = True) -> str:
+def csp(host: str, secure: bool) -> str:
     """The page's policy. The React page bundles everything, so it gets no CDN at all."""
     ws = f"{'wss' if secure else 'ws'}://{host}"
-    extra = f" {CDN}" if cdn else ""
     return "; ".join([
         "default-src 'self'",
-        f"script-src 'self'{extra} 'wasm-unsafe-eval'",  # CDN scripts carry SRI hashes
-        f"style-src 'self'{extra} https://fonts.googleapis.com",
+        "script-src 'self' 'wasm-unsafe-eval'",
+        "style-src 'self' https://fonts.googleapis.com",
         "font-src https://fonts.gstatic.com",
         "img-src 'self' data:",
         f"connect-src 'self' {ws}",
@@ -514,11 +508,11 @@ def csp(host: str, secure: bool, cdn: bool = True) -> str:
     ])
 
 
-def page(request: Request, html: str, cdn: bool) -> HTMLResponse:
+def page(request: Request, html: str) -> HTMLResponse:
     secure = request.headers.get("x-forwarded-proto") == "https" or request.url.scheme == "https"
     return HTMLResponse(html, headers={
         "Cache-Control": "no-store",
-        "Content-Security-Policy": csp(request.headers.get("host", ""), secure, cdn=cdn),
+        "Content-Security-Policy": csp(request.headers.get("host", ""), secure),
         "Referrer-Policy": "no-referrer",
     })
 
@@ -544,13 +538,7 @@ async def index(request: Request, route: str = ""):
     built = STATIC / "app" / "index.html"
     if not built.is_file():
         return PlainTextResponse("The page isn't built. Run: cd web && npm ci && npm run build", status_code=404)
-    return page(request, built.read_text(), cdn=False)
-
-
-@app.get("/old")
-async def old_page(request: Request):
-    """The previous page (plain JS), kept reachable until the React page has everything."""
-    return page(request, (STATIC / "index.html").read_text().replace("__BUILD__", BUILD), cdn=True)
+    return page(request, built.read_text())
 
 
 @app.get("/next")
