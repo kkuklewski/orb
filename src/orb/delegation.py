@@ -589,6 +589,7 @@ class Delegator:
         rid, pr, checked = r["id"], r["pr"], r.get("checked") or ""
         try:
             wt = self._wt(r)
+            await asyncio.to_thread(worktree.same_config, wt)  # gh runs git here and resolves the repo from its remotes
             state, mergeable = await pr_state(wt.repo, pr)
             if self.items.get(rid) is not r or r["stage"] != "ready" or r.get("pr") != pr or r.get("collision"):
                 return  # it moved on while gh answered

@@ -61,6 +61,7 @@ do) and propose-only sessions (the work happens in two rounds and the edits stil
   (the first read 10 minutes after the push), one call per PR on the existing minute tick. `UNKNOWN` is "not yet";
   `CONFLICTING` runs the same fetch and in-memory merge as at Ready and raises the collision card only when that
   finds conflicting files. A merged or closed PR is never read again, and a collision stops the reads until it's settled.
+  Each read checks the git config first, like a fetch: gh resolves the repo from its remotes.
 - A first push refused because the branch already exists on the remote with other commits is not a push failure:
   it raises "Branch X already exists on <remote> with someone else's commits; someone else may have delegated this
   task." with Discard only (nothing to merge, Apply refused). Discard is local; their branch stays. Once Orb has
