@@ -595,8 +595,8 @@ class HomeTasksEvent(_Event):
 class AwayLine(_Msg):
     """One thing that finished without the owner: a routine's latest ok Run (count: its Runs since they left), the
     vault's "3 pages expired" (opens Brain's Expired view), or Orb's own "2 sessions finished" (opens Sessions) /
-    "1 delegation Ready" (opens the Delegated strip); count: how many."""
-    kind: Literal["routine", "expired", "finished", "ready"]
+    "1 delegation Ready" (opens the Delegated strip) / "4 old sessions archived" (opens Sessions); count: how many."""
+    kind: Literal["routine", "expired", "finished", "ready", "archived"]
     id: str
     title: str
     summary: str = ""

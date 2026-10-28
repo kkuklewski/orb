@@ -169,6 +169,11 @@ A session that ended a turn the owner hasn't looked at yet; opening it clears it
 Sessions. A delegation's session is never Finished: it shows as Delegated, Needs you or Ready.
 _Avoid_: Done, result, completed
 
+**Stale session**:
+A session with no turn (sent or Finished) for 7 days that isn't running, waiting on a card, a delegation's or open on a
+page. Orb archives it on its own (Restore brings it back) and the Away recap counts it.
+_Avoid_: Old session, dead session
+
 **Ready**:
 A delegation whose tested PR is up ("Ready: PR #N, tests passed"); its actions are Review and Apply.
 _Avoid_: Result, done, finished
@@ -206,8 +211,8 @@ log line.
 _Avoid_: corrupt, reset, recovered
 
 **Away recap**:
-Home's one-shot card after the owner was away 24 hours or more: the routines that ran ok, the sessions Finished and the
-delegations that became Ready without them, then the top of Needs you. It goes once opened and never gets a Badge.
+Home's one-shot card after the owner was away 24 hours or more: the routines that ran ok, the sessions Finished, the
+delegations that became Ready and the Stale sessions archived without them, then the top of Needs you. It goes once opened and never gets a Badge.
 _Avoid_: Digest, summary, catch-up, brief
 
 **Routine state**:
