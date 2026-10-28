@@ -403,10 +403,7 @@ class Watch:
         self.lock = asyncio.Lock()
         self.checking = False
         self.error: str | None = None
-        try:
-            self.state = json.loads(state.read_text())
-        except (OSError, ValueError):
-            self.state = {}
+        self.state = config.read_state(state) or {}
         # repair: routine id -> its open Repair task's id (GLOSSARY: Repair task); repair_after: routine id -> when its
         # last one closed or went missing (a new failure streak counts only runs started after it).
         for k in ("routines", "runs", "logs", "seen", "verdicts", "resolved", "repair", "repair_after"):

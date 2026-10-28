@@ -126,3 +126,52 @@ def test_needs_you_row_while_the_copy_is_there(tmp_path):
     for copy in tmp_path.glob("sessions.json.bad-*"):
         copy.unlink()
     assert needs.setup_problems({}, None, "browser", "browser", {}, False) == []
+
+
+# Rebuildable stores: set aside, started from the default, a log line and no Needs you row.
+
+async def _nothing(*a):
+    return None
+
+
+def test_away_set_aside(tmp_path):
+    from orb import away
+    c = away.Clock(_bad(tmp_path, "away.json"))
+    assert c.last_active is None and c.recap is None
+    assert list(tmp_path.glob("away.json.bad-*"))
+
+
+def test_needs_ranking_set_aside(tmp_path):
+    from orb import needs
+    p = tmp_path / "needs.json"
+    p.write_text(json.dumps({"ranking": "not a list"}))
+    n = needs.Needs(p, ask=_nothing, push=_nothing)
+    assert n.state["ranking"] == []
+    assert list(tmp_path.glob("needs.json.bad-*"))
+
+
+def test_routines_set_aside(tmp_path):
+    from orb import routines
+    w = routines.Watch(_bad(tmp_path, "routines.json"), notify=_nothing, push=_nothing)
+    assert w.state["runs"] == {} and w.state["repair"] == {}
+    assert list(tmp_path.glob("routines.json.bad-*"))
+
+
+def test_triage_set_aside(tmp_path):
+    from orb import triage
+    assert triage.load(_bad(tmp_path, "priority-suggestions.json")) == {}
+    assert list(tmp_path.glob("priority-suggestions.json.bad-*"))
+
+
+def test_captures_set_aside(tmp_path):
+    from orb import brain
+    assert brain.CaptureGuard(_bad(tmp_path, "captures.json")).count() == 0
+    assert list(tmp_path.glob("captures.json.bad-*"))
+
+
+def test_rebuildable_stores_log_only(tmp_path):
+    from orb import needs
+    test_away_set_aside(tmp_path)
+    test_triage_set_aside(tmp_path)
+    assert config.set_aside and not any(b["precious"] for b in config.set_aside)
+    assert needs.setup_problems({}, None, "browser", "browser", {}, False) == []

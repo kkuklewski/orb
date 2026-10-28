@@ -412,12 +412,9 @@ class Needs:
         self.state = self._load()
 
     def _load(self) -> dict:
-        try:
-            data = json.loads(self.path.read_text())
-            if isinstance(data, dict) and isinstance(data.get("ranking"), list):
-                return data
-        except (OSError, ValueError):
-            pass
+        data = config.read_state(self.path, lambda d: isinstance(d, dict) and isinstance(d.get("ranking"), list))
+        if data:
+            return data
         return {"fp": "", "at": None, "ranking": [], "error": None, "since": {}}
 
     def _save(self) -> None:
