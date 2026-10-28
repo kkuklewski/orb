@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import base64
 import datetime as dt
-import hashlib
 import json
 import re
 import time
@@ -35,7 +34,6 @@ PRIORITY = {"lowest": 1, "low": 1, "medium": 2, "high": 3, "highest": 4}
 PRIORITY_NAME = {1: "Low", 2: "Medium", 3: "High", 4: "Highest", 5: "Highest"}  # 5 reads back as 4: Jira has no sixth name
 
 _projects_cache: dict[str, tuple[float, list[dict]]] = {}
-_me_cache: dict[tuple[str, str], dict] = {}  # (base, auth digest) -> who the account is, for the server's life
 
 
 class JiraError(Exception):
@@ -130,16 +128,13 @@ def _assignees(f: dict) -> list[dict]:
 
 def me(url: str) -> dict:
     """Who the account is, in `vikunja.me`'s shape: {"id": accountId, "name": displayName, "username": displayName}
-    (Jira Cloud shows no username). Kept in memory per account; a failure isn't kept."""
+    (Jira Cloud shows no username). One read; `tracker.me` keeps it."""
     base, auth = _cfg(url)
-    key = (base, hashlib.sha256(auth.encode()).hexdigest())
-    if key not in _me_cache:
-        u = _call(base, auth, "/myself")
-        if not isinstance(u, dict) or not u.get("accountId") or not u.get("displayName"):
-            raise JiraError("Jira didn't say who this account is.")
-        name = str(u["displayName"])[:80]
-        _me_cache[key] = {"id": str(u["accountId"]), "name": name, "username": name}
-    return _me_cache[key]
+    u = _call(base, auth, "/myself")
+    if not isinstance(u, dict) or not u.get("accountId") or not u.get("displayName"):
+        raise JiraError("Jira didn't say who this account is.")
+    name = str(u["displayName"])[:80]
+    return {"id": str(u["accountId"]), "name": name, "username": name}
 
 
 def _row(base: str, issue: dict) -> dict:

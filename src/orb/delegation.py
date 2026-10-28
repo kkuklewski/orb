@@ -104,6 +104,20 @@ LIMIT = 3
 STUCK = 20 * 60  # a Working delegation with no event for this long reads "Stuck 20 min"
 _FAILED = re.compile(r"\b(FAIL(ED)?|ERROR|Error|failed|error)\b")
 
+# a record's transient keys, dropped together when the step that set them ends
+_PR_KEYS = ("blocked", "waiting")  # what the last read of the PR found
+_CLOSED_KEYS = ("closed_by", "pr_closed")  # closed on the remote, until Reopen
+_MERGE_KEYS = ("merge", "merge_mode", "merge_problem", "outward_kind")  # Apply's merge card on the remote
+_UNDO_KEYS = ("undo", "undo_problem", "outward_kind")  # Undo's revert-PR card
+_LANDED_KEYS = (*_MERGE_KEYS, "merge_cut", "conflict")  # Orb's merge went through
+_UPDATE_KEYS = ("conflict", "outward", "outward_problem", "behind", *_PR_KEYS)  # a new commit to check
+_TURN_KEYS = (*_UPDATE_KEYS, *_MERGE_KEYS, "collision", "updated", "clean_update")  # a turn ended: every card is gone
+
+
+def _drop(r: dict, keys: tuple[str, ...]) -> None:
+    for k in keys:
+        r.pop(k, None)
+
 
 class DelegationError(Exception):
     """A delegation step refused; the message says why, in plain words."""
@@ -195,23 +209,6 @@ async def open_pr(repo: str, branch: str, into: str, title: str, body: str) -> t
 POLL = 600  # an open PR's mergeable state is read at most this often (#870)
 
 
-async def _gh(repo: str, *args: str) -> tuple[int, str]:
-    """One gh call in `repo` (no prompts): (exit code, its output)."""
-    try:
-        proc = await asyncio.create_subprocess_exec(
-            "gh", *args, cwd=repo, env={**os.environ, "GH_PROMPT_DISABLED": "1"}, stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.STDOUT, stdin=asyncio.subprocess.DEVNULL)
-    except FileNotFoundError:
-        raise DelegationError("gh is not installed") from None
-    try:
-        out, _ = await asyncio.wait_for(proc.communicate(), PR_TIMEOUT)
-    except asyncio.TimeoutError:
-        proc.kill()
-        await proc.wait()
-        raise DelegationError(f"gh {' '.join(args[:2])} timed out") from None
-    return proc.returncode or 0, out.decode(errors="replace")
-
-
 PR_FIELDS = "state,mergeable,mergeStateStatus,mergedBy,mergeCommit,reviewDecision,statusCheckRollup"
 _BAD = ("FAILURE", "TIMED_OUT", "CANCELLED", "ACTION_REQUIRED", "STARTUP_FAILURE", "ERROR")
 _LOGIN = re.compile(r"[A-Za-z0-9][A-Za-z0-9-]{0,38}(\[bot\])?")
@@ -251,27 +248,20 @@ def read_pr(seen: dict) -> dict:
 
 async def pr_state(repo: str, number: int) -> dict:
     """`gh pr view <n>`, read by `read_pr`; mergeable is "UNKNOWN" while GitHub is still computing it."""
-    code, text = await _gh(repo, "pr", "view", str(number), "--json", PR_FIELDS)
-    try:
-        seen = json.loads(text) if code == 0 else None
-    except ValueError:
-        seen = None
-    if not isinstance(seen, dict):
-        raise DelegationError(f"gh pr view failed: {failing_line(text)}")
-    return read_pr(seen)
+    return read_pr(await pr_view(repo, number, PR_FIELDS))
 
 
 async def closed_by(repo: str, number: int) -> str:
     """Who closed the PR (gh pr view doesn't say); "" when gh can't tell."""
     try:
-        code, text = await _gh(repo, "api", f"repos/{{owner}}/{{repo}}/issues/{number}", "--jq", ".closed_by.login")
+        code, text = await gh(repo, "api", f"repos/{{owner}}/{{repo}}/issues/{number}", "--jq", ".closed_by.login")
     except DelegationError:
         return ""
     return login(text.strip()) if code == 0 else ""
 
 
 async def reopen_pr(repo: str, number: int) -> None:
-    code, text = await _gh(repo, "pr", "reopen", str(number))
+    code, text = await gh(repo, "pr", "reopen", str(number))
     if code != 0:
         raise DelegationError(f"gh pr reopen failed: {failing_line(text)}")
 
@@ -355,7 +345,11 @@ class Delegator:
             r["stage"] = "stopped"
         cut = [r for r in self.items.values() if r["stage"] == "pushing"]
         for r in cut:  # cut while pushing: Ready, and the card asks again
-            r.update(stage="ready", outward="ask")
+            r.update(stage="ready", outward="ask", outward_kind="push")
+        for r in self.items.values():  # a record from before outward_kind (#881): name the card it shows
+            if "outward_kind" not in r and (kind := "revert" if r["stage"] == "applied" and r.get("undo") else
+                                            "push" if r.get("outward") == "ask" else "merge" if r.get("merge") else None):
+                r["outward_kind"] = kind
         # cut while GitHub merged: kept merging (no Apply, no Discard) until the next tick reads the PR (#879)
         self.interrupted = {r["id"] for r in self.items.values() if r.get("merge") == "merging"}
         pushed = [r for r in self.items.values() if r.get("undo") == "pushing"]
@@ -752,9 +746,7 @@ class Delegator:
             self.skip.discard(r["id"])
         elif ev["type"] == "result" and not ev.get("replay") and r["stage"] in ("working", "ready", "failed", "stopped"):
             r["stage"] = "testing"
-            for k in ("conflict", "outward", "outward_problem", "collision", "behind", "updated", "blocked", "waiting",
-                      "clean_update", "merge", "merge_mode", "merge_problem"):
-                r.pop(k, None)
+            _drop(r, _TURN_KEYS)
             await self.changed()
             self._spawn(self.check(r))
         elif ev["type"] in ("permission", "permission_done") and r["stage"] == "working":
@@ -809,8 +801,7 @@ class Delegator:
                     await self.changed()
                 return
             before = (r.get("blocked"), r.get("waiting"))
-            r.pop("blocked", None)
-            r.pop("waiting", None)
+            _drop(r, _PR_KEYS)
             if seen["merge_state"] == "BLOCKED":
                 if seen["failing"]:
                     r["blocked"] = seen["failing"]
@@ -859,8 +850,7 @@ class Delegator:
         wt = self._wt(r)
         await asyncio.to_thread(worktree.same_config, wt)
         await reopen_pr(wt.repo, r["pr"])
-        r.pop("closed_by", None)
-        r.pop("pr_closed", None)
+        _drop(r, _CLOSED_KEYS)
         r["polled"] = time.time()
         await self.changed()
         return r
@@ -944,8 +934,7 @@ class Delegator:
             await self.changed()
             return r
         await asyncio.to_thread(worktree.merge_clean, wt, remote, into, f"Merge {remote}/{into} into {r['branch']}")
-        for k in ("conflict", "outward", "outward_problem", "behind", "blocked", "waiting"):
-            r.pop(k, None)
+        _drop(r, _UPDATE_KEYS)
         r.update(stage="testing", updated="")
         await self.changed()
         self._spawn(self.check(r))
@@ -1023,7 +1012,7 @@ class Delegator:
         if self.store.outward(r["repo"]) and not self.session(r["worktree"], r["session"]).fence.in_client():
             await self._publish(r, wt)
         else:
-            r["outward"] = "ask"
+            r.update(outward="ask", outward_kind="push")
 
     @staticmethod
     def _collided(r: dict, seen: dict) -> None:
@@ -1032,26 +1021,35 @@ class Delegator:
         r.setdefault("collisions", []).append({**r["collision"], "outcome": "open"})
 
     async def outward(self, rid: str, allow: bool) -> dict:
-        """The outward card's answer: Allow pushes (and opens the PR); Skip leaves it Ready with the branch. The merge
-        card (#876) and Undo's revert PR answer here too."""
+        """The outward card's answer, by the card the record names (`outward_kind`): "push" pushes (and opens the PR),
+        Skip leaves it Ready with the branch; "merge" is Apply's merge card (#876), "revert" Undo's revert PR."""
         r = self._get(rid)
-        if self.needs(r) == "merge":
+        kind = r.get("outward_kind") if self.needs(r) in ("outward", "merge") else None
+        if kind == "merge":
             await self._merge(r, allow)
-            return r
-        if self.needs(r) != "outward":
-            raise DelegationError("That delegation has nothing waiting to be pushed.")
-        if r["stage"] == "applied":
+        elif kind == "revert":
             await (self._unmerge(r) if allow else self._undo_skipped(r))
-            return r
-        if not allow:
+        elif kind != "push":
+            raise DelegationError("That delegation has nothing waiting to be pushed.")
+        elif allow:
+            await self._publish(r, self._wt(r))
+        else:
             r["outward"] = "skipped"
+            self._pushed(r)
             await self.changed()
-            return r
-        await self._publish(r, self._wt(r))
         return r
+
+    @staticmethod
+    def _pushed(r: dict) -> None:
+        """The push card is answered: a merge card raised before it is the one left."""
+        if r.get("merge") in ("ask", "failed"):
+            r["outward_kind"] = "merge"
+        else:
+            r.pop("outward_kind", None)
 
     async def _publish(self, r: dict, wt: worktree.Worktree) -> None:
         r.update(stage="pushing", outward="pushing")
+        self._pushed(r)
         r.pop("outward_problem", None)
         await self.changed()
         try:
@@ -1154,7 +1152,7 @@ class Delegator:
             raise DelegationError(f"GitHub says PR #{pr} conflicts with {r['into']}, but it merges cleanly here; try "
                                   "Apply again in a minute.")
         if not r.get("collision"):
-            r.update(merge="ask", merge_mode=mode(r["repo"]))
+            r.update(merge="ask", merge_mode=mode(r["repo"]), outward_kind="merge")
             r.pop("merge_problem", None)
         await self.changed()
 
@@ -1174,8 +1172,7 @@ class Delegator:
         r["behind"] = seen["behind"]
         if not seen["files"]:
             return False
-        for k in ("merge", "merge_mode", "merge_problem"):
-            r.pop(k, None)
+        _drop(r, _MERGE_KEYS)
         self._collided(r, seen)
         return True
 
@@ -1183,14 +1180,12 @@ class Delegator:
         """The merge card's answer. Skip: back to Ready. Allow: `gh pr merge` on the checked commit only, never
         deleting the branch; a refusal changes nothing here."""
         if not allow:
-            for k in ("merge", "merge_mode", "merge_problem"):
-                r.pop(k, None)
+            _drop(r, _MERGE_KEYS)
             await self.changed()
             return
         pr, checked, how = r["pr"], r.get("checked") or "", "--merge" if r.get("merge_mode") == "merge" else "--squash"
         r["merge"] = "merging"
-        r.pop("merge_problem", None)
-        r.pop("merge_cut", None)
+        _drop(r, ("merge_problem", "merge_cut"))
         await self.changed()
         await self._stop(r)  # nothing writes to the branch while it lands
         try:
@@ -1224,8 +1219,7 @@ class Delegator:
             log.info("PR #%s merged, %s not pulled: %s", pr, r["into"], e)
             pulled = False
         r.update(stage="applied", target=r["into"], merged_on=r["remote"], pulled=pulled, config=wt.config)
-        for k in ("merge", "merge_mode", "merge_problem", "merge_cut", "conflict"):
-            r.pop(k, None)
+        _drop(r, _LANDED_KEYS)
         r["leftovers"] = await asyncio.to_thread(worktree.remove, wt)
         self.store.forget(r["worktree"])
         await self.changed()
@@ -1256,8 +1250,7 @@ class Delegator:
         if seen.get("state") == "MERGED":
             await self._landed(r, wt, (seen.get("mergeCommit") or {}).get("oid"))
             return
-        for k in ("merge", "merge_mode", "merge_problem"):
-            r.pop(k, None)
+        _drop(r, _MERGE_KEYS)
         r["merge_cut"] = True
         await self.changed()
 
@@ -1271,7 +1264,7 @@ class Delegator:
             raise DelegationError(f"Undo of PR #{r['pr']} is already under way.")
         if not r.get("merge_sha"):
             raise DelegationError(f"Orb couldn't read PR #{r['pr']}'s merge commit; revert it on GitHub.")
-        r.update(undo="ask", revert_branch=worktree.revert_name(r["branch"], r["task"]))
+        r.update(undo="ask", revert_branch=worktree.revert_name(r["branch"], r["task"]), outward_kind="revert")
         if self.store.outward(r["repo"]) and not Fence(r["repo"]).in_client():
             await self._unmerge(r)
         else:
@@ -1279,8 +1272,7 @@ class Delegator:
         return r
 
     async def _undo_skipped(self, r: dict) -> None:
-        for k in ("undo", "undo_problem"):
-            r.pop(k, None)
+        _drop(r, _UNDO_KEYS)
         await self.changed()
 
     async def _unmerge(self, r: dict) -> None:
@@ -1293,8 +1285,8 @@ class Delegator:
         try:
             await asyncio.to_thread(worktree.check_config, r["repo"], r.get("config") or "", branch)
             if not r.get("undo_pushed"):  # pushed before a failed PR: open the PR only
-                r["undo_pushed"] = await asyncio.to_thread(worktree.revert_on, r["repo"], remote, into, r["merge_sha"],
-                                                           branch, r.get("config") or "")
+                r["undo_pushed"] = await asyncio.to_thread(worktree.revert_on, r["repo"], remote=remote, into=into,
+                                                           commit=r["merge_sha"], branch=branch, seen=r.get("config") or "")
             body = f"Reverts PR #{r['pr']} (task #{r['task']}).\n\nOpened with Orb's Undo."
             r["revert_pr"], r["revert_pr_url"] = await open_pr(r["repo"], branch, into, f"Revert #{r['pr']}", body)
         except (DelegationError, worktree.WorktreeError, OSError) as e:

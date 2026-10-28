@@ -154,6 +154,11 @@ def _line(cwd: str, *args: str) -> str:
     return _git(cwd, *args).stdout.strip()
 
 
+def _ancestor(repo: str, a: str, b: str) -> bool:
+    """`a` is `b` or in its history."""
+    return _git(repo, "merge-base", "--is-ancestor", a, b, check=False).returncode == 0
+
+
 def _config_print(repo: str) -> str:
     """Every config entry git applies in `repo` (system, global, local, includes); the -c overrides above aside."""
     out = _git(repo, "config", "--list", "--show-scope", check=False).stdout
@@ -244,8 +249,7 @@ def _start(repo: str, remote: str, into: str) -> tuple[str, str]:
         theirs = _line(repo, "rev-parse", "--verify", f"{_fetch_ref(repo, remote, into)}^{{commit}}")
     except (WorktreeError, subprocess.TimeoutExpired):
         return head, remote
-    behind = _git(repo, "merge-base", "--is-ancestor", head, theirs, check=False).returncode == 0
-    return (theirs if behind else head), ""
+    return (theirs if _ancestor(repo, head, theirs) else head), ""
 
 
 def create(repo: str, branch: str, dest: str | None = None, never: set[str] | None = None,
@@ -416,17 +420,27 @@ def catch_up(wt: Worktree, remote: str, into: str) -> bool:
             return False
     except WorktreeError:  # detached HEAD
         return False
-    quiet = {"GIT_OPTIONAL_LOCKS": "0"}  # status never rewrites the owner's index
-    if _git(wt.repo, "status", "--porcelain", "--untracked-files=no", env=quiet).stdout.strip():
+    if not _clean(wt.repo):
         return False
-    theirs = _line(wt.repo, "rev-parse", f"{_fetch_ref(wt.repo, remote, into)}^{{commit}}")
-    head = _line(wt.repo, "rev-parse", "HEAD")
-    if head == theirs or _git(wt.repo, "merge-base", "--is-ancestor", head, theirs, check=False).returncode:
-        return False
-    return _git(wt.repo, "merge", "--ff-only", "-q", theirs, check=False).returncode == 0
+    return _ff(wt.repo, _line(wt.repo, "rev-parse", f"{_fetch_ref(wt.repo, remote, into)}^{{commit}}"))
 
 
-def revert_on(repo: str, remote: str, into: str, commit: str, branch: str, seen: str) -> str:
+def _clean(repo: str) -> bool:
+    """The owner's checkout has no uncommitted changes to tracked files (status never rewrites its index)."""
+    out = _git(repo, "status", "--porcelain", "--untracked-files=no", env={"GIT_OPTIONAL_LOCKS": "0"}, check=False)
+    return out.returncode == 0 and not out.stdout.strip()
+
+
+def _ff(repo: str, target: str) -> bool:
+    """`merge --ff-only` of the owner's checkout to `target`, only when it is strictly behind it; the caller checked
+    the branch and `_clean`. True when it moved."""
+    head = _line(repo, "rev-parse", "HEAD")
+    if head == target or not _ancestor(repo, head, target):
+        return False
+    return _git(repo, "merge", "--ff-only", "-q", target, check=False).returncode == 0
+
+
+def revert_on(repo: str, *, remote: str, into: str, commit: str, branch: str, seen: str) -> str:
     """Undo of an Apply on the remote: a commit on the fetched `remote`/`into` tip that reverts `commit` (a merge commit
     against its first parent, as `git revert -m 1`), made with plumbing so the owner's checkout, index and branches stay
     as they are, then pushed as the new `branch` (that ref only, never forced). `seen` is the config fingerprint the
@@ -434,7 +448,7 @@ def revert_on(repo: str, remote: str, into: str, commit: str, branch: str, seen:
     check_config(repo, seen, branch)
     theirs = _line(repo, "rev-parse", f"{_fetch_ref(repo, remote, into)}^{{commit}}")
     commit = _line(repo, "rev-parse", "--verify", f"{commit}^{{commit}}")
-    if _git(repo, "merge-base", "--is-ancestor", commit, theirs, check=False).returncode:
+    if not _ancestor(repo, commit, theirs):
         raise WorktreeError(f"{commit[:12]} is not on {remote}/{into}; nothing was reverted.")
     parents = _line(repo, "rev-list", "--parents", "-n", "1", commit).split()[1:]
     out = _git(repo, "merge-tree", "--write-tree", "--name-only", "--no-messages", f"--merge-base={commit}",
@@ -483,10 +497,6 @@ def merge_clean(wt: Worktree, remote: str, into: str, message: str) -> str:
     return _line(wt.path, "rev-parse", "HEAD")
 
 
-def _ancestor(repo: str, a: str, b: str) -> bool:
-    return _git(repo, "merge-base", "--is-ancestor", a, b, check=False).returncode == 0
-
-
 def fast_forward(wt: Worktree, remote: str, into: str, sha: str) -> bool:
     """The PR merged on the remote (#877): move the owner's checkout to its merge commit, only when that commit is on
     the fresh `remote`/`into`, the checkout is on `into` with no uncommitted changes to tracked files, and strictly
@@ -499,10 +509,7 @@ def fast_forward(wt: Worktree, remote: str, into: str, sha: str) -> bool:
     if _ancestor(wt.repo, got, head):
         return True
     on = _git(wt.repo, "symbolic-ref", "-q", "--short", "HEAD", check=False).stdout.strip()
-    tracked = _git(wt.repo, "status", "--porcelain", "--untracked-files=no", check=False).stdout.strip()
-    if on != into or tracked or not _ancestor(wt.repo, head, got):
-        return False
-    return _git(wt.repo, "merge", "--ff-only", "-q", got, check=False).returncode == 0
+    return on == into and _clean(wt.repo) and _ff(wt.repo, got)
 
 
 def merging(wt: Worktree) -> bool:
@@ -542,7 +549,7 @@ def kept(wt: Worktree, update: dict) -> list[str] | None:
         _git(wt.path, "merge", "--abort", check=False)
         return []
     now = tip(wt)
-    if now == update["head"] or _git(wt.repo, "merge-base", "--is-ancestor", update["theirs"], now, check=False).returncode:
+    if now == update["head"] or not _ancestor(wt.repo, update["theirs"], now):
         return []
     gone = []
     for f, blocks in _added(wt, update["base"], update["theirs"]).items():
@@ -591,7 +598,7 @@ def apply(wt: Worktree, mode: str = "squash", message: str | None = None, expect
         return _land(wt.repo, wt.base, head, tip, [head], message or f"Apply {wt.branch}")
     # A merge commit makes all of tip's history part of HEAD's, but the tree takes only base..tip: when HEAD lacks
     # the base (a remote tip it hasn't pulled, #864), those commits would count as merged with their files left out.
-    if not from_snapshot(wt) and _git(wt.repo, "merge-base", "--is-ancestor", wt.base, head, check=False).returncode:
+    if not from_snapshot(wt) and not _ancestor(wt.repo, wt.base, head):
         raise WorktreeError(f"{wt.branch} starts from commits your {current} doesn't have yet: pull them into "
                             f"{current} first, then Apply.")
     return _land(wt.repo, wt.base, head, tip, [head, tip], message or f"Merge branch '{wt.branch}' into {current}")
@@ -603,7 +610,7 @@ def revert(repo: str, commit: str) -> str:
     current_branch(repo)
     head = _line(repo, "rev-parse", "HEAD")
     commit = _line(repo, "rev-parse", "--verify", f"{commit}^{{commit}}")
-    if _git(repo, "merge-base", "--is-ancestor", commit, head, check=False).returncode != 0:
+    if not _ancestor(repo, commit, head):
         raise WorktreeError(f"{commit[:12]} is not on the current branch.")
     parent = _line(repo, "rev-parse", f"{commit}^1")
     subject = _line(repo, "log", "-1", "--format=%s", commit)
