@@ -45,12 +45,14 @@ DEFAULTS = {
     "tasks_inbox": config.env("TASKS_INBOX", "Inbox"),  # the project a new task with no mapped repo goes to
     "pin_labels": ["money"],  # tracker labels that pin an overdue task as money (needs.py); the default is a convention, not a tracker rule; [] = off
     "delegation_limit": 3,  # delegations working at once; the next ones wait as Queued
+    "start_in": "cli",  # what Start does on Home: "cli" = a background Claude Code session (`claude --bg`, the `claude agents` view), "browser" = an Orb session
     "sandbox_read": [],  # extra home folders a delegation's test/build commands may read (toolchains); settings.json only
     "onboarded": False,
 }
 MODES = ("default", "auto", "plan")
 MODELS = chain.MODELS
 PROFILES = ("work", "personal")
+START_IN = ("cli", "browser")
 STT = ("browser", "parakeet", "whisper")
 WORK_OFF = {"brain": False, "connectors": False}  # what the work profile never turns on, whatever is saved
 TTS = ("browser", "kokoro")
@@ -113,6 +115,8 @@ class Settings:
             self.data["default_model"] = changes["default_model"]
         if changes.get("coder_effort") in chain.CODER_EFFORTS:
             self.data["coder_effort"] = changes["coder_effort"]
+        if changes.get("start_in") in START_IN:
+            self.data["start_in"] = changes["start_in"]
         if changes.get("profile") in PROFILES:
             self.data["profile"] = changes["profile"]
         if changes.get("stt") in STT and not (self.work and changes["stt"] == "browser"):

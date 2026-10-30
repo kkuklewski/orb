@@ -8,6 +8,7 @@ import contextlib
 import datetime as dt
 import logging
 import secrets
+import shlex
 import time
 import uuid
 from collections.abc import Awaitable
@@ -23,9 +24,9 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTex
 from fastapi.staticfiles import StaticFiles
 from starlette.datastructures import Headers, MutableHeaders
 
-from . import away, billing, chain, claim, config, delegation, desk, fence, folders, forget, handoff, home, intake, items, kokoro_setup, make_task, navigate, needs, parakeet, routines, settings, setup, slash, speech, tasks, timing, tracker, triage, vault_git, vault_write, vendor, vocab, worktree
+from . import away, billing, chain, claim, cli, config, delegation, desk, fence, folders, forget, handoff, home, intake, items, kokoro_setup, make_task, navigate, needs, parakeet, routines, settings, setup, slash, speech, tasks, timing, tracker, triage, vault_git, vault_write, vendor, vocab, worktree
 from .agent import SCREEN_MAX, FolderSession, dumps, first_request
-from .brain import CaptureGuard
+from .brain import CaptureGuard, connector_env
 from .sessions import SessionStore
 
 log = logging.getLogger("orb")
@@ -640,7 +641,7 @@ def features() -> dict:
     """What the page shows: the user's folders, and the optional parts they turned on."""
     s = settings.settings
     return {"roots": s["roots"], "vault": str(s.vault() or ""), "brain": s["brain"], "routines": s["routines"], "profile": s["profile"],
-            "onboarded": s["onboarded"], "stt": s["stt"], "tts": s["tts"], "plan": hub.auth.get("subscription"),
+            "onboarded": s["onboarded"], "stt": s["stt"], "tts": s["tts"], "plan": hub.auth.get("subscription"), "start_in": s["start_in"],
             "tracker": tracker.name(s.data), "drops": intake.labels(drop_env())}
 
 
@@ -788,9 +789,10 @@ def brain_read(file: str, seen: str) -> None:
         pass
 
 
-async def item_get(conn: "Conn", source: str, item_id: str, start: bool) -> None:
-    """One item for its page, or (start) a new session on it in the repo it maps to. The repo is worked out
-    here, never taken from the page, and must be an allowed folder."""
+async def item_get(conn: "Conn", source: str, item_id: str, start: bool, where: str | None = None) -> None:
+    """One item for its page, or (start) a session on it in the repo it maps to: `where` cli = a background Claude
+    Code session in the terminal (cli.py), browser = a new Orb session; None = the settings' "start_in". The repo is
+    worked out here, never taken from the page, and must be an allowed folder."""
     try:
         got = await asyncio.to_thread(items.get, source, item_id, *item_args())
     except items.ItemError as e:
@@ -799,13 +801,27 @@ async def item_get(conn: "Conn", source: str, item_id: str, start: bool) -> None
     repo = repo_of(got.pop("repo_path"))
     if start:
         vault = settings.settings.vault()
-        where = repo[0] if repo else hub.allowed_folder(str(vault)) if vault else None  # no repo: the Home chat (notes folder)
-        if where is None:
+        folder = repo[0] if repo else hub.allowed_folder(str(vault)) if vault else None  # no repo: the Home chat (notes folder)
+        if folder is None:
             await conn.send({"type": "error", "text": "This item has no repo here: copy the prompt instead."})
             return
-        await hub.start_task(conn, str(where), got["brief"])
+        if (where or settings.settings["start_in"]) == "cli":
+            cli_start(conn, str(folder), got["brief"], got["title"])
+            return
+        await hub.start_task(conn, str(folder), got["brief"])
         return
     await conn.send({"type": "item", "source": source, "id": item_id, **got, "repo": repo[1] if repo else None})
+
+
+def cli_start(conn: "Conn", path: str, brief: str, title: str) -> None:
+    """Start in CLI (cli.py), in the background so the page's other messages aren't held up: `claude --bg` in `path`
+    (an allowed folder, checked by the caller) with `brief` as the prompt and the profile's connector switch; the page
+    then gets the id to attach to, or why it didn't start, with the command to run by hand."""
+    async def run() -> None:
+        got = await cli.start(path, brief, title, connector_env(settings.settings))
+        await conn.send({"type": "cli_started", "title": cli.name_of(title), "repo": hub.label(path), "id": got["id"],
+                         "output": got["output"], "error": got["error"], "command": shlex.join(cli.command(brief, title))})
+    hub._background(run())
 
 
 async def owner_acted(msg: dict) -> None:
@@ -1093,7 +1109,7 @@ async def handle(conn: Conn, msg: dict) -> None:
             await hub.push_folders()
         if {"routines_judge", "routines_notify"} & set(values):
             await hub.push_routines()  # every page shows who notifies now
-        if {"roots", "vault", "brain", "routines", "onboarded", "stt", "tts", "vikunja_url", "jira_url", "profile"} & set(values):
+        if {"roots", "vault", "brain", "routines", "onboarded", "stt", "tts", "vikunja_url", "jira_url", "profile", "start_in"} & set(values):
             await asyncio.gather(*(c.send({"type": "features", **features()}) for c in hub.conns))
         if {"roots", "vault", "stt", "tts", "profile"} & set(values) and not values.get("onboarded"):
             await conn.send(await setup.status())  # the setup page shows the result at once
@@ -1285,7 +1301,22 @@ async def handle(conn: Conn, msg: dict) -> None:
         await brain_list(conn)
         return
     if t == "item_start":
-        await item_get(conn, msg["source"], str(msg["id"]), start=True)
+        where = msg.get("where")
+        if where is not None and where not in settings.START_IN:
+            await conn.send({"type": "error", "text": f"Start where? {where!r} is not one of {', '.join(settings.START_IN)}."})
+            return
+        await item_get(conn, msg["source"], str(msg["id"]), start=True, where=where)
+        return
+    if t == "cli_start":
+        p = hub.allowed_folder(msg["path"])
+        if p is None:
+            await conn.send({"type": "error", "text": f"Not an allowed folder: {msg['path']}"})
+            return
+        brief = str(msg.get("brief") or "").strip()
+        if not brief:
+            await conn.send({"type": "error", "text": "Nothing to start: the brief is empty."})
+            return
+        cli_start(conn, str(p), brief, str(msg.get("title") or ""))
         return
     if t == "task_action":
         await note_action(conn, msg["file"], int(msg["line"]), msg["expect"], msg["action"], msg.get("until"), msg.get("value"))

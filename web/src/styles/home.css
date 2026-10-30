@@ -446,3 +446,8 @@ a.needs-row { text-decoration: none; }
 /* Next action: the kind of each Up next row, and the "All N" links in the foot. */
 .lead-row .lead-row-tag { flex: none; width: 52px; font-size: 11px; letter-spacing: .1em; color: var(--text-3); }
 .lead-links { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px 16px; }
+.lead-cli { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; margin: 0; padding: 8px 12px; border: 1px dashed var(--line); border-radius: 10px; color: var(--text-3); font-size: 12.5px; line-height: 1.5; }
+.lead-cli.err { border-color: var(--warn, #c66); color: var(--text-2); }
+.lead-cli code { font: inherit; color: var(--text-2); }
+.lead-cli .linkish { margin-left: auto; }
+.task-say.err { color: var(--warn, #c66); }

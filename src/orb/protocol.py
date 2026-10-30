@@ -79,6 +79,7 @@ class Features(_Msg):
     plan: str | None = None
     tracker: str = "Vikunja"  # the task tracker's name, for the page's words (ADR 0010)
     profile: Literal["work", "personal"] = "work"  # settings.py: work keeps connectors, browser speech and other repos off
+    start_in: Literal["cli", "browser"] = "cli"  # what Start does on Home: a background Claude Code session in the terminal, or an Orb session
     drops: list[str] = []  # what Home's drop zone can do here, its route labels (intake.labels)
 
 
@@ -564,6 +565,18 @@ class ItemRow(_Msg):
     status: str = ""  # which `statuses` filter value the row belongs to ("" = none)
 
 
+class CliStartedEvent(_Event):
+    """Start in CLI answered (cli.py): the background session's id (`claude attach <id>`) and what claude printed, or
+    why it didn't start; `command` is the argv as one line, to copy and run by hand."""
+    type: Literal["cli_started"]
+    title: str
+    repo: str  # the folder's label
+    id: str | None = None
+    output: str = ""
+    error: str | None = None
+    command: str
+
+
 class ItemListEvent(_Event):
     """One table (items.list_): its columns and rows. `group_key` is the column to group by ("repo" = the Repo column)."""
     type: Literal["item_list"]
@@ -1018,7 +1031,7 @@ ServerEvent = Annotated[Union[
     HelloEvent, FeaturesEvent, FoldersEvent, SetupStatusEvent, BrowseEvent, PickedEvent, VoiceSampleEvent,
     SettingsEvent, ErrorEvent, NoticeEvent, OpenedEvent, HistoryEvent, StateEvent, SessionInfoEvent,
     ContextEvent, TaskEvent, CommandsEvent, McpEvent, RateLimitEvent, RoutinesEvent, BgNoticeEvent, NavigateEvent,
-    HomeEvent, HomeForgetEvent, HomeTasksEvent, AwayRecapEvent, PlanEvent, TaskDetailEvent, ItemEvent, ItemListEvent, BrainListEvent, BrainExpiredEvent, BrainNoTopicEvent, BrainNoteEvent, BrainAppliedEvent, TaskChangedEvent, UserEvent, TextStartEvent, TextEvent, SaidEvent, ToolStartEvent, ToolInputEvent, ToolResultEvent,
+    HomeEvent, HomeForgetEvent, HomeTasksEvent, AwayRecapEvent, PlanEvent, TaskDetailEvent, ItemEvent, CliStartedEvent, ItemListEvent, BrainListEvent, BrainExpiredEvent, BrainNoTopicEvent, BrainNoteEvent, BrainAppliedEvent, TaskChangedEvent, UserEvent, TextStartEvent, TextEvent, SaidEvent, ToolStartEvent, ToolInputEvent, ToolResultEvent,
     ResultEvent, TimingEvent, PartialEvent, HeardNothingEvent, PinFocusedEvent, HeldEvent, PermissionEvent,
     PermissionDoneEvent, UndoAvailableEvent, UndoConfirmEvent, UndoDoneEvent, AudioEvent, SpeechResetEvent,
     DelegateCardEvent, DelegationsEvent, DelegationDiffEvent,
@@ -1309,10 +1322,21 @@ class BrainReadMsg(_Msg):
 
 
 class ItemStartMsg(_Msg):
-    """Start in Orb: a new session in the item's repo (found by the server), first request = the brief."""
+    """Start an item in its repo (found by the server): `where` cli = a background Claude Code session (`claude --bg`,
+    the brief as its prompt; cli.py), browser = a new Orb session whose first request is the brief. None = the
+    settings' "start_in"."""
     type: Literal["item_start"]
     source: ItemSource
     id: str
+    where: Literal["cli", "browser"] | None = None
+
+
+class CliStartMsg(_Msg):
+    """Start in CLI with the page's own brief (a note's task): `claude --bg` in `path`, which must be an allowed folder."""
+    type: Literal["cli_start"]
+    path: str
+    brief: str
+    title: str = ""
 
 
 class TaskActionMsg(_Msg):
@@ -1495,7 +1519,7 @@ ClientMessage = Annotated[Union[
     SetupStatusMsg, BrowseMsg, PickFolderMsg, OpenFolderMsg, AddFolderMsg, StartSessionMsg, PinFolderMsg,
     GetSettingsMsg, SetSettingsMsg, VoiceSampleMsg, KokoroSetupMsg, RescanMsg, RoutinesMsg, RoutinesSeenMsg, RoutinesResolveMsg, MuteMsg,
     NewSessionMsg, ArchiveSessionMsg, RemoveSessionMsg, UserTextMsg, SpeechStartMsg, BargeInMsg, SpeechCancelledMsg, UtteranceMsg, VoiceTextMsg,
-    HomeMsg, AwaySeenMsg, PlanStartMsg, PlanLaterMsg, PlanLeaveMsg, PlanDoneMsg, ScreenMsg, TaskDetailMsg, ItemListMsg, ItemGetMsg, ItemDoneMsg, TasksBulkMsg, TasksSuggestMsg, NotesVerdictMsg, BrainListMsg, BrainExpiredMsg, BrainNoTopicMsg, BrainKeepMsg, BrainGetMsg, BrainApplyMsg, BrainVerdictMsg, BrainReadMsg, ItemStartMsg, TaskActionMsg, InterruptMsg, PlaybackMsg, PermissionMsg, ReadAllMsg, DictateNoteMsg, UndoRequestMsg, UndoConfirmMsg,
+    HomeMsg, AwaySeenMsg, PlanStartMsg, PlanLaterMsg, PlanLeaveMsg, PlanDoneMsg, ScreenMsg, TaskDetailMsg, ItemListMsg, ItemGetMsg, ItemDoneMsg, TasksBulkMsg, TasksSuggestMsg, NotesVerdictMsg, BrainListMsg, BrainExpiredMsg, BrainNoTopicMsg, BrainKeepMsg, BrainGetMsg, BrainApplyMsg, BrainVerdictMsg, BrainReadMsg, ItemStartMsg, CliStartMsg, TaskActionMsg, InterruptMsg, PlaybackMsg, PermissionMsg, ReadAllMsg, DictateNoteMsg, UndoRequestMsg, UndoConfirmMsg,
     McpStatusMsg, McpReconnectMsg, SetModeMsg, SetModelMsg, RevokeGrantMsg, DelegateMsg, DelegateBulkMsg, DelegateConfirmMsg, MakeTaskMsg, MakeTaskConfirmMsg, MakeTaskUndoMsg,
     DelegationReviewMsg, DelegationApplyMsg, DelegationRevertMsg, DelegationDiscardMsg, DelegationRetryMsg,
     DelegationResumeMsg, DelegationOutwardMsg, DelegationUpdateMsg, DelegationReopenMsg, DropMsg,

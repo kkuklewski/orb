@@ -1236,6 +1236,119 @@
       "title": "BrowseMsg",
       "type": "object"
     },
+    "CliStartMsg": {
+      "additionalProperties": false,
+      "description": "Start in CLI with the page's own brief (a note's task): `claude --bg` in `path`, which must be an allowed folder.",
+      "properties": {
+        "brief": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "title": {
+          "default": "",
+          "type": "string"
+        },
+        "type": {
+          "const": "cli_start",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "path",
+        "brief"
+      ],
+      "title": "CliStartMsg",
+      "type": "object"
+    },
+    "CliStartedEvent": {
+      "additionalProperties": false,
+      "description": "Start in CLI answered (cli.py): the background session's id (`claude attach <id>`) and what claude printed, or\nwhy it didn't start; `command` is the argv as one line, to copy and run by hand.",
+      "properties": {
+        "command": {
+          "type": "string"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "folder": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "output": {
+          "default": "",
+          "type": "string"
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "repo": {
+          "type": "string"
+        },
+        "session": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "title": {
+          "type": "string"
+        },
+        "type": {
+          "const": "cli_started",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "title",
+        "repo",
+        "command"
+      ],
+      "title": "CliStartedEvent",
+      "type": "object"
+    },
     "ClientMessage": {
       "discriminator": {
         "mapping": {
@@ -1252,6 +1365,7 @@
           "brain_read": "#/$defs/BrainReadMsg",
           "brain_verdict": "#/$defs/BrainVerdictMsg",
           "browse": "#/$defs/BrowseMsg",
+          "cli_start": "#/$defs/CliStartMsg",
           "delegate": "#/$defs/DelegateMsg",
           "delegate_bulk": "#/$defs/DelegateBulkMsg",
           "delegate_confirm": "#/$defs/DelegateConfirmMsg",
@@ -1463,6 +1577,9 @@
         },
         {
           "$ref": "#/$defs/ItemStartMsg"
+        },
+        {
+          "$ref": "#/$defs/CliStartMsg"
         },
         {
           "$ref": "#/$defs/TaskActionMsg"
@@ -2788,6 +2905,14 @@
         "routines": {
           "type": "boolean"
         },
+        "start_in": {
+          "default": "cli",
+          "enum": [
+            "cli",
+            "browser"
+          ],
+          "type": "string"
+        },
         "stt": {
           "enum": [
             "browser",
@@ -2899,6 +3024,14 @@
             }
           ],
           "default": null
+        },
+        "start_in": {
+          "default": "cli",
+          "enum": [
+            "cli",
+            "browser"
+          ],
+          "type": "string"
         },
         "stt": {
           "enum": [
@@ -3290,6 +3423,14 @@
             }
           ],
           "default": null
+        },
+        "start_in": {
+          "default": "cli",
+          "enum": [
+            "cli",
+            "browser"
+          ],
+          "type": "string"
         },
         "stt": {
           "enum": [
@@ -4235,7 +4376,7 @@
     },
     "ItemStartMsg": {
       "additionalProperties": false,
-      "description": "Start in Orb: a new session in the item's repo (found by the server), first request = the brief.",
+      "description": "Start an item in its repo (found by the server): `where` cli = a background Claude Code session (`claude --bg`,\nthe brief as its prompt; cli.py), browser = a new Orb session whose first request is the brief. None = the\nsettings' \"start_in\".",
       "properties": {
         "id": {
           "type": "string"
@@ -4253,6 +4394,21 @@
         "type": {
           "const": "item_start",
           "type": "string"
+        },
+        "where": {
+          "anyOf": [
+            {
+              "enum": [
+                "cli",
+                "browser"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -7053,6 +7209,7 @@
           "brain_note": "#/$defs/BrainNoteEvent",
           "brain_notopic": "#/$defs/BrainNoTopicEvent",
           "browse": "#/$defs/BrowseEvent",
+          "cli_started": "#/$defs/CliStartedEvent",
           "commands": "#/$defs/CommandsEvent",
           "context": "#/$defs/ContextEvent",
           "delegate_card": "#/$defs/DelegateCardEvent",
@@ -7198,6 +7355,9 @@
         },
         {
           "$ref": "#/$defs/ItemEvent"
+        },
+        {
+          "$ref": "#/$defs/CliStartedEvent"
         },
         {
           "$ref": "#/$defs/ItemListEvent"

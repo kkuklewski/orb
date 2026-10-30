@@ -5,6 +5,7 @@ import type { ItemEvent, ItemListEvent } from "../protocol.gen";
 import { on } from "../events";
 import { send } from "../ws";
 import { useViews } from "./views";
+import { useFeatures } from "./features";
 
 export type ItemSource = ItemListEvent["source"];
 export const SOURCES: ItemSource[] = ["vikunja", "prs", "repos", "notes", "tasks"];
@@ -29,9 +30,24 @@ export function archiveItem(source: ItemSource, id: string, done = true) {
   send({ type: "item_done", source, id, done });
 }
 
-export function startItem(source: ItemSource, id: string) {
-  send({ type: "item_start", source, id });
+/** Start the item in its repo (the server finds it): `where` cli = a background Claude Code session in the terminal,
+ *  browser = a new Orb session; left out, the server uses the settings' "start_in". */
+export function startItem(source: ItemSource, id: string, where?: StartWhere) {
+  send(where ? { type: "item_start", source, id, where } : { type: "item_start", source, id });
 }
+
+export type StartWhere = "cli" | "browser";
+
+/** Where Start goes by default: the settings' "start_in" (cli for a new install). */
+export const startWhere = (): StartWhere => useFeatures.getState().features?.start_in ?? "cli";
+/** The two Start buttons: a background Claude Code session in the terminal (`claude --bg`, the `claude agents` view)
+ *  or a new Orb session; `OTHER` names the secondary button beside the default one. */
+export const START: Record<StartWhere, string> = { cli: "Start in CLI", browser: "Start in Orb" };
+export const START_TITLE: Record<StartWhere, string> = {
+  cli: "A background Claude Code session in this repo, in your terminal: it shows in `claude agents`",
+  browser: "A new Orb session in this repo that proposes a plan first",
+};
+export const OTHER: Record<StartWhere, StartWhere> = { cli: "browser", browser: "cli" };
 
 export function wireItems(): () => void {
   const offs = [

@@ -66,7 +66,7 @@ export function Settings() {
   }, [ev, at]);
 
   if (!ev) return <div className="view-col"><div className="view-head"><h2>Settings</h2></div><p className="side-hint">Loading…</p></div>;
-  const v = ev.values as { voice?: string; default_mode?: string; default_model?: string; coder_effort?: string; routines_judge?: boolean; stt?: string; tts?: string; vikunja_url?: string; jira_url?: string; profile?: string; connectors?: boolean; brain?: boolean };
+  const v = ev.values as { voice?: string; default_mode?: string; default_model?: string; coder_effort?: string; routines_judge?: boolean; start_in?: string; stt?: string; tts?: string; vikunja_url?: string; jira_url?: string; profile?: string; connectors?: boolean; brain?: boolean };
   const work = v.profile !== "personal";
   const voices: [string, string][] = ev.recommended.map((x) => [x.id, `${x.name} · ${x.desc}${x.grade ? ` · ${x.grade}` : ""}`]);
   if (ev.voices.includes("chatterbox")) voices.push(["chatterbox", "Chatterbox · Polish and English, slow"]);
@@ -113,6 +113,11 @@ export function Settings() {
       <Section title="Model for new folders" hint={'Haiku is the cheapest: it answers notes and status questions and hands any coding to Opus. Sonnet answers fast and hands hard coding to Opus in the background. Opus answers everything itself and uses your plan fastest. Each folder can still be switched in the top bar, or by saying "switch to Haiku".'}>
         <Seg name="Model" value={v.default_model} onPick={(m) => setServer({ default_model: m })}
           options={[["haiku", "Haiku + Opus for coding"], ["sonnet", "Sonnet + Opus for coding"], ["opus", "Opus"]]} />
+      </Section>
+
+      <Section title="Start a task" hint="What the big Start button on Home and on a task's page does. In the CLI: a background Claude Code session in the task's repo, in your terminal (it shows in `claude agents`; `claude attach <id>` opens it). In Orb: a new session on this page that proposes a plan first. The other is always the button beside it.">
+        <Seg name="Start a task" value={v.start_in ?? "cli"} onPick={(m) => setServer({ start_in: m })}
+          options={[["cli", "In the CLI"], ["browser", "In Orb"]]} />
       </Section>
 
       <Section title="Opus effort for coding" hint="How hard the Opus coder thinks when Haiku or Sonnet hands it a task. Medium is plenty for most code and uses far less of your plan than High. Applies to sessions started from now on.">

@@ -1,13 +1,13 @@
 // Home: what needs you (sessions, routines), open tasks and recent notes from the notes folder.
 // The notes part comes from the server's home.summary (read-only, no model call).
 import { create } from "zustand";
-import type { AwayRecap, DelegationItem, FolderItem, HomeEvent, HomeForgetEvent, HomeTasksEvent, PlanEvent, PlanItem, RoutinesEvent } from "../protocol.gen";
+import type { AwayRecap, CliStartedEvent, DelegationItem, FolderItem, HomeEvent, HomeForgetEvent, HomeTasksEvent, PlanEvent, PlanItem, RoutinesEvent } from "../protocol.gen";
 import { on } from "../events";
 import { send } from "../ws";
 import { trackerName, useFeatures } from "./features";
 import { activityRows, openSessions, useViews, type SessionRow } from "./views";
 import { askIn, openFolder } from "./session";
-import { openItem, startItem } from "./items";
+import { openItem, startItem, startWhere, type StartWhere } from "./items";
 import { useDelegations } from "./delegation";
 import { openBrain, openNoTopic, setFilter } from "./brain";
 
@@ -15,8 +15,9 @@ import { openBrain, openNoTopic, setFilter } from "./brain";
 // tasks: the Tasks source as Home sees it, the first open Vikunja tasks and the count, or why it can't be read (server: vikunja.home_event).
 // plan: what needs you, from rules, in the order the model gave it (server: needs.py, docs/adr/0001).
 // away: the Away recap after 24 hours or more without the owner acting, or null (server: away.py).
+// cli: the last Start in CLI's answer (the background session's id, or why it didn't start), shown under the lead card.
 export const useHome = create<{ notes: HomeEvent | null; forget: HomeForgetEvent | null; tasks: HomeTasksEvent | null; plan: PlanEvent | null;
-  away: AwayRecap | null }>(() => ({ notes: null, forget: null, tasks: null, plan: null, away: null }));
+  away: AwayRecap | null; cli: CliStartedEvent | null }>(() => ({ notes: null, forget: null, tasks: null, plan: null, away: null, cli: null }));
 
 /** The Vikunja tasks Home can count on: null when Vikunja isn't set up, can't be read, or hasn't answered yet. */
 export function vikunjaTasks(t: HomeTasksEvent | null): (HomeTasksEvent & { tasks: NonNullable<HomeTasksEvent["tasks"]> }) | null {
@@ -41,6 +42,7 @@ export function wireHome(): () => void {
     on("home_tasks", (ev) => useHome.setState({ tasks: ev })),
     on("plan", (ev) => useHome.setState({ plan: ev })),
     on("away_recap", (ev) => useHome.setState({ away: ev.recap })),
+    on("cli_started", (ev) => useHome.setState({ cli: ev })),
     // Leaving Home with the Away recap on screen counts as having opened it: it goes, on every page.
     useViews.subscribe((s, prev) => { if (prev.view === "home" && s.view !== "home" && useHome.getState().away) awaySeen(); }),
     on("result", (ev) => { if (!ev.replay) refreshIfHome(); }), // a turn ended: it may have made a task
@@ -83,14 +85,20 @@ export function rerank() {
   send({ type: "home", rerank: true });
 }
 
-/** Start a queue item, each kind its own way: a Vikunja task opens a session from its brief (the server picks the
- *  repo, else the Home chat), a note task goes to the Home chat, a result opens its session (which clears it), a pull
- *  request its page, the notes batch Brain's notes waiting for a verdict (grouped there by suggestion, ADR 0006), the
- *  No-topic captures Brain's No topic view, the old Finished ones Sessions showing only Finished. A started task or PR leaves the queue for today. */
-export function startPlan(p: PlanItem) {
+/** Start a queue item, each kind its own way: a Vikunja task starts from its brief in its repo (the server picks it,
+ *  else the Home chat's folder), a note task in the notes folder; both go where `where` says (cli = a background
+ *  Claude Code session in the terminal, browser = an Orb session; default the settings' "start_in"). A result opens
+ *  its session (which clears it), a pull request its page, the notes batch Brain's notes waiting for a verdict
+ *  (grouped there by suggestion, ADR 0006), the No-topic captures Brain's No topic view, the old Finished ones
+ *  Sessions showing only Finished. A started task or PR leaves the queue for today. */
+export function startPlan(p: PlanItem, where: StartWhere = startWhere()) {
   const vault = useFeatures.getState().features?.vault;
-  if (p.kind === "task") startItem("vikunja", p.id);
-  else if (p.kind === "note_task" && vault) askIn(vault, `Help me get this task from my note "${p.id.slice(0, p.id.lastIndexOf(":"))}" done: ${p.title}`);
+  if (p.kind === "task") startItem("vikunja", p.id, where);
+  else if (p.kind === "note_task" && vault) {
+    const brief = `Help me get this task from my note "${p.id.slice(0, p.id.lastIndexOf(":"))}" done: ${p.title}`;
+    if (where === "cli") send({ type: "cli_start", path: vault, brief, title: p.title });
+    else askIn(vault, brief);
+  }
   else if (p.kind === "pr") openItem("prs", p.id);
   else if (p.kind === "notes_batch") { setFilter({ waiting: true }); openBrain(); }
   else if (p.kind === "notopic") openNoTopic();

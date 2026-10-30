@@ -435,7 +435,7 @@ describe("home screen", () => {
     useViews.setState({ view: "home" });
     key("k"); key("k"); key("k");
     expect(selected()).toEqual([]);  // back on the lead
-    expect(key("Enter")).toEqual([{ type: "item_start", source: "vikunja", id: "8" }, { type: "plan_start", key: "vikunja:8" }]);
+    expect(key("Enter")).toEqual([{ type: "item_start", source: "vikunja", id: "8", where: "cli" }, { type: "plan_start", key: "vikunja:8" }]);
     useViews.setState({ view: "home" });
     expect(key("s", screen.getByLabelText("typing"))).toEqual([]);
     expect(key("d", screen.getByLabelText("typing"))).toEqual([]);
@@ -453,7 +453,7 @@ describe("home screen", () => {
       fireEvent.click(screen.getByRole("article", { name: "Next action" }).querySelector<HTMLButtonElement>(".lead-go")!);
       return [...sent];
     };
-    expect(start(qTask)).toEqual([{ type: "item_start", source: "vikunja", id: "8" }, { type: "plan_start", key: "vikunja:8" }]);
+    expect(start(qTask)).toEqual([{ type: "item_start", source: "vikunja", id: "8", where: "cli" }, { type: "plan_start", key: "vikunja:8" }]);
     expect(start(qPr)).toEqual([{ type: "item_get", source: "prs", id: "acme/web#12" }, { type: "plan_start", key: "pr:acme/web#12" }]);
     expect(useViews.getState().view).toBe("item");
     useViews.setState({ view: "home" });
@@ -461,8 +461,49 @@ describe("home screen", () => {
     expect(useViews.getState().view).toBe("brain");
     useViews.setState({ view: "home" });
     expect(start(qResult)).toEqual([{ type: "open_folder", path: "/Users/a/code/web", session: "w2" }]);
-    expect(start(qNote)).toEqual([{ type: "start_session", path: "/Users/a/notes" }, { type: "plan_start", key: "note:inbox/today.md:3" }]);
+    const brief = "Help me get this task from my note \"inbox/today.md\" done: Send the invoice";
+    expect(start(qNote)).toEqual([{ type: "cli_start", path: "/Users/a/notes", brief, title: "Send the invoice" }, { type: "plan_start", key: "note:inbox/today.md:3" }]);
+    expect(useSession.getState().pendingAsk).toBeNull();
+  });
+
+  it("Start in CLI is the big button; Start in Orb sits beside it and opens the session here; the setting swaps them", () => {
+    render(<Home />);
+    act(() => dispatch(plan([], { next: qTask, up_next: [] })));
+    const lead = () => screen.getByRole("article", { name: "Next action" });
+    expect(lead().querySelector(".lead-go")?.textContent).toContain("Start in CLI");
+    sent.length = 0;
+    fireEvent.click(within(lead()).getByRole("button", { name: "Start in Orb" }));
+    expect(sent).toEqual([{ type: "item_start", source: "vikunja", id: "8", where: "browser" }, { type: "plan_start", key: "vikunja:8" }]);
+    act(() => dispatch(plan([], { next: qNote, up_next: [] })));
+    sent.length = 0;
+    fireEvent.click(within(lead()).getByRole("button", { name: "Start in Orb" }));
+    expect(sent).toEqual([{ type: "start_session", path: "/Users/a/notes" }, { type: "plan_start", key: "note:inbox/today.md:3" }]);
     expect(useSession.getState().pendingAsk).toBe("Help me get this task from my note \"inbox/today.md\" done: Send the invoice");
+    act(() => dispatch(plan([], { next: qPr, up_next: [] })));
+    expect(within(lead()).queryByRole("button", { name: /Start in/ })).toBeNull();  // only a task starts a session on a brief
+    act(() => useFeatures.setState((s) => ({ features: { ...s.features!, start_in: "browser" } })));
+    act(() => dispatch(plan([], { next: qTask, up_next: [] })));
+    expect(lead().querySelector(".lead-go")?.textContent).toContain("Start in Orb");
+    sent.length = 0;
+    fireEvent.click(lead().querySelector<HTMLButtonElement>(".lead-go")!);
+    expect(sent[0]).toEqual({ type: "item_start", source: "vikunja", id: "8", where: "browser" });
+    fireEvent.click(within(lead()).getByRole("button", { name: "Start in CLI" }));
+    expect(sent.at(-2)).toEqual({ type: "item_start", source: "vikunja", id: "8", where: "cli" });
+  });
+
+  it("the CLI's answer shows under the lead: the attach command, or the error with the command to copy", async () => {
+    const writeText = vi.fn(() => Promise.resolve());
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
+    render(<Home />);
+    act(() => dispatch(plan([], { next: qTask, up_next: [] })));
+    act(() => dispatch({ type: "cli_started", title: "Write the release notes", repo: "acme/web", id: "bg-7f3a", output: "", command: "claude --bg …" } as ServerEvent));
+    expect(screen.getByRole("status").textContent).toContain("claude attach bg-7f3a");
+    act(() => dispatch({ type: "cli_started", title: "Write the release notes", repo: "acme/web", id: null, output: "", error: "claude exited with 1: Not logged in", command: "claude --bg --name 'Write the release notes' 'Help…'" } as ServerEvent));
+    expect(screen.getByRole("status").textContent).toContain("Not logged in");
+    fireEvent.click(screen.getByRole("button", { name: "Copy the command" }));
+    expect(writeText).toHaveBeenCalledWith("claude --bg --name 'Write the release notes' 'Help…'");
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+    expect(screen.queryByRole("status")).toBeNull();
   });
 
   it("the no-topic item opens Brain's No topic view (ticket 820)", () => {
@@ -657,7 +698,7 @@ describe("Item pages", () => {
   const detail = { type: "item", source: "vikunja", id: "7", title: "Fix the login", kicker: "VIKUNJA", chips: ["acme"], body: "Users get logged out.\n\n**bold** step",
     url: "http://v/tasks/7", url_label: "Open in Vikunja →", repo: "acme/web", brief: "Help me with a task…", done: false, can_archive: true } as const;
 
-  it("a task opens its page; Start in Orb sends only the source and id; Copy prompt copies the brief", async () => {
+  it("a task opens its page; Start in CLI / in Orb send only the source, id and where; Copy prompt copies the brief", async () => {
     const writeText = vi.fn(() => Promise.resolve());
     vi.stubGlobal("navigator", { clipboard: { writeText } });
     const { ItemPage } = await import("./ItemPage");
@@ -672,15 +713,21 @@ describe("Item pages", () => {
     act(() => dispatch(detail as unknown as ServerEvent));
     expect(screen.getByText("Users get logged out.")).toBeTruthy();
     expect(document.querySelector(".vk-desc strong")?.textContent).toBe("bold");
-    fireEvent.click(screen.getByRole("button", { name: "Start in Orb · acme/web" }));
-    expect(sent.at(-1)).toEqual({ type: "item_start", source: "vikunja", id: "7" });
+    fireEvent.click(screen.getByRole("button", { name: "Start in CLI · acme/web" }));
+    expect(sent.at(-1)).toEqual({ type: "item_start", source: "vikunja", id: "7", where: "cli" });
+    fireEvent.click(screen.getByRole("button", { name: "Start in Orb" }));
+    expect(sent.at(-1)).toEqual({ type: "item_start", source: "vikunja", id: "7", where: "browser" });
     fireEvent.click(screen.getByRole("button", { name: "Copy prompt" }));
     expect(writeText).toHaveBeenCalledWith("Help me with a task…");
+    act(() => dispatch({ type: "cli_started", title: "Fix the login", repo: "acme/web", id: "bg-1", output: "", command: "claude …" } as ServerEvent));
+    expect(screen.getByRole("status").textContent).toContain("claude attach bg-1");
     act(() => dispatch({ ...detail, repo: null } as unknown as ServerEvent));
-    fireEvent.click(screen.getByRole("button", { name: "Start in Orb · Home chat" }));  // no repo: the server starts it in the notes folder
-    expect(sent.at(-1)).toEqual({ type: "item_start", source: "vikunja", id: "7" });
+    fireEvent.click(screen.getByRole("button", { name: "Start in CLI · notes folder" }));  // no repo: the server starts it in the notes folder
+    expect(sent.at(-1)).toEqual({ type: "item_start", source: "vikunja", id: "7", where: "cli" });
     act(() => useFeatures.setState((s) => ({ features: { ...s.features!, vault: "" } })));
-    expect((screen.getByRole("button", { name: "Start in Orb" }) as HTMLButtonElement).disabled).toBe(false);
+    expect((screen.getByRole("button", { name: "Start in CLI" }) as HTMLButtonElement).disabled).toBe(false);
+    act(() => useFeatures.setState((s) => ({ features: { ...s.features!, start_in: "browser" } })));
+    expect(screen.getByRole("button", { name: "Start in Orb" }).className).toContain("dark");  // the setting names the big button
     off();
   });
 });
@@ -862,7 +909,7 @@ describe("delegation", () => {
 
     sent.length = 0;
     fireEvent.click(within(rows).getByRole("button", { name: "take now: Pay the bill" }));
-    expect(sent).toEqual([{ type: "item_start", source: "vikunja", id: "3" }, { type: "plan_start", key: "vikunja:3" }]);
+    expect(sent).toEqual([{ type: "item_start", source: "vikunja", id: "3", where: "cli" }, { type: "plan_start", key: "vikunja:3" }]);
     sent.length = 0;
     fireEvent.click(within(rows).getByRole("button", { name: "delegate: Write the release notes" }));
     expect(sent).toEqual([{ type: "delegate", task: 8, path: null }]);  // the grant card follows from the server
@@ -879,7 +926,7 @@ describe("delegation", () => {
     fireEvent.click(within(lead).getByRole("button", { name: "Apply suggestions (4)" }));
     // Later first, then one bulk Delegate (one card per repo, queued past the limit), then Start, which moves the page
     expect(sent).toEqual([{ type: "plan_later", key: "note:inbox/today.md:3" }, { type: "delegate_bulk", tasks: [8, 9] },
-      { type: "item_start", source: "vikunja", id: "3" }, { type: "plan_start", key: "vikunja:3" }]);
+      { type: "item_start", source: "vikunja", id: "3", where: "cli" }, { type: "plan_start", key: "vikunja:3" }]);
     expect(within(lead).queryByLabelText("Select Pay the bill")).toBeNull();
   });
 
