@@ -82,7 +82,7 @@ export function applySuggestions(items: PlanItem[]) {
   by("later").forEach(laterPlan);
   const del = by("delegate").filter(bulkable);
   if (del.length) delegateBulk(del.map((x) => x.id));
-  by("take now").forEach((x) => startPlan(x));
+  by("take now").forEach((x) => startPlan(x, "browser"));  // in bulk always Orb's gated sessions, never several `claude --bg` at once
 }
 
 /** "2 take now · 1 delegate": what Apply suggestions will do. */

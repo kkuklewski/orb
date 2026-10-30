@@ -924,9 +924,10 @@ describe("delegation", () => {
     expect(within(lead).getByText("1 take now · 2 delegate · 1 later")).toBeTruthy();
     sent.length = 0;
     fireEvent.click(within(lead).getByRole("button", { name: "Apply suggestions (4)" }));
-    // Later first, then one bulk Delegate (one card per repo, queued past the limit), then Start, which moves the page
+    // Later first, then one bulk Delegate (one card per repo, queued past the limit), then Start, which moves the page;
+    // in bulk Start is always an Orb session (gated), whatever the default button says
     expect(sent).toEqual([{ type: "plan_later", key: "note:inbox/today.md:3" }, { type: "delegate_bulk", tasks: [8, 9] },
-      { type: "item_start", source: "vikunja", id: "3", where: "cli" }, { type: "plan_start", key: "vikunja:3" }]);
+      { type: "item_start", source: "vikunja", id: "3", where: "browser" }, { type: "plan_start", key: "vikunja:3" }]);
     expect(within(lead).queryByLabelText("Select Pay the bill")).toBeNull();
   });
 
