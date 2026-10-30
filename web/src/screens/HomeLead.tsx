@@ -35,7 +35,11 @@ const goTitle = (p: PlanItem, where: StartWhere) => (startsSession(p) ? START_TI
 
 /** What the last Start in CLI did: the background session's id (`claude attach <id>`), or why it didn't start and
  *  the command to run by hand. Dismiss clears it; a new answer replaces it. */
-function CliLine() {
+/** The terminal mark on every Start in CLI button, so the CLI one is easy to spot (not part of its name). */
+export const CliMark = () => <span className="cli-mark mono" aria-hidden="true">&gt;_</span>;
+
+/** The last Start in CLI's answer: the id to attach to, or why it didn't start with the command to copy. */
+export function CliLine() {
   const cli = useHome((s) => s.cli);
   if (!cli) return null;
   const clear = () => useHome.setState({ cli: null });
@@ -144,9 +148,9 @@ export function LeadCard({ n, queue, lists, title }: { n: NeedsYou; queue: PlanI
           <p className="lead-sub">{lead.reason}</p>
           {lead.held_by && <p className="lead-held mono">Held by {lead.held_by}</p>}
           <div className="lead-actions">
-            <button type="button" className="hbtn dark big lead-go" onClick={() => startPlan(lead)} title={goTitle(lead, where)}>{go(lead, where)} <kbd className="kbd">⏎</kbd></button>
+            <button type="button" className="hbtn dark big lead-go" onClick={() => startPlan(lead)} title={goTitle(lead, where)}>{startsSession(lead) && where === "cli" && <CliMark />}{go(lead, where)} <kbd className="kbd">⏎</kbd></button>
             {startsSession(lead) && (
-              <button type="button" className="hbtn big lead-go-other" onClick={() => startPlan(lead, OTHER[where])} title={goTitle(lead, OTHER[where])}>{go(lead, OTHER[where])}</button>
+              <button type="button" className="hbtn big lead-go-other" onClick={() => startPlan(lead, OTHER[where])} title={goTitle(lead, OTHER[where])}>{OTHER[where] === "cli" && <CliMark />}{go(lead, OTHER[where])}</button>
             )}
             {lead.actions?.includes("done") && <button type="button" className="hbtn big" onClick={done}>Done <kbd className="kbd">D</kbd></button>}
             <button type="button" className="hbtn big" onClick={skip} title="Hide it until tomorrow">Later <kbd className="kbd">S</kbd></button>

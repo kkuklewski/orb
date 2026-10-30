@@ -25,7 +25,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.datastructures import Headers, MutableHeaders
 
 from . import away, billing, chain, claim, cli, config, delegation, desk, fence, folders, forget, handoff, home, intake, items, kokoro_setup, make_task, navigate, needs, parakeet, routines, settings, setup, slash, speech, tasks, timing, tracker, triage, vault_git, vault_write, vendor, vocab, worktree
-from .agent import SCREEN_MAX, FolderSession, dumps, first_request
+from .agent import SCREEN_MAX, FolderSession, dumps, first_request, screen_note
 from .brain import CaptureGuard, connector_env
 from .sessions import SessionStore
 
@@ -1316,6 +1316,9 @@ async def handle(conn: Conn, msg: dict) -> None:
         if not brief:
             await conn.send({"type": "error", "text": "Nothing to start: the brief is empty."})
             return
+        seen = str(msg.get("screen_text") or "")[:SCREEN_MAX]
+        if seen.strip():  # a routine's run: fenced as untrusted data, before the question
+            brief = screen_note(str(msg.get("screen_name") or "Orb"), seen) + brief
         cli_start(conn, str(p), brief, str(msg.get("title") or ""))
         return
     if t == "task_action":

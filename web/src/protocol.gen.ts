@@ -623,7 +623,9 @@ export interface ItemStartMsg {
   where?: ("cli" | "browser") | null;
 }
 /**
- * Start in CLI with the page's own brief (a note's task): `claude --bg` in `path`, which must be an allowed folder.
+ * Start in CLI with the page's own brief (a note's task, a routine's run): `claude --bg` in `path`, which must be
+ * an allowed folder. `screen_text` (a routine's run) goes before the brief fenced as untrusted data, like the screen
+ * of an Orb session (agent.screen_note), never inside the question.
  *
  * This interface was referenced by `OrbProtocol`'s JSON-Schema
  * via the `definition` "CliStartMsg".
@@ -631,6 +633,8 @@ export interface ItemStartMsg {
 export interface CliStartMsg {
   brief: string;
   path: string;
+  screen_name?: string;
+  screen_text?: string;
   title?: string;
   type: "cli_start";
 }

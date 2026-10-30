@@ -1238,12 +1238,20 @@
     },
     "CliStartMsg": {
       "additionalProperties": false,
-      "description": "Start in CLI with the page's own brief (a note's task): `claude --bg` in `path`, which must be an allowed folder.",
+      "description": "Start in CLI with the page's own brief (a note's task, a routine's run): `claude --bg` in `path`, which must be\nan allowed folder. `screen_text` (a routine's run) goes before the brief fenced as untrusted data, like the screen\nof an Orb session (agent.screen_note), never inside the question.",
       "properties": {
         "brief": {
           "type": "string"
         },
         "path": {
+          "type": "string"
+        },
+        "screen_name": {
+          "default": "",
+          "type": "string"
+        },
+        "screen_text": {
+          "default": "",
           "type": "string"
         },
         "title": {

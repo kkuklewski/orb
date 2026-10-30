@@ -4,6 +4,7 @@ import { OTHER, START, openItems, startItem, startWhere, useItems, type StartWhe
 import { useFeatures } from "../stores/features";
 import { useHome } from "../stores/home";
 import { Ext } from "./HomeForget";
+import { CliLine, CliMark } from "./HomeLead";
 import { Markdown } from "./chat/Markdown";
 
 // One item (a task, a pull request, a repo with unsaved work). "Start in CLI" runs a background Claude Code session
@@ -21,7 +22,6 @@ export function ItemPage() {
   const vault = useFeatures((s) => s.features?.vault);
   useFeatures((s) => s.features?.start_in);
   const where = startWhere();
-  const cli = useHome((s) => s.cli);
   const [copied, setCopied] = useState(false);
   useEffect(() => { setCopied(false); useHome.setState({ cli: null }); }, [id]);
   if (!source || id === null) return null;
@@ -46,9 +46,9 @@ export function ItemPage() {
         <section className="task-actions" aria-label="Actions">
           <div className="task-buttons">
             <button type="button" className="hbtn dark big" disabled={!item} onClick={() => startItem(source, id, where)}>
-              {label(where, item?.repo, !!vault, !!item)}
+              {where === "cli" && <CliMark />}{label(where, item?.repo, !!vault, !!item)}
             </button>
-            <button type="button" className="hbtn big" disabled={!item} onClick={() => startItem(source, id, OTHER[where])}>{START[OTHER[where]]}</button>
+            <button type="button" className="hbtn big" disabled={!item} onClick={() => startItem(source, id, OTHER[where])}>{OTHER[where] === "cli" && <CliMark />}{START[OTHER[where]]}</button>
             <button type="button" className="hbtn big outline" disabled={!item} onClick={copy}>{copied ? "Copied ✓" : "Copy prompt"}</button>
           </div>
           <p className="mono task-say">
@@ -56,11 +56,7 @@ export function ItemPage() {
             Start in CLI runs a background Claude Code session on this prompt in your terminal (it shows in <code>claude agents</code>);
             Start in Orb opens a new session here that proposes a plan first; nothing changes until you agree.
           </p>
-          {cli && (
-            <p className={"mono task-say" + (cli.error ? " err" : "")} role="status">
-              {cli.error ? `Couldn't start it in ${cli.repo}: ${cli.error}` : `Started in your terminal (${cli.repo})${cli.id ? `: claude attach ${cli.id}` : ""}.`}
-            </p>
-          )}
+          <CliLine />
         </section>
         <article className="hc" aria-label="Details">
           <div className="hc-head">

@@ -1332,11 +1332,15 @@ class ItemStartMsg(_Msg):
 
 
 class CliStartMsg(_Msg):
-    """Start in CLI with the page's own brief (a note's task): `claude --bg` in `path`, which must be an allowed folder."""
+    """Start in CLI with the page's own brief (a note's task, a routine's run): `claude --bg` in `path`, which must be
+    an allowed folder. `screen_text` (a routine's run) goes before the brief fenced as untrusted data, like the screen
+    of an Orb session (agent.screen_note), never inside the question."""
     type: Literal["cli_start"]
     path: str
     brief: str
     title: str = ""
+    screen_name: str = ""
+    screen_text: str = ""
 
 
 class TaskActionMsg(_Msg):

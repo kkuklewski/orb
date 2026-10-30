@@ -147,6 +147,24 @@ describe("routine page", () => {
     expect(useViews.getState().view).toBe("routine"); // the answer comes here, the page doesn't change
   });
 
+  it("Start in CLI is the marked button: a background Claude Code session in the notes folder, the run fenced by the server", () => {
+    render(<RoutineScreen />);
+    const b = screen.getByRole("button", { name: /Start in CLI/ });
+    expect(b.textContent).toContain(">_");
+    fireEvent.click(b);
+    const m = sent.at(-1) as { type: string; path: string; title: string; screen_name: string; screen_text: string; brief: string };
+    expect(m).toMatchObject({ type: "cli_start", path: "/v", title: "Routine: Gmail morning cleanup", screen_name: "Routine" });
+    expect(m.screen_text).toContain(DETAIL);
+    expect(m.brief).toContain('"Gmail morning cleanup"');
+    expect(m.brief).not.toContain("invoice"); // untrusted text never in the question itself
+  });
+
+  it("Start in CLI is off without a notes folder", () => {
+    useFeatures.setState({ features: { ...useFeatures.getState().features!, vault: "" } });
+    render(<RoutineScreen />);
+    expect((screen.getByRole("button", { name: /Start in CLI/ }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
   it("the answer appears right under the run, with a way into the full chat", () => {
     render(<RoutineScreen />);
     expect(screen.getByText(/Press “Ask Claude about it”, or type below/)).toBeTruthy();

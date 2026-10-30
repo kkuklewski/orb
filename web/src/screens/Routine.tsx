@@ -1,8 +1,10 @@
 import { useEffect } from "react";
 import { useViews, NOTIFY_LABEL, dayTime, routineStatus, safeRunUrl, setNotify, whyLine, type NotifyMode } from "../stores/views";
-import { askAbout, confirmTask, makeTask, markRead, resolvable, resolveRun, undoTask, useMakeTask, useRoutineScreen } from "../stores/routine";
+import { CliLine, CliMark } from "./HomeLead";
+import { useHome } from "../stores/home";
+import { askAbout, startCliAbout, confirmTask, makeTask, markRead, resolvable, resolveRun, undoTask, useMakeTask, useRoutineScreen } from "../stores/routine";
 import { useChat } from "../stores/chat";
-import { useTracker } from "../stores/features";
+import { useFeatures, useTracker } from "../stores/features";
 import { useSession } from "../stores/session";
 import { ItemView } from "./chat/Chat";
 
@@ -46,6 +48,8 @@ export function RoutineScreen() {
   const i = r && x ? r.items.findIndex((n) => n.id === x.id) : -1;
 
   useEffect(() => { if (!r) void import("../ws").then((m) => m.send({ type: "routines" })); }, [r]); // opened from a link
+  useEffect(() => useHome.setState({ cli: null }), [id]);  // the CLI line belongs to the run it was started from
+  const hasVault = !!useFeatures((s) => s.features?.vault);
   const items = useChat((c) => c.items);
   const busy = useSession((c) => c.busy);
   // The conversation about this run: your messages asked about a routine, back to the first of that run.
@@ -109,10 +113,13 @@ export function RoutineScreen() {
             </button>
             {resolvable(x) && <button type="button" className="hbtn dark big" onClick={() => resolveRun(x.id)}>Mark resolved</button>}
             {x.resolved && <button type="button" className="hbtn big outline" onClick={() => resolveRun(x.id, true)}>Resolved · Undo</button>}
+            <button type="button" className="hbtn dark big" disabled={!hasVault} onClick={() => startCliAbout(x)}
+              title="A background Claude Code session in the notes folder on this run: it shows in `claude agents`"><CliMark />Start in CLI</button>
             <button type="button" className="hbtn big outline" onClick={() => askAbout(x)}>Ask Claude about it →</button>
             {url && <a className="hbtn big" href={url} target="_blank" rel="noopener noreferrer">Open run ↗</a>}
             <button type="button" className="hbtn big outline" disabled={!l} onClick={() => makeTask(x.id)}>Make it a task</button>
           </div>
+          <CliLine />
           <MakeTaskCard routine={x.id} />
           {x.enabled && (
             <div className="rt-notify routine-notify" role="radiogroup" aria-label={`Notify for ${x.name}`}>

@@ -447,6 +447,7 @@ a.needs-row { text-decoration: none; }
 .lead-row .lead-row-tag { flex: none; width: 52px; font-size: 11px; letter-spacing: .1em; color: var(--text-3); }
 .lead-links { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px 16px; }
 .lead-cli { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; margin: 0; padding: 8px 12px; border: 1px dashed var(--line); border-radius: 10px; color: var(--text-3); font-size: 12.5px; line-height: 1.5; }
+.cli-mark { display: inline-block; margin-right: 7px; padding: 0 4px; border: 1px solid currentColor; border-radius: 4px; font-size: .78em; line-height: 1.35; opacity: .85; vertical-align: 1px; }
 .lead-cli.err { border-color: var(--warn, #c66); color: var(--text-2); }
 .lead-cli code { font: inherit; color: var(--text-2); }
 .lead-cli .linkish { margin-left: auto; }
