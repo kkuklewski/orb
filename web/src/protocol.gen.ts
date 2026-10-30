@@ -53,6 +53,7 @@ export type ClientMessage =
   | BrainVerdictMsg
   | BrainReadMsg
   | ItemStartMsg
+  | CliStartMsg
   | TaskActionMsg
   | InterruptMsg
   | PlaybackMsg
@@ -116,6 +117,7 @@ export type ServerEvent =
   | PlanEvent
   | TaskDetailEvent
   | ItemEvent
+  | CliStartedEvent
   | ItemListEvent
   | BrainListEvent
   | BrainExpiredEvent
@@ -607,7 +609,9 @@ export interface BrainReadMsg {
   type: "brain_read";
 }
 /**
- * Start in Orb: a new session in the item's repo (found by the server), first request = the brief.
+ * Start an item in its repo (found by the server): `where` cli = a background Claude Code session (`claude --bg`,
+ * the brief as its prompt; cli.py), browser = a new Orb session whose first request is the brief. None = the
+ * settings' "start_in".
  *
  * This interface was referenced by `OrbProtocol`'s JSON-Schema
  * via the `definition` "ItemStartMsg".
@@ -616,6 +620,23 @@ export interface ItemStartMsg {
   id: string;
   source: "vikunja" | "prs" | "repos" | "notes" | "tasks";
   type: "item_start";
+  where?: ("cli" | "browser") | null;
+}
+/**
+ * Start in CLI with the page's own brief (a note's task, a routine's run): `claude --bg` in `path`, which must be
+ * an allowed folder. `screen_text` (a routine's run) goes before the brief fenced as untrusted data, like the screen
+ * of an Orb session (agent.screen_note), never inside the question.
+ *
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "CliStartMsg".
+ */
+export interface CliStartMsg {
+  brief: string;
+  path: string;
+  screen_name?: string;
+  screen_text?: string;
+  title?: string;
+  type: "cli_start";
 }
 /**
  * This interface was referenced by `OrbProtocol`'s JSON-Schema
@@ -918,6 +939,7 @@ export interface HelloEvent {
     [k: string]: boolean;
   };
   session?: string | null;
+  start_in?: "cli" | "browser";
   stt: "browser" | "parakeet" | "whisper";
   tracker?: string;
   tts: "browser" | "kokoro";
@@ -977,6 +999,7 @@ export interface FeaturesEvent {
   roots: string[];
   routines: boolean;
   session?: string | null;
+  start_in?: "cli" | "browser";
   stt: "browser" | "parakeet" | "whisper";
   tracker?: string;
   tts: "browser" | "kokoro";
@@ -1831,6 +1854,25 @@ export interface ItemEvent {
   url_label?: string | null;
 }
 /**
+ * Start in CLI answered (cli.py): the background session's id (`claude attach <id>`) and what claude printed, or
+ * why it didn't start; `command` is the argv as one line, to copy and run by hand.
+ *
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "CliStartedEvent".
+ */
+export interface CliStartedEvent {
+  command: string;
+  error?: string | null;
+  folder?: string | null;
+  id?: string | null;
+  output?: string;
+  replay?: boolean | null;
+  repo: string;
+  session?: string | null;
+  title: string;
+  type: "cli_started";
+}
+/**
  * One table (items.list_): its columns and rows. `group_key` is the column to group by ("repo" = the Repo column).
  *
  * This interface was referenced by `OrbProtocol`'s JSON-Schema
@@ -2534,6 +2576,7 @@ export interface Features {
   profile?: "work" | "personal";
   roots: string[];
   routines: boolean;
+  start_in?: "cli" | "browser";
   stt: "browser" | "parakeet" | "whisper";
   tracker?: string;
   tts: "browser" | "kokoro";

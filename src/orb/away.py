@@ -26,7 +26,7 @@ LINES = 8  # the card's lines (routines, Expired, then Finished, Ready, archived
 ACTIONS = frozenset({
     "user_text", "voice_text", "utterance", "interrupt", "permission", "dictate_note", "undo_request", "undo_confirm",
     "new_session", "start_session", "add_folder", "pin_folder", "archive_session", "remove_session", "set_settings",
-    "plan_start", "plan_later", "plan_done", "item_start", "item_done", "task_action", "tasks_bulk", "notes_verdict",
+    "plan_start", "plan_later", "plan_done", "item_start", "cli_start", "item_done", "task_action", "tasks_bulk", "notes_verdict",
     "brain_apply", "brain_verdict", "routines_resolve", "make_task", "make_task_confirm", "make_task_undo", "drop",
     "delegate", "delegate_bulk", "delegate_confirm", "delegation_review", "delegation_apply", "delegation_revert",
     "delegation_discard", "delegation_retry", "delegation_resume", "delegation_outward", "delegation_update", "delegation_reopen", "revoke_grant", "away_seen",

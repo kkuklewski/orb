@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { folderName, openPicker } from "../stores/session";
 import { openSessions, useViews } from "../stores/views";
-import { openItems } from "../stores/items";
+import { OTHER, START, START_TITLE, openItems, startWhere, type StartWhere } from "../stores/items";
 import { openSetup } from "../stores/setup";
-import { laterPlan, leavePlan, startPlan, type NeedsYou } from "../stores/home";
+import { laterPlan, leavePlan, startPlan, useHome, type NeedsYou } from "../stores/home";
+import { useFeatures } from "../stores/features";
 import { donePlan } from "../stores/tasks";
 import { delegate, delegateBulk, pickRepo } from "../stores/delegation";
 import { NOTES_STEP } from "./setup/Setup";
@@ -26,6 +27,36 @@ import type { PlanItem } from "../protocol.gen";
 
 const TAG: Record<string, string> = { task: "TASK", note_task: "NOTE", result: "RESULT", pr: "PR", notes_batch: "NOTES", notopic: "NOTES", results_old: "RESULT" };
 const GO: Record<string, string> = { result: "Read the answer", pr: "Review", notes_batch: "Judge them", notopic: "Sort them", results_old: "Read them" };
+// A task (tracker or note) starts a Claude Code session on its brief: in the terminal or in Orb's page (START/OTHER in
+// stores/items). The settings' "start_in" names the big button; the other is beside it.
+const startsSession = (p: PlanItem) => p.kind === "task" || p.kind === "note_task";
+const go = (p: PlanItem, where: StartWhere) => (startsSession(p) ? START[where] : GO[p.kind] ?? "Start");
+const goTitle = (p: PlanItem, where: StartWhere) => (startsSession(p) ? START_TITLE[where] : undefined);
+
+/** What the last Start in CLI did: the background session's id (`claude attach <id>`), or why it didn't start and
+ *  the command to run by hand. Dismiss clears it; a new answer replaces it. */
+/** The terminal mark on every Start in CLI button, so the CLI one is easy to spot (not part of its name). */
+export const CliMark = () => <span className="cli-mark mono" aria-hidden="true">&gt;_</span>;
+
+/** The last Start in CLI's answer: the id to attach to, or why it didn't start with the command to copy. */
+export function CliLine() {
+  const cli = useHome((s) => s.cli);
+  if (!cli) return null;
+  const clear = () => useHome.setState({ cli: null });
+  return (
+    <div className={"lead-cli mono" + (cli.error ? " err" : "")} role="status">
+      {cli.error ? (
+        <>
+          <span>Couldn't start “{cli.title}” in {cli.repo}: {cli.error}</span>
+          <button type="button" className="linkish" onClick={() => navigator.clipboard?.writeText(cli.command).catch(() => {})}>Copy the command</button>
+        </>
+      ) : (
+        <span>Started “{cli.title}” in your terminal ({cli.repo}): it shows in <code>claude agents</code>{cli.id ? <>; <code>claude attach {cli.id}</code> opens it</> : null}.</span>
+      )}
+      <button type="button" className="linkish" onClick={clear} aria-label="Dismiss">✕</button>
+    </div>
+  );
+}
 const SUG_TITLE: Record<string, string> = { "take now": "Suggested: start it now (due soon)", delegate: "Suggested: delegate it", later: "Suggested: later (hide it until tomorrow)" };
 
 /** The plan's queue with `front` (a row the owner clicked) brought up. */
@@ -55,7 +86,7 @@ export function applySuggestions(items: PlanItem[]) {
   by("later").forEach(laterPlan);
   const del = by("delegate").filter(bulkable);
   if (del.length) delegateBulk(del.map((x) => x.id));
-  by("take now").forEach(startPlan);
+  by("take now").forEach((x) => startPlan(x, "browser"));  // in bulk always Orb's gated sessions, never several `claude --bg` at once
 }
 
 /** "2 take now · 1 delegate": what Apply suggestions will do. */
@@ -68,6 +99,8 @@ export function LeadCard({ n, queue, lists, title }: { n: NeedsYou; queue: PlanI
   const [front, setFront] = useState<string | null>(null);
   const [sel, setSel] = useState<string | null>(null);
   const [ticked, setTicked] = useState<string[] | null>(null);  // Select mode: the plan keys ticked
+  useFeatures((s) => s.features?.start_in);  // re-render when the setting changes
+  const where = startWhere();
   const q = leadQueue(queue, front);
   const lead = q[0];
   const rest = q.slice(1);
@@ -115,7 +148,10 @@ export function LeadCard({ n, queue, lists, title }: { n: NeedsYou; queue: PlanI
           <p className="lead-sub">{lead.reason}</p>
           {lead.held_by && <p className="lead-held mono">Held by {lead.held_by}</p>}
           <div className="lead-actions">
-            <button type="button" className="hbtn dark big lead-go" onClick={() => startPlan(lead)}>{GO[lead.kind] ?? "Start"} <kbd className="kbd">⏎</kbd></button>
+            <button type="button" className="hbtn dark big lead-go" onClick={() => startPlan(lead)} title={goTitle(lead, where)}>{startsSession(lead) && where === "cli" && <CliMark />}{go(lead, where)} <kbd className="kbd">⏎</kbd></button>
+            {startsSession(lead) && (
+              <button type="button" className="hbtn big lead-go-other" onClick={() => startPlan(lead, OTHER[where])} title={goTitle(lead, OTHER[where])}>{OTHER[where] === "cli" && <CliMark />}{go(lead, OTHER[where])}</button>
+            )}
             {lead.actions?.includes("done") && <button type="button" className="hbtn big" onClick={done}>Done <kbd className="kbd">D</kbd></button>}
             <button type="button" className="hbtn big" onClick={skip} title="Hide it until tomorrow">Later <kbd className="kbd">S</kbd></button>
             {lead.actions?.includes("leave") && (
@@ -130,6 +166,7 @@ export function LeadCard({ n, queue, lists, title }: { n: NeedsYou; queue: PlanI
               <button type="button" className="hbtn big" disabled title={heldTitle(lead.held_by)}>Delegate</button>
             )}
           </div>
+          <CliLine />
         </div>
       )}
       {!!rest.length && rest.some((x) => x.suggest) && (

@@ -43,6 +43,15 @@ export function askAbout(x: RoutineItem) {
   askIn(vault, `What does the last run of my routine "${x.name}" say, and is there anything I should do about it?`, { name: "Routine", text: routineText(x) }, true);
 }
 
+/** "Start in CLI": a background Claude Code session (`claude --bg`, the `claude agents` view) in the notes folder on
+ *  the same question; the run goes along as untrusted screen text (the server fences it), never inside the question. */
+export function startCliAbout(x: RoutineItem) {
+  const vault = useFeatures.getState().features?.vault;
+  if (!vault) return;
+  send({ type: "cli_start", path: vault, title: `Routine: ${x.name}`, screen_name: "Routine", screen_text: routineText(x),
+    brief: `Look at the last run of my routine "${x.name}" (shown above) and tell me whether anything needs doing. Propose a fix before changing anything.` });
+}
+
 /** "Make it a task" (ADR 0008): the server answers with a card naming the title and the project; only Allow creates
  *  the task, and Undo deletes that one task. One card at a time, for the routine it was asked for. */
 export const useMakeTask = create<{ routine: string | null; pending: boolean; card: MakeTaskCardEvent | null;
