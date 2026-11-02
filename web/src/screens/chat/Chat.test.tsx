@@ -111,6 +111,40 @@ describe("chat log", () => {
     expect((screen.getByRole("button", { name: "Undone" }) as HTMLButtonElement).disabled).toBe(true);
   });
 
+  it("each list item of a finished answer makes an editable prompt for the CLI", async () => {
+    useSession.setState({ label: "acme-app", branch: "feat/x" });
+    const writeText = vi.fn(() => Promise.resolve());
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    render(<ChatLog />);
+    const text = "**Urgent**\n\n- Contract <b>42</b> is unsigned\n\n**Waiting for your OK**\n\nUncommitted work:\n\n- Worktrees:\n  - A legacy offers removal (`app-legacy`)\n  - B help sync\n";
+    play(user("u1"), { type: "text", block: "b1", delta: text });
+    expect(screen.queryAllByRole("button", { name: "Prompt for this item" })).toHaveLength(0);  // not while it streams
+    play(done);
+    const buttons = screen.getAllByRole("button", { name: "Prompt for this item" });
+    expect(buttons).toHaveLength(4);
+    expect(document.querySelector(".md")!.textContent).not.toContain("Prompt");  // icon only: copying the answer's text stays clean
+
+    fireEvent.click(buttons[2]);  // "A legacy offers removal", nested under "Worktrees"
+    const box = screen.getByRole("textbox", { name: "Prompt" }) as HTMLTextAreaElement;
+    expect(box.value).toBe("Repo: acme-app, branch feat/x\nFrom a list of next steps, under: Waiting for your OK › Uncommitted work › Worktrees\n\n"
+      + "A legacy offers removal (`app-legacy`)\n\nCheck where this stands now, then tell me the next step before you change anything.");
+    fireEvent.change(box, { target: { value: box.value + "\nKeep the old flag." } });
+    fireEvent.click(screen.getByRole("button", { name: "Copy prompt" }));
+    expect(writeText).toHaveBeenCalledWith(expect.stringMatching(/anything\.\nKeep the old flag\.$/));
+    expect(await screen.findByRole("button", { name: "Copied" })).toBeTruthy();
+
+    fireEvent.click(buttons[1]);  // a parent item takes its nested items along; one box at a time
+    expect(screen.getAllByRole("textbox", { name: "Prompt" })).toHaveLength(1);
+    expect((screen.getByRole("textbox", { name: "Prompt" }) as HTMLTextAreaElement).value).toContain("Worktrees:\n- A legacy offers removal (`app-legacy`)\n- B help sync");
+    fireEvent.click(buttons[1]);
+    expect(screen.queryByRole("textbox", { name: "Prompt" })).toBeNull();
+
+    fireEvent.click(buttons[0]);  // the model's own HTML in an item is text here
+    expect((screen.getByRole("textbox", { name: "Prompt" }) as HTMLTextAreaElement).value).toContain("under: Urgent\n\nContract 42 is unsigned");
+    fireEvent.keyDown(screen.getByRole("textbox", { name: "Prompt" }), { key: "Escape" });
+    expect(screen.queryByRole("textbox", { name: "Prompt" })).toBeNull();
+  });
+
   it("notices, errors and the end of a stopped turn", () => {
     render(<ChatLog />);
     play({ type: "notice", text: "Model: Opus", level: "ok" }, { type: "error", text: "Claude Code crashed" }, user("u1"), { type: "result", subtype: "error_during_execution", is_error: true });

@@ -1,7 +1,10 @@
-import { memo, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { send } from "../../ws";
 import { answerText, taskText, toolsLabel, useChat, type Answer, type Item, type Part, type ToolRow } from "../../stores/chat";
+import { useSession } from "../../stores/session";
 import { Markdown, copyText } from "./Markdown";
+import { PromptBox } from "./PromptBox";
+import { buildPrompt, itemContext } from "./itemPrompt";
 import { PermCard, UndoCard } from "./Cards";
 
 // The conversation. Items and parts are immutable, so only the answer being written re-renders.
@@ -19,13 +22,13 @@ function Tool({ r }: { r: ToolRow }) {
   );
 }
 
-function PartView({ p, live }: { p: Part; live: boolean }) {
+function PartView({ p, live, onItem }: { p: Part; live: boolean; onItem: (li: HTMLLIElement, root: HTMLElement) => void }) {
   switch (p.kind) {
     case "text":
       return (
         <>
           {p.said.trim() && <div className="said"><span className="said-label">said aloud</span><span className="said-text">{p.said.trim()}</span></div>}
-          <Markdown text={p.text} live={live} />
+          <Markdown text={p.text} live={live} onItem={onItem} />
         </>
       );
     case "tools":
@@ -42,13 +45,37 @@ function PartView({ p, live }: { p: Part; live: boolean }) {
   }
 }
 
+interface OpenPrompt { id: number; li: HTMLLIElement; host: HTMLElement; text: string }
+let promptIds = 0;
+
+/** One list item's prompt box at a time per answer: the item's button opens it inside the item, again closes it. */
+function useItemPrompt() {
+  const [open, setOpen] = useState<OpenPrompt | null>(null);
+  const cur = useRef<OpenPrompt | null>(null);
+  const show = useCallback((next: OpenPrompt | null) => { cur.current?.host.remove(); cur.current = next; setOpen(next); }, []);
+  const onItem = useCallback((li: HTMLLIElement, root: HTMLElement) => {
+    if (cur.current?.li === li) { show(null); return; }
+    const { label, branch } = useSession.getState();
+    const host = document.createElement("div");
+    host.className = "item-prompt-host";
+    li.append(host);
+    show({ id: ++promptIds, li, host, text: buildPrompt(itemContext(li, root), { repo: label, branch }) });
+  }, [show]);
+  useEffect(() => () => cur.current?.host.remove(), []);
+  const box = open && <PromptBox key={open.id} host={open.host} initial={open.text}
+    onClose={() => { show(null); open.li.querySelector<HTMLElement>(":scope > .li-prompt")?.focus(); }} />;
+  return { onItem, box };
+}
+
 const AnswerView = memo(function AnswerView({ a, last }: { a: Answer; last: boolean }) {
   const copyBtn = useRef<HTMLButtonElement>(null);
   const hasText = a.parts.some((p) => p.kind === "text");
   const n = a.undoFiles?.length ?? 0;
+  const { onItem, box } = useItemPrompt();
   return (
     <div className={"answer" + (last ? " last" : "")}>
-      {a.parts.map((p, i) => <PartView key={p.kind === "text" ? p.id : `${p.kind}-${i}`} p={p} live={!a.done} />)}
+      {a.parts.map((p, i) => <PartView key={p.kind === "text" ? p.id : `${p.kind}-${i}`} p={p} live={!a.done} onItem={onItem} />)}
+      {box}
       {a.done && hasText && (
         <div className="answer-tools">
           <button type="button" ref={copyBtn} onClick={() => copyText(answerText(a), copyBtn.current)}>Copy</button>
