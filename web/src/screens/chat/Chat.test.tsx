@@ -111,7 +111,7 @@ describe("chat log", () => {
     expect((screen.getByRole("button", { name: "Undone" }) as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it("each list item of a finished answer makes an editable prompt for the CLI", async () => {
+  it("any list items of a finished answer make one editable prompt for the CLI", async () => {
     useSession.setState({ label: "acme-app", branch: "feat/x" });
     const writeText = vi.fn(() => Promise.resolve());
     Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
@@ -133,15 +133,31 @@ describe("chat log", () => {
     expect(writeText).toHaveBeenCalledWith(expect.stringMatching(/anything\.\nKeep the old flag\.$/));
     expect(await screen.findByRole("button", { name: "Copied" })).toBeTruthy();
 
-    fireEvent.click(buttons[1]);  // a parent item takes its nested items along; one box at a time
+    const value = () => (screen.getByRole("textbox", { name: "Prompt" }) as HTMLTextAreaElement).value;
+    fireEvent.click(buttons[0]);  // a second pick joins the same prompt, in answer order, and keeps your added line
     expect(screen.getAllByRole("textbox", { name: "Prompt" })).toHaveLength(1);
-    expect((screen.getByRole("textbox", { name: "Prompt" }) as HTMLTextAreaElement).value).toContain("Worktrees:\n- A legacy offers removal (`app-legacy`)\n- B help sync");
-    fireEvent.click(buttons[1]);
-    expect(screen.queryByRole("textbox", { name: "Prompt" })).toBeNull();
+    expect(value()).toBe("Repo: acme-app, branch feat/x\nFrom a list of next steps:\n\nUrgent:\n- Contract 42 is unsigned\n\n"
+      + "Waiting for your OK › Uncommitted work › Worktrees:\n- A legacy offers removal (`app-legacy`)\n\n"
+      + "Check where each of these stands now, then tell me the next step for each before you change anything.\nKeep the old flag.");
+    expect(buttons[0].getAttribute("aria-pressed")).toBe("true");
 
-    fireEvent.click(buttons[0]);  // the model's own HTML in an item is text here
-    expect((screen.getByRole("textbox", { name: "Prompt" }) as HTMLTextAreaElement).value).toContain("under: Urgent\n\nContract 42 is unsigned");
+    fireEvent.click(buttons[1]);  // a parent item takes its nested items along, so the picked child isn't listed twice
+    expect(value()).toContain("Waiting for your OK › Uncommitted work:\n- Worktrees:\n  - A legacy offers removal (`app-legacy`)\n  - B help sync\n\n");
+    expect(value()).not.toContain("› Worktrees:");
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Prompt" }), { target: { value: value().replace("Contract 42", "Contract 43") } });
+    fireEvent.click(buttons[0]);  // edited inside: your text stays, Rebuild offers the new picks
+    expect(value()).toContain("Contract 43");
+    fireEvent.click(screen.getByRole("button", { name: "Rebuild" }));
+    expect(value()).not.toContain("Contract");
+    expect(value()).toContain("under: Waiting for your OK › Uncommitted work\n\nWorktrees:\n- A legacy offers removal (`app-legacy`)\n- B help sync");
+
     fireEvent.keyDown(screen.getByRole("textbox", { name: "Prompt" }), { key: "Escape" });
+    expect(screen.queryByRole("textbox", { name: "Prompt" })).toBeNull();
+    expect(buttons.filter((b) => b.getAttribute("aria-pressed") === "true")).toHaveLength(0);
+    fireEvent.click(buttons[0]);  // a fresh pick starts a new prompt; the model's own HTML in an item is text here
+    expect(value()).toContain("under: Urgent\n\nContract 42 is unsigned");
+    fireEvent.click(buttons[0]);  // dropping the last pick closes it
     expect(screen.queryByRole("textbox", { name: "Prompt" })).toBeNull();
   });
 
