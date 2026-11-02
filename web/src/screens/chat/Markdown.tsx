@@ -115,7 +115,7 @@ function addItemButtons(root: HTMLElement, onItem: (li: HTMLLIElement) => void) 
   root.querySelectorAll("li").forEach((li) => {
     const btn = document.createElement("button");
     btn.type = "button"; btn.className = "li-prompt"; btn.innerHTML = PROMPT;
-    btn.title = "Prompt for your CLI"; btn.setAttribute("aria-label", "Prompt for this item");
+    btn.title = "Add to a prompt for your CLI"; btn.setAttribute("aria-label", "Prompt for this item"); btn.setAttribute("aria-pressed", "false");
     btn.onclick = () => onItem(li);
     const nested = [...li.children].find((c) => c.nodeName === "UL" || c.nodeName === "OL");
     if (nested) li.insertBefore(btn, nested); else li.append(btn);

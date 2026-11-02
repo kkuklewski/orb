@@ -59,11 +59,32 @@ export function itemContext(li: HTMLElement, root: HTMLElement): ItemContext {
   return { section, lead, parents, item: itemLines(li).join("\n") };
 }
 
+const ASK = "Check where this stands now, then tell me the next step before you change anything.";
+const ASK_MANY = "Check where each of these stands now, then tell me the next step for each before you change anything.";
+
+const underOf = (c: ItemContext) => [c.section, c.lead, ...c.parents].filter(Boolean).join(" › ");
+
+function repoLine(where: { repo: string; branch: string | null }): string[] {
+  return where.repo ? [`Repo: ${where.repo}${where.branch ? `, branch ${where.branch}` : ""}`] : [];
+}
+
 export function buildPrompt(c: ItemContext, where: { repo: string; branch: string | null }): string {
-  const lines: string[] = [];
-  if (where.repo) lines.push(`Repo: ${where.repo}${where.branch ? `, branch ${where.branch}` : ""}`);
-  const under = [c.section, c.lead, ...c.parents].filter(Boolean).join(" › ");
+  const lines = repoLine(where);
+  const under = underOf(c);
   if (under) lines.push(`From a list of next steps, under: ${under}`);
-  return [lines.join("\n"), c.item, "Check where this stands now, then tell me the next step before you change anything."]
-    .filter(Boolean).join("\n\n");
+  return [lines.join("\n"), c.item, ASK].filter(Boolean).join("\n\n");
+}
+
+/** Several picked items in one prompt, grouped under the heading and parent items they sit under, in answer order. */
+export function buildPrompts(cs: ItemContext[], where: { repo: string; branch: string | null }): string {
+  if (cs.length === 1) return buildPrompt(cs[0], where);
+  const groups = new Map<string, string[]>();
+  for (const c of cs) {
+    const [first, ...rest] = c.item.split("\n");
+    const under = underOf(c);
+    groups.set(under, [...(groups.get(under) ?? []), "- " + first, ...rest.map((l) => "  " + l)]);
+  }
+  const body = [...groups].map(([under, items]) => [under && under + ":", ...items].filter(Boolean).join("\n"));
+  const head = [...repoLine(where), "From a list of next steps:"].join("\n");
+  return [head, ...body, ASK_MANY].join("\n\n");
 }

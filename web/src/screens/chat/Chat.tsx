@@ -4,7 +4,7 @@ import { answerText, taskText, toolsLabel, useChat, type Answer, type Item, type
 import { useSession } from "../../stores/session";
 import { Markdown, copyText } from "./Markdown";
 import { PromptBox } from "./PromptBox";
-import { buildPrompt, itemContext } from "./itemPrompt";
+import { buildPrompts, itemContext } from "./itemPrompt";
 import { PermCard, UndoCard } from "./Cards";
 
 // The conversation. Items and parts are immutable, so only the answer being written re-renders.
@@ -45,25 +45,57 @@ function PartView({ p, live, onItem }: { p: Part; live: boolean; onItem: (li: HT
   }
 }
 
-interface OpenPrompt { id: number; li: HTMLLIElement; host: HTMLElement; text: string }
+interface Pick { li: HTMLLIElement; root: HTMLElement }
+interface Picked { id: number; host: HTMLElement; picks: Pick[] }
 let promptIds = 0;
 
-/** One list item's prompt box at a time per answer: the item's button opens it inside the item, again closes it. */
+const button = (li: HTMLLIElement) => li.querySelector<HTMLElement>(":scope > .li-prompt");
+function mark(li: HTMLLIElement, on: boolean) { li.classList.toggle("picked", on); button(li)?.setAttribute("aria-pressed", String(on)); }
+
+/** Picked items in answer order; an item inside another picked item is already in that one's lines. */
+function inOrder(picks: Pick[]): Pick[] {
+  return picks.filter((p) => !picks.some((q) => q.li !== p.li && q.li.contains(p.li)))
+    .sort((a, b) => (a.li.compareDocumentPosition(b.li) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1));
+}
+
+/** One prompt per answer, from any of its list items: each item's button adds it (again removes it), and the box
+ *  sits under the item picked last. */
 function useItemPrompt() {
-  const [open, setOpen] = useState<OpenPrompt | null>(null);
-  const cur = useRef<OpenPrompt | null>(null);
-  const show = useCallback((next: OpenPrompt | null) => { cur.current?.host.remove(); cur.current = next; setOpen(next); }, []);
+  const cur = useRef<Picked | null>(null);
+  const [, redraw] = useState(0);
+  const commit = useCallback((next: Picked | null) => { cur.current = next; redraw((n) => n + 1); }, []);
+  const close = useCallback(() => {
+    const c = cur.current;
+    if (!c) return;
+    c.picks.forEach((p) => mark(p.li, false));
+    c.host.remove();
+    commit(null);
+    button(c.picks.at(-1)!.li)?.focus();
+  }, [commit]);
   const onItem = useCallback((li: HTMLLIElement, root: HTMLElement) => {
-    if (cur.current?.li === li) { show(null); return; }
-    const { label, branch } = useSession.getState();
-    const host = document.createElement("div");
-    host.className = "item-prompt-host";
+    const c = cur.current;
+    if (c?.picks.some((p) => p.li === li)) {
+      mark(li, false);
+      const picks = c.picks.filter((p) => p.li !== li);
+      if (!picks.length) { c.host.remove(); commit(null); return; }
+      if (li.contains(c.host)) picks.at(-1)!.li.append(c.host);
+      commit({ ...c, picks });
+      return;
+    }
+    mark(li, true);
+    const host = c?.host ?? Object.assign(document.createElement("div"), { className: "item-prompt-host" });
     li.append(host);
-    show({ id: ++promptIds, li, host, text: buildPrompt(itemContext(li, root), { repo: label, branch }) });
-  }, [show]);
+    commit({ id: c?.id ?? ++promptIds, host, picks: [...(c?.picks ?? []), { li, root }] });
+  }, [commit]);
   useEffect(() => () => cur.current?.host.remove(), []);
-  const box = open && <PromptBox key={open.id} host={open.host} initial={open.text}
-    onClose={() => { show(null); open.li.querySelector<HTMLElement>(":scope > .li-prompt")?.focus(); }} />;
+  const c = cur.current;
+  let box = null;
+  if (c) {
+    const { label, branch } = useSession.getState();
+    const picks = inOrder(c.picks);
+    const text = buildPrompts(picks.map((p) => itemContext(p.li, p.root)), { repo: label, branch });
+    box = <PromptBox key={c.id} host={c.host} generated={text} count={picks.length} onClose={close} />;
+  }
   return { onItem, box };
 }
 
