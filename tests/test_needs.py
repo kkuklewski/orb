@@ -1,10 +1,26 @@
 import asyncio
+import datetime as dt
 import json
 import re
+import types
+
+import pytest
 
 from orb import needs, protocol
 
 TODAY = "2026-10-25"
+
+
+class _Today(dt.date):
+    @classmethod
+    def today(cls):
+        return dt.date.fromisoformat(TODAY)
+
+
+@pytest.fixture(autouse=True)
+def _frozen_today(monkeypatch):
+    """Loading prunes marks older than MARK_DAYS by the real clock: these tests live on TODAY, whatever the date."""
+    monkeypatch.setattr(needs, "dt", types.SimpleNamespace(date=_Today, datetime=dt.datetime, timedelta=dt.timedelta, timezone=dt.timezone))
 ROUTINES = [
     {"id": "r1", "name": "Mail check", "enabled": True, "needs": "action", "why": "account alert",
      "last": {"id": "run1", "outcome": "ok", "summary": "Acme will close the account unless you log in"}},

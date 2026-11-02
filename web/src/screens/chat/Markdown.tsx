@@ -107,6 +107,21 @@ export async function copyText(text: string, btn?: HTMLElement | null) {
   if (btn) { btn.classList.add("done"); setTimeout(() => btn.classList.remove("done"), 1200); }
 }
 
+const PROMPT = '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="m5 7 5 5-5 5M12 18h7"/></svg>';
+
+/** A "Prompt" button on each list item (ours, added after sanitizing: model output can't carry a button). It sits
+ *  after the item's own words, before any nested list. */
+function addItemButtons(root: HTMLElement, onItem: (li: HTMLLIElement) => void) {
+  root.querySelectorAll("li").forEach((li) => {
+    const btn = document.createElement("button");
+    btn.type = "button"; btn.className = "li-prompt"; btn.innerHTML = PROMPT;
+    btn.title = "Prompt for your CLI"; btn.setAttribute("aria-label", "Prompt for this item");
+    btn.onclick = () => onItem(li);
+    const nested = [...li.children].find((c) => c.nodeName === "UL" || c.nodeName === "OL");
+    if (nested) li.insertBefore(btn, nested); else li.append(btn);
+  });
+}
+
 function enhance(root: HTMLElement) {
   root.querySelectorAll("pre").forEach((pre) => {
     const code = pre.querySelector("code");
@@ -153,15 +168,21 @@ function useThrottled<T>(value: T, ms: number): T {
   return shown;
 }
 
-export const Markdown = memo(function Markdown({ text, live = false, className = "md" }: { text: string; live?: boolean; className?: string }) {
+/** `onItem`: once the text is final, each list item gets a Prompt button that calls it with the item and this root. */
+export const Markdown = memo(function Markdown({ text, live = false, className = "md", onItem }:
+  { text: string; live?: boolean; className?: string; onItem?: (li: HTMLLIElement, root: HTMLElement) => void }) {
   const ref = useRef<HTMLDivElement>(null);
   const throttled = useThrottled(text, 50);
   const shown = live ? throttled : text;
+  const item = useRef(onItem);
+  item.current = onItem;
+  const items = !!onItem && !live;
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
     el.innerHTML = toSafeHtml(shown);
     enhance(el);
-  }, [shown]);
+    if (items) addItemButtons(el, (li) => item.current?.(li, el));
+  }, [shown, items]);
   return <div className={className} ref={ref} />;
 });
