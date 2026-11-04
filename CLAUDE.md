@@ -8,6 +8,7 @@ Public repo: no personal data in tracked files (run `scripts/check-public.sh` be
 
 ```sh
 uv run orb                  # serve on 127.0.0.1:8765, prints the link with the token
+uv run orb open             # open the running server's page (token from ~/.orb/token)
 uv run pytest               # unit tests (billing guard, repo fence, spoken split, folders, sessions, voice merge)
 scripts/check-public.sh     # fails on private markers (~/.orb/private-markers, .private-markers)
 cd web && npm run dev       # React page with live reload (server: ORB_DEV_ORIGIN=http://localhost:5173 uv run orb)
