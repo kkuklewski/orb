@@ -17,7 +17,7 @@ import { Actions } from "./HomeDelegated";
 // itself never allows or denies. Hidden when nothing needs you.
 
 export type Row = { key: string; tag: string; title: string; reason: string; quote?: string | null; side: string; open?: () => void; href?: string | null;
-  resolve?: () => void; task?: () => void; repair?: { task: number; href: string | null }; urgent?: boolean; pin?: string | null };
+  resolve?: () => void; task?: () => void; repair?: { task: number; href: string | null }; urgent?: boolean; pin?: string | null; cont?: boolean };
 
 const ago = (ts?: number | null) => (ts ? (relTime(ts) === "now" ? "just now" : `${relTime(ts)} ago`) : "just now");
 
@@ -33,10 +33,10 @@ function approval(x: SessionRow, now = Date.now() / 1000): Row {
 const DELEG_TAG: Record<NonNullable<DelegationItem["needs"]>, string> = { card: "OK?", failed: "TESTS", stuck: "STUCK", stopped: "STOPPED", outward: "PUSH?", collision: "CONFLICT", merge: "MERGE?", closed: "CLOSED", blocked: "CHECK", update: "UPDATE" };
 
 /** A delegation in Needs you: the task and the repo say which one; a card's words show like a session's. */
-function DelegationRow({ d }: { d: DelegationItem }) {
+function DelegationRow({ d, cont }: { d: DelegationItem; cont?: boolean }) {
   const open = () => openFolder(d.folder, d.session);
   return (
-    <div className="needs-row deleg-needs" role="group" aria-label={`Delegation of task #${d.task}`}>
+    <div className={"needs-row deleg-needs" + (cont ? " cont" : "")} role="group" aria-label={`Delegation of task #${d.task}`}>
       <span className="needs-tag mono">{DELEG_TAG[d.needs!]}</span>
       <button type="button" className="needs-text" onClick={d.needs === "stopped" ? undefined : open} disabled={d.needs === "stopped"}>
         <span className="needs-title">Delegated #{d.task} {d.title}</span>
@@ -73,7 +73,8 @@ export function needsLines(n: NeedsYou, canResolve: (id: string) => boolean = ()
   return [...n.waiting.map((x) => approval(x)), ...n.delegations.map(deleg), ...n.items.map((p) => planRow(p, canResolve))];
 }
 
-/** Grey by default; bold red only when a rule says urgent (needs.py), so the few that are stand out. */
+/** Grey by default; bold red only when a rule says urgent (needs.py), so the few that are stand out. A row that
+ *  continues a run of the same kind (`cont`) keeps its tag for screen readers but shows it only on the run's first row. */
 const Tag = ({ r }: { r: Row }) => <span className={"needs-tag mono" + (r.urgent ? " urgent" : "")}>{r.tag}</span>;
 
 function RowBody({ r }: { r: Row }) {
@@ -95,6 +96,9 @@ export function NeedsStrip({ n }: { n: NeedsYou }) {
   const routines = useViews((s) => s.routines?.items);
   const canResolve = (id: string) => resolvable(routines?.find((x) => x.id === id));
   const waiting = n.waiting.map((x) => approval(x)), items = n.items.map((p) => planRow(p, canResolve));
+  // Consecutive rows of one kind read as one group: the tag shows once, on the group's first row.
+  const tags = [...waiting.map((r) => r.tag), ...n.delegations.map((d) => DELEG_TAG[d.needs!]), ...items.map((r) => r.tag)];
+  const cont = (i: number) => i > 0 && tags[i] === tags[i - 1];
   const count = waiting.length + n.delegations.length + items.length;
   if (!count) return null;
   const title = `${count} thing${count === 1 ? "" : "s"} need${count === 1 ? "s" : ""} you`;
@@ -106,9 +110,9 @@ export function NeedsStrip({ n }: { n: NeedsYou }) {
         {vault && <button type="button" className="hc-ask mono" onClick={() => askIn(vault, "What needs me first here, and what should I do about each item?", { name: "Needs you", text: ask }, true)}>Ask about this →</button>}
       </div>
       <div className="needs-rows">
-        {waiting.map(row)}
-        {n.delegations.map((d) => <DelegationRow key={d.id} d={d} />)}
-        {items.map(row)}
+        {waiting.map((r, i) => row({ ...r, cont: cont(i) }))}
+        {n.delegations.map((d, i) => <DelegationRow key={d.id} d={d} cont={cont(waiting.length + i)} />)}
+        {items.map((r, i) => row({ ...r, cont: cont(waiting.length + n.delegations.length + i) }))}
       </div>
       {n.items.length > 0 && <div className="hc-foot mono"><RankedBy /></div>}
     </article>
@@ -118,14 +122,14 @@ export function NeedsStrip({ n }: { n: NeedsYou }) {
 /** A routine with its own buttons on the right (Make it a task on a failure streak, its open Repair task's link,
  *  Mark resolved on a reported problem); the text opens it. */
 const actionRow = (r: Row) => (
-  <div key={r.key} className="needs-row deleg-needs" role="group" aria-label={r.title}>
+  <div key={r.key} className={rowClass(r, "needs-row deleg-needs")} role="group" aria-label={r.title}>
     <Tag r={r} />
     <button type="button" className="needs-text" onClick={r.open}>
       <span className="needs-title">{r.title}</span>
       <span className="needs-reason">{r.reason}</span>
     </button>
-    <span className="deleg-actions">{r.pin && <span className="needs-side mono">{r.pin}</span>}
-      {r.task && <button type="button" className="hbtn" onClick={r.task}>Make it a task</button>}
+    <span className="deleg-actions">{r.pin && <span className="needs-side needs-pin mono">{r.pin}</span>}
+      {r.task && <button type="button" className="hbtn quiet" onClick={r.task}>Make it a task</button>}
       {r.repair && (r.repair.href ? <a className="hbtn" href={r.repair.href} target="_blank" rel="noopener noreferrer">Task #{r.repair.task}</a>
         : <span className="needs-side mono">Task #{r.repair.task}</span>)}
       {r.resolve && <button type="button" className="hbtn" onClick={r.resolve}>Mark resolved</button>}
@@ -133,9 +137,11 @@ const actionRow = (r: Row) => (
   </div>
 );
 
-export const row = (r: Row) => r.resolve || r.task || r.repair ? actionRow(r) : r.open ? <button key={r.key} type="button" className="needs-row" onClick={r.open}><RowBody r={r} /></button>
-  : r.href ? <a key={r.key} className="needs-row" href={r.href} target="_blank" rel="noopener noreferrer"><RowBody r={r} /></a>
-  : <div key={r.key} className="needs-row still"><RowBody r={r} /></div>;
+const rowClass = (r: Row, base = "needs-row") => base + (r.urgent ? " urgent" : "") + (r.cont ? " cont" : "");
+
+export const row = (r: Row) => r.resolve || r.task || r.repair ? actionRow(r) : r.open ? <button key={r.key} type="button" className={rowClass(r)} onClick={r.open}><RowBody r={r} /></button>
+  : r.href ? <a key={r.key} className={rowClass(r)} href={r.href} target="_blank" rel="noopener noreferrer"><RowBody r={r} /></a>
+  : <div key={r.key} className={rowClass(r, "needs-row still")}><RowBody r={r} /></div>;
 
 /** "ranked 5m ago · Re-rank" (or "rule order"): whether the model's order is shown, and a button to ask it again. */
 function RankedBy() {

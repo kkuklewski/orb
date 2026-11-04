@@ -16,7 +16,7 @@ const sent: Record<string, unknown>[] = [];
 vi.mock("../ws", () => ({ send: (m: Record<string, unknown>) => { sent.push(m); return true; } }));
 vi.stubGlobal("AudioContext", undefined);
 
-const { RoutineScreen } = await import("./Routine");
+const { RoutineScreen, unflatten } = await import("./Routine");
 const { Routines } = await import("./Routines");
 
 const DETAIL = "**Inbox cleanup summary**\nI reviewed 16 threads.\n\n(a) Needs your attention today:\n- <img src=x onerror=alert(1)> invoice";
@@ -198,5 +198,15 @@ describe("from the list", () => {
     act(() => useViews.setState({ view: "routines" }));
     fireEvent.click(screen.getByRole("button", { name: "Mark runs read" }));
     expect(sent.at(-1)).toEqual({ type: "routines_seen", all: true });
+  });
+});
+
+describe("unflatten", () => {
+  it("puts back the line breaks claude.ai folded into spaces", () => {
+    expect(unflatten("Ran it. - **Translations:** ok. - **PRs:** two. ``` RESULT: done ```"))
+      .toBe("Ran it.\n- **Translations:** ok.\n- **PRs:** two.\n```\nRESULT: done\n```");
+    expect(unflatten("**Summary** **(a) Today** - **Urgent:** a login alert")).toBe("**Summary**\n\n**(a) Today**\n- **Urgent:** a login alert");
+    expect(unflatten("pages 3 - 5 stay")).toBe("pages 3 - 5 stay");  // a dash inside a sentence stays
+    expect(unflatten("a\n- b - c")).toBe("a\n- b - c");  // text with its breaks is left alone
   });
 });

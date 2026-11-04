@@ -116,7 +116,7 @@
 /* /next only: the main area is the top bar plus one scrolling view; the chat placeholder and composer. */
 .main { grid-template-rows: auto minmax(0, 1fr); }
 .main > :not(.top) { overflow-y: auto; min-height: 0; }
-.chat-next { display: grid; grid-template-rows: 1fr auto; min-height: 0; }
+.chat-next { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: 1fr auto; min-height: 0; }
 .hero-next { align-self: center; justify-self: center; width: min(680px, 100%); padding: 32px 24px; }
 .hero-next h1 { margin: 0 0 12px; font: 600 clamp(26px, 3.4vw, 34px)/1.15 var(--sans); letter-spacing: -0.02em; }
 .sent-note { margin-top: 14px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 12px; color: var(--text-2); white-space: pre-wrap; overflow-wrap: anywhere; }

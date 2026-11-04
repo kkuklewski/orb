@@ -7,7 +7,7 @@ import { useTracker } from "../stores/features";
 import { useSession } from "../stores/session";
 import { ItemView } from "./chat/Chat";
 
-// One routine's last run: the whole text (plain text, never markup: it may quote email or repos),
+// One routine's last run: the whole text (sanitized markdown: it may quote email or repos),
 // why it did or didn't notify, and what to do with it. Orb's routine access is read-only, so there is
 // no "run again" here; "Open run" goes to claude.ai. "Make it a task" writes one task in the tracker, after a card.
 
@@ -40,7 +40,36 @@ export function MakeTaskCard({ routine }: { routine: string }) {
   );
 }
 
+/** claude.ai hands back a run's text with its line breaks folded into spaces. Put back the breaks the markdown
+ *  needs: a list item (" - **x**", or " - " after a sentence or a bold label), a bold line after a bold line, a fence. */
+export function unflatten(text: string): string {
+  if (text.includes("\n")) return text;
+  return text
+    .replace(/\s*```\s*/g, "\n```\n")
+    .replace(/\*\* \*\*/g, "**\n\n**")
+    .replace(/\s+-\s+(?=\*\*)/g, "\n- ")
+    .replace(/(?<=[.:!?)*`])\s+-\s+(?=\S)/g, "\n- ")
+    .trim();
+}
+
+// The notify choice in plain words.
+const NOTIFY_HINT: Record<NotifyMode, string> = {
+  auto: "Orb tells you when a run looks worth reading.",
+  always: "You hear about every run.",
+  never: "Runs stay quiet.",
+};
+
+// One action: what it's called, and in a line what clicking it does.
+function Act({ label, hint, dark, disabled, onClick }: { label: string; hint: string; dark?: boolean; disabled?: boolean; onClick: () => void }) {
+  return (
+    <button type="button" className={"ra" + (dark ? " dark" : "")} aria-label={label} disabled={disabled} onClick={onClick}>
+      <span className="ra-label">{label}</span><span className="ra-hint">{hint}</span>
+    </button>
+  );
+}
+
 export function RoutineScreen() {
+  const tracker = useTracker();
   const id = useRoutineScreen((s) => s.id);
   const r = useViews((s) => s.routines);
   const x = r?.items.find((i) => i.id === id) ?? null;
@@ -92,7 +121,7 @@ export function RoutineScreen() {
           </span>
         </nav>
 
-        <header className="task-head">
+        <header className="task-head routine-head">
           <div className="mono home-kicker">// ROUTINE · {routineStatus(x).toUpperCase()}</div>
           <h1>{x.name}</h1>
           <div className="task-chips mono">
@@ -103,16 +132,14 @@ export function RoutineScreen() {
           {whyLine(x) && <p className="rt-why mono routine-why">{x.loud && <span className="sq" aria-hidden="true" />}{whyLine(x)}</p>}
         </header>
 
-        <section className="task-actions" aria-label="Actions">
-          <div className="task-buttons">
-            <button type="button" className="hbtn dark big" disabled={!unread} onClick={() => markRead(x.id)}>
-              {unread ? "Mark read" : "Read"}
-            </button>
-            {resolvable(x) && <button type="button" className="hbtn dark big" onClick={() => resolveRun(x.id)}>Mark resolved</button>}
-            {x.resolved && <button type="button" className="hbtn big outline" onClick={() => resolveRun(x.id, true)}>Resolved · Undo</button>}
-            <button type="button" className="hbtn big outline" onClick={() => askAbout(x)}>Ask Claude about it →</button>
-            {url && <a className="hbtn big" href={url} target="_blank" rel="noopener noreferrer">Open run ↗</a>}
-            <button type="button" className="hbtn big outline" disabled={!l} onClick={() => makeTask(x.id)}>Make it a task</button>
+        <section className="task-actions routine-actions" aria-label="Actions">
+          <div className="ras">
+            <Act dark label={unread ? "Mark read" : "Read"} hint={unread ? "You've seen it; the new badge goes away." : "You've seen this run."} disabled={!unread} onClick={() => markRead(x.id)} />
+            {resolvable(x) && <Act dark label="Mark resolved" hint="You dealt with it; it leaves Needs you until the next run." onClick={() => resolveRun(x.id)} />}
+            {x.resolved && <Act label="Resolved · Undo" hint="Puts the problem back in Needs you." onClick={() => resolveRun(x.id, true)} />}
+            <Act label="Ask Claude about it →" hint="Claude reads this run and answers below." onClick={() => askAbout(x)} />
+            {url && <a className="ra" href={url} target="_blank" rel="noopener noreferrer" aria-label="Open run ↗"><span className="ra-label">Open run ↗</span><span className="ra-hint">The full run on claude.ai, in a new tab.</span></a>}
+            <Act label="Make it a task" hint={`Drafts a ${tracker} task; nothing is created until you confirm.`} disabled={!l} onClick={() => makeTask(x.id)} />
           </div>
           <MakeTaskCard routine={x.id} />
           {x.enabled && (
@@ -121,9 +148,10 @@ export function RoutineScreen() {
               {(["auto", "always", "never"] as NotifyMode[]).map((m) => (
                 <button key={m} type="button" role="radio" aria-checked={mode === m} className={mode === m ? "on" : ""} onClick={() => setNotify(x.id, m)}>{NOTIFY_LABEL[m]}</button>
               ))}
+              <span className="notify-hint">{NOTIFY_HINT[mode]} Failures always notify.</span>
             </div>
           )}
-          <p className="mono task-say">Orb only reads your routines; it can't run, change or pause them. Failures always notify. Mark resolved once you dealt with a reported problem; the next run is judged afresh.</p>
+          <p className="mono task-say">Orb only reads your routines; it can't run, change or pause them.</p>
         </section>
 
         <article className="hc routine-run" aria-label="The last run">
@@ -131,7 +159,7 @@ export function RoutineScreen() {
             <div className="hc-label mono">THE LAST RUN</div>
             <h2>{l ? (l.outcome === "ok" ? "What the run reported" : `The run ${l.outcome ?? "has no outcome"}`) : "No runs yet"}</h2>
           </div>
-          <div className="routine-text"><Markdown text={text || "(the run left no text)"} /></div>
+          <div className="routine-text"><Markdown text={unflatten(text) || "(the run left no text)"} /></div>
           <div className="hc-foot mono"><span>sanitized markdown</span>{url && <a href={url} target="_blank" rel="noopener noreferrer">Open run ↗</a>}</div>
         </article>
 

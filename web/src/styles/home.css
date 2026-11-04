@@ -284,7 +284,12 @@ span.lead-sug { cursor: inherit; }
 .needs-strip { display: flex; flex-direction: column; border-color: var(--s-acc, var(--warn)); }
 .needs-strip .lead-top { padding: 16px 20px 6px; }
 .needs-rows { display: flex; flex-direction: column; }
-.needs-row { display: grid; grid-template-columns: 76px minmax(0, 1fr) auto; gap: 14px; align-items: baseline; width: 100%; box-sizing: border-box; min-height: 52px; padding: 12px 20px; border: 0; border-top: 1px solid var(--line-soft); background: none; color: var(--text); text-align: left; font: 15px/1.4 var(--sans); cursor: pointer; }
+.needs-row { position: relative; display: grid; grid-template-columns: 84px minmax(0, 1fr) auto; gap: 18px; align-items: center; width: 100%; box-sizing: border-box; min-height: 60px; padding: 14px 22px; border: 0; border-top: 1px solid var(--line); background: none; color: var(--text); text-align: left; font: 15px/1.4 var(--sans); cursor: pointer; }
+/* A run of one kind reads as one group: a softer rule between its rows, the tag only on the first. */
+.needs-row.cont { border-top-color: var(--line-soft); }
+.needs-row.cont .needs-tag { color: transparent; }
+/* Urgent: a red tick on the left edge, so it survives a hidden tag and a quick scan down the column. */
+.needs-row.urgent::before { content: ""; position: absolute; left: 0; top: 12px; bottom: 12px; width: 3px; border-radius: 0 2px 2px 0; background: var(--urgent); }
 .needs-row:hover { background: var(--bg); }
 .needs-row:hover .needs-title { text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1px; }
 .needs-row:focus-visible { outline: 2px solid var(--text); outline-offset: -2px; }
@@ -292,13 +297,18 @@ a.needs-row { text-decoration: none; }
 .needs-row.still { cursor: default; }
 .needs-row.still:hover { background: none; }
 .needs-row.still:hover .needs-title { text-decoration: none; }
-.needs-tag { font-size: 11px; letter-spacing: .12em; color: var(--text-3); }
+.needs-tag { align-self: start; padding-top: 3px; font-size: 11px; letter-spacing: .12em; color: var(--text-3); }
 .needs-tag.urgent { color: var(--urgent); font-weight: 700; }  /* a broken setup, a failed or stuck routine, a near deadline, a security risk */
-.needs-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.needs-title { overflow-wrap: anywhere; }
-.needs-reason { font-size: 13.5px; color: var(--text-3); }
+.needs-text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.needs-title { font-weight: 500; overflow-wrap: anywhere; }
+.needs-reason { font-size: 14px; line-height: 1.45; color: var(--text-2); overflow-wrap: anywhere; }
 .needs-quote { margin-top: 4px; font: 12.5px/1.6 var(--mono); color: var(--text-3); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 4.8em; overflow: hidden; }
-.needs-side { font-size: 12px; color: var(--text-3); white-space: nowrap; }
+.needs-side { align-self: start; padding-top: 3px; font-size: 12px; color: var(--text-3); white-space: nowrap; }
+.needs-pin { align-self: center; padding-top: 0; }  /* a pin beside the buttons: the same grey word as the side column (ADR 0012) */
+.needs-row .deleg-actions { align-items: center; justify-content: flex-end; }
+.needs-row .deleg-actions .hbtn { height: 34px; padding: 0 12px; font-size: 13px; }
+.hbtn.quiet { background: none; border-color: transparent; color: var(--text-2); }
+.hbtn.quiet:hover:not(:disabled) { border-color: var(--line); color: var(--text); }
 /* A delegation's row: the text opens its session, its actions sit on the right (a stopped one has no session to open). */
 .deleg-needs { cursor: default; }
 .deleg-needs:hover { background: none; }
@@ -306,7 +316,7 @@ a.needs-row { text-decoration: none; }
 .deleg-needs .needs-text:disabled { cursor: default; }
 .deleg-needs .needs-text:not(:disabled):hover .needs-title { text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1px; }
 .deleg-needs:hover .needs-title { text-decoration: none; }
-@media (max-width: 600px) { .needs-row { grid-template-columns: minmax(0, 1fr) auto; } .needs-tag { grid-column: 1 / -1; } }
+@media (max-width: 600px) { .needs-row { grid-template-columns: minmax(0, 1fr) auto; gap: 8px 14px; padding: 14px 18px; } .needs-tag { grid-column: 1 / -1; padding-top: 0; } .needs-row.cont .needs-tag { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); } .needs-row .deleg-actions { grid-column: 1 / -1; justify-content: flex-start; } }
 
 /* Delegated strip (under Up next): one row per delegation, its stage line, Review / Apply / Undo / Discard. */
 .deleg { display: flex; flex-direction: column; }
