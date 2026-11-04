@@ -16,6 +16,7 @@ YES = {
     "ok", "okay", "okey", "proceed", "absolutely", "definitely", "affirmative",
     "tak", "dawaj", "zatwierdź", "zatwierdz", "zatwierdzam", "jasne", "pewnie", "można", "mozna",
     "dobra", "śmiało", "smialo", "akceptuj", "akceptuję", "akceptuje",
+    "permitted", "granted", "pozwalam", "zezwalam", "zgoda", "wolno", "pozwól", "pozwol",
 }
 NO = {
     "no", "nope", "nah", "deny", "denied", "stop", "don't", "dont", "cancel", "reject", "negative",
@@ -26,6 +27,7 @@ FILLER = {
     "you", "can", "it", "please", "do", "ahead", "that's", "thats", "that", "is", "fine", "good", "right",
     "all", "thanks", "thank", "of", "course", "mhm", "uh", "um", "oh", "the", "this", "one", "run",
     "sounds", "great", "perfect", "i", "mean", "so", "well", "just", "go", "on",
+    "you're", "youre", "are", "it's", "its", "we're", "i'm", "im", "let's", "lets", "a",
     "możesz", "mozesz", "proszę", "prosze", "to", "jest", "w", "porządku", "porzadku", "dobrze",
     "rób", "rob", "tego", "zrób", "zrob", "ok", "dzięki", "dzieki",
 }

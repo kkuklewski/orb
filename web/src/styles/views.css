@@ -81,7 +81,7 @@
 .note-head { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; font-size: 12px; color: var(--text-2); }
 .note-verdict { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-bottom: 14px; margin-bottom: 18px; border-bottom: 1px solid var(--line); }
 .note-verdict .view-sub { margin-right: 6px; } /* the buttons follow the label: the right edge may be under the Home chat dock */
-.note-body { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; line-height: 1.6; color: var(--text); }
+.note-body { margin: 0; font-size: 15px; line-height: 1.65; color: var(--text); }
 .rt-off { border: 0; background: none; padding: 4px 6px; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); cursor: pointer; }
 .rt-off::before { content: "▸ "; } .rt-off[aria-expanded="true"]::before { content: "▾ "; }
 .rt-off:hover { color: var(--text); }
@@ -146,7 +146,7 @@
 .routine-why { padding-left: 0; margin: 0; }
 .routine-notify { padding-left: 0; }
 .routine-run { margin-top: 30px; }
-.routine-text { margin: 0; padding: 16px 20px; border-top: 1px solid var(--line-soft); background: var(--code-bg); font: 13px/1.65 var(--mono); color: var(--text-2); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 560px; overflow: auto; }
+.routine-text { margin: 0; padding: 16px 20px; border-top: 1px solid var(--line-soft); background: var(--code-bg); font-size: 14px; line-height: 1.65; color: var(--text); max-height: 560px; overflow: auto; }
 a.hbtn { text-decoration: none; }
 .routine-thread, .task-thread { margin-top: 24px; }
 .routine-thread .column, .task-thread .column { padding: 8px 20px 16px; max-width: none; border-top: 1px solid var(--line-soft); }
