@@ -73,6 +73,16 @@ def _within(p: str, root: str) -> bool:
     return p == root or p.startswith(root.rstrip(os.sep) + os.sep)
 
 
+def _holds_secrets(root: str) -> bool:
+    """A secrets/ folder in any letter case sits right in `root` (a case-sensitive disk too); unreadable fails closed."""
+    try:
+        return any(n.casefold() == SECRETS_DIR for n in os.listdir(root))
+    except FileNotFoundError:
+        return False
+    except OSError:
+        return True
+
+
 def _resolve(raw: str, base: str) -> str:
     s = re.sub(r"^\$\{?HOME\}?(?=/|$)", str(Path.home()), raw)
     s = os.path.expanduser(s)
@@ -122,8 +132,8 @@ class Fence:
         self.home = self._canon(self.session)  # the session's repo: for a worktree, the repo it belongs to
         self.root = self._root(self.home) or self.home  # the session's own root (labels, client folders)
         home = Path.home()
-        self.sensitive = [*(os.path.join(r, SECRETS_DIR) for r in self.roots), *(str(home / d) for d in sorted(SECRET_DIRS)),
-                          *map(str, SECRET_FILES)]
+        # A root's secrets/ counts only while it exists (rule() reads it per call): an empty notes folder can be searched.
+        self.sensitive = [*(str(home / d) for d in sorted(SECRET_DIRS)), *map(str, SECRET_FILES)]
 
     def in_client(self) -> bool:
         """True when the session works inside one of the client folders (any repo, in the work profile)."""
@@ -168,7 +178,8 @@ class Fence:
             return None
         rel = os.path.relpath(target, root)
         top = rel.split(os.sep)[0] if rel != "." else ""
-        if top and fnmatch.fnmatch(SECRETS_DIR, top.casefold()):  # a glob like "sec*" counts too
+        if top and fnmatch.fnmatch(SECRETS_DIR, top.casefold()) and (  # a glob like "sec*" counts too, when it exists
+                top.casefold() == SECRETS_DIR or _holds_secrets(root)):
             return "deny", "A secrets/ folder holds credentials and is blocked in Orb."
         if _within(actual, self.session) or (self.home == self.session and _within(target, self.home)):
             return None  # its own folder; a repo's session also reaches the repo's worktrees
@@ -232,7 +243,8 @@ class Fence:
                 return deny("This search would read secret files (.env, keys, credentials); narrow the glob.")
         asked = None
         for t in targets:
-            if recursive and any(_within(s, t) for s in self.sensitive):
+            if recursive and any(_within(s, t) for s in [*(os.path.join(r, SECRETS_DIR) for r in self.roots if _holds_secrets(r)),
+                                                          *self.sensitive]):
                 return deny(f"{t} holds secrets (a secrets/ folder, ~/.ssh, ~/.aws, ...); search a narrower folder.")
             verdict = self.check_path(t, write)
             if verdict and verdict[0] == "deny":

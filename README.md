@@ -63,9 +63,11 @@ The first time, a short setup runs in the page:
    that Claude Code is signed in with a subscription, and which plan.
 2. **Choose the folders Orb may open.** Orb lists the git repos inside them. A conversation stays in
    its own repo; on a work machine another repo is off limits, on a personal one it needs your OK.
-3. **Voice.** Speech recognition runs on your Mac (see [Local speech](#local-speech)); until it is
+3. **Notes (optional).** A folder of Markdown notes, your second brain. Skip it, or see
+   [Second brain](#second-brain) to start one.
+4. **Voice.** Speech recognition runs on your Mac (see [Local speech](#local-speech)); until it is
    installed, type.
-4. **How it keeps you in control.** Then you're in.
+5. **How it keeps you in control.** Then you're in.
 
 The link carries a private access token, and Orb makes a new one every time it starts. So after a
 restart, open the new link: `orb open` in Terminal opens it. An old tab or bookmark tells you to.
@@ -104,6 +106,22 @@ Then open the page with `orb open`. Run the command again after you add or chang
 | See what needs you | Home: approvals, failed checks and overdue tasks first, then what to take now or hand off. |
 | Hand off a task | Delegate on a task: a separate session works on it in its own copy of the repo, runs the repo's tests, and comes back Ready for you to Review and Apply. |
 | Settings | Voice, approvals and model for new folders, vocabulary, dark or light, and "Open setup" to change your folders. |
+
+## Second brain
+
+Orb can keep a notes folder next to your code: plain Markdown files (Obsidian opens them too). Brain lists
+your notes, and Home shows the open tasks in them (`- [ ] …` lines).
+
+To start one from nothing:
+
+1. In Finder, make an empty folder, for example `Notes` in your home folder.
+2. Pick it in setup's Notes step (later: Settings → Open setup).
+3. Open Brain, click Home chat, and ask: "This notes folder is empty. Set it up as my second brain: a
+   simple folder structure, a README, one example note with a task, and make it a git repository."
+4. Allow each card. It creates the folders and notes, and a git repository with a first commit, so every
+   change to your notes is saved in its history.
+
+Already have an Obsidian vault or a notes folder? Pick that folder in step 2 instead.
 
 ## Working with a team
 
