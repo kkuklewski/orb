@@ -1266,6 +1266,7 @@
           "delegation_update": "#/$defs/DelegationUpdateMsg",
           "dictate_note": "#/$defs/DictateNoteMsg",
           "drop": "#/$defs/DropMsg",
+          "email_done": "#/$defs/EmailDoneMsg",
           "get_settings": "#/$defs/GetSettingsMsg",
           "home": "#/$defs/HomeMsg",
           "interrupt": "#/$defs/InterruptMsg",
@@ -1364,6 +1365,9 @@
         },
         {
           "$ref": "#/$defs/RoutinesResolveMsg"
+        },
+        {
+          "$ref": "#/$defs/EmailDoneMsg"
         },
         {
           "$ref": "#/$defs/MuteMsg"
@@ -2617,6 +2621,89 @@
         "text"
       ],
       "title": "DropRoutedEvent",
+      "type": "object"
+    },
+    "EmailDoneMsg": {
+      "additionalProperties": false,
+      "description": "Done on one Email card row: hidden from then on (its run's last row done resolves the run's \"action\").",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "run": {
+          "type": "string"
+        },
+        "type": {
+          "const": "email_done",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "run",
+        "key"
+      ],
+      "title": "EmailDoneMsg",
+      "type": "object"
+    },
+    "EmailRow": {
+      "additionalProperties": false,
+      "description": "One row of Home's Email card (emails.card): an email a mail routine's newest run says needs you.",
+      "properties": {
+        "at": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "cut": {
+          "default": false,
+          "type": "boolean"
+        },
+        "due": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "key": {
+          "type": "string"
+        },
+        "routine": {
+          "type": "string"
+        },
+        "routine_name": {
+          "type": "string"
+        },
+        "run": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "urgent": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "key",
+        "text",
+        "urgent",
+        "routine",
+        "routine_name",
+        "run"
+      ],
+      "title": "EmailRow",
       "type": "object"
     },
     "ErrorEvent": {
@@ -6825,6 +6912,13 @@
         },
         "checking": {
           "type": "boolean"
+        },
+        "emails": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/EmailRow"
+          },
+          "type": "array"
         },
         "error": {
           "anyOf": [

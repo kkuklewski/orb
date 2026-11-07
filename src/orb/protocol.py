@@ -391,6 +391,19 @@ class RoutineItem(_Msg):
     history: list[RoutineDot] = []  # the kept runs (at most 5), oldest first: the card's run dots
 
 
+class EmailRow(_Msg):
+    """One row of Home's Email card (emails.card): an email a mail routine's newest run says needs you."""
+    key: str  # a hash of the text, unique in its run (Done marks it)
+    text: str  # the routine's bullet, plain text (it quotes email: untrusted)
+    urgent: bool  # the bullet says Urgent, or its due date is within a week or past
+    due: str | None = None  # YYYY-MM-DD, when the bullet names one
+    routine: str
+    routine_name: str
+    run: str
+    at: float | None = None  # when that run started
+    cut: bool = False  # the run's result was cut short after this row: the run's screen has the rest
+
+
 class RoutinesEvent(_Event):
     type: Literal["routines"]
     items: list[RoutineItem]
@@ -400,6 +413,7 @@ class RoutinesEvent(_Event):
     needs: int
     new: int
     read: int  # unread runs worth reading (judged so, or set to always)
+    emails: list[EmailRow] = []  # Home's Email card, urgent first
 
 
 class BgNoticeEvent(_Event):
@@ -1113,6 +1127,13 @@ class RoutinesResolveMsg(_Msg):
     undo: bool = False
 
 
+class EmailDoneMsg(_Msg):
+    """Done on one Email card row: hidden from then on (its run's last row done resolves the run's "action")."""
+    type: Literal["email_done"]
+    run: str
+    key: str
+
+
 class MuteMsg(_Msg):
     type: Literal["mute"]
     value: bool
@@ -1501,7 +1522,7 @@ class DropMsg(_Msg):
 
 ClientMessage = Annotated[Union[
     SetupStatusMsg, BrowseMsg, PickFolderMsg, OpenFolderMsg, AddFolderMsg, StartSessionMsg, PinFolderMsg,
-    GetSettingsMsg, SetSettingsMsg, VoiceSampleMsg, KokoroSetupMsg, RescanMsg, RoutinesMsg, RoutinesSeenMsg, RoutinesResolveMsg, MuteMsg,
+    GetSettingsMsg, SetSettingsMsg, VoiceSampleMsg, KokoroSetupMsg, RescanMsg, RoutinesMsg, RoutinesSeenMsg, RoutinesResolveMsg, EmailDoneMsg, MuteMsg,
     NewSessionMsg, ArchiveSessionMsg, RemoveSessionMsg, UserTextMsg, SpeechStartMsg, BargeInMsg, SpeechCancelledMsg, UtteranceMsg, VoiceTextMsg,
     HomeMsg, AwaySeenMsg, PlanStartMsg, PlanLaterMsg, PlanLeaveMsg, PlanDoneMsg, ScreenMsg, TaskDetailMsg, ItemListMsg, ItemGetMsg, ItemDoneMsg, TasksBulkMsg, TasksSuggestMsg, NotesVerdictMsg, BrainListMsg, BrainExpiredMsg, BrainNoTopicMsg, BrainKeepMsg, BrainGetMsg, BrainApplyMsg, BrainVerdictMsg, BrainReadMsg, ItemStartMsg, TaskActionMsg, InterruptMsg, PlaybackMsg, PermissionMsg, ReadAllMsg, DictateNoteMsg, UndoRequestMsg, UndoConfirmMsg,
     McpStatusMsg, McpReconnectMsg, SetModeMsg, SetModelMsg, RevokeGrantMsg, DelegateMsg, DelegateBulkMsg, DelegateConfirmMsg, MakeTaskMsg, MakeTaskConfirmMsg, MakeTaskUndoMsg,
