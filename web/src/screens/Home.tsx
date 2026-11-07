@@ -14,6 +14,8 @@ import { AwayRecap } from "./HomeAway";
 import { DelegateCards, DelegatedStrip } from "./HomeDelegated";
 import { saveTab, savedTab, TabCard, useRoutinesPane } from "./HomeTabs";
 import { HomeDrop } from "./HomeDrop";
+import { HomeBoard } from "./HomeBoard";
+import { saveView, savedView, type HomeView } from "../stores/board";
 
 // The start screen: a header bar (day, jump), then one column under 1180px: the Away recap after 24 hours or more away
 // (HomeAway, once), the Needs you strip (HomeNeeds: what is
@@ -22,6 +24,19 @@ import { HomeDrop } from "./HomeDrop";
 // the status card (HomeTabs: a tab each for routines and what not to forget, and how many notes changed this week).
 // From 1180px the status card moves to a right column, with the drop zone under it (HomeDrop: a link or a file -> a job or a notes session in the background). Nothing waiting and nothing queued: one line instead of the lead card. Pinned links at the bottom.
 // Keys: ⌘K opens the picker; J K, Enter, S (Later) and D (Done) work the queue (HomeLead).
+// Focus / Board in the header bar switches the look (remembered in this browser): Board (HomeBoard) lays every action
+// out in four Kanban columns (To do, In progress, Review, Done) instead of the cards, without the status card and drop zone.
+
+/** Focus (the cards) or Board (the Kanban columns). */
+function ViewSwitch({ view, onView }: { view: HomeView; onView: (v: HomeView) => void }) {
+  return (
+    <div className="home-view" role="group" aria-label="Home look">
+      {(["focus", "board"] as const).map((v) => (
+        <button key={v} type="button" aria-pressed={view === v} onClick={() => onView(v)}>{v === "focus" ? "Focus" : "Board"}</button>
+      ))}
+    </div>
+  );
+}
 
 function useNow(ms = 30000) {
   const [now, setNow] = useState(() => new Date());
@@ -80,6 +95,8 @@ export function Home() {
   const lists = { tasks: tracker ? tracker.total : notes?.open_tasks ?? 0, tasksSource: tracker ? "vikunja" as const : vault ? "tasks" as const : null,
     notes: notes?.awaiting_count ?? 0, error: vk?.error, vault: !!vault };  // Vikunja set up but down: say so
   const [tab, setTabState] = useState<string | null>(savedTab);
+  const [view, setViewState] = useState<HomeView>(savedView);
+  const setView = (v: HomeView) => { setViewState(v); saveView(v); };
   const setTab = (key: string) => { setTabState(key); saveTab(key); };
   const panes = [useRoutinesPane(), useForgetPane()];
   const needs = needsCount(n) > 0;  // the Needs you strip shows
@@ -97,12 +114,19 @@ export function Home() {
         <span className="home-dot" aria-hidden="true" />
         <strong>Orb</strong>
         <MetaRow now={now} />
+        <ViewSwitch view={view} onView={setView} />
         <button type="button" className="home-search" onClick={() => openPicker("new")}>
           {hasRepos ? "Search or jump" : "Choose a repo"} <kbd>⌘K</kbd>
         </button>
       </header>
       <UsageWarning />
-      <div className="home-cols">
+      {view === "board" ? (
+        <div className="home-cols board">
+          <AwayRecap n={n} />
+          <DelegateCards />
+          <HomeBoard lists={lists} />
+        </div>
+      ) : <div className="home-cols">
         <div className="home-main">
           <AwayRecap n={n} />
           <NeedsStrip n={n} />
@@ -116,7 +140,7 @@ export function Home() {
           <TabCard id="status" panes={panes} tab={tab} onTab={setTab} line={week} running={n.waiting.length + n.working.length} />
           <HomeDrop />
         </div>
-      </div>
+      </div>}
       <Links />
     </section>
   );

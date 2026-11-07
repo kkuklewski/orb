@@ -1773,14 +1773,17 @@ export interface AwayLine {
  */
 export interface PlanEvent {
   busy?: boolean;
+  done?: PlanItem[];
   error?: string | null;
   folder?: string | null;
+  more?: PlanItem[];
   needs_you: PlanItem[];
   next?: PlanItem | null;
   ranked_at?: number | null;
   replay?: boolean | null;
   session?: string | null;
   stale?: boolean;
+  started?: PlanItem[];
   type: "plan";
   up_next?: PlanItem[];
 }

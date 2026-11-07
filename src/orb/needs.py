@@ -57,6 +57,8 @@ ROUTINE_SAYS = {"failed": "failed", "broken": "reports a problem", "waiting": "n
 SENT = ("key", "kind", "id", "title", "reason", "source", "due", "priority", "url", "actions", "repo", "suggest", "urgent", "pin", "repair", "held_by")
 QUEUE_MAX = 30  # queue items the model sees (the first in rule order); the rest follow in rule order
 UP_NEXT = 5
+BOARD_MORE = 40  # queue rows past Up next that Home's board lists in To do
+BOARD_DONE = 30  # rows marked done today that the board lists in Done (newest first)
 ESCALATE_H = 48  # hours in Needs you (past due, for a task or reminder) after which a routine, or a pinned row, turns red
 WAITING_H = 24  # hours an Allow card may wait before its session's Needs you row turns red (ADR 0012); never auto-denied
 CLOCKED = ("setup", "routine", "vault")  # kinds whose age counts from when they entered Needs you (`since`), not from a due date
@@ -447,6 +449,8 @@ class Needs:
         self.facts: dict[str, object] = dict.fromkeys(self.FACTS)
         self.items: list[dict] = []  # needs you
         self.queue: list[dict] = []
+        self.full: list[dict] = []  # the queue before today's marks hide anything: where a started or done item is found
+        self.started: list[dict] = []  # queue items started today and still open (Home's board: In progress)
         self.today = ""
         self.state = self._load()
 
@@ -463,6 +467,11 @@ class Needs:
                 kept = {k: d for k, d in marks.items() if isinstance(d, str) and d >= cut}
                 gone += len(marks) - len(kept)
                 data[part] = kept
+        rows = data.get("done_rows")  # Home's board: what was marked done, kept as it looked (the tracker forgets it)
+        if isinstance(rows, dict):
+            kept = {k: r for k, r in rows.items() if isinstance(r, dict) and isinstance(r.get("day"), str) and r["day"] >= cut}
+            gone += len(rows) - len(kept)
+            data["done_rows"] = kept
         if gone:
             log.info("needs: %d old marks pruned", gone)
             config.write_private(self.path, json.dumps(data))
@@ -477,10 +486,13 @@ class Needs:
 
     def _build(self) -> None:
         f = self.facts
-        hidden = {k for part in self.MARKS for k, day in (self.state.get(part) or {}).items() if day == self.today}
+        marked = {part: {k for k, day in (self.state.get(part) or {}).items() if day == self.today} for part in self.MARKS}
+        hidden = set().union(*marked.values())
         self.items = needs_you(f["routines"], f["tasks"], self.today, f["setup"], f["reminders"], f["vault"])  # type: ignore[arg-type]
-        self.queue = queue(f["tasks"], f["notes"], f["results"], f["prs"], int(f["awaiting"] or 0), self.today, hidden,  # type: ignore[arg-type]
-                           int(f["notopic"] or 0), left=self.state.get("left") or {})  # type: ignore[call-overload]
+        self.full = queue(f["tasks"], f["notes"], f["results"], f["prs"], int(f["awaiting"] or 0), self.today, set(),  # type: ignore[arg-type]
+                          int(f["notopic"] or 0), left=self.state.get("left") or {})  # type: ignore[call-overload]
+        self.queue = [c for c in self.full if c["key"] not in hidden]
+        self.started = [c for c in self.full if c["key"] in marked["started"] - marked["done"] - marked["later"]]
 
     def _aged(self, now: float | None = None) -> list[dict]:
         return aged(self.items, self.state.get("since") or {}, self.today, now or time.time())
@@ -512,10 +524,29 @@ class Needs:
             self._save()
         if rows:
             rows.insert(0, rows.pop(keys.index(pin["key"])))
+        done = sorted((r for r in (self.state.get("done_rows") or {}).values() if r.get("day") == self.today),
+                      key=lambda r: -float(r.get("at") or 0))
         return {"type": "plan", "needs_you": ordered(self._aged(), self.state["ranking"], fresh),
                 "next": rows[0] if rows else None, "up_next": rows[1:1 + UP_NEXT],
+                "more": rows[1 + UP_NEXT:1 + UP_NEXT + BOARD_MORE], "started": _rows(self.started, {}),
+                "done": [r["row"] for r in done[:BOARD_DONE]],
                 "ranked_at": self.state["at"], "stale": bool(ranked) and not fresh, "busy": self.busy,
                 "error": self.state.get("error")}
+
+    def record_done(self, key: str, today: str, on: bool = True, now: float | None = None) -> bool:
+        """Home's board: keep how a queue or Needs you item looked when it was marked done today (Undo drops it). The
+        tracker and the notes stop listing a done task, so the row is copied now. This alone hides nothing.
+        True when the kept rows changed (and were saved)."""
+        self.today = today
+        rows = {k: r for k, r in (self.state.get("done_rows") or {}).items() if r.get("day") == today and k != key}
+        found = next((c for c in [*self.full, *self.items] if c["key"] == key), None) if on else None
+        if found:
+            rows[key] = {"day": today, "at": now or time.time(), "row": _rows([found], {})[0]}
+        if rows == (self.state.get("done_rows") or {}):
+            return False
+        self.state["done_rows"] = rows
+        self._save()
+        return True
 
     def note(self, key: str) -> dict | None:
         """The notes task behind a `note:<file>:<line>` queue key, as last read (its `raw` line guards the edit)."""
@@ -525,6 +556,8 @@ class Needs:
         """The owner started a queue item, put it off (Later) or marked it done: it leaves the queue for today, on
         every page and after a restart, and the next one moves up. `on=False` (Undo of Done) brings it back."""
         self.today = today
+        if part == "done":
+            self.record_done(key, today, on)
         kept = {k: d for k, d in (self.state.get(part) or {}).items() if d == today and k != key}
         self.state[part] = {**kept, key: today} if on else kept
         self._save()

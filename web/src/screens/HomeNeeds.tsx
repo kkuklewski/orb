@@ -30,7 +30,7 @@ function approval(x: SessionRow, now = Date.now() / 1000): Row {
     quote: x.ask, side: since ? relTime(since) : "now", urgent: !!x.red_at && now >= x.red_at, open: () => openFolder(x.folder.path, x.key) };
 }
 
-const DELEG_TAG: Record<NonNullable<DelegationItem["needs"]>, string> = { card: "OK?", failed: "TESTS", stuck: "STUCK", stopped: "STOPPED", outward: "PUSH?", collision: "CONFLICT", merge: "MERGE?", closed: "CLOSED", blocked: "CHECK", update: "UPDATE" };
+export const DELEG_TAG: Record<NonNullable<DelegationItem["needs"]>, string> = { card: "OK?", failed: "TESTS", stuck: "STUCK", stopped: "STOPPED", outward: "PUSH?", collision: "CONFLICT", merge: "MERGE?", closed: "CLOSED", blocked: "CHECK", update: "UPDATE" };
 
 /** A delegation in Needs you: the task and the repo say which one; a card's words show like a session's. */
 function DelegationRow({ d, cont }: { d: DelegationItem; cont?: boolean }) {
@@ -50,7 +50,7 @@ function DelegationRow({ d, cont }: { d: DelegationItem; cont?: boolean }) {
 
 const TAG: Partial<Record<PlanItem["kind"], string>> = { setup: "SETUP", vault: "VAULT", routine: "ROUTINE", reminder: "DUE", task: "OVERDUE" };
 
-function planRow(p: PlanItem, canResolve: (id: string) => boolean): Row {
+export function planRow(p: PlanItem, canResolve: (id: string) => boolean): Row {
   // A pinned row (docs/adr/0012) says its class in the side column, in the column's own grey: it leads, it isn't louder.
   const row = { key: p.key, tag: TAG[p.kind] ?? p.kind.toUpperCase(), title: p.title, reason: p.reason, side: p.pin ?? p.due ?? p.source ?? "", urgent: !!p.urgent, pin: p.pin };
   if (p.kind === "setup") return { ...row, side: p.pin ?? "", open: () => openSettings(p.id) };

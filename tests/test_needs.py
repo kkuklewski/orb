@@ -347,6 +347,55 @@ def test_done_hides_a_task_and_its_undo_brings_it_back(tmp_path):
     assert "vikunja:8" in keys([sent[-1]["next"], *sent[-1]["up_next"]])
 
 
+# -- Home's board: the whole queue, what was started today, what was done today ----------------------------------------
+
+def test_the_board_gets_the_queue_past_up_next_in_order(tmp_path):
+    sent, asked, ask, push = smart(order("Faster search"))
+    n = needs.Needs(tmp_path / "n.json", ask, push)
+    asyncio.run(n.update(TODAY, now=1000.0, **FACTS))
+    ev = sent[-1]
+    shown = keys([ev["next"], *ev["up_next"], *ev["more"]])
+    assert len(ev["up_next"]) == needs.UP_NEXT and ev["more"]
+    assert sorted(shown) == sorted(keys(n.queue)) and len(set(shown)) == len(shown)
+
+
+def test_a_started_item_shows_as_started_until_it_is_done_or_put_off(tmp_path):
+    sent, asked, ask, push = smart(order("Faster search"))
+    n = needs.Needs(tmp_path / "n.json", ask, push)
+    asyncio.run(n.update(TODAY, now=1000.0, **FACTS))
+    asyncio.run(n.mark("started", "vikunja:8", TODAY))
+    assert keys(sent[-1]["started"]) == ["vikunja:8"] and sent[-1]["started"][0]["title"] == "Due today"
+    again = needs.Needs(tmp_path / "n.json", ask, push)  # a restart keeps it
+    asyncio.run(again.update(TODAY, now=1100.0, **FACTS))
+    assert keys(sent[-1]["started"]) == ["vikunja:8"]
+    asyncio.run(again.mark("done", "vikunja:8", TODAY))
+    assert sent[-1]["started"] == [] and keys(sent[-1]["done"]) == ["vikunja:8"]
+    asyncio.run(again.update("2026-10-26", now=1100.0 + needs.MIN_GAP, **FACTS))  # a new day: both columns start empty
+    assert sent[-1]["started"] == [] and sent[-1]["done"] == []
+
+
+def test_done_keeps_the_row_after_the_tracker_forgets_it_and_undo_takes_it_out(tmp_path):
+    sent, asked, ask, push = smart(order("Faster search"))
+    n = needs.Needs(tmp_path / "n.json", ask, push)
+    asyncio.run(n.update(TODAY, now=1000.0, **FACTS))
+    asyncio.run(n.mark("done", "vikunja:8", TODAY))
+    asyncio.run(n.update(TODAY, now=1100.0, tasks=[t for t in MORE if t["id"] != 8]))  # done in Vikunja: no longer listed
+    assert keys(sent[-1]["done"]) == ["vikunja:8"] and sent[-1]["done"][0]["title"] == "Due today"
+    asyncio.run(n.mark("done", "vikunja:8", TODAY, on=False))
+    assert sent[-1]["done"] == []
+
+
+def test_a_notes_task_done_is_kept_for_the_board_without_hiding_anything(tmp_path):
+    sent, asked, ask, push = smart(order("Faster search"))
+    n = needs.Needs(tmp_path / "n.json", ask, push)
+    asyncio.run(n.update(TODAY, now=1000.0, **FACTS))
+    assert n.record_done("note:work/Globex.md:4", TODAY, now=1200.0)
+    assert "note:work/Globex.md:4" in keys(n.queue)  # the notes list itself decides when the line goes
+    asyncio.run(n.update(TODAY, now=1300.0, notes=[]))
+    assert keys(sent[-1]["done"]) == ["note:work/Globex.md:4"]
+    assert n.record_done("note:work/Globex.md:4", TODAY, on=False) and not n.record_done("note:nope.md:1", TODAY)
+
+
 def test_a_notes_task_key_finds_the_line_it_guards(tmp_path):
     n = needs.Needs(tmp_path / "n.json", None, None)
     n.facts["notes"] = NOTES

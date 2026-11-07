@@ -5877,6 +5877,13 @@
           "default": false,
           "type": "boolean"
         },
+        "done": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/PlanItem"
+          },
+          "type": "array"
+        },
         "error": {
           "anyOf": [
             {
@@ -5898,6 +5905,13 @@
             }
           ],
           "default": null
+        },
+        "more": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/PlanItem"
+          },
+          "type": "array"
         },
         "needs_you": {
           "items": {
@@ -5952,6 +5966,13 @@
         "stale": {
           "default": false,
           "type": "boolean"
+        },
+        "started": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/PlanItem"
+          },
+          "type": "array"
         },
         "type": {
           "const": "plan",
