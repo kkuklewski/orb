@@ -20,6 +20,7 @@ export type ClientMessage =
   | RoutinesMsg
   | RoutinesSeenMsg
   | RoutinesResolveMsg
+  | EmailDoneMsg
   | MuteMsg
   | NewSessionMsg
   | ArchiveSessionMsg
@@ -284,6 +285,17 @@ export interface RoutinesResolveMsg {
   id: string;
   type: "routines_resolve";
   undo?: boolean;
+}
+/**
+ * Done on one Email card row: hidden from then on (its run's last row done resolves the run's "action").
+ *
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "EmailDoneMsg".
+ */
+export interface EmailDoneMsg {
+  key: string;
+  run: string;
+  type: "email_done";
 }
 /**
  * This interface was referenced by `OrbProtocol`'s JSON-Schema
@@ -1405,6 +1417,7 @@ export interface UsageWindow {
 export interface RoutinesEvent {
   checked_at: number | null;
   checking: boolean;
+  emails?: EmailRow[];
   error: string | null;
   folder?: string | null;
   items: RoutineItem[];
@@ -1414,6 +1427,23 @@ export interface RoutinesEvent {
   replay?: boolean | null;
   session?: string | null;
   type: "routines";
+}
+/**
+ * One row of Home's Email card (emails.card): an email a mail routine's newest run says needs you.
+ *
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "EmailRow".
+ */
+export interface EmailRow {
+  at?: number | null;
+  cut?: boolean;
+  due?: string | null;
+  key: string;
+  routine: string;
+  routine_name: string;
+  run: string;
+  text: string;
+  urgent: boolean;
 }
 /**
  * One row of the Routines panel (routines.item).

@@ -1314,6 +1314,9 @@ async def handle(conn: Conn, msg: dict) -> None:
     if t == "routines_resolve":
         await hub.routines.resolve(str(msg["id"]), bool(msg.get("undo")))
         return
+    if t == "email_done":
+        await hub.routines.email_done(str(msg["run"]), str(msg["key"]))
+        return
     if t == "make_task":
         if msg.get("capture"):  # a No-topic capture (ticket 820): only one still on the list
             await conn.send(await asyncio.to_thread(capture_card, str(msg["capture"])))

@@ -66,6 +66,17 @@ _Avoid_: Task (alone), checkbox, vault task
 A scheduled cloud agent on claude.ai whose runs Orb watches.
 _Avoid_: Cron job, scheduled task
 
+**Mail routine**:
+A routine whose name holds one of the `email_routines` words (default "mail"); it reads the inbox on claude.ai, and
+its newest run feeds the Email card.
+_Avoid_: Mail sync, inbox integration
+
+**Email card**:
+Home's card of the emails a mail routine's newest run says need the owner, one row each: the bullets of the run's first
+"Needs your attention" (or "Urgent", "Action") section. A row is urgent when it says Urgent or names a due date within a
+week or past. Done hides one row; the last row of a run done resolves that run's action.
+_Avoid_: Inbox, mail list, urgent emails
+
 **Needs you**:
 An item that is blocked or broken until the owner acts, for a reason a plain rule can state: an approval, a failed
 routine, a reminder due today or earlier, an overdue task, a broken setup (sign-in expired, the task tracker unreachable, a

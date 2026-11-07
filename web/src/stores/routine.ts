@@ -24,6 +24,12 @@ export const markRunsRead = () => send({ type: "routines_seen", all: true });
 export const resolvable = (x: RoutineItem | null | undefined) => !!x && (x.needs === "broken" || x.needs === "action");
 export const resolveRun = (id: string, undo = false) => send({ type: "routines_resolve", id, undo });
 
+/** Done on one Email card row: gone at once here, for good on the server (which re-sends the routines). */
+export function emailDone(run: string, key: string) {
+  useViews.setState((s) => (s.routines ? { routines: { ...s.routines, emails: (s.routines.emails ?? []).filter((r) => !(r.run === run && r.key === key)) } } : {}));
+  send({ type: "email_done", run, key });
+}
+
 export const routineById = (id: string | null): RoutineItem | null =>
   (id && useViews.getState().routines?.items.find((x) => x.id === id)) || null;
 

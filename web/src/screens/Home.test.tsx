@@ -591,6 +591,28 @@ describe("routine results on Home", () => {
   });
 });
 
+describe("the Email card", () => {
+  const row = (over = {}) => ({ key: "k1", text: "Acme Telecom: 25 PLN is due Monday 9 Nov.", urgent: true, due: "2026-11-09",
+    routine: "a", routine_name: "Gmail cleanup", run: "r1", at: 1762495200, ...over });
+
+  it("shows one row per email, urgent first, and Done hides it and tells the server", () => {
+    useViews.setState({ routines: routines({ emails: [row(), row({ key: "k2", text: "Globex sent a receipt.", urgent: false, due: null })] }) });
+    render(<Home />);
+    const card = screen.getByRole("article", { name: "1 urgent · 2 to look at" });
+    expect(within(card).getByText("EMAIL · GMAIL CLEANUP")).toBeTruthy();
+    fireEvent.click(within(card).getByRole("button", { name: "Acme Telecom: 25 PLN is due Monday 9 Nov." }));
+    fireEvent.click(within(card).getAllByRole("button", { name: "Done" })[0]);
+    expect(sent.at(-1)).toEqual({ type: "email_done", run: "r1", key: "k1" });
+    expect(screen.getByRole("article", { name: "1 email to look at" })).toBeTruthy();
+  });
+
+  it("has no card without rows", () => {
+    useViews.setState({ routines: routines({ emails: [] }) });
+    render(<Home />);
+    expect(document.getElementById("email")).toBeNull();
+  });
+});
+
 describe("usage warning", () => {
   const low = { five_hour: { utilization: 0.9, resetsAt: Date.now() / 1000 + 3600 } };
   it("appears under 15% and offers Haiku for the open folder", () => {
