@@ -9,6 +9,7 @@ import type { SessionRow } from "./views";
 //   In progress  sessions waiting for your OK or working, queue items you started today, delegations on their way
 //   Review       the queue's results, pull requests and notes batches, delegations Ready to apply
 //   Done         what you marked done today (the server keeps the row as it was), delegations applied or merged
+// Each card names its project (cardProject); the filter above the columns keeps one project's cards (filterBoard).
 
 export type ColumnId = "todo" | "doing" | "review" | "done";
 export const COLUMNS: { id: ColumnId; name: string }[] = [
@@ -58,6 +59,57 @@ export function boardColumns({ plan, sessions, delegations, emails }: BoardInput
   for (const p of plan?.done ?? []) put("done", { type: "done", key: `done:${p.key}`, item: p });
   for (const d of delegations) if (DELEG_DONE.has(d.stage)) put("done", { type: "deleg", key: `deleg:${d.id}`, d });
   return b;
+}
+
+const last = (s: string | null | undefined) => (s ? s.split("/").pop() || s : null);
+const PROJECT_KINDS = new Set<PlanItem["kind"]>(["task", "pr", "result"]);  // source = the repo (pr, result) or the tracker's project (task)
+
+/** The project a card belongs to, as the bottom-right label and the filter say it: the repo's name (a task mapped to a
+ *  repo, a pull request, a finished session, a session, a delegation), else a task's tracker project. Setup, vault,
+ *  routines, reminders, notes, note tasks and email rows belong to none (null). */
+export function cardProject(c: BoardCard): string | null {
+  switch (c.type) {
+    case "need": case "plan": case "done": {
+      const p = c.item;
+      return PROJECT_KINDS.has(p.kind) ? last(p.repo) ?? last(p.source) : null;
+    }
+    case "session": return last(c.row.folder.label);
+    case "deleg": return last(c.d.repo);
+    case "email": return null;
+  }
+}
+
+export const NO_PROJECT = "";  // the filter's "Other": cards that belong to no project
+
+/** The projects on the board, A to Z, with how many cards each has; `other` counts the cards with no project. */
+export function boardProjects(b: Board): { projects: { name: string; count: number }[]; other: number; total: number } {
+  const n = new Map<string, number>();
+  let other = 0, total = 0;
+  for (const col of COLUMNS) for (const c of b[col.id]) {
+    total++;
+    const p = cardProject(c);
+    if (p === null) other++;
+    else n.set(p, (n.get(p) ?? 0) + 1);
+  }
+  const projects = [...n].map(([name, count]) => ({ name, count })).sort((x, y) => x.name.localeCompare(y.name, undefined, { sensitivity: "base" }));
+  return { projects, other, total };
+}
+
+/** Only the cards of one project (NO_PROJECT: the ones with none); null keeps them all. */
+export function filterBoard(b: Board, project: string | null): Board {
+  if (project === null) return b;
+  const keep = (c: BoardCard) => (cardProject(c) ?? NO_PROJECT) === project;
+  return { todo: b.todo.filter(keep), doing: b.doing.filter(keep), review: b.review.filter(keep), done: b.done.filter(keep) };
+}
+
+const PROJECT_KEY = "orb.boardProject";
+
+/** The project this browser last filtered the Board by (null = all). */
+export function savedProject(): string | null {
+  try { return localStorage.getItem(PROJECT_KEY); } catch { return null; }
+}
+export function saveProject(p: string | null) {
+  try { if (p === null) localStorage.removeItem(PROJECT_KEY); else localStorage.setItem(PROJECT_KEY, p); } catch { /* private window */ }
 }
 
 /** A note task's id is "<file>:<line>" (needs.py); the file may hold colons, the line never does. */

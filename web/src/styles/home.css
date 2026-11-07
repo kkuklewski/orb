@@ -489,11 +489,21 @@ a.needs-row { text-decoration: none; }
 .kb-chip.needs { color: var(--s-acc-txt, var(--warn)); border-color: var(--s-acc, var(--warn)); }
 .kb-chip.urgent { color: var(--urgent); border-color: var(--urgent); font-weight: 700; }
 .kb-acts, .kb-card .deleg-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.kb-acts { align-items: center; }
+.kb-proj { margin-left: auto; max-width: 100%; padding-left: 4px; font-size: 11.5px; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kb-filter { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.kb-filter button { display: inline-flex; align-items: center; gap: 7px; height: 32px; padding: 0 11px; border: 1px solid var(--line); border-radius: 999px; background: var(--bg-elev); color: var(--text-2); font: 500 13px var(--sans); cursor: pointer; white-space: nowrap; }
+.kb-filter button .mono { font-size: 11px; color: var(--text-3); }
+.kb-filter button[aria-pressed="true"] { background: var(--text); border-color: var(--text); color: var(--bg); }
+.kb-filter button[aria-pressed="true"] .mono { color: inherit; opacity: .7; }
+.kb-filter button:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
 .kb-card .hbtn { height: 32px; padding: 0 10px; font-size: 13px; }
 .kb-card .perm, .kb-card .deleg-diff { margin: 0; }
 .kb-card .deleg-diff pre { max-height: 50vh; overflow: auto; }
 .kb-foot { display: flex; flex-wrap: wrap; gap: 16px; font-size: 11px; letter-spacing: .1em; }
 .kb-foot button { padding: 0; border: 0; background: none; color: var(--text-3); font: inherit; letter-spacing: inherit; cursor: pointer; }
 .kb-foot button:hover { color: var(--text); }
-@media (max-width: 700px) { .kb-cols { grid-template-columns: repeat(4, 85%); } .kb-col { padding: 10px; } }
+@media (max-width: 700px) { .kb-cols { grid-template-columns: repeat(4, 85%); } .kb-col { padding: 10px; }
+  .kb-filter { flex-wrap: nowrap; overflow-x: auto; overscroll-behavior-x: contain; padding-bottom: 4px; } }
+@media (pointer: coarse) { .kb-filter button { height: 40px; } }
 @media (pointer: coarse) { .kb-card .hbtn { height: 40px; } }

@@ -9,7 +9,7 @@ import { initialSession, useSession, wireSession } from "../stores/session";
 import { useHome, wireHome } from "../stores/home";
 import { useTasks, wireTasks } from "../stores/tasks";
 import { initialDelegations, useDelegations, wireDelegations } from "../stores/delegation";
-import { boardColumns, noteRef } from "../stores/board";
+import { boardColumns, boardProjects, cardProject, filterBoard, NO_PROJECT, noteRef } from "../stores/board";
 import { folder, routine, routines, session } from "../test/fixtures";
 
 const sent: Record<string, unknown>[] = [];
@@ -67,6 +67,28 @@ describe("board columns", () => {
   it("an empty plan leaves four empty columns", () => {
     const b = boardColumns({ plan: null, sessions: [], delegations: [], emails: [] });
     expect([b.todo, b.doing, b.review, b.done].map((c) => c.length)).toEqual([0, 0, 0, 0]);
+  });
+
+  it("names each card's project: the repo, else the task's tracker project; none for notes, routines and email", () => {
+    const p = plan({ needs_you: [failed], next: task, up_next: [{ ...pr, source: "web" }, later], more: [note, { ...result, source: "globex/api" }] });
+    const b = boardColumns({ plan: p, sessions: activityRows(useFeatures.getState().folders), emails: [email],
+      delegations: [deleg({ id: "d2", stage: "ready", session: "s10", repo: "acme/shop" })] });
+    const all = [...b.todo, ...b.doing, ...b.review, ...b.done];
+    const of = (key: string) => cardProject(all.find((c) => c.key === key)!);
+    expect(of("vikunja:8")).toBe("web");  // mapped to a repo: the repo, not the tracker's project
+    expect(of("vikunja:9")).toBe("acme");  // no repo: the tracker's project
+    expect(of("pr:acme/web#12")).toBe("web");
+    expect(of("result:w2")).toBe("api");
+    expect(of("deleg:d2")).toBe("shop");
+    expect(of("session:w1")).toBe("web");
+    expect([of("routine:r4"), of("note:inbox/today.md:3"), of("email:run1:e1")]).toEqual([null, null, null]);
+    const { projects, other, total } = boardProjects(b);
+    expect(projects).toEqual([{ name: "acme", count: 1 }, { name: "api", count: 1 }, { name: "shop", count: 1 }, { name: "web", count: 5 }]);
+    expect([other, total]).toEqual([3, 11]);
+    const web = filterBoard(b, "web");
+    expect([...web.todo, ...web.doing, ...web.review].map((c) => c.key)).toEqual(["vikunja:8", "session:w1", "session:w3", "session:s9", "pr:acme/web#12"]);
+    expect(filterBoard(b, NO_PROJECT).todo.map((c) => c.key)).toEqual(["routine:r4", "email:run1:e1", "note:inbox/today.md:3"]);
+    expect(filterBoard(b, null)).toBe(b);
   });
 
   it("reads a note task's file and line, colons in the path included", () => {
@@ -152,7 +174,7 @@ describe("the Board look", () => {
   it("a session waiting for an OK opens the session; the board never answers its card", () => {
     render(<Home />);
     board();
-    const card = within(col("In progress")).getByRole("article", { name: "web: fix login" });
+    const card = within(col("In progress")).getByRole("article", { name: "fix login" });
     expect(within(card).getByText("OK?")).toBeTruthy();
     sent.length = 0;
     fireEvent.click(within(card).getByRole("button", { name: "Open session" }));
@@ -168,6 +190,41 @@ describe("the Board look", () => {
     sent.length = 0;
     fireEvent.click(within(card).getByRole("button", { name: "Done" }));
     expect(sent[0]).toMatchObject({ key: "e1" });
+  });
+
+  it("each card names its project bottom right; the project filter keeps one project's cards and is remembered", () => {
+    render(<Home />);
+    board();
+    act(() => dispatch(plan({ needs_you: [failed], next: task, up_next: [later] })));
+    const card = within(col("To do")).getByRole("article", { name: "Write the release notes" });
+    expect(card.querySelector(".kb-acts .kb-proj")?.textContent).toBe("web");
+    expect(within(card).queryByText("acme")).toBeNull();  // the tracker's project chip gives way to the label
+    const bar = screen.getByRole("group", { name: "Filter by project" });
+    expect(within(bar).getAllByRole("button").map((b) => b.textContent)).toEqual(["All6", "acme1", "web4", "Other1"]);
+    fireEvent.click(within(bar).getByRole("button", { name: "web, 4" }));
+    expect(col("To do").getAttribute("aria-label")).toBe("To do, 1");
+    expect(col("In progress").getAttribute("aria-label")).toBe("In progress, 3");
+    expect(localStorage.getItem("orb.boardProject")).toBe("web");
+    cleanup();
+    render(<Home />);
+    act(() => dispatch(plan({ needs_you: [failed], next: task, up_next: [later] })));
+    expect(col("To do").getAttribute("aria-label")).toBe("To do, 1");
+    const again = screen.getByRole("group", { name: "Filter by project" });
+    fireEvent.click(within(again).getByRole("button", { name: "Other, 1" }));
+    expect(within(col("To do")).getByRole("article", { name: "Routine ‘Backup’ failed" })).toBeTruthy();
+    expect(col("In progress").getAttribute("aria-label")).toBe("In progress, 0");
+    fireEvent.click(within(again).getByRole("button", { name: "Other, 1" }));  // the same one again: all of them
+    expect(col("To do").getAttribute("aria-label")).toBe("To do, 3");
+    expect(localStorage.getItem("orb.boardProject")).toBeNull();
+  });
+
+  it("a filter on a project no card names any more shows everything", () => {
+    localStorage.setItem("orb.boardProject", "gone");
+    render(<Home />);
+    board();
+    act(() => dispatch(plan({ next: task })));
+    expect(screen.getByRole("button", { name: /^All/ }).getAttribute("aria-pressed")).toBe("true");
+    expect(col("To do").getAttribute("aria-label")).toBe("To do, 1");
   });
 
   it("a Needs you row is a To do card in the accent", () => {
