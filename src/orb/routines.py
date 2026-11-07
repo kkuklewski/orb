@@ -302,6 +302,25 @@ def streak_window(runs: list[dict], logs: dict, verdicts: dict | None = None, re
     return out
 
 
+HISTORY = ("ok", "failed", "broken", "waiting", "stuck", "running", "unknown")
+
+
+def history(runs: list[dict], logs: dict, verdicts: dict | None = None, judge: bool = True,
+            newest: str | None = None) -> list[dict]:
+    """The kept runs, oldest first, one word each for the routine's card (its run dots): ok, failed, broken (an ok run
+    the judge said broke), waiting, stuck, running, or unknown (no log kept, or an older run last seen running).
+    `newest`: the newest run's outcome as the item worked it out (stuck after STALL_SECONDS). No run text goes along."""
+    out = []
+    for i, run in enumerate(runs[:RUNS_KEPT]):
+        outcome = newest if i == 0 and newest else (logs.get(run["id"]) or {}).get("outcome")
+        if outcome == "ok" and judge and ((verdicts or {}).get(run["id"]) or {}).get("kind") == "broken":
+            outcome = "broken"
+        if outcome not in HISTORY or (i and outcome in ("running", "waiting")):
+            outcome = "unknown"  # an older run can't still be running: it was last seen so, before a newer one started
+        out.append({"at": _ts(run.get("created_at")), "outcome": outcome})
+    return out[::-1]
+
+
 def item(r: dict, runs: list[dict], logs: dict, seen: dict, now: float, verdicts: dict | None = None,
          override: str | None = None, judge: bool = True, resolved: str | None = None, repair: dict | None = None,
          after: float | None = None) -> dict:
@@ -350,6 +369,7 @@ def item(r: dict, runs: list[dict], logs: dict, seen: dict, now: float, verdicts
         # A missed run is newer than the newest kept one, so it breaks the streak; so does an off routine.
         "streak": streak(runs, logs, verdicts, resolved, judge, after) if needs in ("failed", "broken") and not missed else None,
         "repair": repair,
+        "history": history(runs, logs, verdicts, judge, outcome),
     }
 
 

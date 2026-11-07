@@ -6559,6 +6559,40 @@
       "title": "RootInfo",
       "type": "object"
     },
+    "RoutineDot": {
+      "additionalProperties": false,
+      "description": "One kept run on a routine's card, as one word (routines.history); no run text.",
+      "properties": {
+        "at": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "outcome": {
+          "enum": [
+            "ok",
+            "failed",
+            "broken",
+            "waiting",
+            "stuck",
+            "running",
+            "unknown"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "outcome"
+      ],
+      "title": "RoutineDot",
+      "type": "object"
+    },
     "RoutineItem": {
       "additionalProperties": false,
       "description": "One row of the Routines panel (routines.item).",
@@ -6569,6 +6603,13 @@
         },
         "enabled": {
           "type": "boolean"
+        },
+        "history": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/RoutineDot"
+          },
+          "type": "array"
         },
         "id": {
           "type": "string"
