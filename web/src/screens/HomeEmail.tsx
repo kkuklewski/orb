@@ -8,6 +8,8 @@ import { AccRow, Card, useAccordion } from "./HomeCard";
 // Home's Email card (GLOSSARY: Email card): the emails your mail routine's newest run says need you, one row each,
 // urgent first (emails.py decides, by rule). Orb reads no mailbox: the rows are the routine's own bullets, plain text.
 // Done hides a row for good; the last one done resolves the run's "action". No rows: no card.
+// Open in Gmail is a link the server built by rule (the email's thread, else a search for its sender): Orb never acts
+// in the mailbox, you do (docs/adr/0015).
 
 const SHOWN = 6;
 
@@ -49,6 +51,8 @@ export function EmailCard() {
             dot={<span className={"hc-dot sq" + (r.urgent ? " hot" : "")} />} text={r.text} side={side} facts={facts}
             actions={<>
               <button type="button" className="hbtn dark" onClick={() => emailDone(r.run, r.key)}>Done</button>
+              {r.gmail && <a className="hbtn" href={r.gmail} target="_blank" rel="noopener noreferrer"
+                title={r.gmail.includes("#search/") ? "Searches Gmail for the sender" : "Opens this email in Gmail"}>Open in Gmail</a>}
               <button type="button" className="hbtn" onClick={() => openRoutine(r.routine)}>Open run</button>
             </>} />
         );

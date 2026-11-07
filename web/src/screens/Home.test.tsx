@@ -606,6 +606,18 @@ describe("the Email card", () => {
     expect(screen.getByRole("article", { name: "1 email to look at" })).toBeTruthy();
   });
 
+  it("offers Open in Gmail only when the row has a link, as a plain link to Gmail", () => {
+    const gmail = "https://mail.google.com/mail/u/0/#all/18f3a2b4c5d6e7f8";
+    useViews.setState({ routines: routines({ emails: [row({ gmail }), row({ key: "k2", text: "Globex sent a receipt.", urgent: false, due: null })] }) });
+    render(<Home />);
+    const card = screen.getByRole("article", { name: "1 urgent · 2 to look at" });
+    fireEvent.click(within(card).getByRole("button", { name: "Acme Telecom: 25 PLN is due Monday 9 Nov." }));
+    const link = within(card).getByRole("link", { name: "Open in Gmail" });
+    expect([link.getAttribute("href"), link.getAttribute("target"), link.getAttribute("rel")]).toEqual([gmail, "_blank", "noopener noreferrer"]);
+    fireEvent.click(within(card).getByRole("button", { name: "Globex sent a receipt." }));
+    expect(within(card).getAllByRole("link", { name: "Open in Gmail" })).toHaveLength(1);
+  });
+
   it("has no card without rows", () => {
     useViews.setState({ routines: routines({ emails: [] }) });
     render(<Home />);

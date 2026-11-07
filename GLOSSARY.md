@@ -74,7 +74,8 @@ _Avoid_: Mail sync, inbox integration
 **Email card**:
 Home's card of the emails a mail routine's newest run says need the owner, one row each: the bullets of the run's first
 "Needs your attention" (or "Urgent", "Action") section. A row is urgent when it says Urgent or names a due date within a
-week or past. Done hides one row; the last row of a run done resolves that run's action.
+week or past. Done hides one row; the last row of a run done resolves that run's action. Open in Gmail is a link to
+the email (its thread when the bullet carries one, else a search for its sender); Orb never acts in the mailbox.
 _Avoid_: Inbox, mail list, urgent emails
 
 **Needs you**:

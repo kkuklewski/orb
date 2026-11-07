@@ -39,6 +39,7 @@ DEFAULTS = {
     "routines_notify": {},  # routine id -> "always" | "never": overrides the judge for that routine's results
     "routines_hidden": [n.strip() for n in config.env("ROUTINES_HIDDEN", "").split(",") if n.strip()],
     "email_routines": ["mail"],  # routines whose name holds one of these feed Home's Email card (emails.py); [] = no card
+    "gmail_account": "",  # the Google account Open in Gmail opens (an address or an account number); "" = the first; settings.json only
     "reminders": [],  # home "Don't forget": [{"text", "due": "YYYY-MM-DD" (optional), "url" (optional)}]
     "links": [],  # home pinned links: [{"label", "url"}]
     "vikunja_url": config.env("VIKUNJA_URL", ""),  # open tasks from Vikunja (token: ORB_VIKUNJA_TOKEN, env only)

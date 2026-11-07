@@ -402,6 +402,7 @@ class EmailRow(_Msg):
     run: str
     at: float | None = None  # when that run started
     cut: bool = False  # the run's result was cut short after this row: the run's screen has the rest
+    gmail: str | None = None  # Open in Gmail: the email's thread, else a search for its sender (emails.gmail_link); a link only
 
 
 class RoutinesEvent(_Event):
