@@ -531,19 +531,36 @@ class Needs:
         self._build()
         await self.push(self.event())
 
-    async def leave(self, key: str) -> bool:
+    async def leave(self, key: str, min_days: int = LEAVE_DAYS, prs: list[dict] | None = None) -> bool:
         """Leave it on a quiet pull request: hidden, on every page and after a restart, until its updatedAt changes.
-        Entries for PRs that changed or closed go at the same time. Nothing is written to GitHub."""
-        prs = {f"pr:{p['repo']}#{p['number']}": p for p in self.facts["prs"] or []}  # type: ignore[union-attr]
-        p = prs.get(key)
-        if not p or p.get("idle_days", 0) < LEAVE_DAYS:
+        Entries for PRs that changed or closed go at the same time. Nothing is written to GitHub. The item page's Done
+        passes `min_days=0` (any open PR) and the current `prs` list, so it works before Home has sent its facts."""
+        if prs is not None:
+            self.facts["prs"] = prs
+        prs_ = {f"pr:{p['repo']}#{p['number']}": p for p in self.facts["prs"] or []}  # type: ignore[union-attr]
+        p = prs_.get(key)
+        if not p or p.get("idle_days", 0) < min_days:
             return False
-        kept = {k: u for k, u in (self.state.get("left") or {}).items() if k in prs and prs[k].get("updated") == u}
+        kept = {k: u for k, u in (self.state.get("left") or {}).items() if k in prs_ and prs_[k].get("updated") == u}
         self.state["left"] = {**kept, key: p.get("updated")}
         self._save()
         self._build()
         await self.push(self.event())
         return True
+
+    async def unleave(self, key: str) -> None:
+        """Undo of Leave it / Done: the pull request is back in the queue and the lists."""
+        left = self.state.get("left") or {}
+        if key in left:
+            self.state["left"] = {k: u for k, u in left.items() if k != key}
+            self._save()
+            self._build()
+            await self.push(self.event())
+
+    def left(self, p: dict) -> bool:
+        """This open pull request was left (or marked done) and hasn't changed since."""
+        u = (self.state.get("left") or {}).get(f"pr:{p['repo']}#{p['number']}")
+        return u is not None and u == p.get("updated")
 
     async def update(self, today: str, force: bool = False, now: float | None = None, **facts: object) -> None:
         """New facts (`setup=`, `vault=` ([Health] or []), `routines=`, `reminders=`, `tasks=`, `notes=`, `results=`, `prs=`, `awaiting=`, `notopic=`): send the rule lists at once;

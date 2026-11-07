@@ -464,7 +464,8 @@ export interface ItemGetMsg {
   type: "item_get";
 }
 /**
- * Archive: mark a tracker task done (done=False brings it back). The server answers with the new item_list.
+ * Archive: mark a tracker task done, or a pull request done in Orb (Leave it at any age: hidden until it changes,
+ * GitHub untouched); done=False brings it back. The server answers with the new item_list.
  *
  * This interface was referenced by `OrbProtocol`'s JSON-Schema
  * via the `definition` "ItemDoneMsg".

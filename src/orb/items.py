@@ -1,6 +1,7 @@
 """Item pages: one table and one detail page per source (tracker tasks, your open pull requests, repos with
 unsaved work). A source only says which rows it has and what its prompt is; the page, the sorting, "Copy prompt"
-and "Start in Orb" are the same for all. Pure and read-only (Archive is `tracker.set_done`); the server maps a
+and "Start in Orb" are the same for all. Pure and read-only (Archive is `tracker.set_done`; a pull request's Done is
+Orb's own Leave it, `left`, and never touches GitHub); the server maps a
 `repo_path` to an allowed folder and its label, so the page never names a path.
 """
 
@@ -34,7 +35,7 @@ def _local(found: list[dict], label: str) -> str | None:
     return next((f["path"] for f in found if f["label"] == label), None)
 
 
-def list_(source: str, cfg: dict, vault, found: list[dict]) -> dict:
+def list_(source: str, cfg: dict, vault, found: list[dict], left=None) -> dict:
     """{kicker, heading, columns, rows, ...}: rows carry `repo_path` (or None) for the server to resolve."""
     if source == "vikunja":
         got = tracker.source(cfg)
@@ -53,11 +54,12 @@ def list_(source: str, cfg: dict, vault, found: list[dict]) -> dict:
                 "group_key": "project", "can_archive": True, "can_suggest": True, "statuses": ["unranked", "ranked"],
                 "url": got["url"], "url_label": f"OPEN {tracker.name(cfg).upper()} →" if got["url"] else None, "error": got["error"]}
     if source == "prs":
-        prs = forget.prs()
+        every = forget.prs()
+        prs = [p for p in every if not (left and left(p))]  # marked done (or left) in Orb: hidden until it changes
         rows = [{"id": f"{p['repo']}#{p['number']}", "title": f"#{p['number']} · {p['title']}", "repo_path": _local(found, p["repo"]),
                  "hot": p["stale"], "cells": {"repository": p["repo"], "state": "draft" if p["draft"] else "",
                                               "idle": str(p["idle_days"])}} for p in prs]
-        return {"source": source, "kicker": "GITHUB", "heading": f"{len(rows)} open pull requests", "rows": rows,
+        return {"source": source, "kicker": "GITHUB", "heading": f"{len(rows)} open pull requests" + (f" ({len(every) - len(prs)} marked done)" if len(every) > len(prs) else ""), "rows": rows,
                 "columns": [_col("title", "Pull request", "title"), _col("repo", "Local repo", "repo"), _col("repository", "Repository", "chip"), _col("state", "State"), _col("idle", "Idle", "age")],
                 "group_key": "repository", "can_archive": False, "url": "https://github.com/pulls", "url_label": "OPEN GITHUB →"}
     if source == "repos":
@@ -111,8 +113,9 @@ def _pr_body(repo: str, number: str) -> str:
         return ""
 
 
-def get(source: str, item_id: str, cfg: dict, vault, found: list[dict]) -> dict:
-    """{title, kicker, chips, body, url, url_label, brief, done, can_archive, repo_path} for one item."""
+def get(source: str, item_id: str, cfg: dict, vault, found: list[dict], left=None) -> dict:
+    """{title, kicker, chips, body, url, url_label, brief, done, can_archive, repo_path} for one item. `left(pr)` says
+    whether a pull request was marked done in Orb (Needs.left)."""
     if source == "vikunja":
         try:
             t = tracker.task(cfg, int(item_id))
@@ -131,7 +134,7 @@ def get(source: str, item_id: str, cfg: dict, vault, found: list[dict]) -> dict:
         ask = ("What I want: read the pull request and the branch in the repo, then tell me what is left to merge it, "
                "or why it went quiet. Don't change anything until I agree.")
         return {"title": f"#{p['number']} · {p['title']}", "kicker": "GITHUB", "chips": chips, "body": body, "url": p["url"],
-                "url_label": "Open on GitHub →", "done": False, "can_archive": False, "repo_path": _local(found, p["repo"]),
+                "url_label": "Open on GitHub →", "done": bool(left and left(p)), "can_archive": True, "repo_path": _local(found, p["repo"]),
                 "brief": quoted("one of my open pull requests (GitHub)", [("Repository", p["repo"]), ("Pull request", p["title"]), ("Link", p["url"])], body, ask)}
     if source == "repos":
         f = next((x for x in found if x["path"] == item_id), None)

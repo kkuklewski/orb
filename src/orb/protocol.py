@@ -1219,7 +1219,8 @@ class ItemGetMsg(_Msg):
 
 
 class ItemDoneMsg(_Msg):
-    """Archive: mark a tracker task done (done=False brings it back). The server answers with the new item_list."""
+    """Archive: mark a tracker task done, or a pull request done in Orb (Leave it at any age: hidden until it changes,
+    GitHub untouched); done=False brings it back. The server answers with the new item_list."""
     type: Literal["item_done"]
     source: ItemSource
     id: str
