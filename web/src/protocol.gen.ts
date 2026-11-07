@@ -1438,6 +1438,7 @@ export interface EmailRow {
   at?: number | null;
   cut?: boolean;
   due?: string | null;
+  gmail?: string | null;
   key: string;
   routine: string;
   routine_name: string;

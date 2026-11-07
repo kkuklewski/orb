@@ -21,6 +21,7 @@
 .hbtn { display: inline-flex; align-items: center; gap: 10px; height: 46px; padding: 0 18px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg-elev); color: var(--text); font: 500 14px var(--sans); cursor: pointer; }
 .hbtn:hover:not(:disabled) { border-color: var(--text-3); }
 .hbtn:disabled { opacity: .45; cursor: default; }
+a.hbtn { text-decoration: none; }
 .hbtn.dark { background: var(--text); color: var(--bg); border-color: var(--text); }
 .hbtn.dark:hover:not(:disabled) { opacity: .9; }
 .hbtn.outline { border-color: var(--text); }

@@ -18,3 +18,9 @@ untrusted data already.
   first in the routine's summary; a list cut short is marked on its last row.
 - Done is Orb's own mark (a hash of the row's text, per run, in the routines state); it never touches the mailbox. The
   last row of a run done resolves that run's judged "action", the same mark as Mark resolved.
+- Acting on an email happens in Gmail, by the owner: a row offers Open in Gmail, a plain link built by rule
+  (`emails.gmail_link`). When the routine ends a bullet with the email's thread id (`[gmail:<hex id>]`, hidden from the
+  row) the link opens that thread; else it searches for the first sender address the bullet names; with neither there
+  is no link. Only checked pieces go into the URL, always `mail.google.com`; `gmail_account` (settings.json) picks the
+  account. Archive or mark-read from Orb was considered (a card, then a session that may only change one approved
+  thread's labels) and declined for now: it would bring a mail connector with write access into Orb.
