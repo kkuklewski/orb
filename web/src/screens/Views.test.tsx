@@ -27,6 +27,19 @@ const NOW = new Date(2026, 9, 25, 12, 0).getTime();
 const at = (d: number, h: number, m = 0) => new Date(2026, 9, d, h, m).getTime() / 1000;
 const ok = (id: string, t: number) => ({ id, at: t, outcome: "ok" as const, summary: `summary ${id}`, url: `https://claude.ai/code/${id}` });
 const lines = (c: HTMLElement) => [...c.querySelectorAll(".rt-line")].map((l) => [...l.children].map((x) => x.textContent).join(" | "));
+const cards = (c: HTMLElement) => [...c.querySelectorAll(".rt-card")].map((l) => [...l.children].flatMap((x) => x.classList.contains("rt-card-head") ? [...x.children].map((y) => y.textContent) : [x.textContent]).filter(Boolean).join(" | "));
+const panel = (c: HTMLElement) => c.querySelector<HTMLElement>('section[aria-label="Needs you"]')!;
+const SEVEN = [
+  routine({ id: "z", name: "zeta digest", state: "nothing to report", worth: "skip", why: "no new email", last: ok("r1", at(25, 6, 10)),
+    history: [{ at: at(24, 6), outcome: "ok" }, { at: at(25, 6), outcome: "ok" }] }),
+  routine({ id: "m", name: "Mail check", state: "missed", needs: "missed", missed_at: at(25, 6, 0), why: "", last: ok("r2", at(22, 6)) }),
+  routine({ id: "g", name: "Gmail cleanup", state: "worth reading", loud: true, worth: "read", why: "urgent alert sent", last: ok("r3", at(24, 6, 10)), next_run_at: at(25, 18) }),
+  routine({ id: "a", name: "audit", state: "failed", needs: "failed", urgent: true, last: { id: "r4", at: at(25, 2), outcome: "failed", summary: "boom" },
+    history: [{ at: at(23, 2), outcome: "ok" }, { at: at(24, 2), outcome: "broken" }, { at: at(25, 2), outcome: "failed" }] }),
+  routine({ id: "b", name: "Backups", state: "nothing to report", last: ok("r5", at(20, 3)) }),
+  routine({ id: "o", name: "Old sync", enabled: false, state: "off" }),
+  routine({ id: "p", name: "paused one", enabled: false, state: "off" }),
+];
 
 describe("Routines", () => {
   beforeEach(() => { vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(NOW); });
@@ -36,32 +49,60 @@ describe("Routines", () => {
     useViews.setState({ routines: routines({ items: [routine({ new: true })], new: 1 }) });
     const { container } = render(<Routines />);
     expect(sent).toEqual([{ type: "routines" }, { type: "routines_seen" }]);
-    expect(container.querySelector(".rt-line.new")).toBeTruthy();
+    expect(container.querySelector(".rt-card.new")).toBeTruthy();
   });
 
-  it("one line per routine: dot, name, state word, time; grouped by state, by name inside; off folded away", () => {
-    useViews.setState({ routines: routines({ read: 1, items: [
-      routine({ id: "z", name: "zeta digest", state: "nothing to report", worth: "skip", why: "no new email", last: ok("r1", at(25, 6, 10)) }),
-      routine({ id: "m", name: "Mail check", state: "missed", needs: "missed", missed_at: at(25, 6, 0), why: "", last: ok("r2", at(22, 6)) }),
-      routine({ id: "g", name: "Gmail cleanup", state: "worth reading", loud: true, worth: "read", why: "urgent alert sent", last: ok("r3", at(24, 6, 10)) }),
-      routine({ id: "a", name: "audit", state: "failed", needs: "failed", last: { id: "r4", at: at(25, 2), outcome: "failed", summary: "boom" } }),
-      routine({ id: "b", name: "Backups", state: "nothing to report", last: ok("r5", at(20, 3)) }),
-      routine({ id: "o", name: "Old sync", enabled: false, state: "off" }),
-      routine({ id: "p", name: "paused one", enabled: false, state: "off" }),
+  it("the Needs you panel lists what to act on, urgent first, and opens or resolves each", () => {
+    useViews.setState({ routines: routines({ items: [
+      ...SEVEN,
+      routine({ id: "k", name: "Key rotation", state: "needs you", needs: "action", why: "renew the API key by Friday", last: ok("r6", at(25, 9)) }),
+      routine({ id: "s", name: "Sheet sync", state: "failed", needs: "failed", streak: { count: 3, since: at(23, 1) }, repair: { task: 42 }, last: { id: "r7", at: at(25, 1), outcome: "failed", summary: "403" } }),
     ] }) });
     const { container } = render(<Routines />);
-    expect([...container.querySelectorAll(".rt-group")].map((g) => g.getAttribute("aria-label"))).toEqual(["Needs you", "Worth reading", "Nothing to report", "Off"]);
-    expect(lines(container)).toEqual([
-      " | audit | failed | 02:00",
-      " | Mail check | missed | missed 06:00",
-      " | Gmail cleanup | worth reading | yest 06:10 | worth reading: urgent alert sent",
-      " | Backups | nothing to report | 5 d ago",
-      " | zeta digest | nothing to report | 06:10",  // no why tail below the top two groups
+    const rows = [...panel(container).querySelectorAll(".rt-now-row")];
+    expect(rows.map((r) => r.querySelector(".rt-now-name")!.textContent)).toEqual(["audit", "Sheet sync", "Mail check", "Key rotation"]);
+    expect(rows.map((r) => r.classList.contains("urgent"))).toEqual([true, false, false, false]);
+    expect(rows[1].querySelector(".rt-now-why")!.textContent).toBe("3 failed runs in a row");
+    expect(rows[1].textContent).toContain("Task #42");
+    expect(rows[3].querySelector(".rt-now-why")!.textContent).toBe("renew the API key by Friday");
+    expect(within(rows[0] as HTMLElement).queryByRole("button", { name: "Mark resolved" })).toBeNull(); // a failed run clears when one succeeds
+    fireEvent.click(within(rows[3] as HTMLElement).getByRole("button", { name: "Mark resolved" }));
+    expect(sent.at(-1)).toEqual({ type: "routines_resolve", id: "k", undo: false });
+    fireEvent.click(within(rows[0] as HTMLElement).getByRole("button", { name: "Open audit" }));
+    expect(useViews.getState().view).toBe("routine");
+  });
+
+  it("with nothing to act on, the panel says so and how the rest went", () => {
+    useViews.setState({ routines: routines({ items: [
+      routine({ id: "x", name: "a", last: ok("r1", at(25, 1)) }),
+      routine({ id: "y", name: "b", state: "worth reading", loud: true, worth: "read", last: ok("r2", at(25, 2)) }),
+      routine({ id: "o", name: "c", enabled: false, state: "off" }),
+    ] }) });
+    const { container } = render(<Routines />);
+    expect(panel(container).textContent).toBe("Nothing needs you2 of 2 ran fine · 1 worth reading");
+    expect(panel(container).querySelector(".rt-now-row")).toBeNull();
+  });
+
+  it("one card per routine that is on: state, run dots, why, what it said, when; in the list's order; off folded away", () => {
+    useViews.setState({ routines: routines({ read: 1, items: SEVEN }) });
+    const { container } = render(<Routines />);
+    expect(cards(container)).toEqual([
+      "audit | failed | boom | last 02:00",  // a routine that needs you says why in the panel, not on its card
+      "Mail check | missed | summary r2 | missed 06:00",
+      "Gmail cleanup | worth reading | worth reading: urgent alert sent | summary r3 | last yest 06:10 · next today 18:00",
+      "Backups | nothing to report | summary r5 | last 5 d ago",
+      "zeta digest | nothing to report | nothing to report: no new email | summary r1 | last 06:10",
     ]);
-    expect(container.querySelector(".rt-summary, .rt-notify, a")).toBeNull(); // summary, notify and run link live on the routine's page
-    expect(screen.queryByText(/next /)).toBeNull();
+    const dots = container.querySelectorAll(".rt-card")[0].querySelector(".rt-runs")!;
+    expect(dots.getAttribute("aria-label")).toBe("Last 3 runs: ok, broke, failed");
+    expect([...dots.children].map((d) => d.getAttribute("data-outcome"))).toEqual(["ok", "broken", "failed"]);
+    expect(container.querySelector(".rt-card.urgent")!.textContent).toContain("audit");
+    expect(container.querySelector(".rt-notify, a")).toBeNull(); // notify and the run link live on the routine's page
+    expect(lines(container)).toEqual([]);
     fireEvent.click(screen.getByRole("button", { name: "2 off" }));
-    expect(lines(container).slice(-2)).toEqual([" | Old sync | off | ", " | paused one | off | "]);
+    expect(lines(container)).toEqual([" | Old sync | off | ", " | paused one | off | "]);
+    fireEvent.click(container.querySelectorAll(".rt-card")[2]);
+    expect(useViews.getState().view).toBe("routine");
   });
 
   it("names are plain text, Mark runs read only while runs wait, and Check now asks again", () => {

@@ -121,6 +121,38 @@ export function routineGroups(items: RoutineItem[]) {
   return ROUTINE_GROUPS.map((g) => ({ ...g, items: items.filter((x) => g.states.includes(x.state)).sort(byName) })).filter((g) => g.items.length);
 }
 
+/** The Routines screen's Needs you panel: every routine that needs you, the ones a rule calls urgent first, then in the
+ *  state word's order (failed, stuck, missed, needs you), by name inside. Rules only (ADR 0001): nothing here is picked
+ *  or hidden by a model. */
+export function routinesNeeding(items: RoutineItem[]): RoutineItem[] {
+  const order = ROUTINE_GROUPS[0].states;
+  return routineGroups(items.filter((x) => x.needs)).flatMap((g) => g.items)
+    .sort((a, b) => Number(!!b.urgent) - Number(!!a.urgent) || order.indexOf(a.state) - order.indexOf(b.state));
+}
+
+/** One card per routine that is on, in the list's order (so a card keeps its place); off ones fold away below. */
+export function routineCards(items: RoutineItem[]): RoutineItem[] {
+  return routineGroups(items).filter((g) => g.name !== "Off").flatMap((g) => g.items);
+}
+
+/** The reason under a routine that needs you: a failure streak's count, else the judge's why, else what the run said. */
+export function needsReason(x: RoutineItem): string {
+  if (x.streak) return `${x.streak.count} failed runs in a row`;
+  return whyLine(x) || x.last?.summary || "";
+}
+
+/** Below the Needs you panel when it's empty: how the rest went. */
+export function routinesCalm(items: RoutineItem[]): string {
+  const on = items.filter((x) => x.enabled);
+  if (!on.length) return "No routines are on.";
+  const fine = on.filter((x) => !x.needs && x.last?.outcome === "ok").length;
+  const read = on.filter((x) => !x.needs && x.loud).length;
+  return `${fine} of ${on.length} ran fine${read ? ` · ${read} worth reading` : ""}`;
+}
+
+/** A card's run dots, oldest first, as words for screen readers ("ok, ok, failed"). */
+export const RUN_WORD: Record<string, string> = { ok: "ok", failed: "failed", broken: "broke", waiting: "waiting", stuck: "stuck", running: "running", unknown: "not known" };
+
 /** A line's time: "06:10" today, "yest 06:10", "3 d ago"; a missed routine says when it should have run. */
 export function lineTime(ts: number, now = Date.now()): string {
   const d = new Date(ts * 1000), today = new Date(now), yest = new Date(now - 86400000);

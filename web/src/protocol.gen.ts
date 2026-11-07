@@ -1424,6 +1424,7 @@ export interface RoutinesEvent {
 export interface RoutineItem {
   cron?: string;
   enabled: boolean;
+  history?: RoutineDot[];
   id: string;
   last?: RoutineRun | null;
   loud?: boolean;
@@ -1443,6 +1444,16 @@ export interface RoutineItem {
   urgent?: boolean;
   why?: string;
   worth?: ("read" | "skip") | null;
+}
+/**
+ * One kept run on a routine's card, as one word (routines.history); no run text.
+ *
+ * This interface was referenced by `OrbProtocol`'s JSON-Schema
+ * via the `definition` "RoutineDot".
+ */
+export interface RoutineDot {
+  at?: number | null;
+  outcome: "ok" | "failed" | "broken" | "waiting" | "stuck" | "running" | "unknown";
 }
 /**
  * This interface was referenced by `OrbProtocol`'s JSON-Schema

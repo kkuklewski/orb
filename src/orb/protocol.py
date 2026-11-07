@@ -359,6 +359,12 @@ class RoutineRepair(_Msg):
     url: str | None = None  # None until a check read it (after a restart, or while the tracker can't be read)
 
 
+class RoutineDot(_Msg):
+    """One kept run on a routine's card, as one word (routines.history); no run text."""
+    at: float | None = None
+    outcome: Literal["ok", "failed", "broken", "waiting", "stuck", "running", "unknown"]
+
+
 class RoutineItem(_Msg):
     """One row of the Routines panel (routines.item)."""
     id: str
@@ -382,6 +388,7 @@ class RoutineItem(_Msg):
     security: bool = False  # its judged problem is a security risk: its Needs you row is pinned (docs/adr/0012)
     streak: RoutineStreak | None = None  # a failure streak: its Needs you row offers Make it a task first
     repair: RoutineRepair | None = None  # its open Repair task: no second one is offered while it is open
+    history: list[RoutineDot] = []  # the kept runs (at most 5), oldest first: the card's run dots
 
 
 class RoutinesEvent(_Event):

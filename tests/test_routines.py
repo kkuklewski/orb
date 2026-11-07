@@ -1,6 +1,26 @@
 import time
 
-from orb.routines import Watch, allowed_call, call_key, hidden, item, parse_log
+from orb.routines import RUNS_KEPT, Watch, allowed_call, call_key, hidden, history, item, parse_log
+
+
+def test_history_is_one_word_per_kept_run_oldest_first_and_carries_no_text():
+    runs = [run(f"cse_{i}", ago=60 + i * 3600) for i in range(RUNS_KEPT + 2)]  # newest first, more than are kept
+    logs = {"cse_0": {"outcome": "ok", "summary": "secret text"}, "cse_1": {"outcome": "ok"}, "cse_2": {"outcome": "failed"},
+            "cse_3": {"outcome": "running"}}
+    verdicts = {"cse_1": {"read": True, "kind": "broken", "why": "403"}}
+    dots = history(runs, logs, verdicts)
+    assert [d["outcome"] for d in dots] == ["unknown", "unknown", "failed", "broken", "ok"]  # no log / last seen running: unknown
+    assert dots[0]["at"] < dots[-1]["at"] and all(set(d) == {"at", "outcome"} for d in dots)
+    assert [d["outcome"] for d in history(runs, logs, verdicts, judge=False)][-2] == "ok"  # judge off: no broken
+    assert history(runs[:1], {"cse_0": {"outcome": "running"}}, newest="stuck")[0]["outcome"] == "stuck"
+    assert history([], {}) == []
+
+
+def test_the_item_carries_its_run_dots():
+    now = time.time()
+    x = item(routine(), [run("cse_0"), run("cse_1", ago=7200)], {"cse_0": {"outcome": "failed"}, "cse_1": {"outcome": "ok"}}, {}, now)
+    assert [d["outcome"] for d in x["history"]] == ["ok", "failed"]
+    assert item(routine(), [], {}, {}, now)["history"] == []
 
 LOG_OK = """[2026-10-21T23:09:30Z] init: model=claude-sonnet-5-5 cwd=/home/user/x
 [2026-10-21T23:09:42Z] assistant: Nothing to do.
