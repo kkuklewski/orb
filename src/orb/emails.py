@@ -9,6 +9,9 @@ a list cut short says so (`cut`), and the run's screen has the rest.
 Rules, no model: a row is urgent when its bullet starts with "Urgent" (or says [URGENT]), or names a due date ("due",
 "by", "before", "until", "deadline" + a date) within routines.URGENT_DAYS or already past. The text quotes email, so it
 is untrusted: the page shows it as plain text, and Done keeps only a hash of it, per run (state "email_done").
+
+Open in Gmail is a link only (docs/adr/0015): a bullet may carry the email's thread id ("[gmail:<hex id>]", hidden from
+the row), else the link searches for the sender's address the bullet names. Orb still never touches the mailbox.
 """
 
 from __future__ import annotations
@@ -16,6 +19,7 @@ from __future__ import annotations
 import datetime as dt
 import hashlib
 import re
+import urllib.parse
 
 from . import routines, settings
 
@@ -32,6 +36,28 @@ _MON = r"(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?"
 _DATE = rf"(\d{{4}}-\d{{2}}-\d{{2}})|(\d{{1,2}})(?:st|nd|rd|th)? {_MON}|{_MON} (\d{{1,2}})(?:st|nd|rd|th)?\b"
 _DUE = re.compile(rf"\b(?:due|by|before|until|deadline)\b[^.;!?]{{0,24}}?\b(?:{_DATE})", re.I)
 TEXT_MAX = 300  # chars of one row's text
+# "[gmail:18f3a2b4c5d6e7f8]" (or "(thread 18f3…)") on a bullet: the email's Gmail thread id, which the routine may add
+_THREAD = re.compile(r"\s*[\[(]\s*(?:gmail|thread)(?:\s*id)?\s*[:#]?\s*([0-9a-f]{12,20})\s*[\])]", re.I)
+_ADDR = re.compile(r"(?<![\w.+-])[\w.+-]{1,64}@[a-z0-9-]{1,63}(?:\.[a-z0-9-]{1,63})+", re.I)
+_ACCOUNT = re.compile(r"^(?:\d{1,2}|[\w.+-]{1,64}@[a-z0-9-]{1,63}(?:\.[a-z0-9-]{1,63})+)$", re.I)
+
+
+def gmail_link(thread: str | None, text: str) -> str | None:
+    """A link to the email in Gmail, by rule: its thread when the bullet names one, else a search for the first address
+    the bullet names; None with neither. Built only from those checked pieces (the text is untrusted), always
+    mail.google.com; settings["gmail_account"] (an address or an account number) picks the account, else the first."""
+    if thread:
+        frag = f"all/{thread.lower()}"
+    elif m := _ADDR.search(text):
+        frag = "search/" + urllib.parse.quote(f"from:{m.group(0).lower()}", safe="")
+    else:
+        return None
+    account = str(settings.settings["gmail_account"] or "").strip()
+    if account and _ACCOUNT.match(account) and not account.isdigit():
+        base = "https://mail.google.com/mail/?authuser=" + urllib.parse.quote(account, safe="")
+    else:
+        base = f"https://mail.google.com/mail/u/{account if account.isdigit() else 0}/"
+    return f"{base}#{frag}"
 
 
 def is_mail(name: str) -> bool:
@@ -95,6 +121,8 @@ def rows(text: str, ref: dt.date, today: dt.date) -> tuple[list[dict], bool]:
     out = []
     for p in parts:
         raw = re.sub(r"\s+", " ", p.replace("**", "")).strip()
+        thread = (m := _THREAD.search(raw)) and m.group(1)
+        raw = _THREAD.sub("", raw).strip()
         if len(raw) < 3:
             continue
         lead = bool(_URGENT_LEAD.match(raw))
@@ -102,7 +130,8 @@ def rows(text: str, ref: dt.date, today: dt.date) -> tuple[list[dict], bool]:
         due = _due(shown, ref)
         soon = (today + dt.timedelta(days=routines.URGENT_DAYS)).isoformat()
         out.append({"key": key(shown), "text": shown[:TEXT_MAX] + ("…" if len(shown) > TEXT_MAX else ""),
-                    "urgent": lead or bool(_URGENT_TAG.search(shown)) or bool(due and due <= soon), "due": due})
+                    "urgent": lead or bool(_URGENT_TAG.search(shown)) or bool(due and due <= soon), "due": due,
+                    "gmail": gmail_link(thread, shown)})
     return out, cut
 
 

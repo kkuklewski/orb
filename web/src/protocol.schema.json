@@ -2676,6 +2676,17 @@
           ],
           "default": null
         },
+        "gmail": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "key": {
           "type": "string"
         },

@@ -92,3 +92,32 @@ def test_done_on_the_last_row_resolves_the_runs_action(tmp_path, monkeypatch):
     assert w.state["email_done"] == {"cse_1": [keys[0]]} and "trig_1" not in w.state["resolved"]
     asyncio.run(w.email_done("cse_1", keys[1]))
     assert w.state["resolved"]["trig_1"] == "cse_1"
+
+
+def test_open_in_gmail_is_the_thread_when_named_else_a_sender_search_else_none(monkeypatch):
+    monkeypatch.setitem(live.data, "gmail_account", "")
+    text = ("**Needs your attention** - Acme Telecom (Bills@Acme.test) says 25 PLN is due by 9 Nov [gmail:18F3A2B4C5D6E7F8]"
+            " - Globex (billing@globex.test) sent a receipt. - The flight price changed.")
+    rows, _ = emails.rows(text, DAY, DAY)
+    assert rows[0]["gmail"] == "https://mail.google.com/mail/u/0/#all/18f3a2b4c5d6e7f8"
+    assert "gmail" not in rows[0]["text"] and rows[0]["text"].endswith("9 Nov")  # the id is hidden from the row
+    assert rows[1]["gmail"] == "https://mail.google.com/mail/u/0/#search/from%3Abilling%40globex.test"
+    assert rows[2]["gmail"] is None
+
+
+def test_the_gmail_link_is_built_only_from_checked_pieces(monkeypatch):
+    monkeypatch.setitem(live.data, "gmail_account", "me@acme.test")
+    assert emails.gmail_link(None, "x@globex.test") == \
+        "https://mail.google.com/mail/?authuser=me%40acme.test#search/from%3Ax%40globex.test"
+    monkeypatch.setitem(live.data, "gmail_account", "2")
+    assert emails.gmail_link("abcdef012345", "") == "https://mail.google.com/mail/u/2/#all/abcdef012345"
+    monkeypatch.setitem(live.data, "gmail_account", "javascript:alert(1)")  # not an address or a number: the first account
+    assert emails.gmail_link("abcdef012345", "") == "https://mail.google.com/mail/u/0/#all/abcdef012345"
+    rows, _ = emails.rows('**Action** - Acme "><script> [gmail:not-hex] wants an answer', DAY, DAY)
+    assert rows[0]["gmail"] is None and "[gmail:not-hex]" in rows[0]["text"]
+
+
+def test_a_row_carries_its_gmail_link_to_the_page():
+    rows, _ = emails.rows("**Urgent** - Initech (ops@initech.test): confirm [thread 0123456789abcdef]", DAY, DAY)
+    row = protocol.EmailRow(**{**rows[0], "routine": "t", "routine_name": "mail", "run": "r"})
+    assert row.gmail == "https://mail.google.com/mail/u/0/#all/0123456789abcdef"
