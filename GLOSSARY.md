@@ -104,7 +104,8 @@ _Avoid_: Queue, backlog, more
 **Board**:
 Home's other look (the switch says Focus / Board): every action Home knows of in four columns, To do, In progress,
 Review and Done. It sorts what Needs you, the queue, sessions and delegations already say; it decides nothing new.
-Done lists what was marked done today.
+Done lists what was marked done today. Each card names its project bottom right (the repo, else the tracker's
+project; setup, routines, notes and email have none, "Other"), and the bar above the columns keeps one project's cards.
 _Avoid_: Kanban view, task board, swimlanes
 
 **Verdict**:
