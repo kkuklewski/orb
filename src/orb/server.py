@@ -710,7 +710,7 @@ async def note_action(conn: "Conn", file: str, line: int, expect: str, action: s
 async def item_list(conn: "Conn", source: str) -> None:
     """A table for the page: each row with the label of the repo it maps to (None = no repo here)."""
     try:
-        got = await asyncio.to_thread(items.list_, source, *item_args())
+        got = await asyncio.to_thread(items.list_, source, *item_args(), left=hub.needs.left)
     except items.ItemError as e:
         await conn.send({"type": "error", "text": str(e)})
         return
@@ -792,7 +792,7 @@ async def item_get(conn: "Conn", source: str, item_id: str, start: bool) -> None
     """One item for its page, or (start) a new session on it in the repo it maps to. The repo is worked out
     here, never taken from the page, and must be an allowed folder."""
     try:
-        got = await asyncio.to_thread(items.get, source, item_id, *item_args())
+        got = await asyncio.to_thread(items.get, source, item_id, *item_args(), left=hub.needs.left)
     except items.ItemError as e:
         await conn.send({"type": "error", "text": str(e)})
         return
@@ -1138,7 +1138,7 @@ async def handle(conn: Conn, msg: dict) -> None:
         await conn.send(notes)
         # Git and gh (Don't forget), then the tracker (the Tasks source) are slower than the notes: events of their own.
         w = await asyncio.to_thread(forget.summary, settings.settings.data, hub.folders or hub.scan())
-        await conn.send(w)
+        await conn.send({**w, "prs": [p for p in w["prs"] if not hub.needs.left(p)]})  # marked done in Orb: hidden until it changes
         cfg = settings.settings.data
         src = await asyncio.to_thread(tracker.source, cfg) if tracker.wanted(cfg) else None
         await conn.send(tracker.home_event(src))
@@ -1199,8 +1199,17 @@ async def handle(conn: Conn, msg: dict) -> None:
         await item_get(conn, msg["source"], str(msg["id"]), start=False)
         return
     if t == "item_done":
+        if msg["source"] == "prs":  # Done on a pull request = Leave it at any age: hidden in Orb until it changes, GitHub untouched
+            key = f"pr:{msg['id']}"
+            if not msg.get("done", True):
+                await hub.needs.unleave(key)
+            elif not await hub.needs.leave(key, min_days=0, prs=await asyncio.to_thread(forget.prs)):
+                await conn.send({"type": "error", "text": "That pull request isn't open any more, or isn't yours."})
+                return
+            await item_list(conn, "prs")
+            return
         if msg["source"] != "vikunja":
-            await conn.send({"type": "error", "text": "Only tracker tasks can be archived."})
+            await conn.send({"type": "error", "text": "Only tracker tasks and pull requests can be marked done."})
             return
         try:
             await asyncio.to_thread(tracker.set_done, settings.settings.data, int(msg["id"]), bool(msg.get("done", True)))
