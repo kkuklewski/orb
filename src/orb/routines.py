@@ -53,7 +53,7 @@ from claude_agent_sdk import (
     query,
 )
 
-from . import billing, config, folders, settings, tracker
+from . import billing, config, emails, folders, settings, tracker
 
 log = logging.getLogger("orb.routines")
 
@@ -406,6 +406,7 @@ def trim(st: dict) -> None:
     st["logs"] = {k: v for k, v in st["logs"].items() if k in keep}
     st["verdicts"] = {k: v for k, v in st["verdicts"].items() if k in keep}
     st["resolved"] = {k: v for k, v in st["resolved"].items() if v in keep}
+    st["email_done"] = {k: v for k, v in st.get("email_done", {}).items() if k in keep}
 
 
 class Watch:
@@ -419,7 +420,8 @@ class Watch:
         self.state = config.read_state(state) or {}
         # repair: routine id -> its open Repair task's id (GLOSSARY: Repair task); repair_after: routine id -> when its
         # last one closed or went missing (a new failure streak counts only runs started after it).
-        for k in ("routines", "runs", "logs", "seen", "verdicts", "resolved", "repair", "repair_after"):
+        # email_done: run id -> the keys of that run's Email card rows marked Done (emails.py)
+        for k in ("routines", "runs", "logs", "seen", "verdicts", "resolved", "repair", "repair_after", "email_done"):
             self.state.setdefault(k, {})
         self.repair_urls: dict[str, str] = {}  # routine id -> its Repair task's link, from the last re-read (memory only)
         self.state.setdefault("notified", [])
@@ -468,7 +470,8 @@ class Watch:
         return {"type": "routines", "items": items, "checked_at": self.state["checked_at"] or None,
                 "checking": self.checking, "error": self.error,
                 "needs": sum(1 for x in items if x["needs"]), "new": sum(1 for x in items if x["new"]),
-                "read": sum(1 for x in items if x["loud"])}
+                "read": sum(1 for x in items if x["loud"]),
+                "emails": emails.card(items, self.state["email_done"], time.time())}
 
     async def mark_seen(self, rid: str | None = None, everything: bool = False) -> None:
         """Opening the panel marks seen what doesn't notify; runs worth reading stay unread until you mark
@@ -492,6 +495,20 @@ class Watch:
             self.state["resolved"][rid] = self.state["seen"][rid] = x["last"]["id"]
         else:
             return
+        self.save()
+        await self.push()
+
+    async def email_done(self, run: str, key: str) -> None:
+        """Done on one Email card row (its key in that run). With the last row of a run whose judged problem is
+        "action" done, that run is resolved too: every email it asked you about is dealt with."""
+        x = next((i for i in self.items() if i["last"] and i["last"]["id"] == run and emails.is_mail(i["name"])), None)
+        if not x or not re.fullmatch(r"[0-9a-f]{16}", key):
+            return
+        marked = self.state["email_done"].setdefault(run, [])
+        if key not in marked:
+            marked.append(key)
+        if x["needs"] == "action" and not emails.open_rows(x, self.state["email_done"], time.time()):
+            self.state["resolved"][x["id"]] = self.state["seen"][x["id"]] = run
         self.save()
         await self.push()
 
