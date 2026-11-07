@@ -101,6 +101,12 @@ _Avoid_: Lead, top item, today's plan
 The few items ranked right after the next action.
 _Avoid_: Queue, backlog, more
 
+**Board**:
+Home's other look (the switch says Focus / Board): every action Home knows of in four columns, To do, In progress,
+Review and Done. It sorts what Needs you, the queue, sessions and delegations already say; it decides nothing new.
+Done lists what was marked done today.
+_Avoid_: Kanban view, task board, swimlanes
+
 **Verdict**:
 The owner's judgement on a note waiting for review: approve or reject. There is no defer: a note left alone waits,
 and the nightly expiry closes it.

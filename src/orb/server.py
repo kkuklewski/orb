@@ -702,6 +702,8 @@ async def note_action(conn: "Conn", file: str, line: int, expect: str, action: s
         await conn.send({"type": "error", "text": str(e) if isinstance(e, tasks.TaskError) else f"Couldn't change the note: {e}"})
         return
     await conn.send(ev)
+    if action in ("done", "restore"):  # Home's board lists it in Done (copied before the plan forgets the line); Undo takes it out
+        hub.needs.record_done(f"note:{file}:{line}", dt.date.today().isoformat(), on=action == "done")
     summary = await asyncio.to_thread(home.summary, vault)
     await asyncio.gather(*(c.send(summary) for c in hub.conns))  # every page shows the new list
     hub.replan(notes=summary["tasks"], awaiting=summary["awaiting_count"], notopic=summary.get("notopic_count", 0))

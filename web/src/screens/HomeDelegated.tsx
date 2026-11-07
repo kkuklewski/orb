@@ -66,7 +66,7 @@ export function DelegateCards() {
 }
 
 export function DelegatedStrip() {
-  const { items, confirming, diff } = useDelegations();
+  const items = useDelegations((s) => s.items);
   if (!items.length) return null;
   return (
     <section className="hc deleg" aria-label="Delegated" id="delegated">
@@ -78,25 +78,35 @@ export function DelegatedStrip() {
             <span className="deleg-line mono">{d.repo} · {d.line}</span>
           </div>
           <Actions d={d} />
-          {d.conflict && <p className="deleg-conflict" role="alert">{d.conflict}</p>}
-          {confirming === d.id && (
-            <div className="perm" role="group" aria-label="Apply">
-              <div className="pwhat">{d.apply_text}</div>
-              <div className="pbtns">
-                <button type="button" className="allow" onClick={() => apply(d.id)}>Confirm</button>
-                <button type="button" onClick={() => askApply(null)}>Cancel</button>
-              </div>
-            </div>
-          )}
-          {diff?.id === d.id && (
-            <div className="deleg-diff" role="group" aria-label={`Changes on ${diff.branch}`}>
-              <pre>{diff.diff || "No changes."}</pre>
-              <button type="button" className="hbtn" onClick={closeDiff}>Close</button>
-            </div>
-          )}
+          <DelegExtras d={d} />
         </div>
       ))}
     </section>
+  );
+}
+
+/** Under a delegation's actions: a conflict's words, the Apply confirmation, the Review diff (the strip and the Board). */
+export function DelegExtras({ d }: { d: DelegationItem }) {
+  const { confirming, diff } = useDelegations();
+  return (
+    <>
+      {d.conflict && <p className="deleg-conflict" role="alert">{d.conflict}</p>}
+      {confirming === d.id && (
+        <div className="perm" role="group" aria-label="Apply">
+          <div className="pwhat">{d.apply_text}</div>
+          <div className="pbtns">
+            <button type="button" className="allow" onClick={() => apply(d.id)}>Confirm</button>
+            <button type="button" onClick={() => askApply(null)}>Cancel</button>
+          </div>
+        </div>
+      )}
+      {diff?.id === d.id && (
+        <div className="deleg-diff" role="group" aria-label={`Changes on ${diff.branch}`}>
+          <pre>{diff.diff || "No changes."}</pre>
+          <button type="button" className="hbtn" onClick={closeDiff}>Close</button>
+        </div>
+      )}
+    </>
   );
 }
 

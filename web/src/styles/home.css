@@ -457,3 +457,43 @@ a.needs-row { text-decoration: none; }
 /* Next action: the kind of each Up next row, and the "All N" links in the foot. */
 .lead-row .lead-row-tag { flex: none; width: 52px; font-size: 11px; letter-spacing: .1em; color: var(--text-3); }
 .lead-links { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px 16px; }
+
+/* Focus / Board (Home.tsx): a two-button switch in the header bar. */
+.home-view { display: inline-flex; margin-left: auto; padding: 3px; gap: 2px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg-elev); }
+.home-view button { height: 34px; min-width: 64px; padding: 0 12px; border: 0; border-radius: 7px; background: none; color: var(--text-3); font: 500 13px var(--sans); cursor: pointer; }
+.home-view button[aria-pressed="true"] { background: var(--text); color: var(--bg); }
+.home-view button:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+@media (max-width: 860px) { .home-view { margin-left: 0; } }
+.home-cols.board { grid-template-columns: minmax(0, 1fr); }
+
+/* The Board (HomeBoard): four Kanban columns side by side; narrower than four fit, they scroll sideways and snap. */
+.kb { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.kb-cols { display: grid; grid-template-columns: repeat(4, minmax(260px, 1fr)); gap: 14px; align-items: start; overflow-x: auto; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; padding-bottom: 6px; }
+.kb-col { display: flex; flex-direction: column; gap: 10px; min-width: 0; padding: 12px; border: 1px solid var(--line-soft, var(--line)); border-radius: 12px; background: var(--side, var(--bg-elev)); scroll-snap-align: start; }
+.kb-head { display: flex; align-items: center; gap: 8px; padding: 2px 4px; }
+.kb-name { font: 600 14px var(--sans); }
+.kb-count { min-width: 22px; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--line); font-size: 11px; color: var(--text-3); text-align: center; }
+.kb-list { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.kb-empty { margin: 0; padding: 28px 8px; border: 1px dashed var(--line); border-radius: 10px; text-align: center; color: var(--text-3); font-size: 13px; }
+.kb-card { position: relative; display: flex; flex-direction: column; gap: 10px; min-width: 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg-elev); }
+.kb-card.needs { border-color: var(--s-acc, var(--warn)); }
+.kb-card.urgent::before { content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 3px; border-radius: 0 2px 2px 0; background: var(--urgent); }
+.kb-open { display: flex; flex-direction: column; gap: 4px; min-width: 0; padding: 0; border: 0; background: none; color: inherit; text-align: left; text-decoration: none; font: inherit; cursor: pointer; }
+.kb-open.still { cursor: default; }
+.kb-open:focus-visible { outline: 2px solid var(--text); outline-offset: 3px; border-radius: 4px; }
+.kb-title { font: 600 14px/1.35 var(--sans); overflow-wrap: anywhere; }
+.kb-meta { font-size: 12.5px; line-height: 1.45; color: var(--text-3); overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.kb-quote { font: 12px/1.5 var(--mono); color: var(--text-3); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 4.5em; overflow: hidden; }
+.kb-chips { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 10px; border-top: 1px dashed var(--line); }
+.kb-chip { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border: 1px solid var(--line); border-radius: 6px; font-size: 10.5px; letter-spacing: .08em; color: var(--text-2); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kb-chip.needs { color: var(--s-acc-txt, var(--warn)); border-color: var(--s-acc, var(--warn)); }
+.kb-chip.urgent { color: var(--urgent); border-color: var(--urgent); font-weight: 700; }
+.kb-acts, .kb-card .deleg-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.kb-card .hbtn { height: 32px; padding: 0 10px; font-size: 13px; }
+.kb-card .perm, .kb-card .deleg-diff { margin: 0; }
+.kb-card .deleg-diff pre { max-height: 50vh; overflow: auto; }
+.kb-foot { display: flex; flex-wrap: wrap; gap: 16px; font-size: 11px; letter-spacing: .1em; }
+.kb-foot button { padding: 0; border: 0; background: none; color: var(--text-3); font: inherit; letter-spacing: inherit; cursor: pointer; }
+.kb-foot button:hover { color: var(--text); }
+@media (max-width: 700px) { .kb-cols { grid-template-columns: repeat(4, 85%); } .kb-col { padding: 10px; } }
+@media (pointer: coarse) { .kb-card .hbtn { height: 40px; } }

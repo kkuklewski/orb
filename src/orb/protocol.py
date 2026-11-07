@@ -571,6 +571,9 @@ class PlanEvent(_Event):
     needs_you: list[PlanItem]
     next: PlanItem | None = None  # the next action: holds its place until started or gone, or a new ranking
     up_next: list[PlanItem] = []  # at most 5
+    more: list[PlanItem] = []  # Home's board: the queue past Up next (at most 40), in the same order
+    started: list[PlanItem] = []  # Home's board, In progress: queue items started today and still open
+    done: list[PlanItem] = []  # Home's board, Done: items marked done today, as they looked then (newest first)
     ranked_at: float | None = None  # when the last ranking was made
     stale: bool = False  # no ranking for exactly these items: rule order
     busy: bool = False  # a new ranking is being made
